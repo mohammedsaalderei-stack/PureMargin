@@ -1,0 +1,133 @@
+import { useEffect, useState } from "react";
+import Landing from "./Landing.jsx";
+import Login from "./Login.jsx";
+import Register from "./Register.jsx";
+import Pricing from "./Pricing.jsx";
+import Shell from "./Shell.jsx";
+import Splash from "./Splash.jsx";
+import { LanguageProvider } from "./i18n.jsx";
+import { ThemeProvider } from "./theme.jsx";
+import { prefersReducedMotion } from "./hooks.js";
+
+const OUT_MS = 260;
+
+function Routes() {
+  const [token, setToken] = useState(() => sessionStorage.getItem("sufra_token") || "");
+  const [user, setUser] = useState(() => sessionStorage.getItem("sufra_user") || "");
+  const [view, setView] = useState("landing");
+  const [splash, setSplash] = useState(() => !sessionStorage.getItem("sufra_seen"));
+  /* Set only for the session that just registered, so the connect prompt
+     appears once for a new account and not on every sign-in after. */
+  const [justRegistered, setJustRegistered] = useState(false);
+
+  /* Signing in and out replace the entire screen. Rather than cutting, the
+     outgoing view is held for a beat while it recedes, then the incoming
+     one settles. `phase` drives that hand-off. */
+  const [phase, setPhase] = useState("idle");
+
+  useEffect(() => {
+    if (!splash) return;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [splash]);
+
+  const transition = (apply) => {
+    if (prefersReducedMotion()) {
+      apply();
+      return;
+    }
+    setPhase("out");
+    setTimeout(() => {
+      apply();
+      setPhase("in");
+      setTimeout(() => setPhase("idle"), 500);
+    }, OUT_MS);
+  };
+
+  const signIn = (tk, name) => transition(() => {
+    setToken(tk);
+    setUser(name);
+  });
+
+  const signOut = () => transition(() => {
+    sessionStorage.removeItem("sufra_token");
+    sessionStorage.removeItem("sufra_user");
+    setToken("");
+    setUser("");
+    setView("landing");
+  });
+
+  let screen;
+  if (token) {
+    screen = (
+      <Shell
+        token={token}
+        user={user}
+        onLogout={signOut}
+        justRegistered={justRegistered}
+        /* A password change or "sign out everywhere" issues a fresh token;
+           without adopting it, the device that made the change would sign
+           itself out. */
+        onSession={(next) => {
+          sessionStorage.setItem("sufra_token", next);
+          setToken(next);
+        }}
+      />
+    );
+  } else if (view === "pricing") {
+    screen = <Pricing onBack={() => setView("landing")} onSignIn={() => setView("login")} />;
+  } else if (view === "register") {
+    screen = (
+      <Register
+        onBack={() => setView("landing")}
+        onSignIn={() => setView("login")}
+        onRegistered={(tk, name) => {
+          setJustRegistered(true);
+          signIn(tk, name);
+        }}
+      />
+    );
+  } else if (view === "login") {
+    screen = (
+      <Login
+        onBack={() => setView("landing")}
+        onAuthed={signIn}
+        onRegister={() => setView("register")}
+      />
+    );
+  } else {
+    screen = <Landing onSignIn={() => setView("login")} onRegister={() => setView("register")} onPricing={() => setView("pricing")} />;
+  }
+
+  const cls =
+    phase === "out" ? "auth-out" : phase === "in" ? "auth-in" : token ? "" : "view-in";
+
+  return (
+    <>
+      {phase !== "idle" && <div className="auth-bar" />}
+      <div className={`${cls} min-h-full`} key={token ? "app" : view}>
+        {screen}
+      </div>
+      {splash && (
+        <Splash
+          onDone={() => {
+            sessionStorage.setItem("sufra_seen", "1");
+            setSplash(false);
+          }}
+        />
+      )}
+    </>
+  );
+}
+
+export default function App() {
+  return (
+    <ThemeProvider>
+      <LanguageProvider>
+        <Routes />
+      </LanguageProvider>
+    </ThemeProvider>
+  );
+}
