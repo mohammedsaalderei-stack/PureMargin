@@ -60,7 +60,6 @@ const EMPTY_METRICS = {
    Deriving both from the same numbers means they can't disagree again. */
 const POLL_MS = 30 * 1000;
 
-const TAB_ICONS = Object.fromEntries(TAB_META.map((tb) => [tb.id, tb.icon]));
 
 const RAIL_ITEM = 46;
 const RAIL_GAP = 4;
@@ -77,6 +76,8 @@ const TAB_META = [
   { id: "billing", icon: Wallet },
   { id: "settings", icon: Cog },
 ];
+
+const TAB_ICONS = Object.fromEntries(TAB_META.map((tb) => [tb.id, tb.icon]));
 
 function useDesktop() {
   const [big, setBig] = useState(
