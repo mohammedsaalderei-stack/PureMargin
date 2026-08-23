@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { ADMIN_STRINGS } from "./i18n-admin.js";
 
 /* Every string in the product, in both languages.
    Arabic is written for a Gulf business audience: plain, direct, no formal padding. */
@@ -915,6 +916,13 @@ export const STRINGS = {
       title: "Start with one thing. Add the rest when it earns its place.",
       lead: "Each piece stands on its own and joins the same table when you're ready for it.",
       perMonth: "a month",
+      termLabel: "Paying for",
+      terms: { 1: "1 month", 3: "3 months", 6: "6 months", 12: "12 months" },
+      billedAs: "{total} for {n} months, paid once",
+      extraPlans: [
+        { name: "The back of house", body: "Stock, recipes and what the kitchen actually consumed against what it should have — the whole operations suite.", features: ["Ingredients, suppliers and units in one master", "Stock movements, transfers and counts", "Recipe costs that follow your real purchase prices", "Leakage: theoretical against actual, by branch", "Order plans and low-stock alerts"] },
+        { name: "The bill scanner", body: "Photograph a supplier invoice and it reads the lines, prices and units into your costs.", features: ["Arabic and English invoices", "Lines matched to ingredients you already have", "Prices updated where they've moved", "Every reading shown before it's saved"] },
+      ],
       onRequest: "Quoted",
       onRequestNote: "Depends on your POS and how many branches",
       offer: "First year · half price",
@@ -2137,6 +2145,13 @@ export const STRINGS = {
       title: "ابدأ بشيء واحد. وأضف الباقي حين يستحق مكانه.",
       lead: "كل قطعة تقف وحدها، وتنضم إلى الPureMargin نفسها حين تجهز لها.",
       perMonth: "شهريًا",
+      termLabel: "مدة الدفع",
+      terms: { 1: "شهر", 3: "٣ أشهر", 6: "٦ أشهر", 12: "١٢ شهرًا" },
+      billedAs: "{total} لمدة {n} أشهر، تُدفع مرة واحدة",
+      extraPlans: [
+        { name: "المطبخ الخلفي", body: "المخزون والوصفات وما استهلكه المطبخ فعلًا مقابل ما كان يجب أن يستهلكه — حزمة العمليات كاملة.", features: ["المكوّنات والموردون والوحدات في سجل واحد", "حركات المخزون والتحويلات والجرد", "تكاليف الوصفات وفق أسعار شرائك الحقيقية", "الفاقد: النظري مقابل الفعلي، لكل فرع", "خطط الشراء وتنبيهات نقص المخزون"] },
+        { name: "قارئ الفواتير", body: "صوّر فاتورة المورد فيقرأ البنود والأسعار والوحدات ويضعها في تكاليفك.", features: ["فواتير بالعربية والإنجليزية", "ربط البنود بمكوّنات موجودة عندك", "تحديث الأسعار التي تغيّرت", "عرض كل قراءة قبل حفظها"] },
+      ],
       onRequest: "بعرض سعر",
       onRequestNote: "حسب نظام الكاشير وعدد الفروع",
       offer: "السنة الأولى · نصف السعر",
@@ -3348,6 +3363,13 @@ export const STRINGS = {
       title: "एक चीज़ से शुरू कीजिए। बाक़ी तब जोड़िए जब वह अपनी जगह कमा ले।",
       lead: "हर हिस्सा अकेले भी चलता है, और तैयार होने पर उसी मेज़ पर आ जाता है।",
       perMonth: "प्रति माह",
+      termLabel: "भुगतान अवधि",
+      terms: { 1: "1 माह", 3: "3 माह", 6: "6 माह", 12: "12 माह" },
+      billedAs: "{n} माह के लिए {total}, एक बार में",
+      extraPlans: [
+        { name: "रसोई का पिछला हिस्सा", body: "स्टॉक, रेसिपी और रसोई ने जो असल में खर्च किया बनाम जो होना चाहिए था — पूरा ऑपरेशंस पैकेज।", features: ["सामग्री, सप्लायर और इकाइयाँ एक ही जगह", "स्टॉक की आवाजाही, ट्रांसफ़र और गिनती", "आपकी असली खरीद क़ीमतों पर रेसिपी लागत", "लीकेज: सैद्धांतिक बनाम वास्तविक, शाखावार", "ऑर्डर योजना और कम स्टॉक की चेतावनी"] },
+        { name: "बिल स्कैनर", body: "सप्लायर का बिल फ़ोटो कीजिए — लाइनें, क़ीमतें और इकाइयाँ पढ़कर आपकी लागत में आ जाती हैं।", features: ["हिंदी-अंग्रेज़ी और अरबी बिल", "पहले से मौजूद सामग्री से मिलान", "जहाँ क़ीमत बदली, वहाँ अपडेट", "सेव करने से पहले हर पढ़ी गई लाइन दिखती है"] },
+      ],
       onRequest: "कोटेशन पर",
       onRequestNote: "आपके काउंटर और शाखाओं की संख्या पर निर्भर",
       offer: "पहला साल · आधी क़ीमत",
@@ -4536,6 +4558,13 @@ export const STRINGS = {
       title: "Magsimula sa isa. Idagdag ang iba kapag pinatunayan nilang sulit.",
       lead: "Kayang tumayo nang mag-isa ng bawat piraso, at sumasama sa parehong mesa kapag handa ka na.",
       perMonth: "kada buwan",
+      termLabel: "Bayad para sa",
+      terms: { 1: "1 buwan", 3: "3 buwan", 6: "6 buwan", 12: "12 buwan" },
+      billedAs: "{total} para sa {n} buwan, isang bayad",
+      extraPlans: [
+        { name: "Ang likod ng kusina", body: "Stock, recipe, at kung ano talaga ang nagamit ng kusina kumpara sa dapat — buong operations suite.", features: ["Sangkap, supplier at yunit sa isang master", "Galaw ng stock, transfer at counting", "Gastos ng recipe base sa totoong presyo ng bili", "Leakage: teoretikal kumpara sa aktwal, kada sangay", "Plano ng order at alerto sa kulang na stock"] },
+        { name: "Ang bill scanner", body: "Kunan ng larawan ang invoice ng supplier at babasahin nito ang mga linya, presyo at yunit papasok sa gastos mo.", features: ["Invoice sa Ingles at Arabic", "Mga linyang itinutugma sa sangkap na meron ka na", "Presyong ina-update kung nagbago", "Bawat nabasa ay ipinapakita bago i-save"] },
+      ],
       onRequest: "May quote",
       onRequestNote: "Depende sa POS mo at bilang ng sangay",
       offer: "Unang taon · kalahating presyo",
@@ -4901,7 +4930,7 @@ export function LanguageProvider({ children }) {
       lang,
       dir: STRINGS[lang].dir,
       rtl: STRINGS[lang].dir === "rtl",
-      t: STRINGS[lang],
+      t: { ...STRINGS[lang], admin: ADMIN_STRINGS[lang] || ADMIN_STRINGS.en },
       set: (next) => LANGS.includes(next) && setLang(next),
       /* Kept so existing call sites still work: cycles through the list. */
       toggle: () => setLang((l) => LANGS[(LANGS.indexOf(l) + 1) % LANGS.length]),

@@ -8,6 +8,7 @@ import { useC } from "./theme.jsx";
 import BrandMark from "./BrandMark.jsx";
 import { useLang, fill } from "./i18n.jsx";
 import { useSwipe } from "./hooks-nav.js";
+import { useRoute, navigate } from "./router.js";
 import {
   listConversations, saveConversation, deleteConversation, newId, getConversation,
   fetchRemote, pushRemote, deleteRemote, merge,
@@ -147,7 +148,16 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
   const C = useC();
   const { t, rtl } = useLang();
   const desktop = useDesktop();
-  const [tab, setTab] = useState("overview");
+  /* The open screen is part of the address (`#/app/<tab>`), so every tab can
+     be linked to and the browser's back button — and Backspace — step back
+     through the screens you actually visited. */
+  const route = useRoute();
+  /* An address naming a screen that doesn't exist opens the dashboard rather
+     than a blank pane. */
+  const routeTab = route.name === "app" && Object.hasOwn(SCREEN_FEATURE, route.param) ? route.param : "overview";
+  const [tab, setTabState] = useState(routeTab);
+  useEffect(() => { setTabState(routeTab); }, [routeTab]);
+  const setTab = (next) => { setTabState(next); navigate(`app/${next}`); };
   const [palette, setPalette] = useState(false);
   const [pending, setPending] = useState("");
   const [direction, setDirection] = useState(1);

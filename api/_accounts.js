@@ -131,8 +131,16 @@ export async function verifyPassword(identifier, password) {
    pieces worth buying, and an empty product nobody can use sells nothing. */
 export const FREE_FEATURES = ["table"];
 
-/* Sold separately. */
-export const FEATURES = ["assistant", "menu", "forecast"];
+/* Sold separately. Every id here must exist in `SCREEN_FEATURE` on the client,
+   or a package would be sellable with nothing behind it — and anything missing
+   here can't be granted at all, which is how the operations suite and the bill
+   scanner were unsellable. */
+export const FEATURES = ["assistant", "menu", "forecast", "operations", "billscan"];
+
+/* The terms a subscription can be activated for, in months. Anything else is
+   treated as a single month rather than refused, so a stray value can never
+   grant a longer period than an operator chose. */
+export const PLAN_MONTHS = [1, 3, 6, 12];
 
 /* Mock checkout. A real one would verify a payment intent from the
    processor before writing anything here — this is the seam where that

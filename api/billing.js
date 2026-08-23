@@ -10,7 +10,7 @@ import { cancelPlan, publicAccount, FEATURES, FREE_FEATURES } from "./_accounts.
    marked point and keep everything else. Entitlements are granted in exactly
    one place, so there is exactly one thing to secure. */
 
-const PRICES = { assistant: 200, menu: 150, forecast: 100 };
+const PRICES = { assistant: 200, menu: 150, forecast: 100, operations: 300, billscan: 150 };
 
 export default async function handler(req, res) {
   const session = await requireAuth(req, res);
