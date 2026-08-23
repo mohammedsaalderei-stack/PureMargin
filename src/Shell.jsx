@@ -455,7 +455,7 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
                     boxShadow: on ? "inset 0 0 0 1px rgba(139,92,246,0.2)" : "none",
                   }}>
                   <Icon size={17} />
-                  <span className="flex-1 text-start">{t[id].tab}</span>
+                  <span className="flex-1 text-start">{t[id]?.tab || id}</span>
                   {!entitlements(account).has(SCREEN_FEATURE[id]) && <Lock size={12} style={{ color: C.slate }} />}
                 </button>
               );

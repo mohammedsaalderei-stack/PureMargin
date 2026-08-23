@@ -1103,6 +1103,26 @@ export const STRINGS = {
       usingServer: "Using the deployment-wide token set by your administrator.",
     },
 
+    costs: {
+      tab: "Bill scan",
+      title: "Scan a bill",
+      lead: "Photograph a printed bill and the AI reads each line, matches it to your menu, and prices it against your costs — so the profit on that sale lands without any typing.",
+      scan: "Scan bill",
+      linesTitle: "Lines",
+      amount: "Amount",
+      cost: "Cost",
+      profit: "Profit",
+      unmatchedTitle: "Couldn't match",
+      unmatchedNote: "Pick the menu item and enter the amount for each line the AI couldn't place.",
+      pickItem: "Pick an item…",
+      amountPlaceholder: "Amount",
+      total: "Total",
+      totalCost: "Cost",
+      totalProfit: "Profit",
+      partialNote: "{n} lines have no cost, so the profit shown is partial.",
+      empty: "Scan a bill to see each line priced against your costs.",
+    },
+
     billing: {
       tab: "Packages", title: "Choose what you need",
       lead: "Your account is set up. Pick the pieces you'll use — you can add the rest later, and drop any of them just as easily.",
@@ -2332,6 +2352,26 @@ export const STRINGS = {
       usingServer: "يُستخدم الرمز العام الذي ضبطه مسؤول النظام.",
     },
 
+    costs: {
+      tab: "مسح الفاتورة",
+      title: "امسح فاتورة",
+      lead: "صوّر فاتورة مطبوعة، يقرأ الذكي كل سطر ويطابقه مع قائمتك ويسعّره حسب تكاليفك — فيصل ربح تلك البيعة دون أي كتابة.",
+      scan: "امسح الفاتورة",
+      linesTitle: "السطور",
+      amount: "المبلغ",
+      cost: "التكلفة",
+      profit: "الربح",
+      unmatchedTitle: "تعذّت المطابقة",
+      unmatchedNote: "اختر الصنف من القائمة وأدخل المبلغ لكل سطر لم يستطع الذكي مطابقته.",
+      pickItem: "اختر صنفًا…",
+      amountPlaceholder: "المبلغ",
+      total: "الإجمالي",
+      totalCost: "التكلفة",
+      totalProfit: "الربح",
+      partialNote: "{n} سطور بلا تكلفة، فالربح المعروض جزئي.",
+      empty: "امسح فاتورة لرؤية كل سطر مسعّرًا حسب تكاليفك.",
+    },
+
     billing: {
       tab: "الباقات", title: "اختر ما تحتاجه",
       lead: "حسابك جاهز. اختر القطع التي ستستخدمها — تستطيع إضافة الباقي لاحقًا، وإلغاء أي منها بالسهولة نفسها.",
@@ -3456,6 +3496,8 @@ export const STRINGS = {
         watch: "उस शाखा की बिक्री, ऑर्डर, और ऑर्डर कब आते हैं।",
         caution: "शाखाएँ अलग मोहल्लों में हैं। फ़ासले का कुछ हिस्सा सड़क है, रसोई नहीं।" },
       risk: { title: "बहुत कुछ {name} पर टिका है",
+        body: "एक ही व्यंजन आपकी कमाई का बड़ा हिस्सा उठा रह�ोई नहीं।" },
+      risk: { title: "बहुत कुछ {name} पर टिका है",
         body: "एक ही व्यंजन आपकी कमाई का बड़ा हिस्सा उठा रहा है। यह अच्छी समस्या है — तब तक, जब तक सप्लायर न बदले, दाम न हिले, या लोग ऊब न जाएँ।",
         impact: "दूसरा मज़बूत व्यंजन होने का मतलब है कि एक व्यंजन का बुरा महीना पूरे कारोबार का बुरा महीना नहीं बनता।",
         plan: ["इसके ठीक पीछे बैठे दो व्यंजन ढूँढिए।", "उनमें से एक को तय अवधि के लिए मेन्यू में बेहतर जगह दीजिए।", "देखिए कुल बढ़ा या ऑर्डर बस व्यंजनों के बीच खिसके।"],
@@ -3548,6 +3590,26 @@ export const STRINGS = {
       posNot: "जुड़ा नहीं", posReplace: "टोकन बदलें", posRemove: "अलग करें",
       posNote: "टोकन सहेजने से पहले एन्क्रिप्ट होता है और ब्राउज़र को कभी वापस नहीं भेजा जाता।",
       usingServer: "आपके एडमिन का सेट किया साझा टोकन इस्तेमाल हो रहा है।",
+    },
+
+    costs: {
+      tab: "बिल स्कैन",
+      title: "बिल स्कैन करें",
+      lead: "एक छपे बिल की फोटो लें — एआई हर लाइन पढ़ता है, आपके मेन्यू से मिलाता है, और आपकी लागत पर मूल्य लगाता है, तो उस बिक्री का मुनाफा बिना टाइप किए सामने आता है।",
+      scan: "बिल स्कैन करें",
+      linesTitle: "लाइनें",
+      amount: "रकम",
+      cost: "लागत",
+      profit: "मुनाफा",
+      unmatchedTitle: "मिलान नहीं हुआ",
+      unmatchedNote: "जिन लाइनों को एआई नहीं पहचान पाया, उनके लिए मेन्यू आइटम चुनें और रकम दर्ज करें।",
+      pickItem: "आइटम चुनें…",
+      amountPlaceholder: "रकम",
+      total: "कुल",
+      totalCost: "लागत",
+      totalProfit: "मुनाफा",
+      partialNote: "{n} लाइनों की लागत नहीं है, इसलिए दिखलाया गया मुनाफा आंशिक है।",
+      empty: "अपनी लागत के हिसाब से हर लाइन का मूल्य देखने के लिए एक बिल स्कैन करें।",
     },
 
     billing: {
@@ -4745,6 +4807,26 @@ export const STRINGS = {
       usingServer: "Ginagamit ang pangkalahatang token na itinakda ng admin mo.",
     },
 
+    costs: {
+      tab: "Bayarin scan",
+      title: "I-scan ang bayarin",
+      lead: "Kumuha ng litrato ng nakalimbag na bayarin at binabasa ng AI ang bawat linya, tinutugma sa menu mo, at pinapresyo sa gastos mo — kaya kita ng benta na lumalabas nang walang pag-type.",
+      scan: "I-scan ang bayarin",
+      linesTitle: "Mga linya",
+      amount: "Halaga",
+      cost: "Gastos",
+      profit: "Kita",
+      unmatchedTitle: "Hindi matugma",
+      unmatchedNote: "Piliin ang menu item at ilagay ang halaga para sa bawat linya na hindi mapansin ng AI.",
+      pickItem: "Pumili ng item…",
+      amountPlaceholder: "Halaga",
+      total: "Kabuuan",
+      totalCost: "Gastos",
+      totalProfit: "Kita",
+      partialNote: "{n} linya walang gastos, kaya ang kitang ipinapakita ay bahagi lang.",
+      empty: "Mag-scan ng bayarin para makita ang bawat linya na presyo laban sa gastos mo.",
+    },
+
     billing: {
       tab: "Pakete", title: "Piliin ang kailangan mo",
       lead: "Handa na ang account mo. Piliin ang mga pirasong gagamitin — puwedeng idagdag ang iba mamaya, at kasingdali ring tanggalin.",
@@ -4932,6 +5014,22 @@ export function LanguageProvider({ children }) {
       rtl: STRINGS[lang].dir === "rtl",
       t: { ...STRINGS[lang], admin: ADMIN_STRINGS[lang] || ADMIN_STRINGS.en },
       set: (next) => LANGS.includes(next) && setLang(next),
+      /* Kept so existing call sites still work: cycles through the list. */
+      toggle: () => setLang((l) => LANGS[(LANGS.indexOf(l) + 1) % LANGS.length]),
+      langs: LANGS.map((id) => ({ id, name: STRINGS[id].langName })),
+    }),
+    [lang]
+  );
+
+  return <LangContext.Provider value={value}>{children}</LangContext.Provider>;
+}
+
+export function useLang() {
+  const ctx = useContext(LangContext);
+  if (!ctx) throw new Error("useLang must be used inside LanguageProvider");
+  return ctx;
+}
+&& setLang(next),
       /* Kept so existing call sites still work: cycles through the list. */
       toggle: () => setLang((l) => LANGS[(LANGS.indexOf(l) + 1) % LANGS.length]),
       langs: LANGS.map((id) => ({ id, name: STRINGS[id].langName })),
