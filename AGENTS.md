@@ -271,9 +271,40 @@ they override the defaults).
 - Front end: tab `recipes` in `Shell.jsx` gated on `view:costs`;
   `src/screens/Recipes.jsx` (list + cost-basis switch) → `recipes/RecipeForm.jsx`
   → `recipes/RecipeSheet.jsx` → `recipes/CostSimulator.jsx`. i18n `recipes.*`.
-- Tests: `api/_recipes.test.js` (25) — 156 total.
-- **Still open:** theoretical vs actual consumption and the variance engine (this
-  phase is its prerequisite), then dashboards, then the assistant.
+- Tests: `api/_recipes.test.js` (25).
+
+## Theoretical vs actual — the variance engine (stage 4, phase 6)
+- `salesLines(posToken, { from, to, branches })` in `api/_data.js` — line-level sold
+  quantities per branch from the **same cached receipts** as `aggregate` (which
+  can't serve this: 30-day org totals, rounded, top-14 only). Refunds/cancelled
+  excluded. Returns fetch provenance including `limitedHistory`.
+- `api/_variance.js`:
+  - `theoreticalUsage(salesRows, recipes, { at })` — sold qty ÷ `portions`, gross
+    draw (`qtyBase / yield`), summed per ingredient. Packaging excluded (costed
+    into the dish, not counted against the walk-in). Matching is on POS item name,
+    case/space-insensitive, variant preferred then blank-variant fallback.
+  - Recipe version used = the one in force **at period end**, same rule as the
+    recipe screen; per-receipt dating is deliberately not claimed since sales rows
+    are aggregated.
+  - `actualUsage` — `consume`/`issue`/`waste` plus signed `adjust`. **`transfer_out`
+    and `return_out` are excluded**: the stock moved, it wasn't used — counting
+    them would invent a variance in one branch and hide it in the other. Reversed
+    entries and reversals both skipped.
+  - `varianceReport` decomposes: `variance = actual − theoretical`, of which
+    `waste` and `adjustment` are explained; the remainder is **`unexplained`** —
+    theft, over-portioning, unrecorded waste or a wrong recipe. Rows are ranked by
+    |unexplained value|, not quantity.
+  - Two refusals: sales with no recipe are reported (`quality.recipeCoverage`,
+    `unmatched[]`) because low coverage understates theoretical and makes variance
+    read worse than it is; unpriced ingredients give quantity variance with
+    `value.* === null`, never 0.
+- Route `api/variance.js`, GET only, `view:costs`. Works with the POS missing —
+  shows actual usage and reports `sales.error` rather than a confident total.
+- Front end: tab `variance` (`view:costs`) → `src/screens/Variance.jsx` +
+  `src/variance/VarianceRow.jsx`. i18n `variance.*`.
+- Tests: `api/_variance.test.js` (25) — 181 total.
+- **Still open:** targets and alerts, the dashboard/forecast phase, then the
+  assistant.
 
 ## Sign-in email
 - `setEmail(username, currentPassword, nextEmail)` in `api/_accounts.js`, exposed

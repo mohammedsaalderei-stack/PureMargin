@@ -17,8 +17,9 @@ export const SCREEN_FEATURE = {
   team: null,
   // Inventory likewise: `view:inventory` decides, not the subscription.
   inventory: null,
-  // Recipes and their cost: `view:costs` decides.
+  // Recipes and their cost, and theoretical vs actual: `view:costs` decides.
   recipes: null,
+  variance: null,
   settings: null,
   billing: null,
 };

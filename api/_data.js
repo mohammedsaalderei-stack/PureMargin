@@ -451,6 +451,76 @@ export async function getMetrics(posToken, { maxAge = CACHE_MS, overrides = {}, 
   };
 }
 
+/* Sold quantities per menu item, scoped and dated — the sales half of
+   theoretical consumption.
+
+   The variance engine needs what was actually sold, per branch, inside a period.
+   `aggregate` can't answer that: it keeps a thirty-day organization total, rounds
+   money and drops all but the top items, which is right for a dashboard and
+   useless for multiplying by a recipe. So this reads the same cached receipts and
+   returns line-level quantities untouched.
+
+   `branches` is the already-authorized, already-intersected list — a filter over
+   receipts, exactly as in `aggregate`, and never a list straight from a request.
+   Refunds and cancelled receipts are excluded: a refunded sale consumed no
+   ingredients.
+
+   The provenance of the read travels with it, because a variance figure resting
+   on a stale or truncated sales history is a different claim from one that isn't. */
+export async function salesLines(posToken, { from, to = Date.now(), branches = null, maxAge = CACHE_MS } = {}) {
+  const token = posToken || process.env.LOYVERSE_ACCESS_TOKEN || "";
+  if (!token) throw new NotConnected();
+
+  const key = token.slice(0, 24);
+  const hit = cache.get(key);
+  let raw = hit && Date.now() - hit.at < maxAge ? hit.raw : null;
+  if (!raw) {
+    try {
+      raw = await fetchRaw(token);
+    } catch (err) {
+      console.error("Loyverse fetch failed:", err.message);
+      throw new PosUnreachable(err.message);
+    }
+    cache.set(key, { at: Date.now(), raw });
+  }
+
+  const allowed = branches === null ? null : new Set(branches.map(String));
+  const rows = new Map();
+
+  for (const r of raw.receipts) {
+    if (r.receipt_type === "REFUND" || r.cancelled_at) continue;
+    const branchId = String(r.store_id || "unknown");
+    if (allowed && !allowed.has(branchId)) continue;
+    const at = new Date(r.receipt_date).getTime();
+    if (from && at < from) continue;
+    if (to && at > to) continue;
+
+    for (const li of r.line_items || []) {
+      const name = li.item_name || "Unnamed item";
+      const variant = li.variant_name || "";
+      const mapKey = `${branchId}||${name}||${variant}`;
+      const row = rows.get(mapKey) || { branchId, name, variant, qty: 0, revenue: 0, lines: 0 };
+      row.qty += Number(li.quantity) || 0;
+      row.revenue += Number(li.total_money) || 0;
+      row.lines += 1;
+      rows.set(mapKey, row);
+    }
+  }
+
+  return {
+    lines: [...rows.values()],
+    /* What the sales side of any variance below actually rests on. */
+    fetch: {
+      at: raw.fetchedAt,
+      since: raw.since,
+      receiptCount: raw.receiptCount,
+      /* True when the POS wouldn't give us the whole window asked for, which
+         understates theoretical usage and must never be silently absorbed. */
+      limitedHistory: raw.limitedHistory,
+    },
+  };
+}
+
 /* Seconds since these figures were actually fetched, so the interface can
    say "updated 12 seconds ago" rather than implying they're instantaneous. */
 export function cacheAge(posToken) {
