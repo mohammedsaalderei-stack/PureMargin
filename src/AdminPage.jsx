@@ -4,7 +4,7 @@ import {
 } from "lucide-react";
 import { useC } from "./theme.jsx";
 import BrandMark from "./BrandMark.jsx";
-import { useLang, fill, localeFor } from "./i18n.jsx";
+import { useLang, fill, localeFor, formatDate } from "./i18n.jsx";
 import ThemeToggle from "./ThemeToggle.jsx";
 import LanguagePicker from "./LanguagePicker.jsx";
 
