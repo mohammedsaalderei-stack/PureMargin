@@ -1,11 +1,10 @@
 // Pulls sales from Loyverse and shapes them into the metrics the UI needs.
-// With no LOYVERSE_ACCESS_TOKEN set, returns realistic sample data instead,
-// so the app is fully usable before the POS is connected.
+// With no LOYVERSE_ACCESS_TOKEN set, raises NotConnected so the interface
+// prompts for a POS connection rather than inventing figures.
 
 import { buildAdvice } from "./_advice.js";
 import { marginLayer } from "./_margin.js";
 import { aggregate } from "./_aggregate.js";
-import { demoStores, demoRaw } from "./_demo.js";
 
 const BASE = "https://api.loyverse.com/v1.0";
 /* Short, because the dashboard polls and people expect today's number to
@@ -364,9 +363,10 @@ export async function fetchMerchant(token) {
    a month of receipts first. This is the cheap read for that. */
 export async function branchList(posToken) {
   const token = posToken || process.env.LOYVERSE_ACCESS_TOKEN || "";
-  /* No POS linked yet: the dashboard runs on the sample branch roster so an
-     account can look around before connecting anything. */
-  if (!token) return demoStores();
+  /* No POS linked yet: there are no branches to report. Callers that only
+     need the roster for scope resolution catch this and carry on with an
+     empty list; the dashboard turns it into the connect-your-POS state. */
+  if (!token) throw new NotConnected();
 
   /* The cached fetch already holds the roster, so a dashboard request that is
      about to aggregate anyway doesn't pay for a second /stores call — which
@@ -400,10 +400,10 @@ export async function branchList(posToken) {
 
 export async function getMetrics(posToken, { maxAge = CACHE_MS, overrides = {}, branches = null } = {}) {
   const token = posToken || process.env.LOYVERSE_ACCESS_TOKEN || "";
-  /* No POS linked yet: serve the sample figures so the dashboard is usable end
-     to end before anything is connected. Marked `connected: false` so the
-     interface can label it as demo rather than passing it off as live. */
-  const demo = !token;
+  /* No POS linked yet: refuse to invent figures. The interface turns this
+     into the connect-your-POS state rather than presenting sample numbers as
+     if they were the business's own. */
+  if (!token) throw new NotConnected();
 
   /* The cache holds the raw upstream read, not the finished payload. Two
      requests with different branch scopes share one Loyverse call and are
@@ -412,7 +412,7 @@ export async function getMetrics(posToken, { maxAge = CACHE_MS, overrides = {}, 
      longer belong in the key for the same reason: they're applied during
      aggregation, so entering a cost is reflected immediately without a
      refetch. */
-  const key = demo ? "demo" : token.slice(0, 24);
+  const key = token.slice(0, 24);
   const hit = cache.get(key);
 
   let raw = hit && Date.now() - hit.at < maxAge ? hit.raw : null;
@@ -421,17 +421,13 @@ export async function getMetrics(posToken, { maxAge = CACHE_MS, overrides = {}, 
      hits, which are not events worth logging. */
   let fetched = false;
   if (!raw) {
-    if (demo) {
-      raw = demoRaw(Date.now());
-    } else {
-      try {
-        raw = await fetchRaw(token);
-      } catch (err) {
-        console.error("Loyverse fetch failed:", err.message);
-        throw new PosUnreachable(err.message);
-      }
-      fetched = true;
+    try {
+      raw = await fetchRaw(token);
+    } catch (err) {
+      console.error("Loyverse fetch failed:", err.message);
+      throw new PosUnreachable(err.message);
     }
+    fetched = true;
     cache.set(key, { at: Date.now(), raw });
   }
 
@@ -445,7 +441,7 @@ export async function getMetrics(posToken, { maxAge = CACHE_MS, overrides = {}, 
 
   const shaped = finish(aggregate(raw, { overrides, branches: scoped }));
   return {
-    ...(demo ? { ...shaped, connected: false, source: "Demo data" } : shaped),
+    ...shaped,
     allBranches: raw.allBranches,
     /* Provenance inputs, passed through rather than recomputed downstream so
        there is exactly one account of where a figure came from. */
@@ -480,21 +476,17 @@ export async function getMetrics(posToken, { maxAge = CACHE_MS, overrides = {}, 
    on a stale or truncated sales history is a different claim from one that isn't. */
 export async function salesLines(posToken, { from, to = Date.now(), branches = null, maxAge = CACHE_MS } = {}) {
   const token = posToken || process.env.LOYVERSE_ACCESS_TOKEN || "";
-  const demo = !token;
+  if (!token) throw new NotConnected();
 
-  const key = demo ? "demo" : token.slice(0, 24);
+  const key = token.slice(0, 24);
   const hit = cache.get(key);
   let raw = hit && Date.now() - hit.at < maxAge ? hit.raw : null;
   if (!raw) {
-    if (demo) {
-      raw = demoRaw(Date.now());
-    } else {
-      try {
-        raw = await fetchRaw(token);
-      } catch (err) {
-        console.error("Loyverse fetch failed:", err.message);
-        throw new PosUnreachable(err.message);
-      }
+    try {
+      raw = await fetchRaw(token);
+    } catch (err) {
+      console.error("Loyverse fetch failed:", err.message);
+      throw new PosUnreachable(err.message);
     }
     cache.set(key, { at: Date.now(), raw });
   }
@@ -540,7 +532,8 @@ export async function salesLines(posToken, { from, to = Date.now(), branches = n
    say "updated 12 seconds ago" rather than implying they're instantaneous. */
 export function cacheAge(posToken) {
   const token = posToken || process.env.LOYVERSE_ACCESS_TOKEN || "";
-  const key = token ? token.slice(0, 24) : "demo";
+  if (!token) return null;
+  const key = token.slice(0, 24);
   const hit = cache.get(key);
   return hit ? Math.round((Date.now() - hit.at) / 1000) : null;
 }
