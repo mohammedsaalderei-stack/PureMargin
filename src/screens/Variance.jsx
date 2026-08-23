@@ -23,7 +23,7 @@ const PERIODS = { d7: 7, d30: 30, d90: 90 };
 
 export default function Variance({ token, branches = [] }) {
   const C = useC();
-  const { t, fill } = useLang();
+  const { t } = useLang();
   const s = t.variance;
 
   const [data, setData] = useState(null);

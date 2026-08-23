@@ -11,7 +11,7 @@ import { DirhamMark } from "../Dirham.jsx";
 
 export default function BranchRanking({ rows, branchNames, targets }) {
   const C = useC();
-  const { t, fill } = useLang();
+  const { t } = useLang();
   const s = t.plan;
 
   const money = (n) => (

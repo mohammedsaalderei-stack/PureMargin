@@ -15,7 +15,7 @@ import { DirhamMark } from "../Dirham.jsx";
 
 export default function RecipeSheet({ token, recipe, method, canManage, onClose, onEdit, onArchive }) {
   const C = useC();
-  const { t, fill } = useLang();
+  const { t } = useLang();
   const s = t.recipes;
 
   const [simulating, setSimulating] = useState(false);

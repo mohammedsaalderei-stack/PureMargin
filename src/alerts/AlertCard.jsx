@@ -20,7 +20,7 @@ const toneFor = (severity, C) =>
 
 export default function AlertCard({ alert }) {
   const C = useC();
-  const { t, fill } = useLang();
+  const { t } = useLang();
   const s = t.alerts;
 
   const tone = toneFor(alert.severity, C);

@@ -17,7 +17,7 @@ const emptyLine = { ingredientId: "", qty: "", unit: "" };
 
 export default function RecipeForm({ meta, recipe, busy, error, onSave, onCancel }) {
   const C = useC();
-  const { t, fill } = useLang();
+  const { t } = useLang();
   const s = t.recipes;
 
   const current = recipe?.effective || null;

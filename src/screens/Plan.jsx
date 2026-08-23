@@ -18,7 +18,7 @@ const HORIZONS = { d3: 3, d7: 7, d14: 14 };
 
 export default function Plan({ token, branches = [] }) {
   const C = useC();
-  const { t, fill } = useLang();
+  const { t } = useLang();
   const s = t.plan;
 
   const [data, setData] = useState(null);
