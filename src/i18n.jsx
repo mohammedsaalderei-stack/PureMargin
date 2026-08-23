@@ -124,7 +124,7 @@ export const STRINGS = {
 
     close: {
       title: "Start with the question you asked yourself this morning.",
-      lead: "Sign in to see your own numbers, or explore the demo data first.",
+      lead: "Sign in to see your own numbers.",
     },
 
     footer: {
@@ -814,7 +814,7 @@ export const STRINGS = {
       title: "Settings",
       dataSource: "Data source",
       connected: "Connected to your POS",
-      notConnected: "Running on demo data",
+      notConnected: "Not connected",
       connectedBody: "Figures come from your live sales and refresh every 15 minutes.",
       notConnectedBody: "No POS connected, so there are no figures to show yet. Connect one above and this fills with your own service.",
       source: "Source",
@@ -1346,7 +1346,7 @@ export const STRINGS = {
 
     close: {
       title: "ابدأ بالسؤال الذي سألته نفسك هذا الصباح.",
-      lead: "سجّل الدخول لرؤية أرقامك، أو استكشف البيانات التجريبية أولًا.",
+      lead: "سجّل الدخول لرؤية أرقامك.",
     },
 
     footer: {
@@ -2036,7 +2036,7 @@ export const STRINGS = {
       title: "الإعدادات",
       dataSource: "مصدر البيانات",
       connected: "متصل بنظام الكاشير",
-      notConnected: "يعمل على بيانات تجريبية",
+      notConnected: "غير مربوط",
       connectedBody: "الأرقام تأتي من مبيعاتك المباشرة وتُحدَّث كل 15 دقيقة.",
       notConnectedBody: "لا يوجد نظام نقاط بيع مربوط، فلا توجد أرقام لعرضها بعد. اربط واحدًا أعلاه وتمتلئ هذه بخدمتك أنت.",
       source: "المصدر",
@@ -2522,7 +2522,7 @@ export const STRINGS = {
 
     close: {
       title: "उसी सवाल से शुरू करें जो आज सुबह आपके मन में था।",
-      lead: "अपने आँकड़े देखने के लिए साइन इन करें, या पहले डेमो डेटा देख लें।",
+      lead: "अपने आँकड़े देखने के लिए साइन इन करें।",
     },
 
     footer: { rights: "PureMargin — खाद्य कारोबार के लिए बिक्री की समझ।" },
@@ -3234,7 +3234,7 @@ export const STRINGS = {
       title: "सेटिंग्स",
       dataSource: "डेटा स्रोत",
       connected: "आपके POS से जुड़ा है",
-      notConnected: "डेमो डेटा पर चल रहा है",
+      notConnected: "जुड़ा नहीं",
       connectedBody: "आँकड़े आपकी लाइव बिक्री से आते हैं और हर 15 मिनट में ताज़ा होते हैं।",
       notConnectedBody: "कोई POS जुड़ा नहीं है, तो दिखाने को अभी आँकड़े नहीं हैं। ऊपर एक जोड़िए और यह आपकी अपनी सेवा से भर जाएगा।",
       source: "स्रोत",
@@ -3710,7 +3710,7 @@ export const STRINGS = {
 
     close: {
       title: "Magsimula sa tanong na naisip mo kaninang umaga.",
-      lead: "Mag-sign in para makita ang sarili mong numero, o tingnan muna ang demo.",
+      lead: "Mag-sign in para makita ang sarili mong numero.",
     },
 
     footer: { rights: "PureMargin — pag-unawa sa benta para sa negosyong pagkain." },
@@ -4422,7 +4422,7 @@ export const STRINGS = {
       title: "Mga setting",
       dataSource: "Pinagkukunan ng datos",
       connected: "Konektado sa POS mo",
-      notConnected: "Demo na datos ang ginagamit",
+      notConnected: "Hindi nakakonekta",
       connectedBody: "Galing sa live mong benta ang mga numero at nagre-refresh kada 15 minuto.",
       notConnectedBody: "Walang nakakonektang POS, kaya wala pang numerong maipapakita. Magkonekta sa itaas at mapupuno ito ng sarili mong serbisyo.",
       source: "Pinagkunan",

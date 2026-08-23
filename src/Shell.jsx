@@ -303,7 +303,11 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
 
   useSwipe(mainRef, { enabled: !desktop, onNext: () => step(rtl ? -1 : 1), onPrev: () => step(rtl ? 1 : -1) });
 
-  const unconnectedAccount = needsPos || (Boolean(account?.account) && !account.account.posConnected && !account.serverToken);
+  /* Only a genuine "no figures at all" state (the 409 the API used to return
+     when nothing was connected) hides the dashboard. With sample data served
+     for unconnected accounts, the table renders and is simply labelled as
+     demo rather than live. */
+  const unconnectedAccount = needsPos;
 
   const noticedLine = (() => {
     const o = data?.observations?.[0]; if (!o) return "";
@@ -370,7 +374,7 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
   const paletteEl = <CommandPalette open={palette} onClose={() => setPalette(false)} onGo={go}
     onAsk={(q) => { setPending(q); go("ask"); }} />;
 
-  const liveDot = data && !unconnectedAccount && <LiveDot fetchedAt={fetchedAt} refreshing={refreshing} />;
+  const liveDot = data && !unconnectedAccount && <LiveDot fetchedAt={fetchedAt} refreshing={refreshing} connected={data.connected} />;
 
   const labelFor = (id) => { const full = t[id]?.tab || id; return full.length > 12 ? full.split(/\s+/)[0] : full; };
 
