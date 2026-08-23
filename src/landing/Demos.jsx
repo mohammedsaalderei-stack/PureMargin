@@ -48,9 +48,9 @@ export function WatchDemo() {
       </div>
       <div className="grid grid-cols-3 gap-3 mb-4">
         {cells.map((c) => (
-          <div key={c.label}>
-            <div className="text-[10px] mb-1" style={{ color: C.slate }}>{c.label}</div>
-            <div className="display font-extrabold text-base leading-none">
+          <div key={c.label} className="min-w-0">
+            <div className="text-[10px] mb-1 truncate" style={{ color: C.slate }}>{c.label}</div>
+            <div className="display font-extrabold text-sm sm:text-base leading-none">
               {c.money ? <Money value={c.value} /> : <span dir="ltr">{c.value.toLocaleString("en-AE")}</span>}
             </div>
             <div className="data text-[10px] mt-1" style={{ color: C.iris }} dir="ltr">{c.delta}</div>
@@ -87,11 +87,11 @@ export function ForecastDemo() {
         {cases.map((c) => (
           <div
             key={c.label}
-            className="rounded-lg p-2.5"
+            className="rounded-lg p-2 sm:p-2.5 min-w-0 overflow-hidden"
             style={{ border: `1px solid ${c.color === C.iris ? C.iris : C.hairline}` }}
           >
-            <div className="text-[10px] mb-1" style={{ color: c.color }}>{c.label}</div>
-            <div className="display font-extrabold text-sm leading-none">
+            <div className="text-[10px] mb-1 truncate" style={{ color: c.color }}>{c.label}</div>
+            <div className="display font-extrabold text-xs sm:text-sm leading-none">
               <Money value={c.value} />
             </div>
           </div>

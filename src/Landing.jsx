@@ -325,7 +325,7 @@ export default function Landing({ onSignIn, onRegister, onPricing }) {
                       <div className="w-9 h-9 rounded-lg flex items-center justify-center" style={{ background: "linear-gradient(135deg, var(--iris), var(--neon))" }}>
                         <Icon size={17} color={C.onPrimary} />
                       </div>
-                      <span className="display font-extrabold text-2xl">{cap.name}</span>
+                      <span className="display font-extrabold text-2xl min-w-0">{cap.name}</span>
                       <span className="index-num ms-auto" dir="ltr">
                         {String(i + 1).padStart(2, "0")}
                       </span>

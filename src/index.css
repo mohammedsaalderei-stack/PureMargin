@@ -138,6 +138,11 @@ body {
   border-radius: 4px;
 }
 
+/* Touch-friendly: kill the tap flash and the 300ms tap delay on controls. */
+* { -webkit-tap-highlight-color: transparent; }
+button, [role="button"], .gbtn, .gpill, .dg-quick { touch-action: manipulation; }
+html { overscroll-behavior-y: none; }
+
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-thumb { background: var(--hairline); border-radius: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }

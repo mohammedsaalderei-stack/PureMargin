@@ -74,6 +74,7 @@
   position: relative;
   overflow: hidden;
   border-radius: 20px;
+  will-change: transform;
   transition:
     transform .45s cubic-bezier(.2, .7, .3, 1),
     border-color .45s ease,

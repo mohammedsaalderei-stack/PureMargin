@@ -28,7 +28,7 @@ export default function Transition({ screenKey, direction = 1, children }) {
       currentKey.current = screenKey;
       setShown(children);
       setPhase("in");
-    }, 150);
+    }, 100);
     return () => clearTimeout(id);
   }, [screenKey, children, instant]);
 
@@ -38,14 +38,16 @@ export default function Transition({ screenKey, direction = 1, children }) {
     opacity: 0,
     transform: `translateY(${offset * 0.4}px) scale(0.99)`,
     filter: "blur(8px)",
-    transition: "opacity .16s ease-in, transform .16s ease-in, filter .16s ease-in",
+    transition: "opacity .14s ease-in, transform .14s ease-in, filter .14s ease-in",
+    willChange: "transform, opacity, filter",
   };
   const inStyle = {
     opacity: 1,
     transform: "none",
     filter: "none",
     transition:
-      "opacity .5s cubic-bezier(.2,.8,.3,1), transform .58s cubic-bezier(.2,.9,.3,1.04), filter .4s ease-out",
+      "opacity .42s cubic-bezier(.2,.8,.3,1), transform .5s cubic-bezier(.2,.9,.3,1.04), filter .34s ease-out",
+    willChange: "transform, opacity, filter",
   };
 
   return (

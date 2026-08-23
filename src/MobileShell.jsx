@@ -22,7 +22,7 @@ export default function MobileShell({ tab, go, tabIcons, labelFor, children, liv
         <div className="flex items-center gap-1 shrink-0">
           {liveDot}
           {tab === "ask" && (
-            <button onClick={onOpenChats} className="p-2 rounded-lg" style={{ color: C.slate }} aria-label={t.chats.title}>
+            <button onClick={onOpenChats} className="p-2.5 rounded-lg min-w-[44px] min-h-[44px] flex items-center justify-center" style={{ color: C.slate }} aria-label={t.chats.title}>
               <MessageSquare size={19} />
             </button>
           )}
