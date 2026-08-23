@@ -62,7 +62,7 @@ export default function Forecast({ data }) {
                 <Tooltip content={({ active, payload, label }) =>
                   active && payload?.length ? (
                     <div className="rounded-xl px-3 py-2 text-xs"
-                      style={{ background: "rgba(15,12,29,0.95)", backdropFilter: "blur(12px)",
+                      style={{ background: "var(--panel-solid)", backdropFilter: "blur(12px)",
                         border: "1px solid rgba(139,92,246,0.2)" }}>
                       <div className="mb-1" style={{ color: C.slate }}>{t.forecast.day} {label}</div>
                       <div className="font-semibold"><Money value={payload[0].value} /></div>

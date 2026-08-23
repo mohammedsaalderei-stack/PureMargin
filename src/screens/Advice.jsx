@@ -37,7 +37,7 @@ function Block({ icon: Icon, title, tone, children }) {
     impact: { bg: "rgba(139,92,246,0.08)", fg: C.iris },
     watch: { bg: "rgba(167,139,250,0.06)", fg: C.lilac },
     caution: { bg: "rgba(244,63,94,0.08)", fg: C.rose },
-    plain: { bg: "rgba(255,255,255,0.03)", fg: C.slate },
+    plain: { bg: "var(--row-faint)", fg: C.slate },
   };
   const s = tones[tone] || tones.plain;
   return (

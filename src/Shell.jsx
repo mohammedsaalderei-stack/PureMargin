@@ -86,14 +86,14 @@ function ExportMenu({ data, screen, dateRange, business, onClose }) {
       >
         <button
           onClick={() => { exportPDF(screen, data, dateRange, business); onClose(); }}
-          className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium hover:bg-white/5 transition-colors text-start"
+          className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium hover-soft text-start"
           style={{ color: C.ink }}
         >
           <FileText size={15} style={{ color: C.iris }} /> PDF Report
         </button>
         <button
           onClick={() => { exportCSV(screen, data, dateRange); onClose(); }}
-          className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium hover:bg-white/5 transition-colors text-start"
+          className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium hover-soft text-start"
           style={{ color: C.ink }}
         >
           <Table size={15} style={{ color: C.cyan }} /> CSV Data
@@ -328,7 +328,7 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
         )}
 
         <aside className="w-60 shrink-0 flex flex-col p-4 rail-in relative z-10"
-          style={{ background: "rgba(11,8,21,0.85)", backdropFilter: "blur(20px)", borderLeft: `1px solid ${C.hairline}` }}>
+          style={{ background: "var(--panel-glass)", backdropFilter: "blur(20px)", borderLeft: `1px solid ${C.hairline}` }}>
           <div className="mb-5 px-1">{logo}</div>
           <div className="mb-5 px-1"><Greeting user={user} business={account?.account?.business} /></div>
 
@@ -365,7 +365,7 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
               className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs"
               style={{ border: `1px solid ${C.hairline}`, color: C.slate }}>
               <Search size={13} /><span className="flex-1 text-start">{t.palette.open}</span>
-              <kbd className="data text-[10px] px-1.5 py-0.5 rounded" style={{ background: "rgba(255,255,255,0.05)" }} dir="ltr">⌘K</kbd>
+              <kbd className="data text-[10px] px-1.5 py-0.5 rounded" style={{ background: "var(--chip-bg)" }} dir="ltr">⌘K</kbd>
             </button>
 
             {/* Export button */}
@@ -405,7 +405,7 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
   const mobileSheet = mobileMenu && (
     <div className="absolute inset-0 z-40" style={{ background: C.scrim }} onClick={() => setMobileMenu(false)}>
       <div className="absolute bottom-[58px] inset-x-0 p-4 space-y-4 palette-in"
-        style={{ background: "rgba(15,12,29,0.95)", backdropFilter: "blur(20px)", borderTop: `1px solid ${C.hairline}`,
+        style={{ background: "var(--panel-solid)", backdropFilter: "blur(20px)", borderTop: `1px solid ${C.hairline}`,
           paddingBottom: "calc(env(safe-area-inset-bottom) + 16px)" }}
         onClick={(e) => e.stopPropagation()}>
         <Greeting user={user} business={account?.account?.business} />

@@ -189,11 +189,11 @@ function SalesTrendChart({ data, range }) {
               tickFormatter={compact} width={44} />
             <Tooltip
               contentStyle={{
-                background: "rgba(15,12,29,0.95)", backdropFilter: "blur(12px)",
+                background: "var(--panel-solid)", backdropFilter: "blur(12px)",
                 border: "1px solid rgba(139,92,246,0.2)", borderRadius: 12,
                 boxShadow: "0 8px 32px -12px rgba(139,92,246,0.3)", fontSize: 12,
               }}
-              labelStyle={{ color: C.slate }} itemStyle={{ color: "#fff" }}
+              labelStyle={{ color: C.slate }} itemStyle={{ color: C.ink }}
               formatter={(v) => metric === "sales" ? [<Money value={v} />, t.watch.sales] : [v.toLocaleString("en-AE"), t.common.orders]} />
             <Line type="monotone" dataKey={metric} stroke="url(#lineGrad)" strokeWidth={2.5} dot={false}
               activeDot={{ r: 5, fill: trendColor, stroke: "rgba(15,12,29,0.9)", strokeWidth: 2 }}
@@ -252,7 +252,7 @@ function FoodCostIndicator({ data }) {
       </div>
       <div className="display text-2xl font-bold" style={{ color: over ? C.rose : "#10B981" }} dir="ltr">{pct}%</div>
       <div className="text-xs mt-1" style={{ color: C.slate }}>Target ≤ {target}%</div>
-      <div className="mt-3 h-1.5 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
+      <div className="mt-3 h-1.5 rounded-full overflow-hidden" style={{ background: "var(--bar-track)" }}>
         <div className="h-full rounded-full transition-all"
           style={{ width: `${Math.min(parseFloat(pct) / (target * 2) * 100, 100)}%`,
                    background: over ? "linear-gradient(90deg, #F43F5E, #E11D48)" : "linear-gradient(90deg, #10B981, #06B6D4)" }} />
@@ -417,7 +417,7 @@ export default function Overview({ data, dateRange, onDateRangeChange, onAsk, on
                     interval="preserveStartEnd" minTickGap={30} />
                   <YAxis tick={{ fontSize: 10, fill: C.slate }} axisLine={false} tickLine={false}
                     tickFormatter={compact} width={46} />
-                  <Tooltip contentStyle={{ background: "rgba(15,12,29,0.95)", backdropFilter: "blur(12px)",
+                  <Tooltip contentStyle={{ background: "var(--panel-solid)", backdropFilter: "blur(12px)",
                     border: "1px solid rgba(139,92,246,0.2)", borderRadius: 12, fontSize: 12 }}
                     labelStyle={{ color: C.slate }} formatter={(v) => [<Money value={v} />, t.watch.sales]} />
                   <Area type="monotone" dataKey="sales" stroke="#8B5CF6" strokeWidth={2.5} fill="url(#ovTrend)"
@@ -429,7 +429,7 @@ export default function Overview({ data, dateRange, onDateRangeChange, onAsk, on
 
           {star ? (
             <div className="glass-card p-5 g-stagger" style={{ "--i": 11,
-              background: "linear-gradient(135deg, rgba(139,92,246,0.10) 0%, rgba(15,12,29,0.6) 100%)" }}>
+              background: "linear-gradient(135deg, rgba(139,92,246,0.10) 0%, var(--panel-grad) 100%)" }}>
               <div className="flex items-start justify-between mb-4">
                 <span className="inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full"
                   style={{ background: "rgba(167,139,250,0.12)", color: C.lilac, border: "1px solid rgba(167,139,250,0.2)" }}>
@@ -504,7 +504,7 @@ function ScoreRing({ score }) {
   return (
     <div className="glass-card rounded-3xl p-6 flex flex-col items-center justify-center text-center"
       style={{ minHeight: 232,
-        background: "linear-gradient(150deg, rgba(139,92,246,0.15) 0%, rgba(6,182,212,0.05) 60%, rgba(15,12,29,0.6) 130%)" }}>
+        background: "linear-gradient(150deg, rgba(139,92,246,0.15) 0%, rgba(6,182,212,0.05) 60%, var(--panel-grad) 130%)" }}>
       <div className="relative" style={{ width: size, height: size }}>
         <svg width={size} height={size} className="chart">
           <defs>
@@ -513,14 +513,14 @@ function ScoreRing({ score }) {
               <stop offset="100%" stopColor="#06B6D4" />
             </linearGradient>
           </defs>
-          <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth={stroke} />
+          <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--bar-track)" strokeWidth={stroke} />
           <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="url(#scoreArc)" strokeWidth={stroke}
             strokeLinecap="round" strokeDasharray={circumference}
             strokeDashoffset={circumference * (1 - filled)}
             transform={`rotate(-90 ${size / 2} ${size / 2})`} />
         </svg>
         <div className="absolute inset-0 flex items-center justify-center">
-          <span className="display font-bold" style={{ fontSize: 36, color: "#fff" }} dir="ltr">
+          <span className="display font-bold" style={{ fontSize: 36, color: C.ink }} dir="ltr">
             {score?.value === null ? "—" : `${Math.round(animated)}%`}
           </span>
         </div>

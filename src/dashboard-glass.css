@@ -92,8 +92,8 @@
   animation-delay: calc(var(--i, 0) * 70ms);
 }
 @keyframes dg-rise {
-  from { opacity: 0; transform: translateY(14px); }
-  to { opacity: 1; transform: none; }
+  from { opacity: 0; transform: translateY(14px); filter: blur(4px); }
+  to { opacity: 1; transform: none; filter: blur(0); }
 }
 
 /* ---- Chart glow ---- */

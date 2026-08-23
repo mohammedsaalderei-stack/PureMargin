@@ -8,8 +8,14 @@
   --ink: #1A1530;
   --slate: #6B6580;
   --hairline: rgba(139,92,246,0.12);
-  --bone: #F5F3FC;
+  --bone: #EAE6F2;
   --surface: #FFFFFF;
+  --panel-glass: rgba(255,255,255,0.80);
+  --panel-solid: rgba(255,255,255,0.94);
+  --panel-grad: rgba(124,58,237,0.05);
+  --row-faint: rgba(124,58,237,0.04);
+  --bar-track: rgba(124,58,237,0.08);
+  --chip-bg: rgba(124,58,237,0.06);
   --iris: #7C3AED;
   --iris-deep: #6D28D9;
   --iris-wash: rgba(124,58,237,0.08);
@@ -29,6 +35,12 @@
   --hairline: rgba(255,255,255,0.08);
   --bone: #0B0815;
   --surface: #131028;
+  --panel-glass: rgba(11,8,21,0.85);
+  --panel-solid: rgba(15,12,29,0.95);
+  --panel-grad: rgba(15,12,29,0.6);
+  --row-faint: rgba(255,255,255,0.03);
+  --bar-track: rgba(255,255,255,0.06);
+  --chip-bg: rgba(255,255,255,0.05);
   --iris: #8B5CF6;
   --iris-deep: #A78BFA;
   --iris-wash: rgba(139,92,246,0.12);
@@ -43,13 +55,20 @@
 }
 
 html, body, #root { height: 100%; margin: 0; }
+html { scroll-behavior: smooth; }
 
 body {
   background: var(--bone);
   color: var(--ink);
-  transition: background-color .3s ease, color .3s ease;
+  transition: background-color .4s ease, color .3s ease;
   font-family: 'Inter', 'Tajawal', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
+}
+[data-theme="light"] body {
+  background:
+    radial-gradient(1200px 820px at 82% -8%, rgba(139,92,246,0.12), transparent 60%),
+    radial-gradient(1000px 720px at -8% 108%, rgba(8,145,178,0.10), transparent 60%),
+    var(--bone);
 }
 
 /* Display: Space Grotesk for headings, Tajawal for Arabic */
@@ -125,10 +144,21 @@ body {
 
 /* Animations */
 @keyframes rise {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: none; }
+  from { opacity: 0; transform: translateY(16px); filter: blur(6px); }
+  to { opacity: 1; transform: none; filter: blur(0); }
 }
-.rise { animation: rise .5s cubic-bezier(.2,.7,.3,1) both; }
+.rise { animation: rise .62s cubic-bezier(.16,.84,.3,1) both; }
+
+/* Cinematic press feedback — every control settles with a spring. */
+button:not(:disabled):active,
+[role="button"]:active {
+  transform: scale(.96);
+}
+.gbtn:not(:disabled):active,
+.gpill:not(:disabled):active,
+.dg-quick:not(:disabled):active {
+  transform: scale(.97);
+}
 
 @keyframes slide-in {
   from { opacity: 0; transform: translateY(6px); }
@@ -160,6 +190,13 @@ body {
   to { opacity: 1; transform: none; }
 }
 .screen-in { animation: screen-in .34s cubic-bezier(.2,.7,.3,1) both; }
+
+/* Cinematic screen entrance — slides in from the direction of travel while
+   racking focus (blur → sharp). Used by the tab Transition. */
+@keyframes screen-enter {
+  from { opacity: 0; transform: translateY(var(--enter-from, 16px)) scale(.985); filter: blur(8px); }
+  to { opacity: 1; transform: none; filter: blur(0); }
+}
 
 @keyframes palette-in {
   from { opacity: 0; transform: translateY(-8px) scale(.985); }

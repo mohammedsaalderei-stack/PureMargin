@@ -196,7 +196,7 @@ export default function Menu({ data, token, onSaved }) {
       <p className="text-xs mb-4 leading-relaxed" style={{ color: C.slate }}>{t.overview.costsLead}</p>
       <div className="space-y-2.5">
         {missing.map((item) => (
-          <div key={item.name} className="flex items-center gap-3 rounded-xl p-2.5" style={{ background: "rgba(255,255,255,0.03)" }}>
+          <div key={item.name} className="flex items-center gap-3 rounded-xl p-2.5" style={{ background: "var(--row-faint)" }}>
             <ItemPhoto name={item.name} src={item.image} size={38} radius={10} />
             <div className="min-w-0 flex-1">
               <div className="text-sm font-medium truncate-safe">{item.name}</div>
@@ -312,7 +312,7 @@ export default function Menu({ data, token, onSaved }) {
                       <div className="flex flex-wrap gap-1.5">
                         {list.slice(0, 4).map((i) => (
                           <button key={i.name} onClick={() => setPicked(i)} className="text-[11px] px-2 py-1 rounded-lg"
-                            style={{ background: "rgba(255,255,255,0.04)", color: C.slate }}>{i.name}</button>
+                            style={{ background: "var(--row-faint)", color: C.slate }}>{i.name}</button>
                         ))}
                       </div>
                     </div>

@@ -81,7 +81,7 @@ function ChartTip({ active, payload, label, money, name }) {
   if (!active || !payload?.length) return null;
   return (
     <div className="rounded-xl px-3 py-2 text-xs"
-      style={{ background: "rgba(15,12,29,0.95)", backdropFilter: "blur(12px)",
+      style={{ background: "var(--panel-solid)", backdropFilter: "blur(12px)",
         border: "1px solid rgba(139,92,246,0.2)", boxShadow: "0 8px 32px -12px rgba(139,92,246,0.3)" }}>
       <div className="mb-1 truncate-safe max-w-[180px]" style={{ color: C.slate }}>{label}</div>
       <div className="font-semibold flex items-center gap-1.5">
@@ -195,7 +195,7 @@ export default function Watch({ data }) {
                     <span className="text-sm font-medium truncate pe-3">{s.name}</span>
                     <span className="data text-sm shrink-0"><Money value={s.sales || 0} /></span>
                   </div>
-                  <div className="h-2 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.05)" }}>
+                  <div className="h-2 rounded-full overflow-hidden" style={{ background: "var(--bar-track)" }}>
                     <div className="h-full rounded-full"
                       style={{ width: `${((s.sales || 0) / topStore) * 100}%`,
                         background: `linear-gradient(90deg, ${ACCENT_COLORS[i % 4]}, ${ACCENT_COLORS[(i + 1) % 4]})`,
