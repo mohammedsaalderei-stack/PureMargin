@@ -1,6 +1,6 @@
 import { BarChart3, Camera, Check, LineChart, Lock, MessageSquare, Package, UtensilsCrossed } from "lucide-react";
 import { useC } from "../theme.jsx";
-import { useLang, fill, localeFor } from "../i18n.jsx";
+import { useLang, fill, formatDate } from "../i18n.jsx";
 
 /* What the account has — read-only.
 
