@@ -14,6 +14,7 @@ import { Money } from "../Dirham.jsx";
 import { useCountUp } from "../hooks.js";
 import ItemPhoto from "../ItemPhoto.jsx";
 import { SectionLabel, TrendIndicator } from "../ui.jsx";
+import Provenance from "../Provenance.jsx";
 import "../glass.css";
 
 /* ─── Date + category filter bar ─────────────────────────── */
@@ -483,6 +484,10 @@ export default function Overview({ data, dateRange, onDateRangeChange, onAsk, on
           </div>
           <LeakageRadar data={data} onAsk={onAsk} onOpenCosts={onOpenCosts} />
         </div>
+
+        {/* What these figures are, and where they came from. Last on the page
+            because it answers a question the reader only asks after the numbers. */}
+        <Provenance provenance={data.provenance} />
       </div>
     </div>
   );

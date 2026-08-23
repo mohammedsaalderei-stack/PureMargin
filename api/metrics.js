@@ -4,6 +4,8 @@ import { posTokenFor } from "./_accounts.js";
 import { getJSON } from "./_store.js";
 import { scopeFor, effectiveBranches, parseBranchParam } from "./_org.js";
 import { applyScope } from "./_scope-metrics.js";
+import { provenance } from "./_provenance.js";
+import { noteSync, lastSync } from "./_sync.js";
 
 export default async function handler(req, res) {
   const session = await requireAuth(req, res);
@@ -35,18 +37,50 @@ export default async function handler(req, res) {
     });
     const scoped = applyScope(metrics, effective, allBranches);
 
+    /* Only a real upstream read is an event. Recorded against the organization
+       rather than the user, because it's the account's connection that synced —
+       whoever's poll happened to trigger it is incidental. */
+    if (metrics.fetch?.wentUpstream) {
+      await noteSync(scope.org?.id, {
+        ok: true,
+        receipts: metrics.fetch.receiptCount,
+        branches: allBranches.length,
+        since: metrics.fetch.since,
+        limitedHistory: Boolean(metrics.fetch.limitedHistory),
+        triggeredBy: session.username,
+      });
+    }
+
+    const { fetch: _fetch, allBranches: _all, ...payload } = scoped;
+
     // Never cached at the edge: the whole point is that it changes.
     res.setHeader("Cache-Control", "no-store");
     return res.status(200).json({
-      ...scoped,
+      ...payload,
       scope: { ...scoped.scope, role: scope.role },
       ageSeconds: cacheAge(posToken) ?? 0,
+      provenance: provenance(scoped, {
+        role: scope.role,
+        ageSeconds: cacheAge(posToken) ?? 0,
+        lastSync: await lastSync(scope.org?.id),
+      }),
     });
   } catch (err) {
     if (err instanceof NotConnected) {
       return res.status(409).json({ error: "notconnected" });
     }
     if (err instanceof PosUnreachable) {
+      /* A failed sync is the more useful half of the log: it's what separates
+         "no sales" from "we couldn't ask". Best-effort, and never allowed to
+         turn a 502 into a 500. */
+      try {
+        const scope = await scopeFor(session.account);
+        await noteSync(scope.org?.id, {
+          ok: false,
+          error: err.detail || err.message || "unreachable",
+          triggeredBy: session.username,
+        });
+      } catch { /* the log is not worth failing the response over */ }
       return res.status(502).json({ error: "pos", detail: err.detail });
     }
     console.error("metrics failed:", err);

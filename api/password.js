@@ -1,5 +1,7 @@
 import { requireAuth, issueToken } from "./_auth.js";
 import { changePassword, bumpTokenVersion, getAccount, publicAccount } from "./_accounts.js";
+import { orgFor } from "./_org.js";
+import { recordAudit } from "./_audit.js";
 
 /* Password and session safety.
 
@@ -25,6 +27,14 @@ export default async function handler(req, res) {
         return res.status(error === "wrongcurrent" ? 401 : 400).json({ error });
       }
 
+      /* The password itself is never recorded, only that it changed — enough
+         for an owner to reconcile a change with the person who made it. */
+      await recordAudit(account.orgId || (await orgFor(account))?.id, {
+        actor: session.username,
+        action: "password.change",
+        target: session.username,
+      });
+
       return res.status(200).json({
         token: issueToken(account.username, account.tokenVersion),
         account: publicAccount(account),
@@ -34,6 +44,12 @@ export default async function handler(req, res) {
     if (req.method === "POST") {
       const account = await bumpTokenVersion(session.username);
       if (!account) return res.status(404).json({ error: "noaccount" });
+
+      await recordAudit(account.orgId || (await orgFor(account))?.id, {
+        actor: session.username,
+        action: "security.signout.all",
+        target: session.username,
+      });
 
       return res.status(200).json({
         token: issueToken(account.username, account.tokenVersion),

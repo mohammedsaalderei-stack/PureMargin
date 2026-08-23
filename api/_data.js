@@ -232,11 +232,11 @@ async function allReceipts(token, sinceIso) {
 async function fetchReceipts(token, now) {
   const wide = new Date(now - 60 * DAY).toISOString();
   try {
-    return { receipts: await allReceipts(token, wide), limitedHistory: false };
+    return { receipts: await allReceipts(token, wide), limitedHistory: false, since: wide };
   } catch (err) {
     if (!/\b402\b|PAYMENT_REQUIRED|31 days/i.test(err.message)) throw err;
     const narrow = new Date(now - 30 * DAY).toISOString();
-    return { receipts: await allReceipts(token, narrow), limitedHistory: true };
+    return { receipts: await allReceipts(token, narrow), limitedHistory: true, since: narrow };
   }
 }
 
@@ -303,6 +303,11 @@ async function fetchRaw(token) {
 
   return {
     now,
+    /* What this read actually covered, kept with the data so the figures can
+       always say where they came from rather than being asserted to be current. */
+    fetchedAt: Date.now(),
+    since: history.since,
+    receiptCount: history.receipts.length,
     receipts: history.receipts,
     limitedHistory: history.limitedHistory,
     catalogue,
@@ -372,7 +377,18 @@ export async function branchList(posToken) {
     }));
   }
 
-  const data = await call("/stores", token);
+  /* Wrapped like the metrics fetch is. This read moved ahead of `getMetrics`
+     when scope resolution did, and an unwrapped failure here reached the
+     endpoint as a generic 500 — which is precisely the "no sales" versus
+     "couldn't ask" confusion the provenance work exists to remove. */
+  let data;
+  try {
+    data = await call("/stores", token);
+  } catch (err) {
+    console.error("Loyverse branch list failed:", err.message);
+    throw new PosUnreachable(err.message);
+  }
+
   return (data?.stores || []).map((s) => ({
     id: String(s.id),
     name: s.name || "Unnamed branch",
@@ -394,6 +410,10 @@ export async function getMetrics(posToken, { maxAge = CACHE_MS, overrides = {}, 
   const hit = cache.get(key);
 
   let raw = hit && Date.now() - hit.at < maxAge ? hit.raw : null;
+  /* Whether this call went upstream. The sync log records real fetches only —
+     the dashboard polls every thirty seconds and almost all of those are cache
+     hits, which are not events worth logging. */
+  let fetched = false;
   if (!raw) {
     try {
       raw = await fetchRaw(token);
@@ -401,6 +421,7 @@ export async function getMetrics(posToken, { maxAge = CACHE_MS, overrides = {}, 
       console.error("Loyverse fetch failed:", err.message);
       throw new PosUnreachable(err.message);
     }
+    fetched = true;
     cache.set(key, { at: Date.now(), raw });
   }
 
@@ -412,7 +433,22 @@ export async function getMetrics(posToken, { maxAge = CACHE_MS, overrides = {}, 
       ? null
       : branches;
 
-  return { ...finish(aggregate(raw, { overrides, branches: scoped })), allBranches: raw.allBranches };
+  return {
+    ...finish(aggregate(raw, { overrides, branches: scoped })),
+    allBranches: raw.allBranches,
+    /* Provenance inputs, passed through rather than recomputed downstream so
+       there is exactly one account of where a figure came from. */
+    fetch: {
+      at: raw.fetchedAt,
+      since: raw.since,
+      receiptCount: raw.receiptCount,
+      limitedHistory: raw.limitedHistory,
+      wentUpstream: fetched,
+      branchNames: raw.storeNames,
+      // How many item costs came from the owner rather than the POS.
+      overrideCount: Object.keys(overrides).length,
+    },
+  };
 }
 
 /* Seconds since these figures were actually fetched, so the interface can

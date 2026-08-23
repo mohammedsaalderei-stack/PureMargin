@@ -38,8 +38,8 @@ they override the defaults).
 - Vite logs show live esbuild of `src/*.jsx` (serves source, not a build).
 
 ## Tests
-- `npm test` → `api/_org.test.js` (stage 1 authorization: roles, branch scope,
-  isolation). It writes fixture accounts through `api/_store.js`, so it refuses
+- `npm test` → `api/_org.test.js` (stage 1 authorization + stage 2 aggregation)
+  then `api/_journal.test.js` (stage 3 journal, audit, sync, provenance). It writes fixture accounts through `api/_store.js`, so it refuses
   to run unless the store backend is `memory` — the npm script blanks
   `REDIS_URL`/`KV_URL`/`KV_REST_API_URL` to force that. Never run the file
   directly inside the `api` container with Redis attached; it will bail out
@@ -77,6 +77,38 @@ they override the defaults).
   administration, gated on `manage:users` (owner only).
 - Inviting a username with no account writes `invite:<username>` → orgId, so
   registering joins that organization instead of creating a new one.
+
+## Provenance and logs (stage 3)
+- `api/_journal.js` — one capped (50), newest-first append-only list over the KV
+  store, shared by both logs. Read-modify-write of a single array, so it can lose
+  an entry under concurrent writes: **nothing may read these logs to make a
+  decision.** They exist to be read by a person.
+- `api/_sync.js` — `sync:<orgId>`. Records only reads that actually went upstream
+  (`metrics.fetch.wentUpstream` from `getMetrics`), never cache hits, or the log
+  would append every 30s poll and mean nothing. Failures are recorded with their
+  reason; `lastSync(org, { ok: true })` answers "when did it last work".
+- `api/_audit.js` — `audit:<orgId>`. Closed list of action keys (`AUDIT_ACTIONS`);
+  an unknown action is dropped rather than logged unlabelled, and a test asserts
+  every key has a label. Writes are best-effort — an audit failure must never
+  fail the action it describes. Hooked into `team.js` (add/update/remove, with
+  the previous role/branches in `detail`), `account.js` (POS connect/disconnect,
+  all three deletion paths) and `password.js` (change, sign-out-everywhere).
+- `api/_provenance.js` — the evidence block on every metrics payload: source,
+  `fetchedAt` vs `ageSeconds` (last upstream read vs staleness of what you see),
+  period, branch names, receipts fetched vs counted, cost coverage. Fed by the
+  `fetch` block `getMetrics` now returns; `metrics.js` strips `fetch` and
+  `allBranches` from the response so internals don't reach the client.
+- Both logs are returned by `GET /api/team` (owner-only, same `manage:users`
+  gate) rather than a new endpoint.
+- **`branchList()` wraps upstream failures in `PosUnreachable`.** It moved ahead
+  of `getMetrics` in stage 2, and unwrapped it made a POS outage a generic 500
+  with no failed-sync entry — the exact "no sales" vs "couldn't ask" confusion
+  this stage exists to remove. Keep it wrapped.
+- Front end: `src/Provenance.jsx` (collapsed one-liner under the Overview,
+  expands to the full account; shouts only when the last sync failed) and
+  `src/TeamActivity.jsx` (`SyncLog` + `AuditLog`, read-only, rendered in the Team
+  screen). Action labels are translated client-side from `t.activity.actions`.
+- i18n: `provenance.*` and `activity.*` in all four languages.
 
 ## Account deletion
 Two paths, both on `DELETE /api/account`:

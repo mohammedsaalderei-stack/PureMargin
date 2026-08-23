@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { UserPlus, Trash2, ShieldCheck, Clock } from "lucide-react";
+import TeamActivity from "../TeamActivity.jsx";
 import { useC } from "../theme.jsx";
 import { useLang } from "../i18n.jsx";
 
@@ -186,6 +187,14 @@ export default function Team({ token }) {
             </button>
           </div>
         </Panel>
+
+        {/* Read-only history: what the app did with the POS, and what people did
+            with permissions. Same owner-only gate as the rest of this screen. */}
+        <TeamActivity
+          syncs={state?.syncs || []}
+          audit={state?.audit || []}
+          actions={t.activity.actions}
+        />
       </div>
     </div>
   );
