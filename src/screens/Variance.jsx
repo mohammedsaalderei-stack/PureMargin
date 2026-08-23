@@ -3,6 +3,7 @@ import { Scale, AlertTriangle } from "lucide-react";
 import VarianceRow from "../variance/VarianceRow.jsx";
 import { useC } from "../theme.jsx";
 import { useLang } from "../i18n.jsx";
+import { scopeQuery, scopeKey } from "../scopeParam.js";
 import { DirhamMark } from "../Dirham.jsx";
 
 /* Where the margin went — stage 4, phase 6.
@@ -20,7 +21,7 @@ import { DirhamMark } from "../Dirham.jsx";
 const DAY = 864e5;
 const PERIODS = { d7: 7, d30: 30, d90: 90 };
 
-export default function Variance({ token }) {
+export default function Variance({ token, branches = [] }) {
   const C = useC();
   const { t, fill } = useLang();
   const s = t.variance;
@@ -36,7 +37,7 @@ export default function Variance({ token }) {
     try {
       const to = Date.now();
       const from = to - PERIODS[nextPeriod] * DAY;
-      const res = await fetch(`/api/variance?from=${from}&to=${to}&method=${nextMethod}`, {
+      const res = await fetch(`/api/variance?from=${from}&to=${to}&method=${nextMethod}${scopeQuery(branches)}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) setData(await res.json());
@@ -45,8 +46,9 @@ export default function Variance({ token }) {
     }
   }
 
+  /* The scope selector is a different question, so a change of it refetches. */
   useEffect(() => { load(); // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [scopeKey(branches)]);
 
   if (!data) return null;
 

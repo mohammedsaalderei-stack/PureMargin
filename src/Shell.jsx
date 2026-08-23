@@ -326,14 +326,14 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
   } else if (tab === "team") { body = <Team token={token} />; }
   else if (tab === "inventory") { body = <Inventory token={token} />; }
   else if (tab === "recipes") { body = <Recipes token={token} />; }
-  else if (tab === "variance") { body = <Variance token={token} />; }
-  else if (tab === "alerts") { body = <Alerts token={token} />; }
-  else if (tab === "plan") { body = <Plan token={token} />; }
+  else if (tab === "variance") { body = <Variance token={token} branches={branches} />; }
+  else if (tab === "alerts") { body = <Alerts token={token} branches={branches} />; }
+  else if (tab === "plan") { body = <Plan token={token} branches={branches} />; }
   else if (locked) { body = <Locked feature={needed} onSeePlans={() => go("billing")} />; }
   else if (tab === "ask") {
     body = <Ask token={token} wide={desktop && !chatsOpen} pending={pending} onPendingUsed={() => setPending("")}
       messages={messages} onMessagesChange={updateMessages} data={unconnectedAccount ? null : data}
-      noticedLine={unconnectedAccount ? "" : noticedLine} />;
+      noticedLine={unconnectedAccount ? "" : noticedLine} branches={branches} />;
   } else if (unconnectedAccount) { body = <EmptyTable onConnect={() => setConnectOpen(true)} />; }
   else if (!data && error) {
     body = (

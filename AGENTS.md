@@ -375,9 +375,20 @@ they override the defaults).
 - Tests: `api/_grounding.test.js` (16) — 245 total. `scopeFor` **auto-creates** an
   org for an account without one, so "no org" fixtures resolve to a fresh empty
   organization rather than null.
-- **All six stages of the direction document are now implemented.** Next natural
-  work: surfacing the branch/scope selector in the assistant UI, and drill-through
-  from an assistant answer to the source records.
+## Scope selector wiring
+- `src/BranchScope.jsx` lives in the Shell (all branches / a group / one branch) and
+  its selection now reaches every scoped surface: `Variance`, `Alerts`, `Plan` take
+  a `branches` prop and append `scopeQuery(branches)`; `Ask` sends `branches` in the
+  chat body, which `api/chat.js` passes to the grounding as `requested`.
+- `src/scopeParam.js` holds the one convention: **empty selection = all authorized
+  branches** (same as an absent parameter server-side), plus `scopeKey` for effect
+  deps since arrays compare by identity.
+- The client only ever *requests* a scope; every route and the grounding intersect
+  it with the session's authorization, so an edited parameter or request body can
+  narrow a view but never widen it.
+- **All six stages of the direction document are implemented.** Remaining from the
+  doc: storage locations in the item master, and drill-through from an aggregate (or
+  an assistant answer) to the underlying invoice/movement/count in every case.
 
 ## Sign-in email
 - `setEmail(username, currentPassword, nextEmail)` in `api/_accounts.js`, exposed

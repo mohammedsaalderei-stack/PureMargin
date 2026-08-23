@@ -4,6 +4,7 @@ import PurchaseLine from "../plan/PurchaseLine.jsx";
 import BranchRanking from "../plan/BranchRanking.jsx";
 import { useC } from "../theme.jsx";
 import { useLang } from "../i18n.jsx";
+import { scopeQuery, scopeKey } from "../scopeParam.js";
 
 /* Stage 5 — the operational plan.
 
@@ -15,7 +16,7 @@ import { useLang } from "../i18n.jsx";
 
 const HORIZONS = { d3: 3, d7: 7, d14: 14 };
 
-export default function Plan({ token }) {
+export default function Plan({ token, branches = [] }) {
   const C = useC();
   const { t, fill } = useLang();
   const s = t.plan;
@@ -24,14 +25,14 @@ export default function Plan({ token }) {
   const [horizon, setHorizon] = useState("d7");
 
   async function load(next = horizon) {
-    const res = await fetch(`/api/operations?horizon=${HORIZONS[next]}`, {
+    const res = await fetch(`/api/operations?horizon=${HORIZONS[next]}${scopeQuery(branches)}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (res.ok) setData(await res.json());
   }
 
   useEffect(() => { load(); // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [scopeKey(branches)]);
 
   if (!data) return null;
 

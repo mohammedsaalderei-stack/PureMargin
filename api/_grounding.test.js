@@ -139,6 +139,15 @@ await test("a brand-new account starts from its own empty organization", async (
   assert.strictEqual(out.evidence.variance.totals.unexplained, 0);
 });
 
+await test("an owner can narrow the brief to one branch without changing session", async () => {
+  const org = await createOrg({ ownerUsername: "owner", name: "Group" });
+  await seed(org.id);
+  const out = await ground(await account("owner", org.id), { requested: ["b2"] });
+  assert.deepStrictEqual(out.scope.branches, ["b2"]);
+  assert.ok(!out.brief.includes("Marina"), "the selector narrows, it does not enter a branch");
+  assert.ok(!out.scope.complete, "and the brief says it is a subset");
+});
+
 /* ---------------------- capability filtering --------------------- */
 
 await test("a chef gets stock and usage but no branch ranking", async () => {

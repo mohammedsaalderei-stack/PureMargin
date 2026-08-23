@@ -4,6 +4,7 @@ import AlertCard from "../alerts/AlertCard.jsx";
 import TargetsForm from "../alerts/TargetsForm.jsx";
 import { useC } from "../theme.jsx";
 import { useLang } from "../i18n.jsx";
+import { scopeQuery, scopeKey } from "../scopeParam.js";
 
 /* The operational list — stage 4, phase 7.
 
@@ -16,7 +17,7 @@ import { useLang } from "../i18n.jsx";
    screen and mean opposite things, so recipe coverage decides which sentence
    appears. */
 
-export default function Alerts({ token }) {
+export default function Alerts({ token, branches = [] }) {
   const C = useC();
   const { t } = useLang();
   const s = t.alerts;
@@ -24,12 +25,12 @@ export default function Alerts({ token }) {
   const [data, setData] = useState(null);
 
   async function load() {
-    const res = await fetch("/api/alerts", { headers: { Authorization: `Bearer ${token}` } });
+    const res = await fetch(`/api/alerts?_=1${scopeQuery(branches)}`, { headers: { Authorization: `Bearer ${token}` } });
     if (res.ok) setData(await res.json());
   }
 
   useEffect(() => { load(); // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [scopeKey(branches)]);
 
   async function saveTargets(targets) {
     const res = await fetch("/api/alerts", {

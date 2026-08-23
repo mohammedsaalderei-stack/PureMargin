@@ -3,6 +3,7 @@ import { getMetrics, toContext, branchList, salesLines } from "./_data.js";
 import { posTokenFor, noteQuestion, getAccount, activeItems } from "./_accounts.js";
 import { getJSON } from "./_store.js";
 import { groundingFor, ANSWER_CONTRACT } from "./_grounding.js";
+import { parseBranchParam } from "./_org.js";
 
 const MODEL = "claude-sonnet-4-5";
 
@@ -49,7 +50,7 @@ export default async function handler(req, res) {
     });
   }
 
-  const { messages, lang, stream = true } = req.body || {};
+  const { messages, lang, stream = true, branches: requestedBranches } = req.body || {};
   if (!Array.isArray(messages) || messages.length === 0) {
     return res.status(400).json({ error: "No question was received." });
   }
@@ -85,6 +86,10 @@ export default async function handler(req, res) {
         branchNames: Object.fromEntries(roster.map((b) => [b.id, b.name])),
         salesRows: sales.lines,
         salesFetchedAt: sales.fetch?.at || null,
+        /* The scope the user asked their question in. Never trusted: the
+           grounding intersects it with this session's authorization, so naming a
+           branch in the request body cannot widen what the assistant is told. */
+        requested: parseBranchParam(requestedBranches),
         from, to,
       });
     } catch (err) {
