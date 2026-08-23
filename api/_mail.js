@@ -15,6 +15,10 @@ const ENDPOINT = "https://api.resend.com/emails";
    mail flows on day one; a real from-address is set through MAIL_FROM. */
 const DEFAULT_FROM = "PureMargin <onboarding@resend.dev>";
 
+/* Where a reply should land. Outgoing mail is sent from a no-reply sender, but
+   people reply to it anyway, so every message carries a monitored address. */
+const REPLY_TO = process.env.MAIL_REPLY_TO || "support@puremargin.ae";
+
 export const configured = Boolean(process.env.RESEND_API_KEY);
 
 /* Resend rejects the whole send if the sender isn't `email@example.com` or
@@ -42,7 +46,14 @@ async function post({ sender, to, subject, html, text }) {
       Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ from: sender, to: [to], subject, html, text }),
+    body: JSON.stringify({
+      from: sender,
+      to: [to],
+      reply_to: REPLY_TO,
+      subject,
+      html,
+      text,
+    }),
   });
   return { ok: res.ok, status: res.status, detail: res.ok ? "" : await res.text() };
 }
