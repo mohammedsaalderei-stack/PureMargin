@@ -1,98 +1,107 @@
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&family=Orbitron:wght@400;500;600;700;800;900&family=Tajawal:wght@300;400;500;700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&family=Tajawal:wght@300;400;500;700;800;900&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  --ink: #100A18;
-  --slate: #6B6478;
-  --hairline: #E4DEF0;
-  --bone: #F7F5FB;
+  --ink: #1A1530;
+  --slate: #6B6580;
+  --hairline: rgba(139,92,246,0.12);
+  --bone: #EAE6F2;
   --surface: #FFFFFF;
-  --iris: #6D28D9;
-  --iris-deep: #4C1D95;
-  --iris-wash: #F2ECFE;
-  --lilac: #9B6BE8;
-  --lilac-wash: #EFE7FD;
-  --cyan: #0E7490;
-  --rose: #C4426E;
-  --glow: rgba(109,40,217,.16);
-  --grid: rgba(16,10,24,.045);
-  --edge: rgba(109,40,217,.22);
+  --panel-glass: rgba(255,255,255,0.80);
+  --panel-solid: rgba(255,255,255,0.94);
+  --panel-grad: rgba(124,58,237,0.05);
+  --row-faint: rgba(124,58,237,0.04);
+  --bar-track: rgba(124,58,237,0.08);
+  --chip-bg: rgba(124,58,237,0.06);
+  --iris: #7C3AED;
+  --iris-deep: #6D28D9;
+  --iris-wash: rgba(124,58,237,0.08);
+  --lilac: #8B5CF6;
+  --lilac-wash: rgba(139,92,246,0.06);
+  --cyan: #0891B2;
+  --cyan-wash: rgba(8,145,178,0.08);
+  --rose: #E11D48;
+  --glow: rgba(124,58,237,0.12);
+  --grid: rgba(124,58,237,0.04);
+  --edge: rgba(124,58,237,0.15);
 }
 
-/* Dark values, kept in step with the DARK palette in theme.jsx.
-   These drive anything styled in CSS rather than inline. */
 [data-theme="dark"] {
-  --ink: #F0E8FF;
-  --slate: #9180B8;
-  --hairline: #1E1440;
-  --bone: #05030F;
-  --surface: #0A0818;
-  --iris: #A855F7;
-  --iris-deep: #C084FC;
-  --iris-wash: rgba(168,85,247,.14);
-  --lilac: #C084FC;
-  --lilac-wash: rgba(192,132,252,.12);
-  --cyan: #22D3EE;
-  --rose: #FB5E7E;
-  --glow: rgba(147,51,234,.4);
-  --grid: rgba(147,51,234,.07);
-  --edge: rgba(147,51,234,.35);
-  --neon: #D946EF;
+  --ink: #E8E6F0;
+  --slate: #8B87A8;
+  --hairline: rgba(255,255,255,0.08);
+  --bone: #0B0815;
+  --surface: #131028;
+  --panel-glass: rgba(11,8,21,0.85);
+  --panel-solid: rgba(15,12,29,0.95);
+  --panel-grad: rgba(15,12,29,0.6);
+  --row-faint: rgba(255,255,255,0.03);
+  --bar-track: rgba(255,255,255,0.06);
+  --chip-bg: rgba(255,255,255,0.05);
+  --iris: #8B5CF6;
+  --iris-deep: #A78BFA;
+  --iris-wash: rgba(139,92,246,0.12);
+  --lilac: #A78BFA;
+  --lilac-wash: rgba(167,139,250,0.10);
+  --cyan: #06B6D4;
+  --cyan-wash: rgba(6,182,212,0.10);
+  --rose: #F43F5E;
+  --glow: rgba(139,92,246,0.25);
+  --grid: rgba(139,92,246,0.04);
+  --edge: rgba(139,92,246,0.20);
 }
 
 html, body, #root { height: 100%; margin: 0; }
+html { scroll-behavior: smooth; }
 
 body {
   background: var(--bone);
   color: var(--ink);
-  transition: background-color .25s ease, color .25s ease;
-  font-family: 'Tajawal', system-ui, sans-serif;
+  transition: background-color .4s ease, color .3s ease;
+  font-family: 'Inter', 'Tajawal', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
+[data-theme="light"] body {
+  background:
+    radial-gradient(1200px 820px at 82% -8%, rgba(139,92,246,0.12), transparent 60%),
+    radial-gradient(1000px 720px at -8% 108%, rgba(8,145,178,0.10), transparent 60%),
+    var(--bone);
+}
 
-.display { font-family: 'Orbitron', 'Tajawal', system-ui, sans-serif; letter-spacing: 0.01em; }
-.data { font-family: 'JetBrains Mono', ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+/* Display: Space Grotesk for headings, Tajawal for Arabic */
+.display {
+  font-family: 'Space Grotesk', 'Tajawal', system-ui, sans-serif;
+  letter-spacing: -0.01em;
+}
 
-/* Every figure is monospaced. On an instrument panel, digits that shift
-   width as they change read as unstable — and these change every 30s. */
+/* Tabular figures */
+.data {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+}
 .figure, .display { font-variant-numeric: tabular-nums; }
 
-/* The micro-label: small, wide-tracked, uppercase. Does the work that a
-   heavier heading would, without adding visual weight. */
+/* Micro label */
 .micro {
-  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-family: 'Space Grotesk', 'Tajawal', system-ui, sans-serif;
   font-size: 10px;
-  letter-spacing: 0.16em;
+  font-weight: 600;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
 }
 
-
-/* Arabic and Hindi: Space Grotesk has no cut for either script, so the
-   display role hands over to a face that does rather than falling back at
-   random. Both are technical, geometric faces, so the register holds. */
-/* Arabic.
-
-   Tajawal throughout, including the display role — Orbitron has no Arabic
-   cut, and letting it fall back mid-string was half the problem.
-
-   The other half: letter-spacing. Arabic is cursive, and adding tracking
-   forces the browser to break the joins, so words render as disconnected
-   letters with gaps. Every tracked class is therefore reset to zero under
-   RTL, and this rule sits last so nothing further down can reintroduce it. */
+/* Arabic: Tajawal throughout, no letter-spacing (cursive script) */
 [dir="rtl"] body,
 [dir="rtl"] .display,
 [dir="rtl"] .data,
-[dir="rtl"] .micro,
-[dir="rtl"] .hud-label {
+[dir="rtl"] .micro {
   font-family: 'Tajawal', system-ui, sans-serif;
 }
-
 [dir="rtl"] .display,
 [dir="rtl"] .micro,
-[dir="rtl"] .hud-label,
 [dir="rtl"] [class*="tracking-"] {
   letter-spacing: 0 !important;
   word-spacing: normal;
@@ -100,7 +109,7 @@ body {
 [dir="rtl"] .display { font-weight: 700; }
 [dir="rtl"] .data { font-variant-numeric: normal; }
 
-/* Latin numerals inside Arabic text keep the mono face for alignment. */
+/* Hindi */
 [lang="hi"] body,
 [lang="hi"] .display,
 [lang="hi"] .data,
@@ -117,22 +126,10 @@ body {
   display: inline-block;
 }
 
-/* Signature: the order-ticket edge. */
-.ticket { position: relative; background: var(--surface); }
-.ticket::before {
-  content: "";
-  position: absolute; left: 14px; right: 14px; top: 0; height: 3px;
-  background-image: radial-gradient(circle at 3px 1.5px, var(--hairline) 1.5px, transparent 1.6px);
-  background-size: 8px 3px;
-}
-
-.rule-dashed { border-top: 1px dashed var(--hairline); }
-
-/* Charts always read left-to-right: time and magnitude are not language-bound,
-   and mirroring an axis makes a trend harder to read, not easier. */
+/* Charts always LTR */
 .chart { direction: ltr; }
 
-/* Icons that encode direction need flipping in RTL; symmetrical ones don't. */
+/* Direction icons flip in RTL */
 [dir="rtl"] .flip-rtl { transform: scaleX(-1); }
 
 :focus-visible {
@@ -141,14 +138,32 @@ body {
   border-radius: 4px;
 }
 
-::-webkit-scrollbar { width: 8px; height: 8px; }
-::-webkit-scrollbar-thumb { background: var(--hairline); border-radius: 8px; }
+/* Touch-friendly: kill the tap flash and the 300ms tap delay on controls. */
+* { -webkit-tap-highlight-color: transparent; }
+button, [role="button"], .gbtn, .gpill, .dg-quick { touch-action: manipulation; }
+html { overscroll-behavior-y: none; }
 
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-thumb { background: var(--hairline); border-radius: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+
+/* Animations */
 @keyframes rise {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: none; }
+  from { opacity: 0; transform: translateY(16px); filter: blur(6px); }
+  to { opacity: 1; transform: none; filter: blur(0); }
 }
-.rise { animation: rise .5s cubic-bezier(.2,.7,.3,1) both; }
+.rise { animation: rise .62s cubic-bezier(.16,.84,.3,1) both; }
+
+/* Cinematic press feedback — every control settles with a spring. */
+button:not(:disabled):active,
+[role="button"]:active {
+  transform: scale(.96);
+}
+.gbtn:not(:disabled):active,
+.gpill:not(:disabled):active,
+.dg-quick:not(:disabled):active {
+  transform: scale(.97);
+}
 
 @keyframes slide-in {
   from { opacity: 0; transform: translateY(6px); }
@@ -156,84 +171,61 @@ body {
 }
 .slide-in { animation: slide-in .28s ease-out both; }
 
-@media (prefers-reduced-motion: reduce) {
-  .rise, .slide-in { animation: none; }
-  * { scroll-behavior: auto !important; }
-}
-
 @keyframes blink { 0%, 50% { opacity: 1 } 51%, 100% { opacity: 0 } }
 
-/* Skeleton placeholder while data loads — a shimmer that reads as
-   "arriving", not as a broken layout. */
+/* Skeleton shimmer */
 @keyframes shimmer { 100% { transform: translateX(100%); } }
 .skeleton {
   position: relative; overflow: hidden;
-  background: var(--hairline); border-radius: 8px;
+  background: var(--hairline); border-radius: 12px;
 }
 .skeleton::after {
   content: ""; position: absolute; inset: 0;
   transform: translateX(-100%);
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,.55), transparent);
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.4), transparent);
   animation: shimmer 1.4s infinite;
 }
 [data-theme="dark"] .skeleton::after {
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,.07), transparent);
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.06), transparent);
 }
 
-/* Screens fade up as you switch tabs. */
+/* Screen transitions */
 @keyframes screen-in {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: none; }
 }
 .screen-in { animation: screen-in .34s cubic-bezier(.2,.7,.3,1) both; }
 
-/* Command palette */
+/* Cinematic screen entrance — slides in from the direction of travel while
+   racking focus (blur → sharp). Used by the tab Transition. */
+@keyframes screen-enter {
+  from { opacity: 0; transform: translateY(var(--enter-from, 16px)) scale(.985); filter: blur(8px); }
+  to { opacity: 1; transform: none; filter: blur(0); }
+}
+
 @keyframes palette-in {
   from { opacity: 0; transform: translateY(-8px) scale(.985); }
   to { opacity: 1; transform: none; }
 }
 .palette-in { animation: palette-in .18s ease-out both; }
 
-@media (prefers-reduced-motion: reduce) {
-  .skeleton::after, .screen-in, .palette-in { animation: none; }
-}
-
-/* Screen entry — travels from the direction you navigated. */
-@keyframes screen-enter {
-  from { opacity: 0; transform: translateY(var(--enter-from, 14px)); }
-  to { opacity: 1; transform: none; }
-}
-
-/* View changes: landing → login → app */
-@keyframes view-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
+/* View transitions */
+@keyframes view-in { from { opacity: 0; } to { opacity: 1; } }
 .view-in { animation: view-in .42s cubic-bezier(.2,.75,.3,1) both; }
 
-/* The signed-in app arriving: a brief settle rather than a hard cut. */
 @keyframes app-in {
   from { opacity: 0; transform: scale(.988); }
   to { opacity: 1; transform: none; }
 }
 .app-in { animation: app-in .5s cubic-bezier(.2,.75,.3,1) both; }
 
-/* Sidebar and tab bar arrive just behind the content. */
 @keyframes rail-in {
   from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: none; }
 }
 .rail-in { animation: rail-in .45s ease-out .1s both; }
 
-@media (prefers-reduced-motion: reduce) {
-  .view-in, .app-in, .rail-in { animation: none; }
-  [style*="screen-enter"] { animation: none !important; }
-}
-
-/* Auth transitions.
-   Signing in and out are the two moments the whole screen changes, so they
-   get a deliberate hand-off: the old view recedes slightly and fades, the
-   new one settles in. Without it the swap reads as a page crash. */
+/* Auth transitions */
 @keyframes auth-out {
   from { opacity: 1; transform: scale(1); }
   to { opacity: 0; transform: scale(.985); }
@@ -246,7 +238,6 @@ body {
 }
 .auth-in { animation: auth-in .42s cubic-bezier(.2,.75,.3,1) both; }
 
-/* A thin progress line across the top while the hand-off happens. */
 @keyframes auth-bar {
   from { transform: scaleX(0); }
   to { transform: scaleX(1); }
@@ -258,208 +249,50 @@ body {
 }
 [dir="rtl"] .auth-bar { transform-origin: right; }
 
-@media (prefers-reduced-motion: reduce) {
-  .auth-out, .auth-in, .auth-bar { animation: none; }
-  .auth-out { opacity: 0; }
-}
-
-/* The live indicator, pulsing while a fetch is in flight. */
+/* Live indicator */
 @keyframes live-pulse {
   0%, 100% { opacity: 1; transform: scale(1); }
   50% { opacity: .45; transform: scale(.75); }
 }
-@media (prefers-reduced-motion: reduce) {
-  [style*="live-pulse"] { animation: none !important; }
-}
-
-
-/* Card geometry.
-   Larger radii and a two-layer shadow — a hairline lift plus a wide, very
-   soft drop — so cards feel placed on the surface rather than outlined on
-   it. Kept as one rule so the whole app moves together. */
-.card-soft {
-  border-radius: 20px;
-  box-shadow: 0 1px 2px rgba(16, 12, 24, .04), 0 14px 36px -26px rgba(16, 12, 24, .38);
-}
-[data-theme="dark"] .card-soft {
-  box-shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 14px 36px -24px rgba(0, 0, 0, .7);
-}
-
-/* A thin luminous edge on the score ring's panel — the instrument-panel
-   note, without neon. */
-.instrument {
-  position: relative;
-  overflow: hidden;
-}
-.instrument::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  pointer-events: none;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .22);
-}
-
-
-/* ------------------------------------------------------------------ */
-/*  Surface language — 2068                                            */
-/*                                                                     */
-/*  Panels are lit, not outlined. Each carries a faint inner highlight  */
-/*  along its top edge and a violet bloom beneath it, so it reads as a  */
-/*  screen sitting proud of the substrate rather than a box drawn on    */
-/*  it. This is the single move that separates "instrument" from "dark  */
-/*  mode".                                                             */
-/* ------------------------------------------------------------------ */
-/* Panel — from the redesign: a gradient face, a violet edge that glows
-   both outward and inward, and a soft blur behind. */
-.panel {
-  position: relative;
-  background: var(--surface);
-  border: 1px solid var(--hairline);
-  border-radius: 18px;
-  box-shadow:
-    0 0 12px rgba(147, 51, 234, .12),
-    inset 0 0 10px rgba(147, 51, 234, .05);
-}
-[data-theme="dark"] .panel {
-  background: linear-gradient(135deg, rgba(15, 13, 30, .95) 0%, rgba(10, 8, 20, .95) 100%);
-  backdrop-filter: blur(12px);
-}
-
-/* The brighter treatment, for a panel carrying a primary reading. */
-.panel-bright {
-  border-color: rgba(217, 70, 239, .55);
-  box-shadow:
-    0 0 18px rgba(217, 70, 239, .3),
-    0 0 36px rgba(147, 51, 234, .16),
-    inset 0 0 18px rgba(147, 51, 234, .07);
-}
-
-/* Notched corners. Used only on the overview's primary cards — applied
-   everywhere it stops being a signal and becomes a texture.
-   Not on mobile: at phone widths the notch eats content. */
-@media (min-width: 1024px) {
-  .angular {
-    clip-path: polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 16px 100%, 0 calc(100% - 16px));
-  }
-}
-.angular-sm {
-  clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 10px 100%, 0 calc(100% - 10px));
-}
-
-/* Corner brackets, exactly as the export draws them. */
-.corner-tl::before {
-  content: ""; position: absolute; top: 0; inset-inline-start: 0;
-  width: 20px; height: 20px;
-  border-top: 2px solid var(--neon); border-inline-start: 2px solid var(--neon);
-}
-.corner-br::after {
-  content: ""; position: absolute; bottom: 0; inset-inline-end: 0;
-  width: 20px; height: 20px;
-  border-bottom: 2px solid var(--neon); border-inline-end: 2px solid var(--neon);
-}
-
-/* The PCB dot matrix from the export, over the grid. */
-.pcb-bg {
-  background-image: radial-gradient(circle at 1px 1px, rgba(147,51,234,.25) 1px, transparent 0);
-  background-size: 24px 24px;
-}
-
-/* Neon text, for one figure per screen. */
-.neon-text {
-  text-shadow:
-    0 0 8px rgba(217, 70, 239, .85),
-    0 0 20px rgba(192, 132, 252, .55),
-    0 0 40px rgba(147, 51, 234, .28);
-}
-
-/* HUD label — the redesign's uppercase micro-type. */
-.hud-label {
-  font-family: 'Orbitron', 'Tajawal', monospace;
-  font-size: .62rem;
-  letter-spacing: .2em;
-  text-transform: uppercase;
-}
-
-/* Corner brackets. A HUD convention, used sparingly — only on panels
-   carrying a primary reading, or it becomes decoration. */
-.hud::before,
-.hud::after {
-  content: "";
-  position: absolute;
-  width: 14px;
-  height: 14px;
-  border-color: var(--edge);
-  border-style: solid;
-  pointer-events: none;
-}
-.hud::before { top: 9px; inset-inline-start: 9px; border-width: 1px 0 0 1px; border-radius: 5px 0 0 0; }
-.hud::after  { bottom: 9px; inset-inline-end: 9px; border-width: 0 1px 1px 0; border-radius: 0 0 5px 0; }
-[dir="rtl"] .hud::before { border-width: 1px 1px 0 0; border-radius: 0 5px 0 0; }
-[dir="rtl"] .hud::after  { border-width: 0 0 1px 1px; border-radius: 0 0 0 5px; }
-
-/* The substrate: a faint grid, so the background has depth without
-   pattern noise. Fixed, so panels move over it rather than with it. */
-/* Grid plus PCB dot matrix, at the export's sizes: 60px grid, 24px dots. */
-.substrate {
-  background-color: var(--bone);
-  background-image:
-    radial-gradient(ellipse at 20% 0%, rgba(124,58,237,.18) 0%, transparent 60%),
-    radial-gradient(ellipse at 80% 100%, rgba(76,29,149,.15) 0%, transparent 60%),
-    radial-gradient(circle at 1px 1px, rgba(147,51,234,.12) 1px, transparent 0),
-    linear-gradient(var(--grid) 1px, transparent 1px),
-    linear-gradient(90deg, var(--grid) 1px, transparent 1px);
-  background-size: 100% 100%, 100% 100%, 24px 24px, 60px 60px, 60px 60px;
-  background-attachment: fixed;
-}
-
-/* Emissive text, for a single primary figure per screen. */
-.emissive { text-shadow: 0 0 22px var(--glow); }
-
-/* A pulsing dot for live state. */
 @keyframes pulse-glow { 0%, 100% { opacity: .45; } 50% { opacity: 1; } }
 
-/* ------------------------------------------------------------------ */
-/*  Mobile                                                             */
-/*                                                                     */
-/*  Most people open this on a phone, in a kitchen, at arm's length.    */
-/*                                                                     */
-/*  The previous attempt forced fixed pixel sizes onto elements that    */
-/*  were also flex children, so text grew past its container and        */
-/*  overlapped. This scales the root instead and lets everything        */
-/*  derive from it, so proportions hold and nothing collides.          */
-/* ------------------------------------------------------------------ */
-@media (max-width: 1023px) {
-  html { font-size: 17px; }
-
-  /* Long words and Arabic compounds must wrap rather than overflow. */
-  body { overflow-wrap: anywhere; }
-
-  /* Headings tighten so they don't run to three lines on a narrow screen. */
-  .display { letter-spacing: 0; line-height: 1.18; }
-
-  /* Orbitron is wide. At small sizes on a phone it stops being readable,
-     so micro-labels hand back to the body face. */
-  .micro, .hud-label {
-    font-family: 'Tajawal', system-ui, sans-serif;
-    font-size: 11px;
-    letter-spacing: .08em;
-  }
-  [dir="rtl"] .micro, [dir="rtl"] .hud-label { letter-spacing: 0; }
-
-  /* The figures people glance at between orders. */
-  .reading-xl { font-size: 32px; line-height: 1.05; }
-  .reading-lg { font-size: 26px; line-height: 1.1; }
-
-  /* Panels sit closer to the edge; margin is screen space on a phone. */
-  .panel { border-radius: 16px; }
-}
-
-/* Nothing may exceed its column. The overview and menu place figures beside
-   labels in tight rows, and a long dish name used to push the number out. */
+/* Truncation */
 .truncate-safe {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Ticket edge — kept for landing receipt demo */
+.ticket { position: relative; background: var(--surface); }
+.ticket::before {
+  content: "";
+  position: absolute; left: 14px; right: 14px; top: 0; height: 3px;
+  background-image: radial-gradient(circle at 3px 1.5px, var(--hairline) 1.5px, transparent 1.6px);
+  background-size: 8px 3px;
+}
+.rule-dashed { border-top: 1px dashed var(--hairline); }
+
+@media (prefers-reduced-motion: reduce) {
+  .rise, .slide-in, .screen-in, .palette-in, .view-in, .app-in, .rail-in,
+  .auth-out, .auth-in, .auth-bar { animation: none; }
+  .skeleton::after { animation: none; }
+  * { scroll-behavior: auto !important; }
+  [style*="live-pulse"] { animation: none !important; }
+}
+
+/* Mobile */
+@media (max-width: 1023px) {
+  html { font-size: 17px; }
+  body { overflow-wrap: anywhere; }
+  .display { letter-spacing: 0; line-height: 1.18; }
+  .micro {
+    font-family: 'Tajawal', system-ui, sans-serif;
+    font-size: 11px;
+    letter-spacing: .06em;
+  }
+  [dir="rtl"] .micro { letter-spacing: 0; }
+  .reading-xl { font-size: 32px; line-height: 1.05; }
+  .reading-lg { font-size: 26px; line-height: 1.1; }
 }

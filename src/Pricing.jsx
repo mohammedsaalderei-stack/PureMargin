@@ -1,6 +1,6 @@
 import { ArrowLeft, Check } from "lucide-react";
 import { useC } from "./theme.jsx";
-import NeonMark from "./NeonMark.jsx";
+import BrandMark from "./BrandMark.jsx";
 import { CONTACT, emailHref } from "./contact.js";
 import { useLang } from "./i18n.jsx";
 import { useReveal } from "./hooks.js";
@@ -100,7 +100,7 @@ export default function Pricing({ onBack, onSignIn }) {
         <div className="max-w-6xl mx-auto px-6 md:px-10 lg:px-16 h-16 flex items-center justify-between">
           <button onClick={onBack} className="flex items-center gap-2 hover:opacity-70">
             <ArrowLeft size={16} className="flip-rtl" style={{ color: C.slate }} />
-            <NeonMark size={34} glow={0.9} />
+            <BrandMark size={34} />
             <span className="display font-extrabold text-lg">{t.name}</span>
           </button>
 

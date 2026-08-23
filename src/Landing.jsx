@@ -4,7 +4,7 @@ import {
   Menu, X, Mail, Phone, Instagram, ShieldCheck, BookOpen, Gauge,
 } from "lucide-react";
 import { useC } from "./theme.jsx";
-import NeonMark from "./NeonMark.jsx";
+import BrandMark from "./BrandMark.jsx";
 import { contactRows, hasContact } from "./contact.js";
 import { useLang } from "./i18n.jsx";
 import { useReveal, prefersReducedMotion } from "./hooks.js";
@@ -14,6 +14,8 @@ import ThemeToggle from "./ThemeToggle.jsx";
 import CoreDiagram from "./landing/CoreDiagram.jsx";
 import { DEMOS } from "./landing/Demos.jsx";
 import SectionRail from "./landing/SectionRail.jsx";
+import { LineReveal, Rise, RuleReveal } from "./landing/Reveal.jsx";
+import "./glass.css";
 import "./landing-glass.css";
 
 function Section({ eyebrow, title, lead, children, id, accent }) {
@@ -22,19 +24,32 @@ function Section({ eyebrow, title, lead, children, id, accent }) {
   return (
     <section id={id} ref={ref} className="px-6 md:px-10 lg:px-16 py-16 md:py-24">
       <div className="max-w-6xl mx-auto">
-        <div className={shown ? "rise" : "opacity-0"}>
+        <div>
           {eyebrow && (
-            <span className="eyebrow-chip data text-[11px] uppercase tracking-[0.18em]" style={{ color: accent || C.iris }}>
-              {eyebrow}
-            </span>
+            <Rise>
+              <span className="eyebrow-chip data text-[11px] uppercase tracking-[0.18em]" style={{ color: accent || C.iris }}>
+                {eyebrow}
+              </span>
+            </Rise>
           )}
-          <h2 className="display text-3xl md:text-4xl lg:text-5xl font-extrabold max-w-3xl leading-[1.15] mt-4 grad-text">
+          <LineReveal
+            as="h2"
+            delay={90}
+            className="display text-3xl md:text-4xl lg:text-5xl font-extrabold max-w-3xl leading-[1.15] mt-4 grad-text"
+          >
             {title}
-          </h2>
+          </LineReveal>
+          <RuleReveal
+            delay={260}
+            className="mt-6 max-w-3xl"
+            style={{ height: 1, background: `linear-gradient(to right, ${accent || C.iris}, transparent)` }}
+          />
           {lead && (
-            <p className="mt-4 text-base md:text-lg max-w-2xl" style={{ color: C.slate }}>
-              {lead}
-            </p>
+            <Rise delay={220}>
+              <p className="mt-5 text-base md:text-lg max-w-2xl" style={{ color: C.slate }}>
+                {lead}
+              </p>
+            </Rise>
           )}
         </div>
         <div
@@ -203,11 +218,11 @@ export default function Landing({ onSignIn, onRegister, onPricing }) {
         <header className="sticky top-0 z-40 px-3 md:px-6 pt-3">
           <div className="glass-header-inner max-w-6xl mx-auto px-5 md:px-8 h-14 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <NeonMark size={32} glow={0.95} />
+              <BrandMark size={32} />
               <span className="display font-extrabold text-lg grad-text">{t.name}</span>
             </div>
 
-            <nav className="hidden md:flex items-center gap-5 text-sm font-medium">
+            <nav className="hidden lg:flex items-center gap-5 text-sm font-medium">
               <button onClick={() => go("sources")} className="hover:opacity-70">{t.nav.how}</button>
               <button onClick={() => go("capabilities")} className="hover:opacity-70">{t.nav.what}</button>
               <button onClick={onPricing} className="hover:opacity-70">{t.pricing.nav}</button>
@@ -222,7 +237,7 @@ export default function Landing({ onSignIn, onRegister, onPricing }) {
               </button>
             </nav>
 
-            <div className="flex items-center gap-2 md:hidden">
+            <div className="flex items-center gap-2 lg:hidden">
               <ThemeToggle compact />
               <LanguagePicker compact />
               <button onClick={() => setMenu((m) => !m)} aria-label={t.nav.menu}>
@@ -232,14 +247,20 @@ export default function Landing({ onSignIn, onRegister, onPricing }) {
           </div>
 
           {menu && (
-            <div className="md:hidden glass glass-header-inner max-w-6xl mx-auto mt-2 px-5 py-4 flex flex-col gap-3 text-sm font-medium">
+            <div className="lg:hidden glass glass-header-inner max-w-6xl mx-auto mt-2 px-5 py-4 flex flex-col gap-3 text-sm font-medium">
               <button onClick={() => go("sources")} className="text-start py-1">{t.nav.how}</button>
               <button onClick={() => go("capabilities")} className="text-start py-1">{t.nav.what}</button>
               <button onClick={() => go("steps")} className="text-start py-1">{t.nav.start}</button>
               <button onClick={onPricing} className="text-start py-1">{t.pricing.nav}</button>
               <button
-                onClick={onSignIn}
+                onClick={onRegister}
                 className="mt-1 gbtn gbtn-primary px-4 py-2.5 font-semibold text-center"
+              >
+                {t.register.nav}
+              </button>
+              <button
+                onClick={onSignIn}
+                className="gbtn gbtn-ghost px-4 py-2.5 font-semibold text-center"
               >
                 {t.common.signIn}
               </button>
@@ -250,15 +271,23 @@ export default function Landing({ onSignIn, onRegister, onPricing }) {
         {/* Hero */}
         <section id="story" className="px-6 md:px-10 lg:px-16 pt-14 pb-20 md:pt-20 md:pb-28">
           <div className="max-w-6xl mx-auto grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
-            <div className="rise">
-              <span className="eyebrow-chip data text-[11px] uppercase tracking-[0.18em]" style={{ color: C.iris }}>
-                {t.hero.eyebrow}
-              </span>
-              <h1 className="display text-4xl md:text-5xl lg:text-6xl font-extrabold leading-[1.08] mt-5 grad-text">
+            <div>
+              <Rise>
+                <span className="eyebrow-chip data text-[11px] uppercase tracking-[0.18em]" style={{ color: C.iris }}>
+                  {t.hero.eyebrow}
+                </span>
+              </Rise>
+              <LineReveal
+                as="h1"
+                delay={120}
+                className="display text-4xl md:text-5xl lg:text-6xl font-extrabold leading-[1.3] md:leading-[1.12] mt-5 grad-text"
+              >
                 {t.hero.title}
-              </h1>
-              <p className="mt-6 text-lg max-w-lg" style={{ color: C.slate }}>{t.hero.lead}</p>
-              <div className="mt-8 flex flex-wrap gap-3">
+              </LineReveal>
+              <Rise delay={300}>
+                <p className="mt-6 text-lg max-w-lg" style={{ color: C.slate }}>{t.hero.lead}</p>
+              </Rise>
+              <Rise delay={420} className="mt-8 flex flex-wrap gap-3">
                 <button
                   onClick={onRegister}
                   className="gbtn gbtn-primary px-6 py-3 font-semibold inline-flex items-center gap-2"
@@ -271,7 +300,7 @@ export default function Landing({ onSignIn, onRegister, onPricing }) {
                 >
                   {t.hero.see}
                 </button>
-              </div>
+              </Rise>
             </div>
 
             <div className="rise" style={{ animationDelay: "120ms" }}>
@@ -318,7 +347,7 @@ export default function Landing({ onSignIn, onRegister, onPricing }) {
                       <div className="w-9 h-9 rounded-lg flex items-center justify-center" style={{ background: "linear-gradient(135deg, var(--iris), var(--neon))" }}>
                         <Icon size={17} color={C.onPrimary} />
                       </div>
-                      <span className="display font-extrabold text-2xl">{cap.name}</span>
+                      <span className="display font-extrabold text-2xl min-w-0">{cap.name}</span>
                       <span className="index-num ms-auto" dir="ltr">
                         {String(i + 1).padStart(2, "0")}
                       </span>
@@ -370,15 +399,19 @@ export default function Landing({ onSignIn, onRegister, onPricing }) {
         <div style={{ background: C.panel }}>
           <section id="steps" className="px-6 md:px-10 lg:px-16 py-16 md:py-24">
             <div className="max-w-6xl mx-auto">
-              <span className="eyebrow-chip data text-[11px] uppercase tracking-[0.18em]" style={{ color: C.lilac, borderColor: "rgba(192,132,252,0.3)", background: "rgba(192,132,252,0.08)" }}>
-                {t.steps.eyebrow}
-              </span>
-              <h2
+              <Rise>
+                <span className="eyebrow-chip data text-[11px] uppercase tracking-[0.18em]" style={{ color: C.lilac, borderColor: "rgba(192,132,252,0.3)", background: "rgba(192,132,252,0.08)" }}>
+                  {t.steps.eyebrow}
+                </span>
+              </Rise>
+              <LineReveal
+                as="h2"
+                delay={90}
                 className="display text-3xl md:text-4xl lg:text-5xl font-extrabold max-w-3xl leading-[1.15] mt-4"
                 style={{ color: C.panelText }}
               >
                 {t.steps.title}
-              </h2>
+              </LineReveal>
               <div className="mt-12 grid md:grid-cols-3 gap-8 md:gap-6">
                 {t.steps.items.map((step, i) => (
                   <div key={step.t} className="step-rail md:ps-6" style={{ borderTop: "1px solid rgba(255,255,255,.15)" }}>
@@ -397,9 +430,16 @@ export default function Landing({ onSignIn, onRegister, onPricing }) {
         {/* Close */}
         <section className="px-6 md:px-10 lg:px-16 py-20 md:py-28">
           <div className="max-w-2xl mx-auto text-center">
-            <h2 className="display text-3xl md:text-4xl font-extrabold leading-[1.2] grad-text">{t.close.title}</h2>
-            <p className="mt-4 text-base" style={{ color: C.slate }}>{t.close.lead}</p>
-            <div className="mt-8 flex flex-wrap gap-3 justify-center">
+            <LineReveal
+              as="h2"
+              className="display text-3xl md:text-4xl font-extrabold leading-[1.2] grad-text"
+            >
+              {t.close.title}
+            </LineReveal>
+            <Rise delay={200}>
+              <p className="mt-4 text-base" style={{ color: C.slate }}>{t.close.lead}</p>
+            </Rise>
+            <Rise delay={320} className="mt-8 flex flex-wrap gap-3 justify-center">
               <button
                 onClick={onSignIn}
                 className="gbtn gbtn-primary px-7 py-3.5 font-semibold inline-flex items-center gap-2"
@@ -412,7 +452,7 @@ export default function Landing({ onSignIn, onRegister, onPricing }) {
               >
                 {t.pricing.nav}
               </button>
-            </div>
+            </Rise>
           </div>
         </section>
 
@@ -422,7 +462,7 @@ export default function Landing({ onSignIn, onRegister, onPricing }) {
             <div className="grid md:grid-cols-[1.4fr_1fr_1fr] gap-10 md:gap-8">
               <div>
                 <div className="flex items-center gap-2 mb-3">
-                  <NeonMark size={34} glow={0.9} />
+                  <BrandMark size={34} />
                   <span className="display font-extrabold text-lg" style={{ color: C.panelText }}>{t.name}</span>
                 </div>
                 <p className="text-sm max-w-xs leading-relaxed" style={{ color: C.panelMuted }}>
