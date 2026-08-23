@@ -51,7 +51,7 @@ export const ROLES = {
       "view:costs", "view:reports", "export",
       "manage:recipes", "manage:inventory", "manage:costs",
       "manage:users", "manage:integrations", "manage:billing",
-      "approve:counts",
+      "approve:counts", "manage:purchasing",
     ],
   },
   ops: {
@@ -62,7 +62,7 @@ export const ROLES = {
     can: [
       "view:dashboard", "view:profitability", "view:forecast", "view:inventory",
       "view:costs", "view:reports", "export",
-      "manage:recipes", "manage:inventory", "approve:counts",
+      "manage:recipes", "manage:inventory", "approve:counts", "manage:purchasing",
     ],
   },
   branch_manager: {
@@ -70,7 +70,7 @@ export const ROLES = {
     scope: "assigned",
     can: [
       "view:dashboard", "view:profitability", "view:inventory", "view:reports",
-      "export", "manage:inventory", "approve:counts",
+      "export", "manage:inventory", "approve:counts", "manage:purchasing",
     ],
   },
   chef: {
@@ -87,7 +87,14 @@ export const ROLES = {
     scope: "assigned",
     /* Costs, purchases, reports and exports, but no recipe or integration
        administration — straight from the direction document's table. */
-    can: ["view:costs", "view:reports", "view:profitability", "export", "manage:costs"],
+    /* "Costs, purchases, reports and exports" — so purchasing is theirs, and
+       `view:inventory` comes with it because a purchase order is unreadable
+       without the item master behind it. Still no recipes, users or
+       integrations. */
+    can: [
+      "view:costs", "view:reports", "view:profitability", "export", "manage:costs",
+      "view:inventory", "manage:purchasing",
+    ],
   },
 };
 

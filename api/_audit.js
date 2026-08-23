@@ -57,6 +57,14 @@ export const AUDIT_ACTIONS = {
   "count.reopen": "stock count sent back to draft",
   "count.approve": "stock count approved",
   "count.cancel": "stock count cancelled",
+
+  /* Stage 4, phase 4 — purchasing. Receiving is where cost enters the system, so
+     it is logged with the invoice it was billed on. */
+  "po.save": "purchase order saved",
+  "po.submit": "purchase order sent to supplier",
+  "po.cancel": "purchase order cancelled",
+  "po.receive": "delivery received",
+  "po.return": "goods returned to supplier",
 };
 
 export async function recordAudit(orgId, { actor, action, target = "", detail = {} }) {

@@ -205,8 +205,40 @@ they override the defaults).
   `src/inventory/CountSheet.jsx` (the sheet, variance, workflow buttons). A
   reason selector only appears on lines that actually differ. i18n block
   `inventory.counts.*`.
-- Tests: `api/_counts.test.js` (26), wired into `npm test` — 105 total.
-- **Still open:** purchasing/receiving and the costing engine.
+- Tests: `api/_counts.test.js` (26), wired into `npm test`.
+
+## Purchasing and receiving (stage 4, phase 4)
+- `api/_purchasing.js`, key `inv:<orgId>:purchases`. Statuses: draft → open →
+  partial → received, plus `cancelled`.
+- **Ordered, received and invoiced are three separate records.** The order's lines
+  are never rewritten by a delivery — quantity variance and price variance are
+  differences between records, so collapsing them loses the number.
+- Receiving is additive: any number of partial receipts, each writing its own
+  `receive` movements (`ref: po:<id>`), ids kept on the receipt.
+- **Discounts and charges are allocated pro rata by line value** and landed on the
+  movement's `unitCost`. A value of zero across the receipt allocates nothing
+  rather than dividing by it.
+- Price variance compares `pricePerBase` agreed vs invoiced, so ordering by the
+  dozen and receiving by the each can't fake one.
+- **Over-receipt is refused** (`{ error: "over", remaining, unit }`, HTTP 422) —
+  it's a typo, not a variance. All validation happens before any movement is
+  written, so a rejected line can't leave half a delivery on the shelf.
+- Returns write `return_out` at the cost the goods came in at, capped at what
+  arrived (`overreturn`), and do **not** reopen a received order.
+- Ordering may use any unit of the ingredient's dimension (its purchase unit
+  usually). There is no global "case"/"sack" unit — pack shapes live on the
+  ingredient, by design in `_units.js`.
+- Capability `manage:purchasing` — owner, ops, branch manager and **accountant**
+  (the document gives them purchases; they also gained `view:inventory`, since a
+  PO is unreadable without the item master). Chef deliberately has neither.
+- Audit: `po.save`, `po.submit`, `po.cancel`, `po.receive` (records the invoice
+  number and total), `po.return`.
+- Front end: `src/purchasing/PurchasingPanel.jsx` (list) → `OrderForm.jsx` (raise)
+  → `OrderSheet.jsx` (summary, lines, receipts, returns) → `ReceiveForm.jsx`
+  (pre-filled with what is still owed at the agreed price). i18n
+  `inventory.purchasing.*`.
+- Tests: `api/_purchasing.test.js` (26) — 131 total.
+- **Still open:** the costing and variance engine, then dashboards.
 
 ## Sign-in email
 - `setEmail(username, currentPassword, nextEmail)` in `api/_accounts.js`, exposed

@@ -4,6 +4,7 @@ import IngredientForm from "../inventory/IngredientForm.jsx";
 import SupplierList from "../inventory/SupplierList.jsx";
 import StockPanel from "../inventory/StockPanel.jsx";
 import CountsPanel from "../inventory/CountsPanel.jsx";
+import PurchasingPanel from "../purchasing/PurchasingPanel.jsx";
 import { useC } from "../theme.jsx";
 import { useLang, fill } from "../i18n.jsx";
 
@@ -11,7 +12,8 @@ import { useLang, fill } from "../i18n.jsx";
 
    Phase 1 is the definitions — ingredients, units, suppliers. Phase 2 adds the
    movement ledger, which is where quantities live. Phase 3 adds stock counts,
-   which is where the ledger is confronted with the shelf.
+   which is where the ledger is confronted with the shelf. Phase 4 adds
+   purchasing, which is where cost enters the system.
 
    There is still no editable "quantity on hand" anywhere on this screen. Every
    balance in `StockPanel` is the sum of the ledger beneath it, and the only way
@@ -236,6 +238,9 @@ export default function Inventory({ token }) {
         {/* Approving a count writes adjustments, so the balances above have to
             be re-read when one lands. */}
         <CountsPanel token={token} onStockChanged={() => setStockKey((n) => n + 1)} />
+
+        {/* Receiving writes movements too, so the balances above re-read. */}
+        <PurchasingPanel token={token} onStockChanged={() => setStockKey((n) => n + 1)} />
 
         <SupplierList
           token={token}

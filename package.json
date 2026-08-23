@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "REDIS_URL= KV_URL= KV_REST_API_URL= node api/_org.test.js && REDIS_URL= KV_URL= KV_REST_API_URL= node api/_journal.test.js && REDIS_URL= KV_URL= KV_REST_API_URL= node api/_inventory.test.js && REDIS_URL= KV_URL= KV_REST_API_URL= node api/_movements.test.js && REDIS_URL= KV_URL= KV_REST_API_URL= node api/_counts.test.js"
+    "test": "REDIS_URL= KV_URL= KV_REST_API_URL= node api/_org.test.js && REDIS_URL= KV_URL= KV_REST_API_URL= node api/_journal.test.js && REDIS_URL= KV_URL= KV_REST_API_URL= node api/_inventory.test.js && REDIS_URL= KV_URL= KV_REST_API_URL= node api/_movements.test.js && REDIS_URL= KV_URL= KV_REST_API_URL= node api/_counts.test.js && REDIS_URL= KV_URL= KV_REST_API_URL= node api/_purchasing.test.js"
   },
   "dependencies": {
     "@vitejs/plugin-react": "^4.3.3",
