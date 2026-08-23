@@ -92,7 +92,7 @@ function ExportMenu({ data, screen, dateRange, business, onClose }) {
           <FileText size={15} style={{ color: C.iris }} /> PDF Report
         </button>
         <button
-          onClick={() => { exportCSV(screen, data, dateRange); onClose(); }}
+          onClick={() => { exportCSV(screen, data, dateRange, business); onClose(); }}
           className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium hover-soft text-start"
           style={{ color: C.ink }}
         >
@@ -429,7 +429,7 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
               className="flex-1 gpill gpill-primary py-2.5 text-sm font-semibold flex items-center justify-center gap-2">
               <FileText size={15} /> PDF
             </button>
-            <button onClick={() => { exportCSV(tab, data, dateRange); setMobileMenu(false); }}
+            <button onClick={() => { exportCSV(tab, data, dateRange, account?.account?.business); setMobileMenu(false); }}
               className="flex-1 gpill gpill-ghost py-2.5 text-sm font-semibold flex items-center justify-center gap-2">
               <Table size={15} /> CSV
             </button>

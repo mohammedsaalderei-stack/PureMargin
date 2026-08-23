@@ -17,6 +17,36 @@ const DEFAULT_FROM = "PureMargin <onboarding@resend.dev>";
 
 export const configured = Boolean(process.env.RESEND_API_KEY);
 
+/* Resend rejects the whole send if the sender isn't `email@example.com` or
+   `Name <email@example.com>`. A half-filled MAIL_FROM shouldn't cost somebody
+   their reset mail, so anything that isn't one of those two shapes is ignored
+   in favour of the shared sender, loudly. */
+function from() {
+  const configuredFrom = String(process.env.MAIL_FROM || "").trim();
+  if (!configuredFrom) return DEFAULT_FROM;
+
+  const address = configuredFrom.match(/<([^>]+)>\s*$/)?.[1] ?? configuredFrom;
+  if (/^[^\s@]+@[^\s@.]+\.[^\s@]+$/.test(address.trim())) return configuredFrom;
+
+  console.warn(
+    "[mail] MAIL_FROM is not a valid sender — expected `email@example.com` or " +
+      "`Name <email@example.com>`. Falling back to the shared Resend sender."
+  );
+  return DEFAULT_FROM;
+}
+
+async function post({ sender, to, subject, html, text }) {
+  const res = await fetch(ENDPOINT, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ from: sender, to: [to], subject, html, text }),
+  });
+  return { ok: res.ok, status: res.status, detail: res.ok ? "" : await res.text() };
+}
+
 export async function sendMail({ to, subject, html, text }) {
   if (!to) return { error: "norecipient" };
 
@@ -28,24 +58,24 @@ export async function sendMail({ to, subject, html, text }) {
   }
 
   try {
-    const res = await fetch(ENDPOINT, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        from: process.env.MAIL_FROM || DEFAULT_FROM,
-        to: [to],
-        subject,
-        html,
-        text,
-      }),
-    });
+    const sender = from();
+    let result = await post({ sender, to, subject, html, text });
 
-    if (!res.ok) {
-      const detail = await res.text();
-      console.error(`mail send failed (${res.status}):`, detail);
+    /* Resend refuses a sender whose domain isn't verified on the account yet.
+       That's a setup step on their side, not a reason to swallow somebody's
+       reset code, so the same message goes out once more from the shared
+       sender. Once the domain is verified the first attempt succeeds and this
+       never runs. */
+    if (!result.ok && sender !== DEFAULT_FROM && /from|domain/i.test(result.detail)) {
+      console.warn(
+        `[mail] Resend rejected the MAIL_FROM sender (${result.status}) — verify its ` +
+          "domain at resend.com/domains. Retrying from the shared sender."
+      );
+      result = await post({ sender: DEFAULT_FROM, to, subject, html, text });
+    }
+
+    if (!result.ok) {
+      console.error(`mail send failed (${result.status}):`, result.detail);
       return { error: "send" };
     }
     return { sent: true };
