@@ -72,6 +72,10 @@ export const AUDIT_ACTIONS = {
   "recipe.version": "new recipe version",
   "recipe.archive": "recipe archived",
   "recipe.restore": "recipe restored",
+
+  /* Stage 4, phase 7 — targets. A threshold decides what the whole organization
+     is warned about, so moving one is a sensitive change like a permission. */
+  "targets.update": "cost targets and thresholds changed",
 };
 
 export async function recordAudit(orgId, { actor, action, target = "", detail = {} }) {

@@ -302,9 +302,32 @@ they override the defaults).
   shows actual usage and reports `sales.error` rather than a confident total.
 - Front end: tab `variance` (`view:costs`) → `src/screens/Variance.jsx` +
   `src/variance/VarianceRow.jsx`. i18n `variance.*`.
-- Tests: `api/_variance.test.js` (25) — 181 total.
-- **Still open:** targets and alerts, the dashboard/forecast phase, then the
-  assistant.
+- Tests: `api/_variance.test.js` (25).
+
+## Targets and alerts (stage 4, phase 7)
+- `api/_alerts.js` — `getTargets`/`saveTargets` (`inv:{org}:targets`, values clamped
+  on save so a 0% target or 5000 cover days can't silence/flood the list) and
+  `buildAlerts(orgId, branchIds, { salesRows, from, to, method })`, which runs one
+  `varianceReport` + `balances` so an alert can never disagree with the leakage
+  screen.
+- Kinds (each pinned to a recommended `action` key in `ALERT_KINDS`, so an alert
+  can't be added without deciding what to do about it): `foodcost`, `variance`,
+  `stockout`, `reorder`, `negative`, `slowmoving`, `expiry`, `norate`.
+- Rules that matter: **no forecast without a usage rate** — stock with a threshold
+  but no issues in the period raises `norate`, never a projected date; variance
+  needs to pass **both** `variancePct` and the money floor `varianceFloor`; a
+  negative balance is a data problem (`countStock`), not a purchasing one, and
+  suppresses the cover alert; expiry is inferred from `shelfLifeDays` + last
+  movement and is marked `estimated: true`.
+- **No English in the payload** — alerts carry `kind`/`action`/numbers only;
+  wording is `alerts.*` in `src/i18n.jsx` across all four languages.
+- Route `api/alerts.js`: GET needs `view:inventory`, PUT `{targets}` needs
+  `manage:costs` and writes audit action `targets.update`.
+- Front end: tab `alerts` (`view:inventory`) → `src/screens/Alerts.jsx` +
+  `src/alerts/AlertCard.jsx`, `src/alerts/TargetsForm.jsx`. Empty state
+  distinguishes "nothing wrong" from "nothing recorded" via `recipeCoverage`.
+- Tests: `api/_alerts.test.js` (24) — 205 total.
+- **Still open:** the dashboard/forecast phase (stage 5), then the assistant.
 
 ## Sign-in email
 - `setEmail(username, currentPassword, nextEmail)` in `api/_accounts.js`, exposed

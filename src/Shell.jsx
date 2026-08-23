@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   BarChart3, LineChart, MessageSquare, Settings as Cog, UtensilsCrossed, Users,
   Search, Lightbulb, PanelRightClose, PanelRightOpen, LogOut, Lock, Wallet,
-  LayoutDashboard, Download, FileText, Table, ChevronDown, Package, ChefHat, Scale,
+  LayoutDashboard, Download, FileText, Table, ChevronDown, Package, ChefHat, Scale, BellRing,
 } from "lucide-react";
 import { useC } from "./theme.jsx";
 import BrandMark from "./BrandMark.jsx";
@@ -25,6 +25,7 @@ import Team from "./screens/Team.jsx";
 import Inventory from "./screens/Inventory.jsx";
 import Recipes from "./screens/Recipes.jsx";
 import Variance from "./screens/Variance.jsx";
+import Alerts from "./screens/Alerts.jsx";
 import BranchScope from "./BranchScope.jsx";
 import CommandPalette from "./CommandPalette.jsx";
 import LanguagePicker from "./LanguagePicker.jsx";
@@ -77,6 +78,10 @@ const TEAM_TAB = { id: "team", icon: Users };
    and swipe order for everyone. */
 const INVENTORY_TAB = { id: "inventory", icon: Package };
 
+/* Alerts sit with inventory rather than costing: the person acting on a stockout
+   is the chef, and `view:inventory` is who that is. */
+const ALERTS_TAB = { id: "alerts", icon: BellRing };
+
 /* Recipes ride on `view:costs`, not on `view:inventory`: an accountant reads what
    dishes cost without writing recipes, and a chef writes them. Appended for the
    same reason as the others. */
@@ -86,7 +91,7 @@ const RECIPES_TAB = { id: "recipes", icon: ChefHat };
    recipes, since it is the costing answer they are both building towards. */
 const VARIANCE_TAB = { id: "variance", icon: Scale };
 
-const TAB_ICONS = Object.fromEntries([...TAB_META, INVENTORY_TAB, RECIPES_TAB, VARIANCE_TAB, TEAM_TAB].map((tb) => [tb.id, tb.icon]));
+const TAB_ICONS = Object.fromEntries([...TAB_META, INVENTORY_TAB, ALERTS_TAB, RECIPES_TAB, VARIANCE_TAB, TEAM_TAB].map((tb) => [tb.id, tb.icon]));
 
 function useDesktop() {
   const [big, setBig] = useState(() => typeof window !== "undefined" && window.matchMedia("(min-width: 1024px)").matches);
@@ -317,6 +322,7 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
   else if (tab === "inventory") { body = <Inventory token={token} />; }
   else if (tab === "recipes") { body = <Recipes token={token} />; }
   else if (tab === "variance") { body = <Variance token={token} />; }
+  else if (tab === "alerts") { body = <Alerts token={token} />; }
   else if (locked) { body = <Locked feature={needed} onSeePlans={() => go("billing")} />; }
   else if (tab === "ask") {
     body = <Ask token={token} wide={desktop && !chatsOpen} pending={pending} onPendingUsed={() => setPending("")}
@@ -367,7 +373,7 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
   const canSeeRecipes = Boolean(scope?.capabilities?.includes("view:costs"));
   const navTabs = [
     ...TAB_META,
-    ...(canSeeInventory ? [INVENTORY_TAB] : []),
+    ...(canSeeInventory ? [INVENTORY_TAB, ALERTS_TAB] : []),
     ...(canSeeRecipes ? [RECIPES_TAB, VARIANCE_TAB] : []),
     ...(canManageTeam ? [TEAM_TAB] : []),
   ];
@@ -486,7 +492,7 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
         <div className="grid grid-cols-3 gap-2">
           {[
             ...SECONDARY,
-            ...(canSeeInventory ? ["inventory"] : []),
+            ...(canSeeInventory ? ["inventory", "alerts"] : []),
             ...(canSeeRecipes ? ["recipes", "variance"] : []),
             ...(canManageTeam ? ["team"] : []),
           ].map((id) => {

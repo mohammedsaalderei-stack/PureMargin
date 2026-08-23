@@ -20,6 +20,8 @@ export const SCREEN_FEATURE = {
   // Recipes and their cost, and theoretical vs actual: `view:costs` decides.
   recipes: null,
   variance: null,
+  // Alerts follow inventory: `view:inventory` decides.
+  alerts: null,
   settings: null,
   billing: null,
 };
