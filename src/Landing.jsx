@@ -208,7 +208,7 @@ export default function Landing({ onSignIn, onRegister, onPricing }) {
               <span className="display font-extrabold text-lg grad-text">{t.name}</span>
             </div>
 
-            <nav className="hidden md:flex items-center gap-5 text-sm font-medium">
+            <nav className="hidden lg:flex items-center gap-5 text-sm font-medium">
               <button onClick={() => go("sources")} className="hover:opacity-70">{t.nav.how}</button>
               <button onClick={() => go("capabilities")} className="hover:opacity-70">{t.nav.what}</button>
               <button onClick={onPricing} className="hover:opacity-70">{t.pricing.nav}</button>
@@ -223,7 +223,7 @@ export default function Landing({ onSignIn, onRegister, onPricing }) {
               </button>
             </nav>
 
-            <div className="flex items-center gap-2 md:hidden">
+            <div className="flex items-center gap-2 lg:hidden">
               <ThemeToggle compact />
               <LanguagePicker compact />
               <button onClick={() => setMenu((m) => !m)} aria-label={t.nav.menu}>
@@ -233,14 +233,20 @@ export default function Landing({ onSignIn, onRegister, onPricing }) {
           </div>
 
           {menu && (
-            <div className="md:hidden glass glass-header-inner max-w-6xl mx-auto mt-2 px-5 py-4 flex flex-col gap-3 text-sm font-medium">
+            <div className="lg:hidden glass glass-header-inner max-w-6xl mx-auto mt-2 px-5 py-4 flex flex-col gap-3 text-sm font-medium">
               <button onClick={() => go("sources")} className="text-start py-1">{t.nav.how}</button>
               <button onClick={() => go("capabilities")} className="text-start py-1">{t.nav.what}</button>
               <button onClick={() => go("steps")} className="text-start py-1">{t.nav.start}</button>
               <button onClick={onPricing} className="text-start py-1">{t.pricing.nav}</button>
               <button
-                onClick={onSignIn}
+                onClick={onRegister}
                 className="mt-1 gbtn gbtn-primary px-4 py-2.5 font-semibold text-center"
+              >
+                {t.register.nav}
+              </button>
+              <button
+                onClick={onSignIn}
+                className="gbtn gbtn-ghost px-4 py-2.5 font-semibold text-center"
               >
                 {t.common.signIn}
               </button>
@@ -255,7 +261,7 @@ export default function Landing({ onSignIn, onRegister, onPricing }) {
               <span className="eyebrow-chip data text-[11px] uppercase tracking-[0.18em] rise" style={{ color: C.iris }}>
                 {t.hero.eyebrow}
               </span>
-              <h1 className="display text-4xl md:text-5xl lg:text-6xl font-extrabold leading-[1.08] mt-5 grad-text rise" style={{ animationDelay: "90ms" }}>
+              <h1 className="display text-4xl md:text-5xl lg:text-6xl font-extrabold leading-[1.15] md:leading-[1.08] mt-5 grad-text rise" style={{ animationDelay: "90ms" }}>
                 {t.hero.title}
               </h1>
               <p className="mt-6 text-lg max-w-lg rise" style={{ color: C.slate, animationDelay: "180ms" }}>{t.hero.lead}</p>
