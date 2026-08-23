@@ -536,6 +536,21 @@ export async function fetchMerchant(token) {
   }
 }
 
+/* The organization's branches, straight from the POS.
+
+   Permissions need the list of branches that exist before any figures are
+   computed — assigning a branch manager to a branch shouldn't require pulling
+   a month of receipts first. This is the cheap read for that. */
+export async function branchList(posToken) {
+  const token = posToken || process.env.LOYVERSE_ACCESS_TOKEN || "";
+  if (!token) throw new NotConnected();
+  const data = await call("/stores", token);
+  return (data?.stores || []).map((s) => ({
+    id: String(s.id),
+    name: s.name || "Unnamed branch",
+  }));
+}
+
 export async function getMetrics(posToken, { maxAge = CACHE_MS, overrides = {} } = {}) {
   const token = posToken || process.env.LOYVERSE_ACCESS_TOKEN || "";
   if (!token) throw new NotConnected();
