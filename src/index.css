@@ -25,21 +25,22 @@
 /* Dark values, kept in step with the DARK palette in theme.jsx.
    These drive anything styled in CSS rather than inline. */
 [data-theme="dark"] {
-  --ink: #EFE9FB;
-  --slate: #8B82A6;
-  --hairline: #241B36;
-  --bone: #08060E;
-  --surface: #110C1C;
+  --ink: #F0E8FF;
+  --slate: #9180B8;
+  --hairline: #1E1440;
+  --bone: #05030F;
+  --surface: #0A0818;
   --iris: #A855F7;
-  --iris-deep: #C99BFF;
-  --iris-wash: rgba(168,85,247,.13);
+  --iris-deep: #C084FC;
+  --iris-wash: rgba(168,85,247,.14);
   --lilac: #C084FC;
-  --lilac-wash: rgba(192,132,252,.11);
+  --lilac-wash: rgba(192,132,252,.12);
   --cyan: #22D3EE;
   --rose: #FB5E7E;
-  --glow: rgba(168,85,247,.30);
-  --grid: rgba(168,85,247,.055);
-  --edge: rgba(168,85,247,.30);
+  --glow: rgba(147,51,234,.4);
+  --grid: rgba(147,51,234,.07);
+  --edge: rgba(147,51,234,.35);
+  --neon: #D946EF;
 }
 
 html, body, #root { height: 100%; margin: 0; }
@@ -403,10 +404,12 @@ body {
 .substrate {
   background-color: var(--bone);
   background-image:
-    radial-gradient(circle at 1px 1px, rgba(147,51,234,.1) 1px, transparent 0),
+    radial-gradient(ellipse at 20% 0%, rgba(124,58,237,.18) 0%, transparent 60%),
+    radial-gradient(ellipse at 80% 100%, rgba(76,29,149,.15) 0%, transparent 60%),
+    radial-gradient(circle at 1px 1px, rgba(147,51,234,.12) 1px, transparent 0),
     linear-gradient(var(--grid) 1px, transparent 1px),
     linear-gradient(90deg, var(--grid) 1px, transparent 1px);
-  background-size: 24px 24px, 60px 60px, 60px 60px;
+  background-size: 100% 100%, 100% 100%, 24px 24px, 60px 60px, 60px 60px;
   background-attachment: fixed;
 }
 

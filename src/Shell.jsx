@@ -573,7 +573,11 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
 
         <aside
           className="w-60 shrink-0 flex flex-col p-5 rail-in"
-          style={{ background: C.surface, borderLeft: `1px solid ${C.hairline}`, boxShadow: `inset 1px 0 0 ${C.edge}` }}
+          style={{
+            background: "linear-gradient(180deg, rgba(15,10,30,.98) 0%, rgba(8,6,18,.98) 100%)",
+            borderLeft: "1px solid rgba(147,51,234,.22)",
+            boxShadow: "inset 1px 0 0 rgba(147,51,234,.1), -4px 0 40px rgba(0,0,0,.4)",
+          }}
         >
           <div className="mb-6 px-1">{logo}</div>
           <div className="mb-6 px-1">
@@ -589,9 +593,11 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
                   onClick={() => go(id)}
                   className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors relative"
                   style={{
-                    background: on ? C.irisWash : "transparent",
-                    color: on ? C.irisDeep : C.slate,
-                    boxShadow: on ? `inset 0 0 0 1px ${C.edge}` : "none",
+                    background: on
+                      ? "linear-gradient(135deg, rgba(124,58,237,.25) 0%, rgba(168,85,247,.12) 100%)"
+                      : "transparent",
+                    color: on ? "#E9D5FF" : C.slate,
+                    boxShadow: on ? "inset 0 0 0 1px rgba(168,85,247,.3), 0 0 12px rgba(168,85,247,.15)" : "none",
                   }}
                 >
                   <Icon size={17} />

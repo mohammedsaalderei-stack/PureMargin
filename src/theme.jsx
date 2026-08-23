@@ -38,11 +38,11 @@ export const LIGHT = {
    dark ground, and washes become low-alpha tints instead of pale solids. */
 export const DARK = {
   ink: "#F0E8FF",
-  slate: "#8B7AAC",
-  hairline: "#2D1F5E",
-  bone: "#08080F",
-  surface: "#0D0C18",
-  raised: "#11101F",
+  slate: "#9180B8",
+  hairline: "#1E1440",
+  bone: "#05030F",
+  surface: "#0A0818",
+  raised: "#0F0C22",
   iris: "#A855F7",
   irisDeep: "#C084FC",
   irisWash: "rgba(168,85,247,.14)",
@@ -52,15 +52,15 @@ export const DARK = {
   cyan: "#22D3EE",
   cyanWash: "rgba(34,211,238,.11)",
   rose: "#FB5E7E",
-  glow: "rgba(147,51,234,.32)",
+  glow: "rgba(147,51,234,.4)",
   grid: "rgba(147,51,234,.07)",
-  edge: "rgba(147,51,234,.5)",
+  edge: "rgba(147,51,234,.35)",
   onDark: "#FFFFFF",
   onPrimary: "#0A0612",
-  panel: "#0B0A14",
+  panel: "#07051A",
   panelText: "#F0E8FF",
   panelMuted: "rgba(240,232,255,.6)",
-  scrim: "rgba(3,2,10,.8)",
+  scrim: "rgba(2,1,10,.85)",
 };
 
 const ThemeContext = createContext(null);
