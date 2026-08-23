@@ -496,7 +496,7 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
             )}
 
             <div className="flex items-center gap-2">
-              <LanguagePicker /><ThemeToggle />
+              <LanguagePicker /><ThemeToggle compact />
             </div>
             <div className="flex items-center justify-between gap-2 pt-3" style={{ borderTop: `1px solid ${C.hairline}` }}>
               <span className="text-xs truncate" style={{ color: C.slate }}>
