@@ -902,7 +902,7 @@ export const STRINGS = {
     decision: {
       eyebrow: "Where we stop",
       title: "You know your kitchen. PureMargin knows the numbers.",
-      lead: "We won't tell you what to cook. We'll tell you what sold, when it sold, and what that usually means — then get out of the way.",
+      lead: "We won't tell you what to make.",
       items: [
         { t: "Nothing invented", b: "Every figure traces back to a receipt you could go and find. If the data can't answer, it says so instead of guessing." },
         { t: "Nothing hidden", b: "Each note shows what it was read from and how strong the evidence is, so you can weigh it rather than take it." },
@@ -2105,7 +2105,7 @@ export const STRINGS = {
       puzzle: "الألغاز",
       drag: "الأثقال",
       starBody: "تُطلب كثيرًا وتكسب جيدًا. احمِ هذه — موقعها في القائمة وتوفرها، ولا تخفّض سعرها أبدًا.",
-      workhorseBody: "شعبية لكن رخيصة. هي التي تجلب الناس. راجع تكلفة الحصة وهل يثبت رفع بسيط في السعر.",
+      workhorseBody: "شعبية لكن رخيصة. هي التي تجلب الناس. راجع تكلفة الحصة وهل يثبت ر رخيصة. هي التي تجلب الناس. راجع تكلفة الحصة وهل يثبت رفع بسيط في السعر.",
       puzzleBody: "تكسب جيدًا لكن نادرًا ما تُطلب. تستحق موقعًا أفضل في القائمة أو ترشيحًا من الموظفين قبل حذفها.",
       dragBody: "لا شعبية ولا ربح. كل صنف منها يكلفك تحضيرًا ومخزونًا ومساحة في القائمة.",
       perOrder: "لكل طلب",
@@ -2483,8 +2483,7 @@ export const STRINGS = {
       trend: "اتجاه الإيراد", trendNote: "تدفق الربح اليومي",
       champions: "الأبطال المخفيون",
       championsLead: "هامش عالٍ وكمية قليلة. كل بيعة إضافية تُبقي أكثر من المعتاد.",
-      championsNone: "لا شيء يبرز بعد — نحتاج تكاليف لمزيد من الأصناف أولًا.",
-      radar: "رادار نزيف الأرباح", radarClear: "لا نزيف. الهوامش تبدو نظيفة.",
+      championsNone: "لا      radar: "رادار نزيف الأرباح", radarClear: "لا نزيف. الهوامش تبدو نظيفة.",
       leakCost: "{name} لا يُبقي سوى {margin}٪ بعد التكلفة. راجع سعر المورّد.",
       leakDiscounts: "الخصومات {pct}٪ من الإيراد — {amount} تنازلت عنها.",
       leakNocost: "{count} أصناف تُباع بلا تكلفة، فالهامش أقل مما يبدو.",
@@ -3452,7 +3451,7 @@ export const STRINGS = {
         { name: "जोड़ना", body: "जो काउंटर आप पहले से चलाते हैं, PureMargin को उससे जोड़ते हैं और भरोसा करने से पहले आँकड़े मिलाते हैं।", features: ["आपका मौजूदा काउंटर पढ़ता है — नया उपकरण नहीं", "हर शाखा एक बार जुड़ती है", "आँकड़े आपकी अपनी रिपोर्ट से मिलाए जाते हैं", "एक बार का ख़र्च, मासिक नहीं"] },
         { name: "मेज़", body: "पूरा हफ़्ता सजा हुआ — बिक्री, ऑर्डर, शाखाएँ, घंटे, और कौन-सा व्यंजन सचमुच मेन्यू सँभालता है।", features: ["आज बनाम कल, इस महीने बनाम पिछले", "शाखाएँ साथ-साथ", "घंटे-दर-घंटे माँग", "मेन्यू के चार हिस्से: क्या कमाता है, क्या बस बिकता है"] },
         { name: "सहायक", body: "अपने शब्दों में पूछिए और अपने ही आँकड़ों से जवाब पाइए, हिसाब दिखाकर।", features: ["अरबी, अंग्रेज़ी, हिन्दी, फ़िलिपीनो", "जवाब आपकी सेवा से, कभी गढ़े हुए नहीं", "बातचीत सहेजी जाती है, धागा फिर उठा सकते हैं", "करने लायक़ नोट्स, सबूत के साथ"] },
-        { name: "आगे क्या", body: "अगले महीने का दायरा, आपके असली कारोबार से बना — सतर्क, संभावित और अच्छा।", features: ["तीन परिदृश्य, कभी एक आँकड़ा नहीं", "जितना आगे देखे, उतना ईमानदारी से चौड़ा", "स्टाफ़ और ऑर्डर दायरे पर तय कीजिए", "जो नहीं जान सकता, साफ़ कह देता है"] },
+        { name: "आगे क्या", body: "अगले महीने का दायरा, आपके असली कारोबार से बना — सतर्क, संभावित और अच्छा।", features: ["तीन परिदृश्य, कभी एक आँकड़ा नहीं", "जितना आगे देखे, उतना ईमानदारी से चौड़ा", "स्टाफ़ और ऑर्डर दायरे पर तय कीजिए", "जो नहीं जान सकता, स दायरे पर तय कीजिए", "जो नहीं जान सकता, साफ़ कह देता है"] },
       ],
     },
 
@@ -4651,7 +4650,7 @@ export const STRINGS = {
     decision: {
       eyebrow: "Saan kami humihinto",
       title: "Kilala mo ang kusina mo. Kilala ng PureMargin ang mga numero.",
-      lead: "Hindi namin sasabihin kung ano ang lutuin. Sasabihin namin kung ano ang nabenta, kailan nabenta, at ano ang karaniwang ibig sabihin niyon — tapos aalis kami sa daan.",
+      lead: "Hindi namin sasabihin kung ano ang gagawin.",
       items: [
         { t: "Walang inimbento", b: "Bawat numero ay may resibong mahahanap mo. Kung hindi kayang sagutin ng datos, sinasabi nito imbes na manghula." },
         { t: "Walang itinatago", b: "Ipinapakita ng bawat tala kung saan binasa at gaano katibay ang ebidensya, para timbangin mo, hindi basta tanggapin." },
@@ -5094,5 +5093,8 @@ export function LanguageProvider({ children }) {
 export function useLang() {
   const ctx = useContext(LangContext);
   if (!ctx) throw new Error("useLang must be used inside LanguageProvider");
+  return ctx;
+}
+rovider");
   return ctx;
 }
