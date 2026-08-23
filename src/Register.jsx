@@ -73,7 +73,7 @@ export default function Register({ onBack, onRegistered, onSignIn }) {
     <div className="min-h-full grid lg:grid-cols-2" style={{ background: C.bone }}>
       <div className="hidden lg:flex flex-col justify-between p-14" style={{ background: C.panel }}>
         <div className="flex items-center gap-2">
-          <NeonMark size={34} glow={0.9} />
+          <BrandMark size={34} />
           <span className="display font-extrabold text-lg" style={{ color: C.panelText }}>{t.name}</span>
         </div>
         <div>

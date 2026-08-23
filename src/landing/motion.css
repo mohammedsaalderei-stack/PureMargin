@@ -1,0 +1,77 @@
+/* ===================================================================
+   Vide Infra-style motion
+   The signature is a masked line reveal: type rises from behind a hard
+   clipping edge on a long expo curve, so it arrives rather than fades.
+   Children stagger behind it, never all at once.
+   =================================================================== */
+
+:root {
+  /* Expo-out. Fast departure, long glide, no bounce — the whole feel. */
+  --vi-ease: cubic-bezier(.16, 1, .3, 1);
+  --vi-ease-soft: cubic-bezier(.22, .8, .28, 1);
+}
+
+/* ---- Masked line reveal ----
+   The mask must clip horizontally but NOT shave descenders, so it carries
+   the same padding/negative-margin trick .grad-text uses. */
+.vi-mask {
+  display: block;
+  overflow: hidden;
+  padding-block-end: 0.24em;
+  margin-block-end: -0.24em;
+}
+[dir="rtl"] .vi-mask,
+[lang="hi"] .vi-mask {
+  padding-block-end: 0.34em;
+  margin-block-end: -0.34em;
+}
+
+.vi-line {
+  display: block;
+  transform: translateY(115%);
+  opacity: 0;
+  transition:
+    transform 1.15s var(--vi-ease),
+    opacity .75s var(--vi-ease-soft);
+  transition-delay: var(--vi-delay, 0ms);
+  will-change: transform, opacity;
+}
+.vi-line.is-in {
+  transform: none;
+  opacity: 1;
+}
+
+/* ---- Staggered rise for supporting content ---- */
+.vi-up {
+  transform: translateY(26px);
+  opacity: 0;
+  transition:
+    transform 1.05s var(--vi-ease),
+    opacity .8s var(--vi-ease-soft);
+  transition-delay: var(--vi-delay, 0ms);
+  will-change: transform, opacity;
+}
+.vi-up.is-in {
+  transform: none;
+  opacity: 1;
+}
+
+/* ---- Hairline that draws itself across on reveal ---- */
+.vi-rule {
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 1.2s var(--vi-ease);
+  transition-delay: var(--vi-delay, 0ms);
+}
+[dir="rtl"] .vi-rule { transform-origin: right center; }
+.vi-rule.is-in { transform: scaleX(1); }
+
+@media (prefers-reduced-motion: reduce) {
+  .vi-line,
+  .vi-up,
+  .vi-rule {
+    transition: none !important;
+    transform: none !important;
+    opacity: 1 !important;
+  }
+}

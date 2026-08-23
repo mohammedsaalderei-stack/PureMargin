@@ -28,7 +28,7 @@ export default function Transition({ screenKey, direction = 1, children }) {
       currentKey.current = screenKey;
       setShown(children);
       setPhase("in");
-    }, 150);
+    }, 100);
     return () => clearTimeout(id);
   }, [screenKey, children, instant]);
 
@@ -36,16 +36,18 @@ export default function Transition({ screenKey, direction = 1, children }) {
 
   const outStyle = {
     opacity: 0,
-    transform: `translateY(${offset * 0.4}px) scale(0.992)`,
-    filter: "blur(4px)",
-    transition: "opacity .15s ease-in, transform .15s ease-in, filter .15s ease-in",
+    transform: `translateY(${offset * 0.4}px) scale(0.99)`,
+    filter: "blur(8px)",
+    transition: "opacity .14s ease-in, transform .14s ease-in, filter .14s ease-in",
+    willChange: "transform, opacity, filter",
   };
   const inStyle = {
     opacity: 1,
     transform: "none",
     filter: "none",
     transition:
-      "opacity .42s cubic-bezier(.2,.75,.3,1), transform .5s cubic-bezier(.2,.75,.3,1), filter .3s ease-out",
+      "opacity .42s cubic-bezier(.2,.8,.3,1), transform .5s cubic-bezier(.2,.9,.3,1.04), filter .34s ease-out",
+    willChange: "transform, opacity, filter",
   };
 
   return (
@@ -57,7 +59,7 @@ export default function Transition({ screenKey, direction = 1, children }) {
             ? { height: "100%" }
             : {
                 height: "100%",
-                animation: `screen-enter .42s cubic-bezier(.2,.75,.3,1) both`,
+                animation: `screen-enter .58s cubic-bezier(.2,.9,.3,1.04) both`,
                 "--enter-from": `${offset}px`,
               }
         }
