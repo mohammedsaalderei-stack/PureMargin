@@ -5029,19 +5029,3 @@ export function useLang() {
   if (!ctx) throw new Error("useLang must be used inside LanguageProvider");
   return ctx;
 }
-&& setLang(next),
-      /* Kept so existing call sites still work: cycles through the list. */
-      toggle: () => setLang((l) => LANGS[(LANGS.indexOf(l) + 1) % LANGS.length]),
-      langs: LANGS.map((id) => ({ id, name: STRINGS[id].langName })),
-    }),
-    [lang]
-  );
-
-  return <LangContext.Provider value={value}>{children}</LangContext.Provider>;
-}
-
-export function useLang() {
-  const ctx = useContext(LangContext);
-  if (!ctx) throw new Error("useLang must be used inside LanguageProvider");
-  return ctx;
-}
