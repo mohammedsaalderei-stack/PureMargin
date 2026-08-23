@@ -1,12 +1,16 @@
-
-import { AlertTriangle, ArrowUpRight, ArrowDownRight, Star } from "lucide-react";
-import { Area, AreaChart, ResponsiveContainer, XAxis, YAxis } from "recharts";
+import { useState } from "react";
+import {
+  AlertTriangle, ArrowUpRight, ArrowDownRight, Star,
+  MessageSquare, LineChart, UtensilsCrossed, Lightbulb, BarChart3, Plus,
+} from "lucide-react";
+import { Area, AreaChart, ResponsiveContainer, XAxis, YAxis, Tooltip } from "recharts";
 import { useC, compact } from "../theme.jsx";
 import { useLang, fill } from "../i18n.jsx";
 import { Money } from "../Dirham.jsx";
 import { useCountUp } from "../hooks.js";
 import ItemPhoto from "../ItemPhoto.jsx";
 import { HudLabel, GlowDot } from "../ui.jsx";
+import "../dashboard-glass.css";
 
 /* The ring.
 
@@ -107,28 +111,93 @@ function ScoreRing({ score }) {
 }
 
 function Card({ children, className = "", style = {} }) {
-  const C = useC();
   return (
-    <div
-      className={`panel p-6 ${className}`}
-      style={{
-        background: C.surface,
-        border: `1px solid ${C.hairline}`,
-        ...style,
-      }}
-    >
+    <div className={`dg-card p-6 ${className}`} style={style}>
       {children}
     </div>
   );
 }
 
-export default function Overview({ data, onAsk, onOpenCosts }) {
+/* A 30-day shape inside a summary card. No axes — it's a gesture, not a chart. */
+function Spark({ series, color }) {
+  if (!series?.length) return null;
+  const max = Math.max(...series);
+  const min = Math.min(...series);
+  const range = max - min || 1;
+  const pts = series
+    .map((v, i) => `${(i / (series.length - 1)) * 100},${30 - ((v - min) / range) * 28}`)
+    .join(" ");
+  return (
+    <svg viewBox="0 0 100 30" preserveAspectRatio="none" className="w-full dg-glow" style={{ height: 28 }}>
+      <polyline points={pts} fill="none" stroke={color} strokeWidth="1.8" strokeLinejoin="round" strokeLinecap="round" opacity="0.85" />
+    </svg>
+  );
+}
+
+function SummaryCard({ label, value, money, text, delta, note, spark, sparkColor, i }) {
+  const C = useC();
+  const animated = useCountUp(value);
+  const shown = Math.round(animated);
+  const up = (delta ?? 0) >= 0;
+  return (
+    <div className="dg-card dg-summary dg-stagger p-5 flex flex-col" style={{ "--i": i }}>
+      <div className="text-xs font-semibold mb-2" style={{ color: C.slate }}>{label}</div>
+      <div className="display text-2xl md:text-[1.7rem] font-extrabold leading-none mb-2 reading-lg truncate-safe">
+        {text ? <span dir="ltr">{text}</span> : money ? <Money value={shown} /> : <span dir="ltr">{shown.toLocaleString("en-AE")}</span>}
+      </div>
+      <div className="flex items-center gap-2 mb-2">
+        {delta !== null && delta !== undefined && (
+          <span
+            className="data inline-flex items-center gap-0.5 text-xs font-medium"
+            style={{ color: up ? C.iris : C.rose }}
+            dir="ltr"
+          >
+            {up ? <ArrowUpRight size={13} /> : <ArrowDownRight size={13} />}
+            {Math.abs(delta).toFixed(1)}%
+          </span>
+        )}
+        <span className="text-xs" style={{ color: C.slate }}>{note}</span>
+      </div>
+      {spark && <div className="mt-auto"><Spark series={spark} color={sparkColor || C.iris} /></div>}
+    </div>
+  );
+}
+
+function QuickActions({ onAsk, onOpenCosts, onGo }) {
+  const C = useC();
+  const { t } = useLang();
+  const actions = [
+    { icon: MessageSquare, label: t.ask.tab, onClick: () => onAsk?.(t.ask.suggested?.[0] || "") },
+    { icon: BarChart3, label: t.watch.tab, onClick: () => onGo?.("watch") },
+    { icon: LineChart, label: t.forecast.tab, onClick: () => onGo?.("forecast") },
+    { icon: UtensilsCrossed, label: t.menu.tab, onClick: () => onOpenCosts?.() },
+    { icon: Lightbulb, label: t.advice.tab, onClick: () => onGo?.("advice") },
+  ];
+  return (
+    <div className="flex gap-2.5 overflow-x-auto dg-snap pb-1 -mx-1 px-1">
+      {actions.map((a, i) => (
+        <button
+          key={a.label}
+          onClick={a.onClick}
+          className="dg-quick dg-stagger shrink-0"
+          style={{ "--i": i, color: C.ink }}
+        >
+          <a.icon size={15} style={{ color: C.cyan }} />
+          {a.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+export default function Overview({ data, onAsk, onOpenCosts, onGo }) {
   const C = useC();
   const { t } = useLang();
   const totals = data.totals;
   const margin = data.margin || {};
   const sales = useCountUp(totals.sales);
   const profit = useCountUp(totals.netProfit ?? 0);
+  const [metric, setMetric] = useState("sales");
 
   const up = (totals.salesDelta ?? 0) >= 0;
   const star = margin.star;
@@ -142,12 +211,39 @@ export default function Overview({ data, onAsk, onOpenCosts }) {
     return fill(t.overview[map[leak.id]], v);
   };
 
+  const trendData = data.daily || [];
+  const trendColor = metric === "sales" ? C.iris : C.cyan;
+
   return (
     <div className="h-full overflow-y-auto">
       <div className="max-w-6xl mx-auto px-4 md:px-8 py-5 md:py-8 space-y-4 md:space-y-5">
+        {/* Summary cards — key sales metrics at the top */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
+          <SummaryCard
+            i={0} label={t.watch.sales} value={totals.sales} money delta={totals.salesDelta}
+            note={t.watch.vsPrior} spark={trendData.map((d) => d.sales)} sparkColor={C.iris}
+          />
+          <SummaryCard
+            i={1} label={t.watch.receipts} value={totals.receipts} delta={totals.receiptsDelta}
+            note={t.common.orders} spark={trendData.map((d) => d.receipts)} sparkColor={C.lilac}
+          />
+          <SummaryCard
+            i={2} label={t.watch.avgTicket} value={totals.avgTicket} money delta={totals.avgTicketDelta}
+            note={t.watch.perOrder}
+          />
+          <SummaryCard
+            i={3} label={t.watch.peakHour} value={0} money={false}
+            note={t.watch.mostOrders}
+            spark={data.hours?.map((h) => h.receipts)}
+          />
+        </div>
+
+        {/* Quick-action shortcuts */}
+        <QuickActions onAsk={onAsk} onOpenCosts={onOpenCosts} onGo={onGo} />
+
         {/* Top row: turnover, what's kept, and the score */}
         <div className="grid gap-4 lg:gap-5 lg:grid-cols-[1.3fr_1fr_auto]">
-          <Card className="flex flex-col justify-between hud angular">
+          <Card className="flex flex-col justify-between hud angular dg-stagger" style={{ "--i": 4 }}>
             <HudLabel style={{ color: C.slate }}>{t.overview.totalSales}</HudLabel>
             <div className="display font-extrabold leading-none mt-6 reading-xl truncate-safe" style={{ fontSize: 40 }}>
               <Money value={Math.round(sales)} />
@@ -164,7 +260,7 @@ export default function Overview({ data, onAsk, onOpenCosts }) {
             )}
           </Card>
 
-          <Card className="flex flex-col justify-between hud angular">
+          <Card className="flex flex-col justify-between hud angular dg-stagger" style={{ "--i": 5 }}>
             <div>
               <HudLabel>{t.overview.pureMargin}</HudLabel>
               <div className="text-xs mt-1.5" style={{ color: C.slate }}>{t.overview.netProfit}</div>
@@ -172,7 +268,6 @@ export default function Overview({ data, onAsk, onOpenCosts }) {
             <div
               className="display font-extrabold leading-none mt-5 neon-text reading-xl truncate-safe"
               style={{ fontSize: 42, color: C.iris }}
-              
             >
               <Money value={Math.round(profit)} />
             </div>
@@ -184,7 +279,7 @@ export default function Overview({ data, onAsk, onOpenCosts }) {
             </span>
           </Card>
 
-          <div className="lg:min-w-[232px]">
+          <div className="lg:min-w-[232px] dg-stagger" style={{ "--i": 6 }}>
             <ScoreRing score={margin.score} />
           </div>
         </div>
@@ -192,17 +287,31 @@ export default function Overview({ data, onAsk, onOpenCosts }) {
         {/* Trend and the star product */}
         <div className="grid gap-4 lg:gap-5 lg:grid-cols-[1fr_1.15fr]">
           <Card>
-            <div className="flex items-baseline justify-between mb-1">
+            <div className="flex items-baseline justify-between mb-1 gap-3 flex-wrap">
               <h3 className="display font-bold text-base">{t.overview.trend}</h3>
+              <div className="dg-toggle" role="group">
+                <button
+                  aria-pressed={metric === "sales"}
+                  onClick={() => setMetric("sales")}
+                >
+                  {t.watch.sales}
+                </button>
+                <button
+                  aria-pressed={metric === "receipts"}
+                  onClick={() => setMetric("receipts")}
+                >
+                  {t.common.orders}
+                </button>
+              </div>
             </div>
             <p className="text-xs mb-4" style={{ color: C.slate }}>{t.overview.trendNote}</p>
-            <div className="chart" style={{ height: 190 }}>
+            <div className="chart dg-glow" style={{ height: 190 }}>
               <ResponsiveContainer>
-                <AreaChart data={data.daily} margin={{ top: 6, right: 6, left: -20, bottom: 0 }}>
+                <AreaChart data={trendData} margin={{ top: 6, right: 6, left: -20, bottom: 0 }}>
                   <defs>
                     <linearGradient id="ovTrend" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor={C.iris} stopOpacity={0.28} />
-                      <stop offset="100%" stopColor={C.iris} stopOpacity={0} />
+                      <stop offset="0%" stopColor={trendColor} stopOpacity={0.3} />
+                      <stop offset="100%" stopColor={trendColor} stopOpacity={0} />
                     </linearGradient>
                   </defs>
                   <XAxis
@@ -213,7 +322,20 @@ export default function Overview({ data, onAsk, onOpenCosts }) {
                     tick={{ fontSize: 10, fill: C.slate }} axisLine={false}
                     tickLine={false} tickFormatter={compact} width={46}
                   />
-                  <Area type="monotone" dataKey="sales" stroke={C.iris} strokeWidth={2.5} fill="url(#ovTrend)" />
+                  <Tooltip
+                    contentStyle={{
+                      background: C.surface, border: `1px solid ${C.edge}`, borderRadius: 12,
+                      boxShadow: "0 8px 30px -12px rgba(0,0,0,.5)", fontSize: 12,
+                    }}
+                    labelStyle={{ color: C.slate }}
+                    itemStyle={{ color: C.ink }}
+                    formatter={(v) => metric === "sales" ? [<Money value={v} />, t.watch[metric]] : [v.toLocaleString("en-AE"), t.common.orders]}
+                  />
+                  <Area
+                    type="monotone" dataKey={metric} stroke={trendColor} strokeWidth={2.5}
+                    fill="url(#ovTrend)" animationDuration={900}
+                    activeDot={{ r: 4, fill: trendColor, stroke: C.surface, strokeWidth: 2 }}
+                  />
                 </AreaChart>
               </ResponsiveContainer>
             </div>

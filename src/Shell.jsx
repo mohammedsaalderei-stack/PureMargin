@@ -454,6 +454,7 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
           setPending(q);
         }}
         onOpenCosts={() => go("menu")}
+        onGo={go}
       />
     );
   } else if (tab === "watch") {

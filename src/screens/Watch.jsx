@@ -4,6 +4,7 @@ import { useC, compact } from "../theme.jsx";
 import { Money } from "../Dirham.jsx";
 import { useLang, fill } from "../i18n.jsx";
 import { useCountUp, useStagger } from "../hooks.js";
+import "../dashboard-glass.css";
 
 function Delta({ value }) {
   const C = useC();
@@ -31,19 +32,19 @@ function Spark({ series, color }) {
     .map((v, i) => `${(i / (series.length - 1)) * 100},${28 - ((v - min) / range) * 26}`)
     .join(" ");
   return (
-    <svg viewBox="0 0 100 30" preserveAspectRatio="none" className="w-full" style={{ height: 26 }}>
-      <polyline points={pts} fill="none" stroke={color} strokeWidth="1.6" strokeLinejoin="round" strokeLinecap="round" opacity="0.7" />
+    <svg viewBox="0 0 100 30" preserveAspectRatio="none" className="w-full dg-glow" style={{ height: 26 }}>
+      <polyline points={pts} fill="none" stroke={color} strokeWidth="1.8" strokeLinejoin="round" strokeLinecap="round" opacity="0.8" />
     </svg>
   );
 }
 
-function Metric({ label, value, money, delta, note, spark, sparkColor }) {
+function Metric({ label, value, money, delta, note, spark, sparkColor, i }) {
   const C = useC();
   const animated = useCountUp(value);
   const shown = Math.round(animated);
   return (
-    <div className="ticket panel p-5 flex flex-col" style={{ border: `1px solid ${C.hairline}` }}>
-      <div className="text-xs font-semibold pt-2 mb-2" style={{ color: C.slate }}>{label}</div>
+    <div className="dg-card dg-stagger p-5 flex flex-col" style={{ "--i": i }}>
+      <div className="text-xs font-semibold mb-2" style={{ color: C.slate }}>{label}</div>
       <div className="display text-2xl md:text-3xl font-extrabold leading-none mb-2 reading-lg">
         {money ? <Money value={shown} /> : <span dir="ltr">{shown.toLocaleString("en-AE")}</span>}
       </div>
@@ -56,21 +57,20 @@ function Metric({ label, value, money, delta, note, spark, sparkColor }) {
   );
 }
 
-function TextMetric({ label, value, note }) {
+function TextMetric({ label, value, note, i }) {
   const C = useC();
   return (
-    <div className="ticket panel p-5 flex flex-col" style={{ border: `1px solid ${C.hairline}` }}>
-      <div className="text-xs font-semibold pt-2 mb-2" style={{ color: C.slate }}>{label}</div>
+    <div className="dg-card dg-stagger p-5 flex flex-col" style={{ "--i": i }}>
+      <div className="text-xs font-semibold mb-2" style={{ color: C.slate }}>{label}</div>
       <div className="display text-2xl md:text-3xl font-extrabold leading-none mb-2 reading-lg" dir="ltr">{value}</div>
       <span className="text-xs" style={{ color: C.slate }}>{note}</span>
     </div>
   );
 }
 
-function Panel({ title, note, children }) {
-  const C = useC();
+function Panel({ title, note, children, i }) {
   return (
-    <div className="panel p-5 md:p-6" style={{ background: C.surface, border: `1px solid ${C.hairline}` }}>
+    <div className="dg-card dg-stagger p-5 md:p-6" style={{ "--i": i }}>
       <div className="flex items-baseline justify-between mb-4">
         <h3 className="display font-bold text-base">{title}</h3>
         {note && <span className="text-xs" style={{ color: C.slate }}>{note}</span>}
@@ -87,12 +87,12 @@ function ChartTip({ active, payload, label, money, name }) {
   return (
     <div
       className="rounded-lg px-3 py-2 text-xs"
-      style={{ background: C.surface, border: `1px solid ${C.hairline}`, boxShadow: "0 6px 24px -12px rgba(0,0,0,.3)" }}
+      style={{ background: C.surface, border: `1px solid ${C.edge}`, boxShadow: "0 8px 30px -12px rgba(0,0,0,.4)" }}
     >
-      <div className="mb-1" style={{ color: C.slate }}>{label}</div>
+      <div className="mb-1 truncate-safe max-w-[180px]" style={{ color: C.slate }}>{label}</div>
       <div className="font-semibold flex items-center gap-1.5">
-        {money ? <Money value={payload[0].value} /> : <span dir="ltr">{payload[0].value}</span>}
-        <span style={{ color: C.slate }}>{name}</span>
+        {money ? <Money value={payload[0].value} /> : <span dir="ltr">{payload[0].value.toLocaleString("en-AE")}</span>}
+        {name && <span style={{ color: C.slate }}>{name}</span>}
       </div>
     </div>
   );
@@ -149,11 +149,13 @@ export default function Watch({ data }) {
   const { totals, daily, stores, items, hours, observations } = data;
   const peak = Math.max(...hours.map((h) => h.receipts), 0);
   const topStore = Math.max(...stores.map((s) => s.sales), 1);
+  const topItems = items.slice(0, 8);
+  const maxRev = Math.max(...topItems.map((it) => it.revenue), 1);
 
   return (
     <div className="h-full overflow-y-auto">
       <div className="max-w-6xl mx-auto px-4 md:px-8 py-5 md:py-8 space-y-4 md:space-y-5">
-        <div>
+        <div className="dg-stagger" style={{ "--i": 0 }}>
           <h2 className="display text-2xl md:text-3xl font-extrabold">{t.watch.title}</h2>
           <p className="text-sm mt-1" style={{ color: C.slate }}>
             {data.limitedHistory ? t.watch.limitedHistory : t.watch.lead}
@@ -164,27 +166,27 @@ export default function Watch({ data }) {
 
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
           <Metric
-            label={t.watch.sales} value={totals.sales} money delta={totals.salesDelta}
+            i={1} label={t.watch.sales} value={totals.sales} money delta={totals.salesDelta}
             note={t.watch.vsPrior} spark={daily.map((d) => d.sales)}
           />
           <Metric
-            label={t.watch.receipts} value={totals.receipts} delta={totals.receiptsDelta}
+            i={2} label={t.watch.receipts} value={totals.receipts} delta={totals.receiptsDelta}
             note={t.common.orders} spark={daily.map((d) => d.receipts)} sparkColor={C.lilac}
           />
           <Metric
-            label={t.watch.avgTicket} value={totals.avgTicket} money delta={totals.avgTicketDelta}
+            i={3} label={t.watch.avgTicket} value={totals.avgTicket} money delta={totals.avgTicketDelta}
             note={t.watch.perOrder}
           />
-          <TextMetric label={t.watch.peakHour} value={totals.peakHour} note={t.watch.mostOrders} />
+          <TextMetric i={4} label={t.watch.peakHour} value={totals.peakHour} note={t.watch.mostOrders} />
         </div>
 
-        <Panel title={t.watch.byDay} note={t.watch.last30}>
-          <div className="chart" style={{ height: 220 }}>
+        <Panel i={5} title={t.watch.byDay} note={t.watch.last30}>
+          <div className="chart dg-glow" style={{ height: 220 }}>
             <ResponsiveContainer>
               <AreaChart data={daily} margin={{ top: 8, right: 8, left: -18, bottom: 0 }}>
                 <defs>
                   <linearGradient id="gSales" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor={C.iris} stopOpacity={0.22} />
+                    <stop offset="0%" stopColor={C.iris} stopOpacity={0.26} />
                     <stop offset="100%" stopColor={C.iris} stopOpacity={0} />
                   </linearGradient>
                 </defs>
@@ -192,8 +194,9 @@ export default function Watch({ data }) {
                 <YAxis tick={{ fontSize: 11, fill: C.slate }} axisLine={false} tickLine={false} tickFormatter={compact} width={52} />
                 <Tooltip content={<ChartTip money name={t.watch.sales} />} />
                 <Area
-                  type="monotone" dataKey="sales" stroke={C.iris} strokeWidth={2} fill="url(#gSales)"
+                  type="monotone" dataKey="sales" stroke={C.iris} strokeWidth={2.5} fill="url(#gSales)"
                   animationDuration={900}
+                  activeDot={{ r: 4, fill: C.iris, stroke: C.surface, strokeWidth: 2 }}
                 />
               </AreaChart>
             </ResponsiveContainer>
@@ -201,7 +204,7 @@ export default function Watch({ data }) {
         </Panel>
 
         <div className="grid gap-4 lg:gap-5 lg:grid-cols-2">
-          <Panel title={t.watch.branches} note={t.watch.bySales}>
+          <Panel i={6} title={t.watch.branches} note={t.watch.bySales}>
             <div className="space-y-4">
               {stores.map((s, i) => (
                 <div key={s.id}>
@@ -214,7 +217,7 @@ export default function Watch({ data }) {
                       className="h-full rounded-full"
                       style={{
                         width: `${(s.sales / topStore) * 100}%`,
-                        background: C.iris,
+                        background: `linear-gradient(90deg, ${C.iris}, ${C.cyan})`,
                         transition: "width 1s cubic-bezier(.2,.7,.3,1)",
                         transitionDelay: `${i * 120}ms`,
                       }}
@@ -229,8 +232,8 @@ export default function Watch({ data }) {
             </div>
           </Panel>
 
-          <Panel title={t.watch.byHour} note={t.watch.peakHighlighted}>
-            <div className="chart" style={{ height: 180 }}>
+          <Panel i={7} title={t.watch.byHour} note={t.watch.peakHighlighted}>
+            <div className="chart dg-glow" style={{ height: 180 }}>
               <ResponsiveContainer>
                 <BarChart data={hours} margin={{ top: 8, right: 4, left: -24, bottom: 0 }}>
                   <XAxis dataKey="label" tick={{ fontSize: 10, fill: C.slate }} axisLine={false} tickLine={false} interval={1} />
@@ -249,9 +252,9 @@ export default function Watch({ data }) {
 
         {data.payments?.length > 0 && (
           <div className="grid gap-4 lg:gap-5 lg:grid-cols-2">
-            <Panel title={t.watch.payments} note={t.watch.paymentsNote}>
+            <Panel i={8} title={t.watch.payments} note={t.watch.paymentsNote}>
               <div className="flex items-center gap-5">
-                <div className="chart shrink-0" style={{ width: 130, height: 130 }}>
+                <div className="chart shrink-0 dg-glow" style={{ width: 130, height: 130 }}>
                   <ResponsiveContainer>
                     <PieChart>
                       <Pie
@@ -287,7 +290,7 @@ export default function Watch({ data }) {
               </div>
             </Panel>
 
-            <Panel title={t.watch.extras} note="">
+            <Panel i={9} title={t.watch.extras} note="">
               {[
                 ["discounts", data.extras?.discounts ?? 0],
                 ["refunds", data.extras?.refunds ?? 0],
@@ -309,27 +312,52 @@ export default function Watch({ data }) {
           </div>
         )}
 
-        <Panel title={t.watch.topItems} note={t.watch.byRevenue}>
-          <div style={{ borderTop: `1px solid ${C.hairline}` }}>
-            {items.slice(0, 8).map((it) => (
-              <div key={it.name} className="flex items-center justify-between py-3" style={{ borderBottom: `1px solid ${C.hairline}` }}>
-                <div className="min-w-0 pe-4">
-                  <div className="text-sm font-medium truncate-safe">{it.name}</div>
-                  <div className="text-xs" style={{ color: C.slate }}>
-                    {it.category}
-                    {it.qty ? <> · <span dir="ltr">{Math.round(it.qty).toLocaleString("en-AE")}</span> {t.common.sold}</> : null}
-                  </div>
-                </div>
-                <div className="flex items-center gap-3 shrink-0">
-                  <span className="data text-sm shrink-0 whitespace-nowrap"><Money value={it.revenue} /></span>
-                  <span className="data text-xs px-2 py-0.5 rounded" style={{ background: C.lilacWash, color: C.irisDeep }} dir="ltr">
-                    {it.share}%
-                  </span>
-                </div>
-              </div>
-            ))}
-            {items.length === 0 && <p className="text-sm py-4" style={{ color: C.slate }}>{t.watch.noItems}</p>}
-          </div>
+        {/* Top items — an interactive horizontal bar chart, replacing the table. */}
+        <Panel i={10} title={t.watch.topItems} note={t.watch.byRevenue}>
+          {topItems.length === 0 ? (
+            <p className="text-sm py-4" style={{ color: C.slate }}>{t.watch.noItems}</p>
+          ) : (
+            <div className="chart dg-glow" style={{ height: topItems.length * 38 + 8 }}>
+              <ResponsiveContainer>
+                <BarChart
+                  data={topItems}
+                  layout="vertical"
+                  margin={{ top: 0, right: 16, left: 0, bottom: 0 }}
+                  barCategoryGap={10}
+                >
+                  <defs>
+                    <linearGradient id="gItems" x1="0" y1="0" x2="1" y2="0">
+                      <stop offset="0%" stopColor={C.iris} />
+                      <stop offset="100%" stopColor={C.cyan} />
+                    </linearGradient>
+                  </defs>
+                  <XAxis type="number" hide domain={[0, maxRev * 1.1]} />
+                  <YAxis
+                    type="category" dataKey="name" width={120}
+                    tick={{ fontSize: 11, fill: C.ink }}
+                    axisLine={false} tickLine={false}
+                  />
+                  <Tooltip
+                    content={<ChartTip money name={t.watch.sales} />}
+                    cursor={{ fill: C.bone, opacity: 0.4 }}
+                  />
+                  <Bar
+                    dataKey="revenue" radius={[5, 5, 5, 5]} fill="url(#gItems)"
+                    animationDuration={800}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+          {topItems.length > 0 && (
+            <div className="flex flex-wrap gap-x-5 gap-y-1.5 mt-3 pt-3" style={{ borderTop: `1px solid ${C.hairline}` }}>
+              {topItems.map((it) => (
+                <span key={it.name} className="data text-xs" style={{ color: C.slate }} dir="ltr">
+                  {it.name} · {it.share}%
+                </span>
+              ))}
+            </div>
+          )}
         </Panel>
       </div>
     </div>

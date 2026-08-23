@@ -1,0 +1,140 @@
+/* ===================================================================
+   Cyber-sleek dashboard glass
+   Cyan glow + frosted panels + thin strokes, on the app's existing palette
+   (iris / lilac / cyan / neon). Presentation only — no logic.
+   =================================================================== */
+
+/* ---- Frosted glass card ---- */
+.dg-card {
+  position: relative;
+  background: rgba(255, 255, 255, 0.035);
+  backdrop-filter: blur(18px) saturate(150%);
+  -webkit-backdrop-filter: blur(18px) saturate(150%);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 18px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 18px 50px -34px rgba(0, 0, 0, 0.8);
+  transition:
+    transform .4s cubic-bezier(.2, .7, .3, 1),
+    border-color .4s ease,
+    box-shadow .4s ease;
+}
+[data-theme="light"] .dg-card {
+  background: rgba(255, 255, 255, 0.62);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.8),
+    0 18px 50px -34px rgba(80, 40, 140, 0.2);
+}
+.dg-card:hover {
+  border-color: rgba(34, 211, 238, 0.4);
+  box-shadow:
+    0 0 0 1px rgba(34, 211, 238, 0.18),
+    0 26px 60px -34px rgba(34, 211, 238, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+
+/* ---- Summary card: thin glowing accent line on top ---- */
+.dg-summary {
+  position: relative;
+  overflow: hidden;
+}
+.dg-summary::after {
+  content: "";
+  position: absolute;
+  left: 0; right: 0; top: 0; height: 2px;
+  background: linear-gradient(90deg, var(--iris), var(--cyan), transparent);
+  opacity: 0.75;
+}
+
+/* ---- Quick-action pill ---- */
+.dg-quick {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  transition:
+    transform .25s cubic-bezier(.2, .7, .3, 1),
+    border-color .25s ease,
+    background .25s ease,
+    box-shadow .25s ease;
+}
+.dg-quick:hover {
+  border-color: rgba(34, 211, 238, 0.5);
+  background: rgba(34, 211, 238, 0.08);
+  transform: translateY(-2px);
+  box-shadow: 0 0 20px -6px rgba(34, 211, 238, 0.5);
+}
+.dg-quick:active {
+  transform: translateY(0) scale(0.97);
+}
+[data-theme="light"] .dg-quick {
+  border: 1px solid rgba(80, 40, 140, 0.2);
+  background: rgba(255, 255, 255, 0.5);
+}
+
+/* ---- Staggered entrance ---- */
+.dg-stagger {
+  opacity: 0;
+  animation: dg-rise .5s cubic-bezier(.2, .7, .3, 1) forwards;
+  animation-delay: calc(var(--i, 0) * 70ms);
+}
+@keyframes dg-rise {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* ---- Chart glow ---- */
+.dg-glow {
+  filter: drop-shadow(0 0 6px rgba(34, 211, 238, 0.22));
+}
+
+/* ---- Metric toggle pill group ---- */
+.dg-toggle {
+  display: inline-flex;
+  padding: 3px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.03);
+}
+.dg-toggle button {
+  padding: 5px 13px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--slate);
+  transition: color .25s ease, background .25s ease, box-shadow .25s ease;
+}
+.dg-toggle button[aria-pressed="true"] {
+  background: linear-gradient(135deg, var(--iris), var(--neon));
+  color: #ffffff;
+  box-shadow: 0 0 14px -4px var(--iris);
+}
+[data-theme="light"] .dg-toggle {
+  border: 1px solid rgba(80, 40, 140, 0.18);
+  background: rgba(255, 255, 255, 0.5);
+}
+
+/* ---- Mobile horizontal scroll-snap ---- */
+.dg-snap {
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+}
+.dg-snap > * {
+  scroll-snap-align: start;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dg-stagger { animation: none; opacity: 1; }
+  .dg-card, .dg-quick { transition: none; }
+}
