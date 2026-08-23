@@ -47,7 +47,7 @@ function readAlerts() {
   }
 }
 
-export default function Settings({ data, user, onRefresh, refreshing, token, conversationCount = 0, account, onConnect, onAccountChange, onSeePlans, onSession }) {
+export default function Settings({ data, user, onRefresh, refreshing, token, conversationCount = 0, account, onConnect, onAccountChange, onSeePlans, onSession, onLogout }) {
   const C = useC();
   const { t, lang } = useLang();
   const live = data.connected;
@@ -195,6 +195,7 @@ export default function Settings({ data, user, onRefresh, refreshing, token, con
   };
 
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [confirmNow, setConfirmNow] = useState(false);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const pendingDelete = account?.account?.deleteAfter || null;
 
@@ -204,6 +205,22 @@ export default function Settings({ data, user, onRefresh, refreshing, token, con
       await fetch("/api/account", { method, headers: { Authorization: `Bearer ${token}` } });
       setConfirmDelete(false);
       onAccountChange?.();
+    } finally {
+      setDeleteBusy(false);
+    }
+  };
+
+  /* Immediate deletion. The account is gone when this returns, so there is
+     nothing left to refresh — sign out rather than leave the session holding a
+     token whose account no longer exists. */
+  const deleteImmediately = async () => {
+    setDeleteBusy(true);
+    try {
+      await fetch("/api/account?now=1", {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      onLogout?.();
     } finally {
       setDeleteBusy(false);
     }
@@ -659,16 +676,51 @@ export default function Settings({ data, user, onRefresh, refreshing, token, con
                 </button>
               </div>
             </>
+          ) : confirmNow ? (
+            <>
+              <p className="font-semibold text-sm mb-2" style={{ color: C.rose }}>{t.account.deleteNowTitle}</p>
+              <p className="text-sm leading-relaxed mb-4" style={{ color: C.slate }}>
+                {t.account.deleteNowLead}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={deleteImmediately}
+                  disabled={deleteBusy}
+                  className="px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-60"
+                  style={{ background: C.rose, color: "#fff" }}
+                >
+                  {t.account.deleteNowConfirm}
+                </button>
+                <button
+                  onClick={() => setConfirmNow(false)}
+                  className="px-4 py-2 rounded-lg text-sm font-semibold"
+                  style={{ border: `1px solid ${C.hairline}`, color: C.slate }}
+                >
+                  {t.account.deleteCancel}
+                </button>
+              </div>
+            </>
           ) : (
             <>
               <p className="text-sm leading-relaxed mb-4" style={{ color: C.slate }}>{t.account.dangerLead}</p>
-              <button
-                onClick={() => setConfirmDelete(true)}
-                className="px-4 py-2 rounded-lg text-sm font-semibold"
-                style={{ border: `1px solid ${C.rose}`, color: C.rose }}
-              >
-                {t.account.requestDelete}
-              </button>
+              <div className="flex flex-wrap items-center gap-3">
+                <button
+                  onClick={() => setConfirmDelete(true)}
+                  className="px-4 py-2 rounded-lg text-sm font-semibold"
+                  style={{ border: `1px solid ${C.rose}`, color: C.rose }}
+                >
+                  {t.account.requestDelete}
+                </button>
+                {/* The grace period stays the default; someone who wants their
+                    data gone now shouldn't have to wait a week for it. */}
+                <button
+                  onClick={() => setConfirmNow(true)}
+                  className="text-xs font-semibold underline"
+                  style={{ color: C.slate }}
+                >
+                  {t.account.deleteNow}
+                </button>
+              </div>
             </>
           )}
         </div>

@@ -206,6 +206,47 @@ export async function purgeIfDue(username) {
   return true;
 }
 
+/* Deletion without the grace period, for someone who means it now.
+
+   The grace window exists to protect people who click the wrong button; it
+   shouldn't stand in the way of someone who genuinely wants their data gone,
+   which is also what a deletion request under data-protection rules expects.
+   So this is the same wipe `purgeIfDue` performs, run immediately.
+
+   The organization goes too when this account owns it: the POS connection and
+   every membership live on that record, so leaving it behind would keep a
+   tenant alive with no one able to administer it. An organization this account
+   was only a member of is left standing — it isn't theirs to delete — but their
+   seat in it is removed, so no scope survives them. */
+export async function deleteNow(username) {
+  const account = await getAccount(username);
+  if (!account) return false;
+  const id = normalise(username);
+
+  if (account.orgId) {
+    const org = await getJSON(`org:${account.orgId}`);
+    if (org?.ownerUsername === id) {
+      await del(`org:${account.orgId}`);
+      /* Members lose their seat with the organization. Their own accounts stay
+         — they're separate people — but they no longer point at anything, and
+         `orgFor` gives them a fresh organization of their own on next use. */
+      for (const member of Object.keys(org.members || {})) {
+        await del(`invite:${member}`);
+      }
+    } else if (org) {
+      delete org.members[id];
+      await setJSON(`org:${account.orgId}`, org);
+    }
+  }
+
+  await del(KEY(id));
+  await del(`chats:${id}`);
+  await del(`costs:${id}`);
+  await del(`invite:${id}`);
+  if (account.email) await del(EMAIL_KEY(account.email));
+  return true;
+}
+
 /* Invalidates every token issued so far. Used by a password change and by
    "sign out everywhere". */
 export async function bumpTokenVersion(username) {

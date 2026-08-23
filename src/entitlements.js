@@ -13,6 +13,8 @@ export const SCREEN_FEATURE = {
   watch: "table",
   menu: "menu",
   forecast: "forecast",
+  // Team administration is gated by role, not by plan.
+  team: null,
   settings: null,
   billing: null,
 };

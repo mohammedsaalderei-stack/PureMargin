@@ -58,15 +58,45 @@ they override the defaults).
   which is what keeps an owner's dashboard one consolidated view.
 - Scope is always derived from the session's account. `?branches=` can only
   narrow, never widen — an out-of-scope id drops out of the intersection.
-- `api/_scope-metrics.js` applies a scope to a metrics payload. Only `stores`
-  and the totals derived from it are branch-exact; `items`/`daily`/`hours` are
-  aggregated across branches upstream in `_data.js`, so under a partial scope
-  they're reported in `scope.orgWideFields` instead of being relabelled as one
-  branch's numbers. **Per-branch re-aggregation is stage 2/4 work in `_data.js`.**
+- **`api/_aggregate.js` is the branch-scopable core** (stage 2). Receipt folding
+  used to live inside the Loyverse fetch, which made every figure org-wide. Now
+  `_data.js` caches only the raw upstream read (`fetchRaw`) and `aggregate()`
+  runs per scope over it, so `items`/`daily`/`hours`/`payments`/costs are all
+  scoped exactly — branch scopes sum back to the org total (tested).
+  `getMetrics(token, { branches })` takes an already-authorized list; `null`
+  means the whole organization. `branches: []` correctly yields zeros.
+- The cache key is now just the token (overrides moved into aggregation), which
+  also means entering a cost shows up without waiting for a refetch, and
+  `cacheAge()` works for accounts with overrides — it used to miss the key.
+- `branchList()` reuses that cache when warm, so resolving scope on every
+  metrics request doesn't cost a second `/stores` call.
+- `api/_scope-metrics.js` now only attaches scope provenance (`branches`,
+  `branchCount`, `totalBranches`, `complete`, `exact`) and filters the branch
+  roster to what the user may see.
 - `api/scope.js` (GET) feeds the UI scope selector; `api/team.js` is membership
   administration, gated on `manage:users` (owner only).
 - Inviting a username with no account writes `invite:<username>` → orgId, so
   registering joins that organization instead of creating a new one.
+
+## Account deletion
+Two paths, both on `DELETE /api/account`:
+- default — `requestDeletion`, a 7-day grace window, undoable with `POST`.
+- `?now=1` — `deleteNow()` in `_accounts.js`, an immediate wipe returning `410`.
+  Removes the account, email index, chats, cost overrides and pending invite. If
+  the account **owns** an organization the org record goes too (the POS
+  connection and all memberships live on it); if it was only a member, just its
+  seat is removed. No undo. The UI signs the user out on success, since the
+  token's account no longer exists.
+
+## Front end
+- `src/BranchScope.jsx` — the scope selector (all / group / one branch). Renders
+  nothing below two authorized branches. Empty selection = all, matching the API.
+- `src/screens/Team.jsx` — membership admin. Shown as a nav tab only when
+  `/api/scope` reports `manage:users`; the server enforces it regardless.
+- `Shell.jsx` holds `scope` (from `/api/scope`) and `branches` (the request), and
+  refetches metrics when the selection changes.
+- i18n: new `scope.*` and `team.*` blocks plus `account.deleteNow*` in all four
+  languages (en, ar, hi, tl).
 
 ## Notes
 - `vite.config.js` was extended with `host`, `allowedHosts: true`, and the

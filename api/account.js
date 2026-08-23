@@ -1,7 +1,7 @@
 import { requireAuth } from "./_auth.js";
 import {
   getAccount, setPosToken, setBusiness, publicAccount,
-  requestDeletion, cancelDeletion, purgeIfDue,
+  requestDeletion, cancelDeletion, purgeIfDue, deleteNow,
 } from "./_accounts.js";
 import { persistent } from "./_store.js";
 import { clearCache, fetchMerchant } from "./_data.js";
@@ -47,6 +47,17 @@ export default async function handler(req, res) {
     }
 
     if (req.method === "DELETE") {
+      /* ?now=1 skips the grace period and wipes the record immediately. The
+         window protects a misclick, but someone who means it shouldn't have to
+         wait a week for their data to go — so both paths exist and the caller
+         says which it wants. There is no undo for this one. */
+      if (String(req.query?.now || "") === "1") {
+        const gone = await deleteNow(session.username);
+        if (!gone) return res.status(404).json({ error: "noaccount" });
+        // 410: the account this token belongs to no longer exists.
+        return res.status(410).json({ deleted: true });
+      }
+
       const account = await requestDeletion(session.username);
       if (!account) return res.status(404).json({ error: "noaccount" });
       return res.status(200).json({ account: publicAccount(account) });

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import {
-  BarChart3, LineChart, MessageSquare, Settings as Cog, UtensilsCrossed,
+  BarChart3, LineChart, MessageSquare, Settings as Cog, UtensilsCrossed, Users,
   Search, Lightbulb, PanelRightClose, PanelRightOpen, LogOut, Lock, Wallet,
   LayoutDashboard, Download, FileText, Table, ChevronDown,
 } from "lucide-react";
@@ -21,6 +21,8 @@ import Greeting from "./Greeting.jsx";
 import ChatSidebar from "./ChatSidebar.jsx";
 import Forecast from "./screens/Forecast.jsx";
 import Settings from "./screens/Settings.jsx";
+import Team from "./screens/Team.jsx";
+import BranchScope from "./BranchScope.jsx";
 import CommandPalette from "./CommandPalette.jsx";
 import LanguagePicker from "./LanguagePicker.jsx";
 import ThemeToggle from "./ThemeToggle.jsx";
@@ -60,7 +62,13 @@ const TAB_META = [
   { id: "settings", icon: Cog },
 ];
 
-const TAB_ICONS = Object.fromEntries(TAB_META.map((tb) => [tb.id, tb.icon]));
+/* Team administration is only shown to someone who can actually use it. It
+   isn't a paid feature, it's a permission — so it's appended to the nav rather
+   than living in TAB_META, which drives the numeric shortcuts and swipe order
+   for everyone. */
+const TEAM_TAB = { id: "team", icon: Users };
+
+const TAB_ICONS = Object.fromEntries([...TAB_META, TEAM_TAB].map((tb) => [tb.id, tb.icon]));
 
 function useDesktop() {
   const [big, setBig] = useState(() => typeof window !== "undefined" && window.matchMedia("(min-width: 1024px)").matches);
@@ -119,6 +127,11 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
   const [fetchedAt, setFetchedAt] = useState(null);
   const [exportOpen, setExportOpen] = useState(false);
   const [dateRange, setDateRange] = useState("monthly");
+  /* The user's authorization scope, from the server. `branches` is what the
+     interface is asking for; empty means every branch they're allowed to see,
+     the same convention the API uses. */
+  const [scope, setScope] = useState(null);
+  const [branches, setBranches] = useState([]);
   const mainRef = useRef(null);
 
   const [conversations, setConversations] = useState(() => listConversations(user));
@@ -169,7 +182,12 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
     if (!quiet) setError("");
     setRefreshing(true);
     try {
-      const res = await fetch(`/api/metrics${fresh ? "?fresh=1" : ""}`, { headers: { Authorization: `Bearer ${token}` } });
+      const query = new URLSearchParams();
+      if (fresh) query.set("fresh", "1");
+      // Only sent when narrowed; the server treats an absent list as "all mine".
+      if (branches.length) query.set("branches", branches.join(","));
+      const qs = query.toString();
+      const res = await fetch(`/api/metrics${qs ? `?${qs}` : ""}`, { headers: { Authorization: `Bearer ${token}` } });
       const json = await res.json();
       if (res.status === 402) return;
       if (res.status === 409) { setNeedsPos(true); return; }
@@ -180,7 +198,15 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
     finally { setRefreshing(false); }
   }
 
-  async function refreshEverything() { await loadAccount(); await load(); }
+  async function refreshEverything() { await loadAccount(); await loadScope(); await load(); }
+
+  async function loadScope() {
+    try {
+      const res = await fetch("/api/scope", { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) return;
+      setScope(await res.json());
+    } catch { /* the dashboard still works; it just won't offer a selector */ }
+  }
   async function loadAccount() {
     try {
       const res = await fetch("/api/account", { headers: { Authorization: `Bearer ${token}` } });
@@ -223,8 +249,16 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => { load(); loadAccount(); // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { load(); loadAccount(); loadScope(); // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  /* A change of branch scope is a different question, so it refetches. */
+  const firstScope = useRef(true);
+  useEffect(() => {
+    if (firstScope.current) { firstScope.current = false; return; }
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [branches]);
 
   useEffect(() => {
     const onKey = (e) => {
@@ -260,8 +294,9 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
   else if (tab === "settings") {
     body = <Settings data={data || EMPTY_METRICS} user={user} onRefresh={() => load({ fresh: true })} refreshing={refreshing}
       token={token} conversationCount={conversations.length} account={account} onConnect={() => setConnectOpen(true)}
-      onAccountChange={refreshEverything} onSeePlans={() => go("billing")} onSession={onSession} />;
-  } else if (locked) { body = <Locked feature={needed} onSeePlans={() => go("billing")} />; }
+      onAccountChange={refreshEverything} onSeePlans={() => go("billing")} onSession={onSession} onLogout={onLogout} />;
+  } else if (tab === "team") { body = <Team token={token} />; }
+  else if (locked) { body = <Locked feature={needed} onSeePlans={() => go("billing")} />; }
   else if (tab === "ask") {
     body = <Ask token={token} wide={desktop && !chatsOpen} pending={pending} onPendingUsed={() => setPending("")}
       messages={messages} onMessagesChange={updateMessages} data={unconnectedAccount ? null : data}
@@ -306,6 +341,14 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
 
   const labelFor = (id) => { const full = t[id]?.tab || id; return full.length > 12 ? full.split(/\s+/)[0] : full; };
 
+  const canManageTeam = Boolean(scope?.capabilities?.includes("manage:users"));
+  const navTabs = canManageTeam ? [...TAB_META, TEAM_TAB] : TAB_META;
+
+  /* Only offered where it means something: more than one authorized branch. */
+  const scopePicker = scope?.branches?.length > 1 && (
+    <BranchScope branches={scope.branches} selected={branches} onChange={setBranches} />
+  );
+
   const logo = (
     <div className="flex items-center gap-2">
       <BrandMark size={34} />
@@ -333,7 +376,7 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
           <div className="mb-5 px-1"><Greeting user={user} business={account?.account?.business} /></div>
 
           <nav className="flex flex-col gap-1 relative flex-1">
-            {TAB_META.map(({ id, icon: Icon }) => {
+            {navTabs.map(({ id, icon: Icon }) => {
               const on = tab === id;
               return (
                 <button key={id} onClick={() => go(id)}
@@ -367,6 +410,8 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
               <Search size={13} /><span className="flex-1 text-start">{t.palette.open}</span>
               <kbd className="data text-[10px] px-1.5 py-0.5 rounded" style={{ background: "var(--chip-bg)" }} dir="ltr">⌘K</kbd>
             </button>
+
+            {scopePicker}
 
             {/* Export button */}
             {data && !unconnectedAccount && (
@@ -409,8 +454,9 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
           paddingBottom: "calc(env(safe-area-inset-bottom) + 16px)" }}
         onClick={(e) => e.stopPropagation()}>
         <Greeting user={user} business={account?.account?.business} />
+        {scopePicker}
         <div className="grid grid-cols-3 gap-2">
-          {SECONDARY.map((id) => {
+          {(canManageTeam ? [...SECONDARY, "team"] : SECONDARY).map((id) => {
             const Icon = TAB_ICONS[id]; const on = tab === id;
             const locked = !entitlements(account).has(SCREEN_FEATURE[id]);
             return (

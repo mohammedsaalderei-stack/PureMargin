@@ -14,6 +14,7 @@ import {
   effectiveBranches, parseBranchParam, can, scopeFor, orgFor, ROLES,
 } from "./_org.js";
 import { applyScope } from "./_scope-metrics.js";
+import { aggregate } from "./_aggregate.js";
 
 /* These tests write accounts and organizations through the real store module.
    If a Redis backend is attached they would write into it — and `__resetMemory`
@@ -169,44 +170,100 @@ await test("a withdrawn invitation does not resurrect on registration", async ()
   assert.deepStrictEqual(authorizedBranches(org, "newhire", BRANCHES), []);
 });
 
-await test("a full scope returns the payload unchanged and complete", async () => {
+await test("scope metadata reports a complete organization scope", async () => {
   const metrics = {
-    totals: { sales: 300, receipts: 30, avgTicket: 10, salesDelta: 5 },
-    stores: [{ id: "b1", sales: 100, receipts: 10 }, { id: "b2", sales: 200, receipts: 20 }],
-    items: [{ name: "Latte" }],
+    totals: { sales: 300 },
+    stores: [{ id: "b1", sales: 100 }, { id: "b2", sales: 200 }],
   };
   const out = applyScope(metrics, ["b1", "b2"], ["b1", "b2"]);
   assert.strictEqual(out.scope.complete, true);
-  assert.deepStrictEqual(out.scope.orgWideFields, []);
-  assert.strictEqual(out.totals.salesDelta, 5);
+  assert.strictEqual(out.scope.exact, true);
   assert.strictEqual(out.stores.length, 2);
 });
 
-await test("a narrowed scope hides other branches and recomputes totals", async () => {
+await test("scope metadata hides branches outside the scope", async () => {
   const metrics = {
-    totals: { sales: 300, receipts: 30, avgTicket: 10, salesDelta: 5 },
-    stores: [{ id: "b1", sales: 100, receipts: 10 }, { id: "b2", sales: 200, receipts: 20 }],
-    items: [{ name: "Latte" }],
+    totals: { sales: 300 },
+    stores: [{ id: "b1", sales: 100 }, { id: "b2", sales: 200 }],
   };
   const out = applyScope(metrics, ["b1"], ["b1", "b2"]);
   assert.deepStrictEqual(out.stores.map((s) => s.id), ["b1"]);
-  assert.strictEqual(out.totals.sales, 100);
-  assert.strictEqual(out.totals.receipts, 10);
-  assert.strictEqual(out.totals.avgTicket, 10);
-  // Figures that can't be split honestly are withheld, not relabelled.
-  assert.strictEqual(out.totals.salesDelta, null);
   assert.strictEqual(out.scope.complete, false);
-  assert.ok(out.scope.orgWideFields.includes("items"));
+  assert.strictEqual(out.scope.branchCount, 1);
+  assert.strictEqual(out.scope.totalBranches, 2);
 });
 
-await test("an empty effective scope exposes no branch data", async () => {
-  const metrics = {
-    totals: { sales: 300, receipts: 30 },
-    stores: [{ id: "b1", sales: 100, receipts: 10 }],
+/* ── Stage 2: the figures themselves are scoped, not just the roster ──
+   These are the tests that would have failed before aggregation moved out of
+   the fetch: item, daily and hourly series used to be organization-wide no
+   matter what branch was asked for. */
+
+const receipt = (store, total, item, qty, date) => ({
+  store_id: store,
+  receipt_date: date,
+  total_money: total,
+  currency: "AED",
+  payments: [{ name: "Cash", money_amount: total }],
+  line_items: [{ item_name: item, quantity: qty, total_money: total }],
+});
+
+function raw() {
+  const now = Date.now();
+  const day = new Date(now - 864e5).toISOString();
+  return {
+    now,
+    limitedHistory: false,
+    catalogue: new Map([["Latte", { cost: 3 }], ["Cake", { cost: 5 }]]),
+    storeNames: { b1: "Marina", b2: "Deira" },
+    allBranches: ["b1", "b2"],
+    receipts: [
+      receipt("b1", 100, "Latte", 10, day),
+      receipt("b2", 200, "Cake", 20, day),
+    ],
   };
-  const out = applyScope(metrics, [], ["b1"]);
-  assert.deepStrictEqual(out.stores, []);
-  assert.strictEqual(out.totals.sales, 0);
+}
+
+await test("an unscoped aggregate covers the whole organization", async () => {
+  const m = aggregate(raw(), {});
+  assert.strictEqual(m.totals.sales, 300);
+  assert.strictEqual(m.totals.receipts, 2);
+  assert.deepStrictEqual(m.stores.map((s) => s.id).sort(), ["b1", "b2"]);
+  assert.deepStrictEqual(m.items.map((i) => i.name).sort(), ["Cake", "Latte"]);
+});
+
+await test("a scoped aggregate counts only that branch's receipts", async () => {
+  const m = aggregate(raw(), { branches: ["b1"] });
+  assert.strictEqual(m.totals.sales, 100);
+  assert.strictEqual(m.totals.receipts, 1);
+  assert.deepStrictEqual(m.stores.map((s) => s.id), ["b1"]);
+});
+
+await test("item, daily and payment series are scoped, not organization-wide", async () => {
+  const m = aggregate(raw(), { branches: ["b1"] });
+  // The other branch's only product must not appear at all.
+  assert.deepStrictEqual(m.items.map((i) => i.name), ["Latte"]);
+  assert.strictEqual(m.items[0].revenue, 100);
+  // Cost of goods follows the same scope: 10 lattes at 3, not 20 cakes too.
+  assert.strictEqual(m.totals.cost, 30);
+  assert.strictEqual(m.payments.reduce((s, p) => s + p.amount, 0), 100);
+  assert.strictEqual(m.daily.reduce((s, d) => s + d.sales, 0), 100);
+  assert.strictEqual(m.hours.reduce((s, h) => s + h.receipts, 0), 1);
+});
+
+await test("branch scopes sum back to the organization total", async () => {
+  const whole = aggregate(raw(), {});
+  const parts = ["b1", "b2"].map((b) => aggregate(raw(), { branches: [b] }));
+  assert.strictEqual(parts.reduce((s, m) => s + m.totals.sales, 0), whole.totals.sales);
+  assert.strictEqual(parts.reduce((s, m) => s + m.totals.cost, 0), whole.totals.cost);
+  assert.strictEqual(parts.reduce((s, m) => s + m.totals.receipts, 0), whole.totals.receipts);
+});
+
+await test("an empty scope aggregates to zero, disclosing nothing", async () => {
+  const m = aggregate(raw(), { branches: [] });
+  assert.strictEqual(m.totals.sales, 0);
+  assert.strictEqual(m.totals.receipts, 0);
+  assert.deepStrictEqual(m.items, []);
+  assert.deepStrictEqual(m.stores, []);
 });
 
 await test("branch parameters are parsed without trusting their shape", async () => {

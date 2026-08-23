@@ -1,5 +1,5 @@
 import { requireAuth } from "./_auth.js";
-import { getMetrics, cacheAge, NotConnected, PosUnreachable } from "./_data.js";
+import { getMetrics, branchList, cacheAge, NotConnected, PosUnreachable } from "./_data.js";
 import { posTokenFor } from "./_accounts.js";
 import { getJSON } from "./_store.js";
 import { scopeFor, effectiveBranches, parseBranchParam } from "./_org.js";
@@ -14,17 +14,25 @@ export default async function handler(req, res) {
     // ?fresh=1 skips the cache — used by the manual refresh button.
     const fresh = String(req.query?.fresh || "") === "1";
     const overrides = (await getJSON(`costs:${session.username}`)) || {};
-    const metrics = await getMetrics(posToken, { overrides, ...(fresh ? { maxAge: 0 } : {}) });
-
     /* Branch scope. The POS reports which branches exist; the session decides
        which of those this user may read; the query string may only narrow that
-       set further. A ?branches= value that names a branch outside the user's
-       scope drops out of the intersection instead of being honoured or
-       raising — the same request from an owner and from a branch manager is
-       answered with each one's own scope. */
-    const allBranches = (metrics.stores || []).map((s) => String(s.id));
+       set further. A ?branches= value naming a branch outside the user's scope
+       drops out of the intersection instead of being honoured or raising — the
+       same request from an owner and from a branch manager is answered with
+       each one's own scope.
+
+       The branch roster is read first, so the scope is resolved before any
+       figures are aggregated: the receipts outside it are never counted, rather
+       than counted and filtered afterwards. */
+    const allBranches = (await branchList(posToken)).map((b) => b.id);
     const scope = await scopeFor(session.account, allBranches);
     const effective = effectiveBranches(parseBranchParam(req.query?.branches), scope.authorized);
+
+    const metrics = await getMetrics(posToken, {
+      overrides,
+      branches: effective,
+      ...(fresh ? { maxAge: 0 } : {}),
+    });
     const scoped = applyScope(metrics, effective, allBranches);
 
     // Never cached at the edge: the whole point is that it changes.

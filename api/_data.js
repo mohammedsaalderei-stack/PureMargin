@@ -4,6 +4,7 @@
 
 import { buildAdvice } from "./_advice.js";
 import { marginLayer } from "./_margin.js";
+import { aggregate } from "./_aggregate.js";
 
 const BASE = "https://api.loyverse.com/v1.0";
 /* Short, because the dashboard polls and people expect today's number to
@@ -281,7 +282,12 @@ async function fetchCatalogue(token) {
   return byName;
 }
 
-async function liveMetrics(token, overrides = {}) {
+/* The upstream read, with no aggregation in it.
+
+   Kept separate from shaping so the expensive part (a month of receipts, the
+   whole catalogue) happens once per token and is then re-aggregated cheaply for
+   whatever branch scope each request has. */
+async function fetchRaw(token) {
   const now = Date.now();
 
   const [storesRes, history, catalogue] = await Promise.all([
@@ -294,206 +300,15 @@ async function liveMetrics(token, overrides = {}) {
       return new Map();
     }),
   ]);
-  const { receipts, limitedHistory } = history;
 
-  /* An owner-entered cost always wins over the POS value — they know what
-     they actually pay, and Loyverse costs are often left at zero. */
-  const costFor = (itemName, variantName) => {
-    const override = overrides[itemName];
-    if (typeof override === "number" && override > 0) return override;
-    const keyed = variantName ? catalogue.get(`${itemName}||${variantName}`) : null;
-    return keyed?.cost || catalogue.get(itemName)?.cost || 0;
+  return {
+    now,
+    receipts: history.receipts,
+    limitedHistory: history.limitedHistory,
+    catalogue,
+    storeNames: Object.fromEntries((storesRes.stores || []).map((s) => [s.id, s.name])),
+    allBranches: (storesRes.stores || []).map((s) => String(s.id)),
   };
-  const imageFor = (itemName) => catalogue.get(itemName)?.image || null;
-
-  const storeNames = Object.fromEntries((storesRes.stores || []).map((s) => [s.id, s.name]));
-  const cutoff = now - 30 * DAY;
-
-  const byDay = new Map();
-  const byHour = new Map();
-  const byStore = new Map();
-  const byItem = new Map();
-  const byPayment = new Map();
-  let currentSales = 0, currentReceipts = 0, priorSales = 0, priorReceipts = 0;
-  let totalCost = 0;
-  let totalDiscounts = 0;
-
-  for (const r of receipts) {
-    if (r.receipt_type === "REFUND" || r.cancelled_at) continue;
-    const ts = new Date(r.receipt_date).getTime();
-    const value = Number(r.total_money) || 0;
-
-    if (ts < cutoff) {
-      priorSales += value;
-      priorReceipts += 1;
-      continue;
-    }
-
-    currentSales += value;
-    currentReceipts += 1;
-
-    const d = new Date(ts);
-    const key = d.toISOString().slice(0, 10);
-    const day = byDay.get(key) || { sales: 0, receipts: 0 };
-    day.sales += value;
-    day.receipts += 1;
-    byDay.set(key, day);
-
-    const h = d.getHours();
-    byHour.set(h, (byHour.get(h) || 0) + 1);
-
-    for (const pay of r.payments || []) {
-      const method = pay.name || pay.type || "Other";
-      byPayment.set(method, (byPayment.get(method) || 0) + (Number(pay.money_amount) || 0));
-    }
-
-    const sid = r.store_id || "unknown";
-    const st = byStore.get(sid) || { sales: 0, receipts: 0 };
-    st.sales += value;
-    st.receipts += 1;
-    byStore.set(sid, st);
-
-    for (const li of r.line_items || []) {
-      const name = li.item_name || "Unnamed item";
-      const qty = Number(li.quantity) || 0;
-      const revenue = Number(li.total_money) || 0;
-      const unitCost = costFor(name, li.variant_name);
-
-      const it = byItem.get(name) || {
-        qty: 0,
-        revenue: 0,
-        cost: 0,
-        unitCost,
-        image: imageFor(name),
-        category: li.variant_name || "—",
-        hasCost: unitCost > 0,
-      };
-      it.qty += qty;
-      it.revenue += revenue;
-      it.cost += unitCost * qty;
-      it.unitCost = unitCost || it.unitCost;
-      it.hasCost = it.hasCost || unitCost > 0;
-      byItem.set(name, it);
-
-      totalCost += unitCost * qty;
-    }
-  }
-
-  const daily = [];
-  for (let i = 29; i >= 0; i--) {
-    const d = new Date(now - i * DAY);
-    const key = d.toISOString().slice(0, 10);
-    const row = byDay.get(key) || { sales: 0, receipts: 0 };
-    daily.push({
-      date: key,
-      label: d.toLocaleDateString("en-GB", { day: "numeric", month: "short" }),
-      sales: Math.round(row.sales),
-      receipts: row.receipts,
-    });
-  }
-
-  const hours = [];
-  for (let h = 0; h < 24; h++) {
-    const count = byHour.get(h) || 0;
-    if (count > 0 || (h >= 8 && h <= 23)) {
-      hours.push({ hour: h, label: hourLabel(h), receipts: count });
-    }
-  }
-
-  const netProfit = currentSales - totalCost;
-  const marginPct = currentSales > 0 ? (netProfit / currentSales) * 100 : 0;
-
-  const itemsRaw = [...byItem.entries()]
-    .map(([name, v]) => ({ name, ...v }))
-    .sort((a, b) => b.revenue - a.revenue)
-    .slice(0, 14);
-  const itemTotal = itemsRaw.reduce((s, i) => s + i.revenue, 0) || 1;
-
-  const paymentTotal = [...byPayment.values()].reduce((a, b) => a + b, 0) || 1;
-  const todayKey = new Date(now).toISOString().slice(0, 10);
-  const todayRow = byDay.get(todayKey) || { sales: 0, receipts: 0 };
-  const ydayKey = new Date(now - DAY).toISOString().slice(0, 10);
-  const ydayRow = byDay.get(ydayKey) || { sales: 0, receipts: 0 };
-
-  return finish({
-    connected: true,
-    source: "Loyverse POS",
-    payments: [...byPayment.entries()]
-      .map(([method, amount]) => ({
-        method,
-        amount: Math.round(amount),
-        share: Number(((amount / paymentTotal) * 100).toFixed(1)),
-      }))
-      .sort((a, b) => b.amount - a.amount),
-    today: {
-      sales: Math.round(todayRow.sales),
-      receipts: todayRow.receipts,
-      avgTicket: todayRow.sales / Math.max(todayRow.receipts, 1),
-      delta: pctChange(todayRow.sales, ydayRow.sales),
-      topItem: itemsRaw[0]?.name || "—",
-      topItemQty: Math.round(itemsRaw[0]?.qty || 0),
-    },
-    extras: { discounts: 0, refunds: 0, cost: 0 },
-    currency: (receipts[0] && receipts[0].currency) || "AED",
-    daily,
-    hours,
-    stores: [...byStore.entries()]
-      .map(([id, v]) => ({
-        id,
-        name: storeNames[id] || "Unnamed branch",
-        sales: Math.round(v.sales),
-        receipts: v.receipts,
-      }))
-      .sort((a, b) => b.sales - a.sales),
-    items: itemsRaw.map((i) => {
-      const profit = i.revenue - i.cost;
-      return {
-        ...i,
-        revenue: Math.round(i.revenue),
-        cost: Math.round(i.cost),
-        profit: Math.round(profit),
-        marginPct: i.revenue > 0 ? Number(((profit / i.revenue) * 100).toFixed(1)) : 0,
-        share: Math.round((i.revenue / itemTotal) * 100),
-      };
-    }),
-    limitedHistory,
-    /* Cost coverage matters more than it looks: a 100% margin almost always
-       means costs are missing, not that everything is free. The interface
-       uses this to say which it is. */
-    costCoverage: (() => {
-      const withCost = [...byItem.values()].filter((i) => i.hasCost);
-      const revenueWithCost = withCost.reduce((sum, i) => sum + i.revenue, 0);
-      return currentSales > 0 ? Math.round((revenueWithCost / currentSales) * 100) : 0;
-    })(),
-    missingCosts: [...byItem.entries()]
-      .filter(([, i]) => !i.hasCost && i.qty > 0)
-      .sort((a, b) => b[1].revenue - a[1].revenue)
-      .slice(0, 12)
-      .map(([name, i]) => ({
-        name,
-        qty: Math.round(i.qty),
-        revenue: Math.round(i.revenue),
-        unitPrice: Math.round(i.revenue / Math.max(i.qty, 1)),
-        image: i.image,
-      })),
-    totals: {
-      sales: Math.round(currentSales),
-      receipts: currentReceipts,
-      avgTicket: currentSales / Math.max(currentReceipts, 1),
-      cost: Math.round(totalCost),
-      netProfit: Math.round(netProfit),
-      marginPct: Number(marginPct.toFixed(1)),
-      discounts: Math.round(totalDiscounts),
-      salesDelta: limitedHistory ? null : pctChange(currentSales, priorSales),
-      receiptsDelta: limitedHistory ? null : pctChange(currentReceipts, priorReceipts),
-      avgTicketDelta: limitedHistory
-        ? null
-        : pctChange(
-            currentSales / Math.max(currentReceipts, 1),
-            priorSales / Math.max(priorReceipts, 1)
-          ),
-    },
-  });
 }
 
 /* Raised when a real account has no POS connected. The caller turns this
@@ -544,6 +359,19 @@ export async function fetchMerchant(token) {
 export async function branchList(posToken) {
   const token = posToken || process.env.LOYVERSE_ACCESS_TOKEN || "";
   if (!token) throw new NotConnected();
+
+  /* The cached fetch already holds the roster, so a dashboard request that is
+     about to aggregate anyway doesn't pay for a second /stores call — which
+     matters because Loyverse rate-limits and this is now read on every metrics
+     request to resolve the scope. */
+  const hit = cache.get(token.slice(0, 24));
+  if (hit) {
+    return hit.raw.allBranches.map((id) => ({
+      id,
+      name: hit.raw.storeNames[id] || "Unnamed branch",
+    }));
+  }
+
   const data = await call("/stores", token);
   return (data?.stores || []).map((s) => ({
     id: String(s.id),
@@ -551,29 +379,40 @@ export async function branchList(posToken) {
   }));
 }
 
-export async function getMetrics(posToken, { maxAge = CACHE_MS, overrides = {} } = {}) {
+export async function getMetrics(posToken, { maxAge = CACHE_MS, overrides = {}, branches = null } = {}) {
   const token = posToken || process.env.LOYVERSE_ACCESS_TOKEN || "";
   if (!token) throw new NotConnected();
 
-  /* Overrides change the figures, so they belong in the cache key —
-     otherwise entering a cost wouldn't show up until the cache expired. */
-  const overrideStamp = Object.keys(overrides).length
-    ? `:${Object.entries(overrides).sort().map(([k, v]) => `${k}=${v}`).join(",").length}:${JSON.stringify(overrides).length}`
-    : "";
-  const key = token.slice(0, 24) + overrideStamp;
+  /* The cache holds the raw upstream read, not the finished payload. Two
+     requests with different branch scopes share one Loyverse call and are
+     aggregated separately — which is the point of splitting the two, since the
+     fetch is the expensive half and the scope changes per user. Overrides no
+     longer belong in the key for the same reason: they're applied during
+     aggregation, so entering a cost is reflected immediately without a
+     refetch. */
+  const key = token.slice(0, 24);
   const hit = cache.get(key);
-  if (hit && Date.now() - hit.at < maxAge) return hit.value;
 
-  let value;
-  try {
-    value = await liveMetrics(token, overrides);
-  } catch (err) {
-    console.error("Loyverse fetch failed:", err.message);
-    throw new PosUnreachable(err.message);
+  let raw = hit && Date.now() - hit.at < maxAge ? hit.raw : null;
+  if (!raw) {
+    try {
+      raw = await fetchRaw(token);
+    } catch (err) {
+      console.error("Loyverse fetch failed:", err.message);
+      throw new PosUnreachable(err.message);
+    }
+    cache.set(key, { at: Date.now(), raw });
   }
 
-  cache.set(key, { at: Date.now(), value });
-  return value;
+  /* `branches` is already authorized and intersected by the caller. null means
+     the whole organization. */
+  const scoped =
+    branches === null ||
+    (raw.allBranches.length > 0 && branches.length === raw.allBranches.length)
+      ? null
+      : branches;
+
+  return { ...finish(aggregate(raw, { overrides, branches: scoped })), allBranches: raw.allBranches };
 }
 
 /* Seconds since these figures were actually fetched, so the interface can
