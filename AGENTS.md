@@ -351,11 +351,33 @@ they override the defaults).
   set `stale`, which downgrades every confidence grade rather than passing unnoticed.
 - Front end: tab `plan` → `src/screens/Plan.jsx` + `src/plan/PurchaseLine.jsx`,
   `src/plan/BranchRanking.jsx`. i18n `plan.*`. Entitlement: `forecast`.
-- Tests: `api/_operations.test.js` (24) — 229 total.
+- Tests: `api/_operations.test.js` (24).
 - **Careful in tests:** `varianceReport`/`listMovements` bound by `to`, so a movement
   recorded with the default `at` (now) falls *outside* a window captured earlier —
   pass an explicit `at`.
-- **Still open:** stage 6, the AI assistant grounded in these engines.
+## Assistant grounding (stage 6)
+- `api/_grounding.js` is the **only** path by which inventory/costing/forecast
+  figures reach the model. `groundingFor(account, {...})` resolves the session's
+  scope, intersects the requested branches with the authorized ones, filters the
+  sales rows to that scope, then builds a prose brief from the same engines the
+  screens use (`varianceReport`, `buildAlerts`, `purchasePlan`, `branchRanking`).
+- **The prompt is the boundary.** An out-of-scope branch's name and figures are
+  absent from the brief, not withheld by instruction — "don't mention branch 2" is
+  not a security control. Sections are gated by capability: `view:costs` → leakage,
+  `view:inventory` → alerts, `view:forecast` → purchasing plan,
+  `view:profitability` **and** >1 branch → branch comparison.
+- `ANSWER_CONTRACT` (same file) is the answering rules: value, period, branches,
+  evidence, drivers, confidence limits, one or two actions; refuse out-of-scope
+  branches without confirming they exist; never fill a gap from general knowledge.
+- `api/chat.js` composes `buildSystem(metrics, lang, grounding)` — the POS sales
+  context as before, then the contract and brief. Grounding is best-effort: if the
+  org or POS lookup fails the assistant still answers from sales alone.
+- Tests: `api/_grounding.test.js` (16) — 245 total. `scopeFor` **auto-creates** an
+  org for an account without one, so "no org" fixtures resolve to a fresh empty
+  organization rather than null.
+- **All six stages of the direction document are now implemented.** Next natural
+  work: surfacing the branch/scope selector in the assistant UI, and drill-through
+  from an assistant answer to the source records.
 
 ## Sign-in email
 - `setEmail(username, currentPassword, nextEmail)` in `api/_accounts.js`, exposed
