@@ -326,8 +326,36 @@ they override the defaults).
 - Front end: tab `alerts` (`view:inventory`) → `src/screens/Alerts.jsx` +
   `src/alerts/AlertCard.jsx`, `src/alerts/TargetsForm.jsx`. Empty state
   distinguishes "nothing wrong" from "nothing recorded" via `recipeCoverage`.
-- Tests: `api/_alerts.test.js` (24) — 205 total.
-- **Still open:** the dashboard/forecast phase (stage 5), then the assistant.
+- Tests: `api/_alerts.test.js` (24).
+
+## Operational forecasting (stage 5)
+- `api/_operations.js`:
+  - `purchasePlan(orgId, branchIds, { from, to, horizonDays, stale })` — usage rate
+    from **weekly** buckets of `consume`/`issue`/`waste` (weekly because restaurant
+    demand is weekend-seasonal; daily is noise, monthly hides trend). Transfers and
+    supplier returns are excluded — ordering for another branch's shelf.
+  - Need = `perDay × (horizon + supplier lead time) − on hand`; range is ±1 SD of
+    the weekly mean scaled to the same window; packs rounded up via `toBase` on the
+    purchase unit. **Lead time comes from the supplier record**, not the ingredient.
+  - `gradeConfidence({ days, weeksWithUsage, cv, stale })` — reasons are
+    `shortHistory` (<14d), `fewWeeks` (<2), `volatile` (cv>0.6), `staleSales`; either
+    of the first two rules out `high` on its own. A plan's headline confidence is the
+    **weakest** row's (`worstOf`).
+  - No usage in the period → **no line**, an entry in `skipped` with reason
+    `nousage`. An empty plan and a plan of zeroes mean different things.
+  - `branchRanking` runs `varianceReport` per branch so the ranking can never
+    contradict the leakage screen; each row carries food cost vs target, waste,
+    unexplained, top-3 driver ingredients and that branch's `recipeCoverage`.
+- Route `api/operations.js` GET: purchase plan needs `view:forecast`, ranking needs
+  `view:profitability`, either alone is enough. Sales older than 12h (or missing)
+  set `stale`, which downgrades every confidence grade rather than passing unnoticed.
+- Front end: tab `plan` → `src/screens/Plan.jsx` + `src/plan/PurchaseLine.jsx`,
+  `src/plan/BranchRanking.jsx`. i18n `plan.*`. Entitlement: `forecast`.
+- Tests: `api/_operations.test.js` (24) — 229 total.
+- **Careful in tests:** `varianceReport`/`listMovements` bound by `to`, so a movement
+  recorded with the default `at` (now) falls *outside* a window captured earlier —
+  pass an explicit `at`.
+- **Still open:** stage 6, the AI assistant grounded in these engines.
 
 ## Sign-in email
 - `setEmail(username, currentPassword, nextEmail)` in `api/_accounts.js`, exposed

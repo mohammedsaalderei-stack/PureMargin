@@ -22,6 +22,8 @@ export const SCREEN_FEATURE = {
   variance: null,
   // Alerts follow inventory: `view:inventory` decides.
   alerts: null,
+  // The operational plan rides the forecast entitlement.
+  plan: "forecast",
   settings: null,
   billing: null,
 };

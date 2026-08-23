@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   BarChart3, LineChart, MessageSquare, Settings as Cog, UtensilsCrossed, Users,
   Search, Lightbulb, PanelRightClose, PanelRightOpen, LogOut, Lock, Wallet,
-  LayoutDashboard, Download, FileText, Table, ChevronDown, Package, ChefHat, Scale, BellRing,
+  LayoutDashboard, Download, FileText, Table, ChevronDown, Package, ChefHat, Scale, BellRing, ShoppingCart,
 } from "lucide-react";
 import { useC } from "./theme.jsx";
 import BrandMark from "./BrandMark.jsx";
@@ -26,6 +26,7 @@ import Inventory from "./screens/Inventory.jsx";
 import Recipes from "./screens/Recipes.jsx";
 import Variance from "./screens/Variance.jsx";
 import Alerts from "./screens/Alerts.jsx";
+import Plan from "./screens/Plan.jsx";
 import BranchScope from "./BranchScope.jsx";
 import CommandPalette from "./CommandPalette.jsx";
 import LanguagePicker from "./LanguagePicker.jsx";
@@ -82,6 +83,10 @@ const INVENTORY_TAB = { id: "inventory", icon: Package };
    is the chef, and `view:inventory` is who that is. */
 const ALERTS_TAB = { id: "alerts", icon: BellRing };
 
+/* The operational plan: purchasing needs `view:forecast`, the branch ranking
+   `view:profitability`; either one is enough to have something to read. */
+const PLAN_TAB = { id: "plan", icon: ShoppingCart };
+
 /* Recipes ride on `view:costs`, not on `view:inventory`: an accountant reads what
    dishes cost without writing recipes, and a chef writes them. Appended for the
    same reason as the others. */
@@ -91,7 +96,7 @@ const RECIPES_TAB = { id: "recipes", icon: ChefHat };
    recipes, since it is the costing answer they are both building towards. */
 const VARIANCE_TAB = { id: "variance", icon: Scale };
 
-const TAB_ICONS = Object.fromEntries([...TAB_META, INVENTORY_TAB, ALERTS_TAB, RECIPES_TAB, VARIANCE_TAB, TEAM_TAB].map((tb) => [tb.id, tb.icon]));
+const TAB_ICONS = Object.fromEntries([...TAB_META, INVENTORY_TAB, ALERTS_TAB, PLAN_TAB, RECIPES_TAB, VARIANCE_TAB, TEAM_TAB].map((tb) => [tb.id, tb.icon]));
 
 function useDesktop() {
   const [big, setBig] = useState(() => typeof window !== "undefined" && window.matchMedia("(min-width: 1024px)").matches);
@@ -323,6 +328,7 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
   else if (tab === "recipes") { body = <Recipes token={token} />; }
   else if (tab === "variance") { body = <Variance token={token} />; }
   else if (tab === "alerts") { body = <Alerts token={token} />; }
+  else if (tab === "plan") { body = <Plan token={token} />; }
   else if (locked) { body = <Locked feature={needed} onSeePlans={() => go("billing")} />; }
   else if (tab === "ask") {
     body = <Ask token={token} wide={desktop && !chatsOpen} pending={pending} onPendingUsed={() => setPending("")}
@@ -371,9 +377,12 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
   const canManageTeam = Boolean(scope?.capabilities?.includes("manage:users"));
   const canSeeInventory = Boolean(scope?.capabilities?.includes("view:inventory"));
   const canSeeRecipes = Boolean(scope?.capabilities?.includes("view:costs"));
+  const canSeePlan = Boolean(scope?.capabilities?.includes("view:forecast") ||
+    scope?.capabilities?.includes("view:profitability"));
   const navTabs = [
     ...TAB_META,
     ...(canSeeInventory ? [INVENTORY_TAB, ALERTS_TAB] : []),
+    ...(canSeePlan ? [PLAN_TAB] : []),
     ...(canSeeRecipes ? [RECIPES_TAB, VARIANCE_TAB] : []),
     ...(canManageTeam ? [TEAM_TAB] : []),
   ];
@@ -493,6 +502,7 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
           {[
             ...SECONDARY,
             ...(canSeeInventory ? ["inventory", "alerts"] : []),
+            ...(canSeePlan ? ["plan"] : []),
             ...(canSeeRecipes ? ["recipes", "variance"] : []),
             ...(canManageTeam ? ["team"] : []),
           ].map((id) => {
