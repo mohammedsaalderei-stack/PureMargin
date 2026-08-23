@@ -17,7 +17,8 @@ const DEFAULT_FROM = "PureMargin <onboarding@resend.dev>";
 
 /* Where a reply should land. Outgoing mail is sent from a no-reply sender, but
    people reply to it anyway, so every message carries a monitored address. */
-const REPLY_TO = process.env.MAIL_REPLY_TO || "support@puremargin.ae";
+export const SUPPORT_EMAIL = "support@puremargin.ae";
+const REPLY_TO = process.env.MAIL_REPLY_TO || SUPPORT_EMAIL;
 
 export const configured = Boolean(process.env.RESEND_API_KEY);
 
