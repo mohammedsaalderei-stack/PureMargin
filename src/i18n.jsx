@@ -568,9 +568,38 @@ export const STRINGS = {
       costsSellsAt: "sells at {v}", costPlaceholder: "Cost", costsSave: "Save costs",
       costsSaved: "Saved. Figures updated.",
       coverage: "Cost data covers {n}% of turnover",
+      subtitle: "Profitability & operations overview",
+      rangeToday: "Today", rangeWeek: "This Week", rangeMonth: "This Month",
+      trendTitle: "Sales Growth Trend",
+      trendToday: "Today's progression", trend7: "Last 7 days", trend30: "Last 30 days",
+      growthWord: "growth",
+      foodCost: "Food Cost %", aboveTarget: "Above Target", onTarget: "On Target",
+      targetNote: "Target ≤ {n}%",
       morning: "Good morning", afternoon: "Good afternoon", evening: "Good evening",
     },
     theme: { label: "Appearance", light: "Light", dark: "Dark", system: "System" },
+    reset: {
+      link: "Forgot password?",
+      title: "Reset your password",
+      lead: "Enter the email on your account and we'll send a 6-digit code.",
+      email: "Email",
+      send: "Send code",
+      sending: "Sending",
+      sent: "If that address has an account, a code is on its way. It expires in 10 minutes.",
+      code: "6-digit code",
+      codeLead: "Enter the code we emailed to {email}.",
+      newPassword: "New password",
+      confirm: "Confirm new password",
+      save: "Set new password",
+      saving: "Saving",
+      done: "Password updated. Sign in with your new password.",
+      badCode: "That code isn't right or has expired.",
+      mismatch: "Passwords don't match.",
+      weak: "Use at least 8 characters, with letters and numbers.",
+      server: "Something went wrong. Try again.",
+      back: "Back to sign in",
+      resend: "Send a new code",
+    },
     export: { title: "Export", pdf: "PDF Report", csv: "CSV Data", generating: "Generating…", done: "Downloaded" },
     error: {
       screenTitle: "This screen didn't load",
@@ -834,27 +863,7 @@ export const STRINGS = {
       tooEarly: "لم تُبع أصناف كافية بعد لترتيب القائمة كما يجب. هذا ما تحرّك حتى الآن.",
       soFar: "ما بيع حتى الآن",
       empty: "لا يوجد تاريخ كافٍ للأصناف بعد.",
-      caveat: "الموقع يعتمد على الإيراد لكل طلب، لا على هامش الربح الحقيقي — تكاليف الأصناف غير متوفرة من نظام الكاشير. أضفها ليصبح هذا قراءة ربحية فعلية.",
-      quadrantOf: "الفئة",
-    },
-
-    insights: {
-      title: "ما الذي تغيّر",
-      trend: "المبيعات {dir} {pct}٪ خلال آخر سبعة أيام",
-      bestDay: "{day} كان أقوى أيامك",
-      topItem: "{name} يحمل {share}٪ من إيراد أعلى الأصناف",
-      spread: "{peak} أكثر ازدحامًا بنحو {ratio}× من {quiet}",
-      branchGap: "{top} يتقدم على {bottom} بنسبة {pct}٪",
-      weekend: "نهايات الأسبوع {dir} أيام الأسبوع بنسبة {pct}٪",
-      up: "ترتفع",
-      down: "تنخفض",
-      above: "أعلى من",
-      below: "أقل من",
-    },
-
-    palette: {
-      open: "بحث",
-      placeholder: "انتقل إلى شاشة، أو اطرح سؤالًا…",
+      caveat: "الموقع يعتمد على الإيراد لكل طلب، لا على هامش الربح ال�وقع يعتمد على الإيراد لكل طلب، لا على هامش الربح ال�نتقل إلى شاشة، أو اطرح سؤالًا…",
       screens: "الشاشات",
       ask: "اسأل PureMargin",
       askAbout: "اسأل عن",
@@ -1146,6 +1155,29 @@ export const STRINGS = {
       morning: "صباح الخير", afternoon: "مساء الخير", evening: "مساء الخير",
     },
     theme: { label: "المظهر", light: "فاتح", dark: "داكن", system: "النظام" },
+    export: { title: "تصدير", pdf: "تقرير PDF", csv: "بيانات CSV", generating: "جارٍ الإنشاء…", done: "تم التنزيل" },
+    reset: {
+      link: "نسيت كلمة المرور؟",
+      title: "إعادة تعيين كلمة المرور",
+      lead: "أدخل البريد الإلكتروني لحسابك وسنرسل رمزًا من ٦ أرقام.",
+      email: "البريد الإلكتروني",
+      send: "إرسال الرمز",
+      sending: "جارٍ الإرسال",
+      sent: "إن كان لهذا البريد حساب، فالرمز في طريقه إليك. صلاحيته ١٠ دقائق.",
+      code: "رمز من ٦ أرقام",
+      codeLead: "أدخل الرمز الذي أرسلناه إلى {email}.",
+      newPassword: "كلمة المرور الجديدة",
+      confirm: "تأكيد كلمة المرور الجديدة",
+      save: "تعيين كلمة المرور",
+      saving: "جارٍ الحفظ",
+      done: "تم تحديث كلمة المرور. سجّل الدخول بكلمة المرور الجديدة.",
+      badCode: "الرمز غير صحيح أو انتهت صلاحيته.",
+      mismatch: "كلمتا المرور غير متطابقتين.",
+      weak: "استخدم ٨ أحرف على الأقل، مع أحرف وأرقام.",
+      server: "حدث خطأ ما. حاول مرة أخرى.",
+      back: "العودة لتسجيل الدخول",
+      resend: "إرسال رمز جديد",
+    },
     error: {
       screenTitle: "لم تُحمّل هذه الشاشة",
       screenBody: "بقية الأقسام تعمل. إذا تكرر الأمر، أرسل هذه الرسالة إلى المطوّر.",
@@ -2148,14 +2180,7 @@ export const STRINGS = {
       alertTarget: "Apat sa limang bahagi papuntang target", alertFirst: "Unang order ng araw",
       alertPeak: "Kapag nagsisimula ang dagsa", alertWeekly: "Kung paano naging ang linggo",
       alertGoal: "Nalampasan ang target",
-      dailyTarget: "Target para sa araw", eodTime: "Ipadala ang buod ng araw nang",
-      saveAlerts: "I-save", saved: "Na-save",
-      danger: "Pagsasara ng account",
-      dangerLead: "May pitong araw ka para magbago ng isip. Pagkatapos, buburahin ang sign-in at pagkakakilanlan mo. Hiwalay na iniingatan ang benta at transaksyon, dahil hinihingi ito ng batas at hindi naman talaga sa amin.",
-      deletePending: "Nahiling na ang pagbura. Aalisin ang account mo at lahat ng laman nito sa {date}.",
-      keepAccount: "Panatilihin ang account ko",
-      deleteConfirmTitle: "Burahin ang account na ito?",
-      deleteConfirmLead: "May pitong araw kang magbago ng isip. Pagkatapos, tuluyang aalisin ang account, ang mga naka-save na usapan at ang koneksyon sa POS.",
+      dailyTarget: "Target para sa araw", eodTime:bago ng isip. Pagkatapos, tuluyang aalisin ang account, ang mga naka-save na usapan at ang koneksyon sa POS.",
       deleteConfirm: "Oo, simulan ang pagbura", deleteCancel: "Huwag na lang",
       requestDelete: "Simulan ang proseso",
     },
@@ -2369,6 +2394,49 @@ export function LanguageProvider({ children }) {
 
 export function useLang() {
   const ctx = useContext(LangContext);
+  if (!ctx) throw new Error("useLang must be used inside LanguageProvider");
+  return ctx;
+}
+(LangContext);
+  if (!ctx) throw new Error("useLang must be used inside LanguageProvider");
+  return ctx;
+}
+ ctx = useContext(LangContext);
+  if (!ctx) throw new Error("useLang must be used inside LanguageProvider");
+  return ctx;
+}
+S.indexOf(l) + 1) % LANGS.length]),
+      langs: LANGS.map((id) => ({ id, name: STRINGS[id].langName })),
+    }),
+    [lang]
+  );
+
+  return <LangContext.Provider value={value}>{children}</LangContext.Provider>;
+}
+
+export function useLang() {
+  const ctx = useContext(LangContext);
+  if (!ctx) throw new Error("useLang must be used inside LanguageProvider");
+  return ctx;
+}
+(LangContext);
+  if (!ctx) throw new Error("useLang must be used inside LanguageProvider");
+  return ctx;
+}
+ ctx = useContext(LangContext);
+  if (!ctx) throw new Error("useLang must be used inside LanguageProvider");
+  return ctx;
+}
+on useLang() {
+  const ctx = useContext(LangContext);
+  if (!ctx) throw new Error("useLang must be used inside LanguageProvider");
+  return ctx;
+}
+(LangContext);
+  if (!ctx) throw new Error("useLang must be used inside LanguageProvider");
+  return ctx;
+}
+ ctx = useContext(LangContext);
   if (!ctx) throw new Error("useLang must be used inside LanguageProvider");
   return ctx;
 }

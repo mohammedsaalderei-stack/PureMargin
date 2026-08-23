@@ -75,7 +75,7 @@ export default function Login({ onAuthed, onBack, onRegister }) {
 <LanguagePicker />
           </div>
 
-          <h1 classy me="display text-3xl font-extrabold mb-2">{t.login.title}</h1>
+          <h1 className="display text-3xl font-extrabold mb-2">{t.login.title}</h1>
           <p className="text-sm mb-8" style={{ color: C.slate }}>{t.login.lead}</p>
 
           <form onSubmit={submit}>
