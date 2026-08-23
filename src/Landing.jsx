@@ -251,15 +251,15 @@ export default function Landing({ onSignIn, onRegister, onPricing }) {
         {/* Hero */}
         <section id="story" className="px-6 md:px-10 lg:px-16 pt-14 pb-20 md:pt-20 md:pb-28">
           <div className="max-w-6xl mx-auto grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
-            <div className="rise">
-              <span className="eyebrow-chip data text-[11px] uppercase tracking-[0.18em]" style={{ color: C.iris }}>
+            <div>
+              <span className="eyebrow-chip data text-[11px] uppercase tracking-[0.18em] rise" style={{ color: C.iris }}>
                 {t.hero.eyebrow}
               </span>
-              <h1 className="display text-4xl md:text-5xl lg:text-6xl font-extrabold leading-[1.08] mt-5 grad-text">
+              <h1 className="display text-4xl md:text-5xl lg:text-6xl font-extrabold leading-[1.08] mt-5 grad-text rise" style={{ animationDelay: "90ms" }}>
                 {t.hero.title}
               </h1>
-              <p className="mt-6 text-lg max-w-lg" style={{ color: C.slate }}>{t.hero.lead}</p>
-              <div className="mt-8 flex flex-wrap gap-3">
+              <p className="mt-6 text-lg max-w-lg rise" style={{ color: C.slate, animationDelay: "180ms" }}>{t.hero.lead}</p>
+              <div className="mt-8 flex flex-wrap gap-3 rise" style={{ animationDelay: "270ms" }}>
                 <button
                   onClick={onRegister}
                   className="gbtn gbtn-primary px-6 py-3 font-semibold inline-flex items-center gap-2"
