@@ -781,9 +781,6 @@ export const STRINGS = {
       payments: "Payment methods", paymentsNote: "share of takings",
       extras: "Other indicators", discounts: "Discounts", refunds: "Refunds", cost: "Product cost",
       extrasNote: "Discounts and refunds come from your receipts. Product cost needs item costs from the POS.",
-      qty: "Units", perOrder: "Per order", share: "Share of revenue",
-      quietOrders: "Quiet hour orders", peakOrders: "Peak hour orders",
-      topBranch: "Top branch", gap: "Gap",
       noBranches: "No branch data yet.",
       noItems: "No item data yet.",
       limitedHistory: "Your Loyverse plan returns the last 31 days only, so there is no earlier period to compare against. Turning on Unlimited Sales History in Loyverse brings the comparisons back.",
@@ -2006,9 +2003,6 @@ export const STRINGS = {
       payments: "طرق الدفع", paymentsNote: "حصة كل طريقة",
       extras: "مؤشرات إضافية", discounts: "الخصومات", refunds: "المرتجعات", cost: "تكلفة المنتجات",
       extrasNote: "الخصومات والمرتجعات تأتي من فواتيرك. تكلفة المنتجات تحتاج تكاليف الأصناف من نظام الكاشير.",
-      qty: "الكمية", perOrder: "لكل طلب", share: "حصة الإيراد",
-      quietOrders: "طلبات الساعة الهادئة", peakOrders: "طلبات الذروة",
-      topBranch: "أقوى فرع", gap: "الفارق",
       noBranches: "لا توجد بيانات فروع بعد.",
       noItems: "لا توجد بيانات أصناف بعد.",
       limitedHistory: "باقة Loyverse لديك تُرجع آخر 31 يومًا فقط، فلا توجد فترة سابقة للمقارنة بها. تفعيل Unlimited Sales History في Loyverse يعيد المقارنات.",
@@ -3183,9 +3177,6 @@ export const STRINGS = {
       payments: "भुगतान के तरीक़े", paymentsNote: "हर तरीक़े का हिस्सा",
       extras: "अन्य संकेतक", discounts: "छूट", refunds: "वापसी", cost: "उत्पाद लागत",
       extrasNote: "छूट और वापसी आपके बिलों से आती हैं। उत्पाद लागत के लिए POS से आइटम लागत चाहिए।",
-      qty: "इकाइयाँ", perOrder: "प्रति ऑर्डर", share: "कमाई में हिस्सा",
-      quietOrders: "सुनसान घंटे के ऑर्डर", peakOrders: "चरम घंटे के ऑर्डर",
-      topBranch: "शीर्ष शाखा", gap: "फ़ासला",
       noBranches: "अभी शाखाओं का डेटा नहीं है।",
       noItems: "अभी आइटम का डेटा नहीं है।",
       limitedHistory: "आपका Loyverse प्लान सिर्फ़ पिछले 31 दिन देता है, इसलिए तुलना के लिए पहले की कोई अवधि नहीं है। Loyverse में Unlimited Sales History चालू करने से तुलनाएँ लौट आती हैं।",
@@ -3522,8 +3513,7 @@ export const STRINGS = {
       lead: "आपका खाता तैयार है। जो हिस्से इस्तेमाल करेंगे वही चुनिए — बाक़ी बाद में जोड़ सकते हैं, और उतनी ही आसानी से हटा भी सकते हैं।",
       pickOne: "अभी कुछ नहीं चुना", selected: "{n} चुने गए",
       monthly: "प्रति माह", total: "कुल", checkout: "भुगतान पर जाएँ",
-      processing: "भुगतान हो रहा है", done: "चालू हो गया। शुभकामनाएँ।",
-      mockTitle: "डेमो चेकआउट", mockLead: "किसी कार्ड से पैसे नहीं कटते और कोई पेमेंट प्रोवाइडर शामिल नहीं है। यह पैकेज खोल देता है ताकि पूरा ऐप इस्तेमाल हो सके।",
+      processing: "भुगतान हो रहा है", done: ेता है ताकि पूरा ऐप इस्तेमाल हो सके।",
       confirm: "पुष्टि करें", cancel: "रद्द करें", back: "वापस",
       current: "आपके पैकेज", none: "अभी कोई पैकेज नहीं",
       renews: "चलेगा तक", expired: "आपके पैकेज ख़त्म हो गए।",
@@ -3756,6 +3746,12 @@ export const STRINGS = {
       save: "I-save ang bagong password",
       saving: "Sine-save",
       tryAgain: "Ipadala sa ibang address",
+      backToSignIn: "Bumalik sa sign in",
+      doneTitle: "Ayos na",
+      doneLead: "Isinasa-sign in ka na sa bagong password.",
+      failed: "Hindi ito magawa ngayon. Subukan ulit maya-maya.",
+      noMail: "Walang mail provider na nakakabit sa server na ito, kaya isinulat ang code sa log ng server at hindi ipinadala.",
+     ibang address",
       backToSignIn: "Bumalik sa sign in",
       doneTitle: "Ayos na",
       doneLead: "Isinasa-sign in ka na sa bagong password.",
@@ -4374,9 +4370,6 @@ export const STRINGS = {
       payments: "Paraan ng bayad", paymentsNote: "bahagi ng kita",
       extras: "Iba pang indicator", discounts: "Diskwento", refunds: "Refund", cost: "Gastos sa produkto",
       extrasNote: "Galing sa resibo mo ang diskwento at refund. Kailangan ng gastos ng item mula sa POS para sa product cost.",
-      qty: "Yunit", perOrder: "Kada order", share: "Bahagi sa kita",
-      quietOrders: "Order sa tahimik na oras", peakOrders: "Order sa peak",
-      topBranch: "Nangungunang sangay", gap: "Agwat",
       noBranches: "Wala pang datos ng sangay.",
       noItems: "Wala pang datos ng item.",
       limitedHistory: "Huling 31 araw lang ang ibinibigay ng Loyverse plan mo, kaya walang naunang panahong maihahambing. Ibalik ang paghahambing sa pamamagitan ng pag-on ng Unlimited Sales History sa Loyverse.",
@@ -4885,6 +4878,10 @@ export function LanguageProvider({ children }) {
 
 export function useLang() {
   const ctx = useContext(LangContext);
+  if (!ctx) throw new Error("useLang must be used inside LanguageProvider");
+  return ctx;
+}
+gContext);
   if (!ctx) throw new Error("useLang must be used inside LanguageProvider");
   return ctx;
 }
