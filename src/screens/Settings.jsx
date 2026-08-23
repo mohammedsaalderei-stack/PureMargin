@@ -7,6 +7,7 @@ import { BUILD } from "../build.js";
 import { KeyRound, LogOut as SignOutIcon } from "lucide-react";
 import LanguagePicker from "../LanguagePicker.jsx";
 import ThemeToggle from "../ThemeToggle.jsx";
+import DeleteConfirm from "../DeleteConfirm.jsx";
 
 function Panel({ title, children }) {
   const C = useC();
@@ -653,53 +654,18 @@ export default function Settings({ data, user, onRefresh, refreshing, token, con
               </button>
             </>
           ) : confirmDelete ? (
-            <>
-              <p className="font-semibold text-sm mb-2">{t.account.deleteConfirmTitle}</p>
-              <p className="text-sm leading-relaxed mb-4" style={{ color: C.slate }}>
-                {t.account.deleteConfirmLead}
-              </p>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  onClick={() => changeDeletion("DELETE")}
-                  disabled={deleteBusy}
-                  className="px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-60"
-                  style={{ background: C.rose, color: "#fff" }}
-                >
-                  {t.account.deleteConfirm}
-                </button>
-                <button
-                  onClick={() => setConfirmDelete(false)}
-                  className="px-4 py-2 rounded-lg text-sm font-semibold"
-                  style={{ border: `1px solid ${C.hairline}`, color: C.slate }}
-                >
-                  {t.account.deleteCancel}
-                </button>
-              </div>
-            </>
+            <DeleteConfirm
+              busy={deleteBusy}
+              onConfirm={() => changeDeletion("DELETE")}
+              onCancel={() => setConfirmDelete(false)}
+            />
           ) : confirmNow ? (
-            <>
-              <p className="font-semibold text-sm mb-2" style={{ color: C.rose }}>{t.account.deleteNowTitle}</p>
-              <p className="text-sm leading-relaxed mb-4" style={{ color: C.slate }}>
-                {t.account.deleteNowLead}
-              </p>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  onClick={deleteImmediately}
-                  disabled={deleteBusy}
-                  className="px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-60"
-                  style={{ background: C.rose, color: "#fff" }}
-                >
-                  {t.account.deleteNowConfirm}
-                </button>
-                <button
-                  onClick={() => setConfirmNow(false)}
-                  className="px-4 py-2 rounded-lg text-sm font-semibold"
-                  style={{ border: `1px solid ${C.hairline}`, color: C.slate }}
-                >
-                  {t.account.deleteCancel}
-                </button>
-              </div>
-            </>
+            <DeleteConfirm
+              tone="now"
+              busy={deleteBusy}
+              onConfirm={deleteImmediately}
+              onCancel={() => setConfirmNow(false)}
+            />
           ) : (
             <>
               <p className="text-sm leading-relaxed mb-4" style={{ color: C.slate }}>{t.account.dangerLead}</p>
@@ -707,7 +673,7 @@ export default function Settings({ data, user, onRefresh, refreshing, token, con
                 <button
                   onClick={() => setConfirmDelete(true)}
                   className="px-4 py-2 rounded-lg text-sm font-semibold"
-                  style={{ border: `1px solid ${C.rose}`, color: C.rose }}
+                  style={{ background: C.rose, color: "#fff" }}
                 >
                   {t.account.requestDelete}
                 </button>

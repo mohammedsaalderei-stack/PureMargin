@@ -15,6 +15,8 @@ export const SCREEN_FEATURE = {
   forecast: "forecast",
   // Team administration is gated by role, not by plan.
   team: null,
+  // Inventory likewise: `view:inventory` decides, not the subscription.
+  inventory: null,
   settings: null,
   billing: null,
 };

@@ -39,7 +39,8 @@ they override the defaults).
 
 ## Tests
 - `npm test` → `api/_org.test.js` (stage 1 authorization + stage 2 aggregation)
-  then `api/_journal.test.js` (stage 3 journal, audit, sync, provenance). It writes fixture accounts through `api/_store.js`, so it refuses
+  then `api/_journal.test.js` (stage 3 journal, audit, sync, provenance), then
+  `api/_inventory.test.js` (stage 4 units, conversions, item master). 58 tests. It writes fixture accounts through `api/_store.js`, so it refuses
   to run unless the store backend is `memory` — the npm script blanks
   `REDIS_URL`/`KV_URL`/`KV_REST_API_URL` to force that. Never run the file
   directly inside the `api` container with Redis attached; it will bail out
@@ -110,9 +111,46 @@ they override the defaults).
   screen). Action labels are translated client-side from `t.activity.actions`.
 - i18n: `provenance.*` and `activity.*` in all four languages.
 
+## Inventory and units (stage 4, phase 1 — item + unit master)
+- `api/_units.js` — the unit system. Every unit declares a dimension (mass/volume
+  /count) and how many base units it holds (g, ml, piece); conversion is
+  multiply-to-base then divide-to-target, never a table of pairs. **Cross-dimension
+  conversion returns `null`, never a number** — a litre of oil is not a kilogram
+  of oil, and the density belongs to the ingredient. `costPerBase()` turns "case
+  of 12 × 1L for 90" into a cost per ml and returns `null` for a degenerate pack,
+  so "free" and "unknown" can't be confused. A global `case`/`sack` unit must
+  never be added: pack shapes are item-specific (`packSize`).
+- `api/_inventory.js` — ingredients, suppliers, categories, locations. Keys are
+  `inv:<orgId>:*`, so **isolation is structural** — a query cannot reach another
+  org even if asked. Ids are `slug(name)`, so re-importing a sheet updates instead
+  of duplicating, and the name is therefore immutable in the UI (history points at
+  the id). Ingredients are **archived, never deleted**. A supplier referenced by
+  any ingredient (including archived ones) can't be removed.
+- **No quantities live here.** A balance is the sum of the movement ledger
+  (phase 2); storing an editable "on hand" would create a second truth for a
+  derived number. Don't add one to this file.
+- Branch differences go in `branchOverrides[branchId]`, resolved by `forBranch()`
+  — never a duplicate ingredient per branch, which is what makes group-wide
+  reporting impossible.
+- `api/inventory.js` — gated on the stage-1 capabilities (`view:inventory` to
+  read, `manage:inventory` to write), org always from the session. Every write is
+  audit-logged (`ingredient.*`, `supplier.*` in `AUDIT_ACTIONS`). Validation
+  returns a *field name*; the client owns the wording in four languages
+  (`t.inventory.errors`).
+- Front end: `src/screens/Inventory.jsx` + `src/inventory/{IngredientForm,
+  SupplierList}.jsx`. The tab is appended in `Shell.jsx` behind `view:inventory`
+  (like the team tab) and is `null` in `SCREEN_FEATURE` — a permission, not a plan
+  feature.
+- **Open question:** the accountant role has no `view:inventory`, so it currently
+  gets 403 here, but the document's role table grants accountants "purchases".
+  Revisit when purchasing lands in phase 2.
+
 ## Account deletion
 Two paths, both on `DELETE /api/account`:
 - default — `requestDeletion`, a 7-day grace window, undoable with `POST`.
+- Both paths are gated in the UI by `src/DeleteConfirm.jsx`: the word `DELETE`
+  must be typed (trimmed, case-insensitive) before the red confirm button
+  enables. Autocomplete/autocorrect are off so the browser can't complete it.
 - `?now=1` — `deleteNow()` in `_accounts.js`, an immediate wipe returning `410`.
   Removes the account, email index, chats, cost overrides and pending invite. If
   the account **owns** an organization the org record goes too (the POS

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   BarChart3, LineChart, MessageSquare, Settings as Cog, UtensilsCrossed, Users,
   Search, Lightbulb, PanelRightClose, PanelRightOpen, LogOut, Lock, Wallet,
-  LayoutDashboard, Download, FileText, Table, ChevronDown,
+  LayoutDashboard, Download, FileText, Table, ChevronDown, Package,
 } from "lucide-react";
 import { useC } from "./theme.jsx";
 import BrandMark from "./BrandMark.jsx";
@@ -22,6 +22,7 @@ import ChatSidebar from "./ChatSidebar.jsx";
 import Forecast from "./screens/Forecast.jsx";
 import Settings from "./screens/Settings.jsx";
 import Team from "./screens/Team.jsx";
+import Inventory from "./screens/Inventory.jsx";
 import BranchScope from "./BranchScope.jsx";
 import CommandPalette from "./CommandPalette.jsx";
 import LanguagePicker from "./LanguagePicker.jsx";
@@ -68,7 +69,13 @@ const TAB_META = [
    for everyone. */
 const TEAM_TAB = { id: "team", icon: Users };
 
-const TAB_ICONS = Object.fromEntries([...TAB_META, TEAM_TAB].map((tb) => [tb.id, tb.icon]));
+/* Inventory is a permission too, not a plan feature: anyone with
+   `view:inventory` gets it, which is every role except the accountant. Appended
+   for the same reason as the team tab — TAB_META drives the numeric shortcuts
+   and swipe order for everyone. */
+const INVENTORY_TAB = { id: "inventory", icon: Package };
+
+const TAB_ICONS = Object.fromEntries([...TAB_META, INVENTORY_TAB, TEAM_TAB].map((tb) => [tb.id, tb.icon]));
 
 function useDesktop() {
   const [big, setBig] = useState(() => typeof window !== "undefined" && window.matchMedia("(min-width: 1024px)").matches);
@@ -296,6 +303,7 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
       token={token} conversationCount={conversations.length} account={account} onConnect={() => setConnectOpen(true)}
       onAccountChange={refreshEverything} onSeePlans={() => go("billing")} onSession={onSession} onLogout={onLogout} />;
   } else if (tab === "team") { body = <Team token={token} />; }
+  else if (tab === "inventory") { body = <Inventory token={token} />; }
   else if (locked) { body = <Locked feature={needed} onSeePlans={() => go("billing")} />; }
   else if (tab === "ask") {
     body = <Ask token={token} wide={desktop && !chatsOpen} pending={pending} onPendingUsed={() => setPending("")}
@@ -342,7 +350,12 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
   const labelFor = (id) => { const full = t[id]?.tab || id; return full.length > 12 ? full.split(/\s+/)[0] : full; };
 
   const canManageTeam = Boolean(scope?.capabilities?.includes("manage:users"));
-  const navTabs = canManageTeam ? [...TAB_META, TEAM_TAB] : TAB_META;
+  const canSeeInventory = Boolean(scope?.capabilities?.includes("view:inventory"));
+  const navTabs = [
+    ...TAB_META,
+    ...(canSeeInventory ? [INVENTORY_TAB] : []),
+    ...(canManageTeam ? [TEAM_TAB] : []),
+  ];
 
   /* Only offered where it means something: more than one authorized branch. */
   const scopePicker = scope?.branches?.length > 1 && (
@@ -456,7 +469,11 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
         <Greeting user={user} business={account?.account?.business} />
         {scopePicker}
         <div className="grid grid-cols-3 gap-2">
-          {(canManageTeam ? [...SECONDARY, "team"] : SECONDARY).map((id) => {
+          {[
+            ...SECONDARY,
+            ...(canSeeInventory ? ["inventory"] : []),
+            ...(canManageTeam ? ["team"] : []),
+          ].map((id) => {
             const Icon = TAB_ICONS[id]; const on = tab === id;
             const locked = !entitlements(account).has(SCREEN_FEATURE[id]);
             return (

@@ -29,6 +29,17 @@ export const AUDIT_ACTIONS = {
   "account.delete.now": "account deleted immediately",
   "security.signout.all": "signed out everywhere",
   "password.change": "password changed",
+
+  /* Stage 4 — inventory master data. The document requires cost and recipe
+     changes to be auditable; an ingredient's unit is a cost change in disguise,
+     since every recipe quantity is read against it. */
+  "ingredient.add": "ingredient added",
+  "ingredient.update": "ingredient changed",
+  "ingredient.archive": "ingredient archived",
+  "ingredient.restore": "ingredient restored",
+  "supplier.add": "supplier added",
+  "supplier.update": "supplier changed",
+  "supplier.remove": "supplier removed",
 };
 
 export async function recordAudit(orgId, { actor, action, target = "", detail = {} }) {
