@@ -3513,7 +3513,8 @@ export const STRINGS = {
       lead: "आपका खाता तैयार है। जो हिस्से इस्तेमाल करेंगे वही चुनिए — बाक़ी बाद में जोड़ सकते हैं, और उतनी ही आसानी से हटा भी सकते हैं।",
       pickOne: "अभी कुछ नहीं चुना", selected: "{n} चुने गए",
       monthly: "प्रति माह", total: "कुल", checkout: "भुगतान पर जाएँ",
-      processing: "भुगतान हो रहा है", done: ेता है ताकि पूरा ऐप इस्तेमाल हो सके।",
+      processing: "भुगतान हो रहा है", done: "चालू हो गया। शुभकामनाएँ।",
+      mockTitle: "डेमो चेकआउट", mockLead: "किसी कार्ड से पैसे नहीं कटते और कोई पेमेंट प्रोवाइडर शामिल नहीं है। यह पैकेज खोल देता है ताकि पूरा ऐप इस्तेमाल हो सके।",
       confirm: "पुष्टि करें", cancel: "रद्द करें", back: "वापस",
       current: "आपके पैकेज", none: "अभी कोई पैकेज नहीं",
       renews: "चलेगा तक", expired: "आपके पैकेज ख़त्म हो गए।",
@@ -3746,12 +3747,6 @@ export const STRINGS = {
       save: "I-save ang bagong password",
       saving: "Sine-save",
       tryAgain: "Ipadala sa ibang address",
-      backToSignIn: "Bumalik sa sign in",
-      doneTitle: "Ayos na",
-      doneLead: "Isinasa-sign in ka na sa bagong password.",
-      failed: "Hindi ito magawa ngayon. Subukan ulit maya-maya.",
-      noMail: "Walang mail provider na nakakabit sa server na ito, kaya isinulat ang code sa log ng server at hindi ipinadala.",
-     ibang address",
       backToSignIn: "Bumalik sa sign in",
       doneTitle: "Ayos na",
       doneLead: "Isinasa-sign in ka na sa bagong password.",
@@ -4878,10 +4873,6 @@ export function LanguageProvider({ children }) {
 
 export function useLang() {
   const ctx = useContext(LangContext);
-  if (!ctx) throw new Error("useLang must be used inside LanguageProvider");
-  return ctx;
-}
-gContext);
   if (!ctx) throw new Error("useLang must be used inside LanguageProvider");
   return ctx;
 }
