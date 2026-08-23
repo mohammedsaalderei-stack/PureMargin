@@ -31,9 +31,11 @@ export default function Variance({ token, branches = [] }) {
   const [method, setMethod] = useState("wavg");
   const [openId, setOpenId] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState("");
 
   async function load(nextPeriod = period, nextMethod = method) {
     setLoading(true);
+    setFailed("");
     try {
       const to = Date.now();
       const from = to - PERIODS[nextPeriod] * DAY;
@@ -41,6 +43,9 @@ export default function Variance({ token, branches = [] }) {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) setData(await res.json());
+      else setFailed((await res.json().catch(() => ({}))).error || "failed");
+    } catch {
+      setFailed("failed");
     } finally {
       setLoading(false);
     }
@@ -50,6 +55,21 @@ export default function Variance({ token, branches = [] }) {
   useEffect(() => { load(); // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scopeKey(branches)]);
 
+  /* A failed request is said plainly, with a retry — never a blank screen. */
+  if (!data && failed) {
+    return (
+      <div className="h-full flex items-center justify-center p-8">
+        <div className="max-w-sm text-center">
+          <AlertTriangle size={28} className="mx-auto mb-3" style={{ color: C.rose }} />
+          <p className="display font-bold text-lg mb-2">{t.watch.failedTitle}</p>
+          <p className="text-sm mb-5" style={{ color: C.slate }}>{s.salesMissing}</p>
+          <button onClick={() => load()} className="gpill gpill-primary px-4 py-2 text-sm font-semibold">
+            {t.common.tryAgain}
+          </button>
+        </div>
+      </div>
+    );
+  }
   if (!data) return null;
 
   const money = (n, tone) => (

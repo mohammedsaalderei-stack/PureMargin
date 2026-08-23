@@ -25,10 +25,24 @@ export default async function handler(req, res) {
 
     if (req.method === "GET") {
       const account = await getAccount(session.username);
+      const pub = publicAccount(account);
+      /* The plan the interface acts on is the effective one: a team member
+         inherits whatever the organization's owner has. */
+      if (pub) {
+        const plan = await effectivePlanFor(account);
+        const active = plan.items?.length && !(plan.until && plan.until < Date.now());
+        pub.plan = {
+          items: [...new Set([...FREE_FEATURES, ...(active ? plan.items : [])])],
+          since: plan.since || null,
+          until: plan.until || null,
+          expired: Boolean(plan.items?.length && plan.until && plan.until < Date.now()),
+          inherited: Boolean(plan.inherited),
+        };
+      }
       return res.status(200).json({
-        account: publicAccount(account),
+        account: pub,
         persistent,
-        serverToken: Boolean(process.env.LOYVERSE_ACCESS_TOKEN),
+        serverToken: Boolean(process.env.POS_ACCESS_TOKEN || process.env.LOYVERSE_ACCESS_TOKEN),
       });
     }
 
@@ -55,6 +69,18 @@ export default async function handler(req, res) {
         action: trimmed ? "pos.connect" : "pos.disconnect",
         detail: {},
       });
+
+      /* The admin is told whenever someone connects a POS API — a connection
+         is the moment an account becomes a real prospect. Best-effort. */
+      if (trimmed && process.env.ADMIN_EMAIL) {
+        const updated = await getAccount(session.username);
+        sendMail({
+          to: process.env.ADMIN_EMAIL,
+          subject: `PureMargin: ${session.username} connected their POS API`,
+          text: `${session.username} (${updated?.email || "no email"})${updated?.business ? ` — ${updated.business}` : ""} just connected their POS API.`,
+          html: `<p><strong>${session.username}</strong> (${updated?.email || "no email"})${updated?.business ? ` — ${updated.business}` : ""} just connected their POS API.</p>`,
+        }).catch(() => {});
+      }
 
       const updated = await getAccount(session.username);
       return res.status(200).json({ account: publicAccount(updated) });

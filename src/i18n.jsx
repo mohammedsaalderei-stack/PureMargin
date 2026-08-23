@@ -783,7 +783,7 @@ export const STRINGS = {
       extrasNote: "Discounts and refunds come from your receipts. Product cost needs item costs from the POS.",
       noBranches: "No branch data yet.",
       noItems: "No item data yet.",
-      limitedHistory: "Your Loyverse plan returns the last 31 days only, so there is no earlier period to compare against. Turning on Unlimited Sales History in Loyverse brings the comparisons back.",
+      limitedHistory: "Your POS plan returns the last 31 days only, so there is no earlier period to compare against. Enabling full sales history in your POS brings the comparisons back.",
       failedTitle: "Your numbers didn't load",
     },
 
@@ -1079,8 +1079,8 @@ export const STRINGS = {
 
     connect: {
       title: "Connect your POS",
-      lead: "PureMargin reads your sales from Loyverse. Paste the access token and the table fills in within a minute or two.",
-      where: "Loyverse Back Office → Integrations → Access tokens",
+      lead: "PureMargin reads your sales from your POS. Paste your POS API access token and the table fills in within a minute or two.",
+      where: "Your POS back office → Integrations / API → Access tokens",
       token: "Access token", placeholder: "Paste it here",
       save: "Connect", saving: "Connecting", later: "Not now",
       skipNote: "You can do this any time from Settings. Until then you'll see sample figures, clearly marked.",
@@ -1089,7 +1089,7 @@ export const STRINGS = {
       emptyTitle: "Nothing on the table yet",
       emptyLead: "Connect your POS and this fills with your own service.",
       emptyAction: "Connect now",
-      posTitle: "Your POS", posConnected: "Connected to Loyverse",
+      posTitle: "Your POS", posConnected: "Connected to your POS",
       posNot: "Not connected", posReplace: "Replace token", posRemove: "Disconnect",
       posNote: "The token is encrypted before it's stored and never sent back to the browser.",
       usingServer: "Using the deployment-wide token set by your administrator.",
@@ -2005,7 +2005,7 @@ export const STRINGS = {
       extrasNote: "الخصومات والمرتجعات تأتي من فواتيرك. تكلفة المنتجات تحتاج تكاليف الأصناف من نظام الكاشير.",
       noBranches: "لا توجد بيانات فروع بعد.",
       noItems: "لا توجد بيانات أصناف بعد.",
-      limitedHistory: "باقة Loyverse لديك تُرجع آخر 31 يومًا فقط، فلا توجد فترة سابقة للمقارنة بها. تفعيل Unlimited Sales History في Loyverse يعيد المقارنات.",
+      limitedHistory: "باقة الكاشير لديك تُرجع آخر 31 يومًا فقط، فلا توجد فترة سابقة للمقارنة بها. تفعيل سجل المبيعات الكامل في نظام الكاشير يعيد المقارنات.",
       failedTitle: "لم تُحمّل أرقامك",
     },
 
@@ -2301,8 +2301,8 @@ export const STRINGS = {
 
     connect: {
       title: "اربط كاشيرك",
-      lead: "PureMargin يقرأ مبيعاتك من Loyverse. الصق رمز الوصول وتمتلئ الPureMargin خلال دقيقة أو دقيقتين.",
-      where: "لوحة Loyverse ← التكاملات ← رموز الوصول",
+      lead: "PureMargin يقرأ مبيعاتك من نظام الكاشير لديك. الصق رمز وصول API الخاص بالكاشير وتمتلئ الجداول خلال دقيقة أو دقيقتين.",
+      where: "لوحة نظام الكاشير ← التكاملات / API ← رموز الوصول",
       token: "رمز الوصول", placeholder: "الصقه هنا",
       save: "اربط", saving: "جارٍ الربط", later: "ليس الآن",
       skipNote: "تستطيع فعل ذلك في أي وقت من الإعدادات. حتى ذلك الحين سترى أرقامًا تجريبية، مُعلَّمة بوضوح.",
@@ -2311,7 +2311,7 @@ export const STRINGS = {
       emptyTitle: "لا شيء على الPureMargin بعد",
       emptyLead: "اربط كاشيرك وتمتلئ هذه بخدمتك أنت.",
       emptyAction: "اربط الآن",
-      posTitle: "كاشيرك", posConnected: "مربوط بـ Loyverse",
+      posTitle: "كاشيرك", posConnected: "مربوط بنظام الكاشير",
       posNot: "غير مربوط", posReplace: "استبدل الرمز", posRemove: "افصل الربط",
       posNote: "الرمز يُشفَّر قبل حفظه ولا يُعاد إلى المتصفح أبدًا.",
       usingServer: "يُستخدم الرمز العام الذي ضبطه مسؤول النظام.",
@@ -3199,7 +3199,7 @@ export const STRINGS = {
       extrasNote: "छूट और वापसी आपके बिलों से आती हैं। उत्पाद लागत के लिए POS से आइटम लागत चाहिए।",
       noBranches: "अभी शाखाओं का डेटा नहीं है।",
       noItems: "अभी आइटम का डेटा नहीं है।",
-      limitedHistory: "आपका Loyverse प्लान सिर्फ़ पिछले 31 दिन देता है, इसलिए तुलना के लिए पहले की कोई अवधि नहीं है। Loyverse में Unlimited Sales History चालू करने से तुलनाएँ लौट आती हैं।",
+      limitedHistory: "आपका POS प्लान सिर्फ़ पिछले 31 दिन देता है, इसलिए तुलना के लिए पहले की कोई अवधि नहीं है। POS में पूरा सेल्स इतिहास चालू करने से तुलनाएँ लौट आती हैं।",
       failedTitle: "आपके आँकड़े लोड नहीं हुए",
     },
 
@@ -3512,8 +3512,8 @@ export const STRINGS = {
 
     connect: {
       title: "अपना काउंटर जोड़िए",
-      lead: "PureMargin आपकी बिक्री Loyverse से पढ़ता है। ऐक्सेस टोकन चिपकाइए और एक-दो मिनट में मेज़ भर जाएगी।",
-      where: "Loyverse बैक ऑफ़िस → Integrations → Access tokens",
+      lead: "PureMargin आपकी बिक्री आपके POS से पढ़ता है। POS API ऐक्सेस टोकन चिपकाइए और एक-दो मिनट में मेज़ भर जाएगी।",
+      where: "आपका POS बैक ऑफ़िस → Integrations / API → Access tokens",
       token: "ऐक्सेस टोकन", placeholder: "यहाँ चिपकाइए",
       save: "जोड़ें", saving: "जुड़ रहा है", later: "अभी नहीं",
       skipNote: "यह आप कभी भी सेटिंग्स से कर सकते हैं। तब तक नमूना आँकड़े दिखेंगे, साफ़ निशान के साथ।",
@@ -3522,7 +3522,7 @@ export const STRINGS = {
       emptyTitle: "मेज़ पर अभी कुछ नहीं",
       emptyLead: "काउंटर जोड़िए और यह आपकी अपनी सेवा से भर जाएगी।",
       emptyAction: "अभी जोड़ें",
-      posTitle: "आपका काउंटर", posConnected: "Loyverse से जुड़ा",
+      posTitle: "आपका काउंटर", posConnected: "POS से जुड़ा",
       posNot: "जुड़ा नहीं", posReplace: "टोकन बदलें", posRemove: "अलग करें",
       posNote: "टोकन सहेजने से पहले एन्क्रिप्ट होता है और ब्राउज़र को कभी वापस नहीं भेजा जाता।",
       usingServer: "आपके एडमिन का सेट किया साझा टोकन इस्तेमाल हो रहा है।",
@@ -4387,7 +4387,7 @@ export const STRINGS = {
       extrasNote: "Galing sa resibo mo ang diskwento at refund. Kailangan ng gastos ng item mula sa POS para sa product cost.",
       noBranches: "Wala pang datos ng sangay.",
       noItems: "Wala pang datos ng item.",
-      limitedHistory: "Huling 31 araw lang ang ibinibigay ng Loyverse plan mo, kaya walang naunang panahong maihahambing. Ibalik ang paghahambing sa pamamagitan ng pag-on ng Unlimited Sales History sa Loyverse.",
+      limitedHistory: "Huling 31 araw lang ang ibinibigay ng POS plan mo, kaya walang naunang panahong maihahambing. Ibalik ang paghahambing sa pamamagitan ng pag-on ng buong sales history sa POS mo.",
       failedTitle: "Hindi na-load ang mga numero mo",
     },
 
@@ -4700,8 +4700,8 @@ export const STRINGS = {
 
     connect: {
       title: "Ikonekta ang POS mo",
-      lead: "Binabasa ng PureMargin ang benta mo mula sa Loyverse. I-paste ang access token at mapupuno ang mesa sa loob ng isa o dalawang minuto.",
-      where: "Loyverse Back Office → Integrations → Access tokens",
+      lead: "Binabasa ng PureMargin ang benta mo mula sa POS mo. I-paste ang POS API access token at mapupuno ang mesa sa loob ng isa o dalawang minuto.",
+      where: "Your POS back office → Integrations / API → Access tokens",
       token: "Access token", placeholder: "I-paste dito",
       save: "Ikonekta", saving: "Kumokonekta", later: "Hindi muna",
       skipNote: "Puwede mo itong gawin anumang oras sa Settings. Hanggang doon, sample na numero ang makikita, may malinaw na marka.",
@@ -4710,7 +4710,7 @@ export const STRINGS = {
       emptyTitle: "Wala pang nasa mesa",
       emptyLead: "Ikonekta ang POS mo at mapupuno ito ng sarili mong serbisyo.",
       emptyAction: "Ikonekta na",
-      posTitle: "Ang POS mo", posConnected: "Konektado sa Loyverse",
+      posTitle: "Ang POS mo", posConnected: "Konektado sa POS",
       posNot: "Hindi konektado", posReplace: "Palitan ang token", posRemove: "Idiskonekta",
       posNote: "Naka-encrypt ang token bago itago at hindi kailanman ibinabalik sa browser.",
       usingServer: "Ginagamit ang pangkalahatang token na itinakda ng admin mo.",
@@ -4816,6 +4816,28 @@ export const STRINGS = {
     },
   },
 };
+
+/* Key-by-key fallback to English.
+
+   A key missing from a translation must never crash a screen — it renders in
+   English instead. Every language is deep-merged over the English strings once
+   at module load, so `t.section.key` always resolves to something. */
+function withFallback(base, over) {
+  if (Array.isArray(base) || Array.isArray(over)) return over !== undefined ? over : base;
+  const out = { ...base };
+  for (const k of Object.keys(over || {})) {
+    const b = base?.[k];
+    const o = over[k];
+    out[k] =
+      b && o && typeof b === "object" && typeof o === "object" && !Array.isArray(b) && !Array.isArray(o)
+        ? withFallback(b, o)
+        : o;
+  }
+  return out;
+}
+for (const l of Object.keys(STRINGS)) {
+  if (l !== "en") STRINGS[l] = withFallback(STRINGS.en, STRINGS[l]);
+}
 
 /* Fills {placeholders} in a template string. */
 /* Number and date formatting locales.

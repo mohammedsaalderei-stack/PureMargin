@@ -144,6 +144,7 @@ export async function grantPlan(username, items, months = 1) {
   const clean = [...new Set(items)].filter((i) => FEATURES.includes(i));
   if (!clean.length) return null;
 
+  if (!PLAN_MONTHS.includes(Number(months))) months = 1;
   const now = Date.now();
   const existing = account.plan?.items || [];
   const until = Math.max(account.plan?.until || 0, now) + months * 30 * 864e5;
@@ -363,7 +364,7 @@ export async function setPosToken(username, token) {
 export async function posTokenFor(username) {
   const account = await getAccount(username);
   const own = account?.posToken ? decrypt(account.posToken) : "";
-  return own || process.env.LOYVERSE_ACCESS_TOKEN || "";
+  return own || process.env.POS_ACCESS_TOKEN || process.env.LOYVERSE_ACCESS_TOKEN || "";
 }
 
 export async function noteQuestion(username) {

@@ -13,17 +13,18 @@ export const SCREEN_FEATURE = {
   watch: "table",
   menu: "menu",
   forecast: "forecast",
+  // The AI bill scanner is its own package.
+  costs: "billscan",
   // Team administration is gated by role, not by plan.
   team: null,
-  // Inventory likewise: `view:inventory` decides, not the subscription.
-  inventory: null,
-  // Recipes and their cost, and theoretical vs actual: `view:costs` decides.
-  recipes: null,
-  variance: null,
-  // Alerts follow inventory: `view:inventory` decides.
-  alerts: null,
-  // The operational plan rides the forecast entitlement.
-  plan: "forecast",
+  /* The back-of-house suite — inventory, recipes, leakage, alerts and the
+     purchase plan — is one package. Role capabilities still decide who inside
+     a team sees which of these screens. */
+  inventory: "operations",
+  recipes: "operations",
+  variance: "operations",
+  alerts: "operations",
+  plan: "operations",
   settings: null,
   billing: null,
 };

@@ -64,8 +64,14 @@ export default async function handler(req, res) {
 
   try {
     const account = await getAccount(session.username);
-    if (account && !activeItems(account).includes("assistant")) {
-      return res.status(402).json({ error: "locked", feature: "assistant" });
+    if (account) {
+      /* The effective plan — a team member inherits the owner's packages. */
+      const { effectivePlanFor } = await import("./_org.js");
+      const plan = await effectivePlanFor(account);
+      const active = plan.items?.length && !(plan.until && plan.until < Date.now());
+      if (!(active ? plan.items : []).includes("assistant")) {
+        return res.status(402).json({ error: "locked", feature: "assistant" });
+      }
     }
 
     const overrides = (await getJSON(`costs:${session.username}`)) || {};

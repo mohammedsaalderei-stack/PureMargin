@@ -8,7 +8,6 @@ import BrandMark from "./BrandMark.jsx";
 import { contactRows, hasContact } from "./contact.js";
 import { useLang } from "./i18n.jsx";
 import { useReveal, prefersReducedMotion } from "./hooks.js";
-import { DirhamMark } from "./Dirham.jsx";
 import LanguagePicker from "./LanguagePicker.jsx";
 import ThemeToggle from "./ThemeToggle.jsx";
 import CoreDiagram from "./landing/CoreDiagram.jsx";
@@ -63,113 +62,16 @@ function Section({ eyebrow, title, lead, children, id, accent }) {
   );
 }
 
-/* The hero device: a receipt that prints line by line, then resolves into a
-   plain-language answer — the product's premise as one motion. */
-function TicketDemo() {
+/* The hero device: the PureMargin mark itself, floating gently — the brand
+   as the visual, nothing to read and nothing to wait for. */
+function HeroLogo() {
   const C = useC();
   const { t } = useLang();
-  const lines = t.hero.lines;
-  const instant = prefersReducedMotion();
-
-  const [printed, setPrinted] = useState(instant ? lines.length : 0);
-  const [total, setTotal] = useState(instant);
-  const [typed, setTyped] = useState(instant ? t.hero.answer.length : 0);
-
-  useEffect(() => {
-    if (instant) return;
-    setPrinted(0);
-    setTotal(false);
-    setTyped(0);
-  }, [t.hero.answer, instant]);
-
-  useEffect(() => {
-    if (instant || printed >= lines.length) return;
-    const id = setTimeout(() => setPrinted((n) => n + 1), 520);
-    return () => clearTimeout(id);
-  }, [printed, lines.length, instant]);
-
-  useEffect(() => {
-    if (instant || printed < lines.length || total) return;
-    const id = setTimeout(() => setTotal(true), 480);
-    return () => clearTimeout(id);
-  }, [printed, lines.length, total, instant]);
-
-  useEffect(() => {
-    if (instant || !total || typed >= t.hero.answer.length) return;
-    const id = setTimeout(() => setTyped((n) => Math.min(n + 2, t.hero.answer.length)), 18);
-    return () => clearTimeout(id);
-  }, [total, typed, t.hero.answer, instant]);
-
-  const answering = total;
-  const typing = answering && typed < t.hero.answer.length;
-
   return (
-    <div className="w-full max-w-sm mx-auto lg:mx-0">
-      <div className="ticket glass bracket p-5">
-        <div className="flex items-baseline justify-between mb-1 pt-2">
-          <span className="display font-bold text-sm">{t.hero.ticketTable}</span>
-          <span className="data text-xs" style={{ color: C.slate }} dir="ltr">#4471</span>
-        </div>
-        <div className="data text-xs mb-4" style={{ color: C.slate }}>{t.hero.ticketMeta}</div>
-
-        <div style={{ minHeight: lines.length * 30 }}>
-          {lines.map(([name, amt], i) => (
-            <div
-              key={name}
-              className="flex justify-between py-1.5 text-sm"
-              style={{
-                opacity: i < printed ? 1 : 0,
-                transform: i < printed ? "none" : "translateY(-6px)",
-                transition: "opacity .3s ease, transform .3s ease",
-              }}
-            >
-              <span>{name}</span>
-              <span className="data" style={{ color: C.slate }} dir="ltr">{amt}</span>
-            </div>
-          ))}
-        </div>
-
-        <div
-          className="rule-dashed mt-3 pt-3 flex justify-between"
-          style={{ opacity: total ? 1 : 0, transition: "opacity .4s ease" }}
-        >
-          <span className="font-semibold text-sm">{t.hero.ticketTotal}</span>
-          <span className="data font-semibold inline-flex items-baseline gap-1" dir="ltr">
-            <DirhamMark /> 270.00
-          </span>
-        </div>
-      </div>
-
-      <div className="flex justify-center my-3">
-        <ArrowRight
-          size={18}
-          className="rotate-90"
-          style={{ color: answering ? C.iris : C.hairline, transition: "color .5s ease" }}
-        />
-      </div>
-
-      <div
-        className="glass rounded-xl p-5"
-        style={{
-          opacity: answering ? 1 : 0.35,
-          transform: answering ? "none" : "translateY(6px)",
-          transition: "opacity .5s ease, transform .5s ease",
-          minHeight: 118,
-        }}
-      >
-        <div className="data text-xs uppercase tracking-widest mb-2" style={{ color: C.iris }}>
-          {t.hero.answerLabel}
-        </div>
-        <p className="text-sm leading-relaxed">
-          {t.hero.answer.slice(0, typed)}
-          {typing && (
-            <span
-              className="inline-block w-[2px] h-[1em] align-middle ms-0.5"
-              style={{ background: C.iris, animation: "blink 1s steps(2) infinite" }}
-            />
-          )}
-        </p>
-      </div>
+    <div className="w-full max-w-sm mx-auto lg:mx-0 flex flex-col items-center text-center py-12">
+      <BrandMark size={220} />
+      <div className="display font-extrabold text-3xl grad-text mt-8">{t.name}</div>
+      <p className="text-sm mt-2 max-w-[260px]" style={{ color: C.slate }}>{t.tagline}</p>
     </div>
   );
 }
@@ -309,7 +211,7 @@ export default function Landing({ onSignIn, onRegister, onPricing }) {
                   <div className="podium">
                     <span className="podium-glow" />
                     <span className="podium-ring" />
-                    <TicketDemo />
+                    <HeroLogo />
                   </div>
                 </div>
               </div>

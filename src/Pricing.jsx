@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { ArrowLeft, Check } from "lucide-react";
 import { useC } from "./theme.jsx";
 import BrandMark from "./BrandMark.jsx";
@@ -8,13 +9,16 @@ import { DirhamMark } from "./Dirham.jsx";
 import LanguagePicker from "./LanguagePicker.jsx";
 import ThemeToggle from "./ThemeToggle.jsx";
 
-/* Four modules, priced separately. The third carries a launch discount, so
+/* Six modules, priced separately. The third carries a launch discount, so
    it's the only one that shows a struck-through price — a badge on every
-   card would make the discount meaningless. */
-const PRICES = [null, 200, 200, 100];
-const WAS = [null, null, 400, null];
+   card would make the discount meaningless. Prices are per month; the
+   duration selector shows what a 1, 3, 6 or 12 month term comes to. */
+const PRICES = [null, 200, 200, 100, 300, 150];
+const WAS = [null, null, 400, null, null, null];
 
-function Plan({ index, plan, price, was }) {
+const TERMS = [1, 3, 6, 12];
+
+function Plan({ index, plan, price, was, months }) {
   const C = useC();
   const { t } = useLang();
   const [ref, shown] = useReveal(0.1);
@@ -71,6 +75,13 @@ function Plan({ index, plan, price, was }) {
               </span>
               <span className="text-xs" style={{ color: C.slate }}>{t.pricing.perMonth}</span>
             </div>
+            {months > 1 && (
+              <div className="text-xs mt-1.5" style={{ color: C.slate }}>
+                {t.pricing.billedAs
+                  .replace("{total}", String(price * months))
+                  .replace("{n}", String(months))}
+              </div>
+            )}
           </>
         )}
       </div>
@@ -90,6 +101,9 @@ function Plan({ index, plan, price, was }) {
 export default function Pricing({ onBack, onSignIn }) {
   const C = useC();
   const { t } = useLang();
+  const [months, setMonths] = useState(1);
+
+  const allPlans = [...t.pricing.plans, ...(t.pricing.extraPlans || [])];
 
   return (
     <div className="min-h-full" style={{ background: C.bone }}>
@@ -133,9 +147,23 @@ export default function Pricing({ onBack, onSignIn }) {
       </section>
 
       <section className="px-6 md:px-10 lg:px-16 pb-8">
+        {/* Term selector: a month, a quarter, half a year, or a year. */}
+        <div className="max-w-6xl mx-auto flex flex-wrap items-center gap-2 mb-6">
+          <span className="text-sm font-semibold me-1">{t.pricing.termLabel}</span>
+          {TERMS.map((m) => (
+            <button key={m} onClick={() => setMonths(m)}
+              className="px-3.5 py-1.5 rounded-lg text-sm font-semibold"
+              style={months === m
+                ? { background: C.iris, color: C.onPrimary }
+                : { border: `1px solid ${C.hairline}`, color: C.slate }}>
+              {t.pricing.terms[String(m)]}
+            </button>
+          ))}
+        </div>
+
         <div className="max-w-6xl mx-auto grid md:grid-cols-2 gap-5">
-          {t.pricing.plans.map((plan, i) => (
-            <Plan key={plan.name} index={i} plan={plan} price={PRICES[i]} was={WAS[i]} />
+          {allPlans.map((plan, i) => (
+            <Plan key={plan.name} index={i} plan={plan} price={PRICES[i]} was={WAS[i]} months={months} />
           ))}
         </div>
 

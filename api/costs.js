@@ -4,7 +4,7 @@ import { clearCache } from "./_data.js";
 
 /* Owner-entered item costs.
 
-   Loyverse leaves `cost` at zero on a great many items, and without it net
+   Many POS systems leave `cost` at zero on items, and without it net
    profit is guesswork. These are the numbers the owner supplies, stored
    against the account and applied on top of whatever the POS reports. */
 
