@@ -150,7 +150,6 @@ export default function Advice({ data, onAsk }) {
         </div>
         <div className="grid gap-4 lg:gap-5 lg:grid-cols-2">
           {items.map((item, i) => <AdviceCard key={item.id} item={item} index={i} shown={i < shown} onAsk={onAsk} />)}
-          }
         </div>
       </div>
     </div>

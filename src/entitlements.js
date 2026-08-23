@@ -13,6 +13,17 @@ export const SCREEN_FEATURE = {
   watch: "table",
   menu: "menu",
   forecast: "forecast",
+  // Team administration is gated by role, not by plan.
+  team: null,
+  // Inventory likewise: `view:inventory` decides, not the subscription.
+  inventory: null,
+  // Recipes and their cost, and theoretical vs actual: `view:costs` decides.
+  recipes: null,
+  variance: null,
+  // Alerts follow inventory: `view:inventory` decides.
+  alerts: null,
+  // The operational plan rides the forecast entitlement.
+  plan: "forecast",
   settings: null,
   billing: null,
 };

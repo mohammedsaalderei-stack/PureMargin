@@ -14,6 +14,7 @@ import { Money } from "../Dirham.jsx";
 import { useCountUp } from "../hooks.js";
 import ItemPhoto from "../ItemPhoto.jsx";
 import { SectionLabel, TrendIndicator } from "../ui.jsx";
+import Provenance from "../Provenance.jsx";
 import "../glass.css";
 
 /* ─── Date + category filter bar ─────────────────────────── */
@@ -56,7 +57,7 @@ function FilterBar({ dateRange, onDateChange, category, onCategoryChange }) {
 }
 
 /* ─── Derived totals by date range ───────────────────────── */
-function useDateRangeData(data, range, category) {
+function useDateRangeData(data, range) {
   return useMemo(() => {
     const daily = data.daily || [];
     if (!daily.length) return { totals: data.totals || {}, series: [] };
@@ -155,13 +156,13 @@ function SalesTrendChart({ data, range }) {
         <div>
           <div className="flex items-center gap-2 mb-1">
             <TrendingUp size={16} style={{ color: C.iris }} />
-            <h3 className="display font-bold text-base">Sales Growth Trend</h3>
+            <h3 className="display font-bold text-base">{t.overview.trendTitle}</h3>
           </div>
           <p className="text-xs" style={{ color: C.slate }}>
-            {range === "daily" ? "Today's progression" : range === "weekly" ? "Last 7 days" : "Last 30 days"}
+            {range === "daily" ? t.overview.trendToday : range === "weekly" ? t.overview.trend7 : t.overview.trend30}
             {growth !== null && (
-              <span className="ml-2 data font-semibold" style={{ color: growth >= 0 ? "#10B981" : C.rose }} dir="ltr">
-                {growth >= 0 ? "+" : ""}{growth.toFixed(1)}% growth
+              <span className="mx-2 data font-semibold" style={{ color: growth >= 0 ? "#10B981" : C.rose }} dir="ltr">
+                {growth >= 0 ? "+" : ""}{growth.toFixed(1)}% {t.overview.growthWord}
               </span>
             )}
           </p>
@@ -483,6 +484,10 @@ export default function Overview({ data, dateRange, onDateRangeChange, onAsk, on
           </div>
           <LeakageRadar data={data} onAsk={onAsk} onOpenCosts={onOpenCosts} />
         </div>
+
+        {/* What these figures are, and where they came from. Last on the page
+            because it answers a question the reader only asks after the numbers. */}
+        <Provenance provenance={data.provenance} />
       </div>
     </div>
   );

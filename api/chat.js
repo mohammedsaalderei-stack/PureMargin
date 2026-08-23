@@ -1,7 +1,9 @@
 import { requireAuth } from "./_auth.js";
-import { getMetrics, toContext } from "./_data.js";
+import { getMetrics, toContext, branchList, salesLines } from "./_data.js";
 import { posTokenFor, noteQuestion, getAccount, activeItems } from "./_accounts.js";
 import { getJSON } from "./_store.js";
+import { groundingFor, ANSWER_CONTRACT } from "./_grounding.js";
+import { parseBranchParam } from "./_org.js";
 
 const MODEL = "claude-sonnet-4-5";
 
@@ -12,7 +14,11 @@ const LANG_NOTE = {
   en: "Answer in the language the user writes in.",
 };
 
-function buildSystem(metrics, lang) {
+/* Stage 6: the operational brief is assembled by `_grounding.js`, which is the
+   only path by which inventory, cost and forecast figures reach the model — and
+   which contains nothing outside the user's authorized branches. The prompt is the
+   boundary: a scope it never receives cannot be talked about. */
+function buildSystem(metrics, lang, grounding) {
   return `You are Sufra, an analyst for a food business in the UAE — restaurants, cafés, and cloud kitchens.
 
 How to answer:
@@ -22,7 +28,12 @@ How to answer:
 - When something looks worth acting on, say so plainly, but the decision stays theirs.
 - Use ONLY the figures below. If the answer isn't in them, say what's missing and what would need connecting. Never estimate a number that isn't there.
 
-${toContext(metrics)}`;
+${toContext(metrics)}${grounding ? `
+
+${ANSWER_CONTRACT}
+
+=== OPERATIONS BRIEF (inventory, recipes, costing — permission-scoped) ===
+${grounding.brief}` : ""}`;
 }
 
 export default async function handler(req, res) {
@@ -39,7 +50,7 @@ export default async function handler(req, res) {
     });
   }
 
-  const { messages, lang, stream = true } = req.body || {};
+  const { messages, lang, stream = true, branches: requestedBranches } = req.body || {};
   if (!Array.isArray(messages) || messages.length === 0) {
     return res.status(400).json({ error: "No question was received." });
   }
@@ -58,12 +69,38 @@ export default async function handler(req, res) {
     }
 
     const overrides = (await getJSON(`costs:${session.username}`)) || {};
-    const metrics = await getMetrics(await posTokenFor(session.username), { overrides });
+    const posToken = await posTokenFor(session.username);
+    const metrics = await getMetrics(posToken, { overrides });
+
+    /* The operations half of the answer. It is best-effort: an account with no
+       organization, or a POS that won't answer, still gets the sales assistant it
+       had before — it just has no inventory or costing figures to reason from. */
+    let grounding = null;
+    try {
+      const roster = await branchList(posToken).catch(() => []);
+      const to = Date.now();
+      const from = to - 30 * 864e5;
+      const sales = await salesLines(posToken, { from, to }).catch(() => ({ lines: [], fetch: null }));
+      grounding = await groundingFor(session.account, {
+        allBranchIds: roster.map((b) => b.id),
+        branchNames: Object.fromEntries(roster.map((b) => [b.id, b.name])),
+        salesRows: sales.lines,
+        salesFetchedAt: sales.fetch?.at || null,
+        /* The scope the user asked their question in. Never trusted: the
+           grounding intersects it with this session's authorization, so naming a
+           branch in the request body cannot widen what the assistant is told. */
+        requested: parseBranchParam(requestedBranches),
+        from, to,
+      });
+    } catch (err) {
+      console.error("grounding failed, answering from sales only:", err);
+    }
+
     noteQuestion(session.username).catch(() => {});
     const payload = {
       model: MODEL,
       max_tokens: 1200,
-      system: buildSystem(metrics, lang),
+      system: buildSystem(metrics, lang, grounding),
       messages: clean,
       stream: Boolean(stream),
     };

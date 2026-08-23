@@ -6,7 +6,7 @@
 
    Fill in what you have, delete what you don't. */
 export const CONTACT = {
-  email: "",
+  email: "support@puremargin.ae",
   phone: "",
   instagram: "",
 };

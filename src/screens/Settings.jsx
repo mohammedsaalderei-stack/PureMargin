@@ -7,6 +7,8 @@ import { BUILD } from "../build.js";
 import { KeyRound, LogOut as SignOutIcon } from "lucide-react";
 import LanguagePicker from "../LanguagePicker.jsx";
 import ThemeToggle from "../ThemeToggle.jsx";
+import DeleteConfirm from "../DeleteConfirm.jsx";
+import EmailSetting from "../settings/EmailSetting.jsx";
 
 function Panel({ title, children }) {
   const C = useC();
@@ -47,7 +49,7 @@ function readAlerts() {
   }
 }
 
-export default function Settings({ data, user, onRefresh, refreshing, token, conversationCount = 0, account, onConnect, onAccountChange, onSeePlans, onSession }) {
+export default function Settings({ data, user, onRefresh, refreshing, token, conversationCount = 0, account, onConnect, onAccountChange, onSeePlans, onSession, onLogout }) {
   const C = useC();
   const { t, lang } = useLang();
   const live = data.connected;
@@ -195,6 +197,7 @@ export default function Settings({ data, user, onRefresh, refreshing, token, con
   };
 
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [confirmNow, setConfirmNow] = useState(false);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const pendingDelete = account?.account?.deleteAfter || null;
 
@@ -204,6 +207,22 @@ export default function Settings({ data, user, onRefresh, refreshing, token, con
       await fetch("/api/account", { method, headers: { Authorization: `Bearer ${token}` } });
       setConfirmDelete(false);
       onAccountChange?.();
+    } finally {
+      setDeleteBusy(false);
+    }
+  };
+
+  /* Immediate deletion. The account is gone when this returns, so there is
+     nothing left to refresh — sign out rather than leave the session holding a
+     token whose account no longer exists. */
+  const deleteImmediately = async () => {
+    setDeleteBusy(true);
+    try {
+      await fetch("/api/account?now=1", {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      onLogout?.();
     } finally {
       setDeleteBusy(false);
     }
@@ -550,6 +569,14 @@ export default function Settings({ data, user, onRefresh, refreshing, token, con
             <span style={{ color: C.slate }}>{t.settings.language}</span>
 <LanguagePicker />
           </div>
+
+          {/* The address lives with the account details it belongs to, rather
+              than in the password panel — it is an identity, not a secret. */}
+          <EmailSetting
+            token={token}
+            account={account?.account}
+            onAccountChange={onAccountChange}
+          />
         </Panel>
 
         <Panel title={t.security.title}>
@@ -636,39 +663,39 @@ export default function Settings({ data, user, onRefresh, refreshing, token, con
               </button>
             </>
           ) : confirmDelete ? (
-            <>
-              <p className="font-semibold text-sm mb-2">{t.account.deleteConfirmTitle}</p>
-              <p className="text-sm leading-relaxed mb-4" style={{ color: C.slate }}>
-                {t.account.deleteConfirmLead}
-              </p>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  onClick={() => changeDeletion("DELETE")}
-                  disabled={deleteBusy}
-                  className="px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-60"
-                  style={{ background: C.rose, color: "#fff" }}
-                >
-                  {t.account.deleteConfirm}
-                </button>
-                <button
-                  onClick={() => setConfirmDelete(false)}
-                  className="px-4 py-2 rounded-lg text-sm font-semibold"
-                  style={{ border: `1px solid ${C.hairline}`, color: C.slate }}
-                >
-                  {t.account.deleteCancel}
-                </button>
-              </div>
-            </>
+            <DeleteConfirm
+              busy={deleteBusy}
+              onConfirm={() => changeDeletion("DELETE")}
+              onCancel={() => setConfirmDelete(false)}
+            />
+          ) : confirmNow ? (
+            <DeleteConfirm
+              tone="now"
+              busy={deleteBusy}
+              onConfirm={deleteImmediately}
+              onCancel={() => setConfirmNow(false)}
+            />
           ) : (
             <>
               <p className="text-sm leading-relaxed mb-4" style={{ color: C.slate }}>{t.account.dangerLead}</p>
-              <button
-                onClick={() => setConfirmDelete(true)}
-                className="px-4 py-2 rounded-lg text-sm font-semibold"
-                style={{ border: `1px solid ${C.rose}`, color: C.rose }}
-              >
-                {t.account.requestDelete}
-              </button>
+              <div className="flex flex-wrap items-center gap-3">
+                <button
+                  onClick={() => setConfirmDelete(true)}
+                  className="px-4 py-2 rounded-lg text-sm font-semibold"
+                  style={{ background: C.rose, color: "#fff" }}
+                >
+                  {t.account.requestDelete}
+                </button>
+                {/* The grace period stays the default; someone who wants their
+                    data gone now shouldn't have to wait a week for it. */}
+                <button
+                  onClick={() => setConfirmNow(true)}
+                  className="text-xs font-semibold underline"
+                  style={{ color: C.slate }}
+                >
+                  {t.account.deleteNow}
+                </button>
+              </div>
             </>
           )}
         </div>

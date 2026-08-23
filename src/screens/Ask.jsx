@@ -163,7 +163,7 @@ const Message = memo(function Message({ m, index, C, t, reported, onReport, prev
 
 export default function Ask({
   token, wide, pending, onPendingUsed,
-  messages, onMessagesChange, data, noticedLine,
+  messages, onMessagesChange, data, noticedLine, branches = [],
 }) {
   const C = useC();
   const { t, lang } = useLang();
@@ -216,7 +216,9 @@ export default function Ask({
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ messages: next, lang }),
+        /* The scope the question is being asked in. The server intersects it with
+           this session's authorization before the assistant sees anything. */
+        body: JSON.stringify({ messages: next, lang, branches }),
       });
 
       if (!res.ok) {

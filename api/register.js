@@ -1,6 +1,7 @@
 import { issueToken } from "./_auth.js";
 import { createAccount, validUsername, validEmail, passwordProblem, publicAccount } from "./_accounts.js";
 import { persistent } from "./_store.js";
+import { orgFor } from "./_org.js";
 
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Use POST." });
@@ -18,6 +19,11 @@ export default async function handler(req, res) {
   try {
     const { account, error } = await createAccount({ username, password, email });
     if (error) return res.status(409).json({ error });
+
+    /* Every account owns an organization from the moment it exists, with
+       itself as owner. A single restaurant never has to know the concept, and
+       a group grows out of the same record by adding members. */
+    await orgFor(account);
 
     return res.status(200).json({
       token: issueToken(account.username, account.tokenVersion || 0),

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { ArrowLeft, Eye, EyeOff, Loader2, AlertTriangle } from "lucide-react";
 import { useC } from "./theme.jsx";
-import NeonMark from "./NeonMark.jsx";
+import BrandMark from "./BrandMark.jsx";
 import { useLang } from "./i18n.jsx";
 import LanguagePicker from "./LanguagePicker.jsx";
 import ThemeToggle from "./ThemeToggle.jsx";
