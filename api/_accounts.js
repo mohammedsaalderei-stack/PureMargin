@@ -274,6 +274,46 @@ export async function changePassword(username, currentPassword, nextPassword) {
   return { account };
 }
 
+/* Changes the address on the account, or sets one where there was none.
+
+   The current password is required, and not as ceremony: the address is a
+   sign-in credential and the destination for password resets, so whoever can
+   change it unchallenged can take the account. A borrowed unlocked laptop is
+   enough otherwise.
+
+   The lookup index moves with it — the old key is removed, so the previous
+   address stops signing in and becomes free for somebody else. Clearing the
+   address is allowed (pass an empty string); the username still signs in, but
+   password reset stops being possible, which the interface says out loud. */
+export async function setEmail(username, currentPassword, nextEmail) {
+  const account = await verifyPassword(username, currentPassword);
+  if (!account) return { error: "wrongcurrent" };
+
+  const next = String(nextEmail || "").trim().toLowerCase();
+  if (next && !validEmail(next)) return { error: "bademail" };
+  const previous = account.email || "";
+  if (next === previous) return { account, unchanged: true };
+
+  /* Taken by somebody else — but the same address on this same account is not a
+     conflict, which the equality check above has already let through. */
+  if (next) {
+    const holder = await getAccountByEmail(next);
+    if (holder && holder.username !== account.username) return { error: "emailtaken" };
+  }
+
+  account.email = next;
+  account.emailChangedAt = Date.now();
+  await setJSON(KEY(account.username), account);
+
+  /* Index last, and the old key first: if this fails halfway, an address that
+     resolves to nothing is recoverable, while two addresses resolving to one
+     account is a sign-in ambiguity. */
+  if (previous) await del(EMAIL_KEY(previous));
+  if (next) await setJSON(EMAIL_KEY(next), account.username);
+
+  return { account, previous };
+}
+
 /* Sets a new password without checking the old one.
    Only reachable behind a verified reset code — the caller is responsible for
    proving the request came from the address on the account. */
@@ -351,6 +391,7 @@ export function publicAccount(account) {
     deleteAfter: account.deleteAfter || null,
     lastLoginAt: account.lastLoginAt || null,
     passwordChangedAt: account.passwordChangedAt || null,
+    emailChangedAt: account.emailChangedAt || null,
     tokenVersion: account.tokenVersion || 0,
     plan: {
       items: activeItems(account),

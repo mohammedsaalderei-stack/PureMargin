@@ -3,13 +3,15 @@ import { Plus, Archive, RotateCcw, Package, Truck, Pencil } from "lucide-react";
 import IngredientForm from "../inventory/IngredientForm.jsx";
 import SupplierList from "../inventory/SupplierList.jsx";
 import StockPanel from "../inventory/StockPanel.jsx";
+import CountsPanel from "../inventory/CountsPanel.jsx";
 import { useC } from "../theme.jsx";
 import { useLang, fill } from "../i18n.jsx";
 
 /* Inventory: the item master, and the stock that moves through it.
 
    Phase 1 is the definitions — ingredients, units, suppliers. Phase 2 adds the
-   movement ledger, which is where quantities live.
+   movement ledger, which is where quantities live. Phase 3 adds stock counts,
+   which is where the ledger is confronted with the shelf.
 
    There is still no editable "quantity on hand" anywhere on this screen. Every
    balance in `StockPanel` is the sum of the ledger beneath it, and the only way
@@ -47,6 +49,7 @@ export default function Inventory({ token }) {
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState(null);
   const [showArchived, setShowArchived] = useState(false);
+  const [stockKey, setStockKey] = useState(0);
 
   const auth = { Authorization: `Bearer ${token}` };
 
@@ -228,7 +231,11 @@ export default function Inventory({ token }) {
           </label>
         </Panel>
 
-        <StockPanel token={token} ingredients={ingredients} />
+        <StockPanel key={`stock-${stockKey}`} token={token} ingredients={ingredients} />
+
+        {/* Approving a count writes adjustments, so the balances above have to
+            be re-read when one lands. */}
+        <CountsPanel token={token} onStockChanged={() => setStockKey((n) => n + 1)} />
 
         <SupplierList
           token={token}

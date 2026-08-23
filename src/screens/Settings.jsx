@@ -8,6 +8,7 @@ import { KeyRound, LogOut as SignOutIcon } from "lucide-react";
 import LanguagePicker from "../LanguagePicker.jsx";
 import ThemeToggle from "../ThemeToggle.jsx";
 import DeleteConfirm from "../DeleteConfirm.jsx";
+import EmailSetting from "../settings/EmailSetting.jsx";
 
 function Panel({ title, children }) {
   const C = useC();
@@ -568,6 +569,14 @@ export default function Settings({ data, user, onRefresh, refreshing, token, con
             <span style={{ color: C.slate }}>{t.settings.language}</span>
 <LanguagePicker />
           </div>
+
+          {/* The address lives with the account details it belongs to, rather
+              than in the password panel — it is an identity, not a secret. */}
+          <EmailSetting
+            token={token}
+            account={account?.account}
+            onAccountChange={onAccountChange}
+          />
         </Panel>
 
         <Panel title={t.security.title}>

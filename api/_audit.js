@@ -29,6 +29,7 @@ export const AUDIT_ACTIONS = {
   "account.delete.now": "account deleted immediately",
   "security.signout.all": "signed out everywhere",
   "password.change": "password changed",
+  "email.change": "sign-in email changed",
 
   /* Stage 4 — inventory master data. The document requires cost and recipe
      changes to be auditable; an ingredient's unit is a cost change in disguise,
@@ -48,6 +49,14 @@ export const AUDIT_ACTIONS = {
   "stock.transfer": "stock transferred between branches",
   "stock.reverse": "stock movement reversed",
   "stock.policy": "negative-stock policy changed",
+
+  /* Stage 4, phase 3 — stock counts. Approval is named in the document
+     explicitly, and it is the step that writes adjustments into the ledger. */
+  "count.open": "stock count opened",
+  "count.submit": "stock count submitted for review",
+  "count.reopen": "stock count sent back to draft",
+  "count.approve": "stock count approved",
+  "count.cancel": "stock count cancelled",
 };
 
 export async function recordAudit(orgId, { actor, action, target = "", detail = {} }) {

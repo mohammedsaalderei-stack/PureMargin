@@ -51,6 +51,7 @@ export const ROLES = {
       "view:costs", "view:reports", "export",
       "manage:recipes", "manage:inventory", "manage:costs",
       "manage:users", "manage:integrations", "manage:billing",
+      "approve:counts",
     ],
   },
   ops: {
@@ -61,7 +62,7 @@ export const ROLES = {
     can: [
       "view:dashboard", "view:profitability", "view:forecast", "view:inventory",
       "view:costs", "view:reports", "export",
-      "manage:recipes", "manage:inventory",
+      "manage:recipes", "manage:inventory", "approve:counts",
     ],
   },
   branch_manager: {
@@ -69,13 +70,16 @@ export const ROLES = {
     scope: "assigned",
     can: [
       "view:dashboard", "view:profitability", "view:inventory", "view:reports",
-      "export", "manage:inventory",
+      "export", "manage:inventory", "approve:counts",
     ],
   },
   chef: {
     label: "Chef / Inventory lead",
     scope: "assigned",
-    /* Recipes, counts and waste — deliberately no costs or profitability. */
+    /* Recipes, counts and waste — deliberately no costs or profitability, and
+       deliberately no `approve:counts`: a chef records a count, and somebody
+       else approves the adjustment it writes into the ledger. That separation is
+       the entire point of the count workflow. */
     can: ["view:inventory", "manage:recipes", "manage:inventory"],
   },
   accountant: {

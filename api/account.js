@@ -1,6 +1,6 @@
 import { requireAuth } from "./_auth.js";
 import {
-  getAccount, setPosToken, setBusiness, publicAccount,
+  getAccount, setPosToken, setBusiness, publicAccount, setEmail,
   requestDeletion, cancelDeletion, purgeIfDue, deleteNow,
 } from "./_accounts.js";
 import { persistent } from "./_store.js";
@@ -60,6 +60,36 @@ export default async function handler(req, res) {
       return res.status(200).json({ account: publicAccount(updated) });
     }
 
+    /* The sign-in address. Separate from PUT, which owns the POS connection —
+       these are unrelated changes and a single body carrying both would make it
+       impossible to tell which one a caller meant to make. */
+    if (req.method === "PATCH") {
+      const { email, current } = req.body || {};
+      if (!current) return res.status(400).json({ error: "missing" });
+
+      const out = await setEmail(session.username, current, email);
+      if (out.error) {
+        /* 401 for a wrong password, 409 for an address somebody else holds,
+           400 for one that isn't an address at all. */
+        const code = out.error === "wrongcurrent" ? 401 : out.error === "emailtaken" ? 409 : 400;
+        return res.status(code).json({ error: out.error });
+      }
+
+      /* Only a real change is logged, and the addresses themselves are recorded:
+         unlike a password, this is exactly what an owner needs to see to
+         reconcile "who can now reset this account" later. */
+      if (!out.unchanged) {
+        await recordAudit(await orgIdFor(out.account), {
+          actor: session.username,
+          action: "email.change",
+          target: session.username,
+          detail: { from: out.previous || null, to: out.account.email || null },
+        });
+      }
+
+      return res.status(200).json({ account: publicAccount(out.account) });
+    }
+
     if (req.method === "DELETE") {
       /* ?now=1 skips the grace period and wipes the record immediately. The
          window protects a misclick, but someone who means it shouldn't have to
@@ -106,7 +136,7 @@ export default async function handler(req, res) {
       return res.status(200).json({ account: publicAccount(account) });
     }
 
-    return res.status(405).json({ error: "Use GET, PUT, POST or DELETE." });
+    return res.status(405).json({ error: "Use GET, PUT, PATCH, POST or DELETE." });
   } catch (err) {
     console.error("account failed:", err);
     return res.status(500).json({ error: "server" });

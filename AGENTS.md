@@ -176,10 +176,52 @@ they override the defaults).
   per-branch ledger with the reverse control) + `src/inventory/MovementForm.jsx`
   (one form for movements and transfers). Mounted in `src/screens/Inventory.jsx`.
   i18n block is `inventory.stock.*` in all four languages.
-- Tests: `api/_movements.test.js` (21), wired into `npm test` — 79 total.
-- **Still open:** stock counts, purchasing/receiving and the costing engine are
-  phase 3+. `unitCost` is recorded on entries now precisely so costing can read
-  history rather than re-derive it from today's price.
+- Tests: `api/_movements.test.js` (21), wired into `npm test`.
+- Entries also carry `costPerBase` (unitCost per base unit, computed at write
+  time). `lastCostPerBase(orgId, branchIds, ingredientId)` reads the newest
+  incoming, non-reversed entry — this is the "last cost" counts value variance at.
+
+## Stock counts (stage 4, phase 3)
+- `api/_counts.js`, key `inv:<orgId>:counts`. Statuses: draft → review →
+  approved, plus `cancelled`. Cancelled counts are kept, never deleted.
+- **Expected quantities are snapshotted when the count opens**, not read at
+  approval. Otherwise trading between printing the sheet and signing it off shows
+  up as variance nobody caused.
+- **`countedQty: null` means "not counted" and is never treated as zero.** Zero is
+  a real statement (the shelf is empty); a blank must not write off stock.
+- Approval is the only step that touches stock: one `adjust` movement per line
+  with a real variance, `ref: count:<id>`, ids stored on `count.movementIds`. It
+  **bypasses the negative-stock policy on purpose** — a physical count is the
+  authoritative statement, so refusing it would leave the ledger contradicting
+  the shelf.
+- Totals keep `shrinkValue` and `gainValue` apart (netting them hides a shelf
+  short on meat and long on flour), plus `coverage` and `unpriced` as the
+  data-quality status. The valuation is frozen onto the record at approval.
+- Capability `approve:counts` — owner, ops, branch manager. **Chef deliberately
+  does not have it**: they record a count, somebody else approves it.
+- Audit: `count.open`, `count.submit`, `count.reopen`, `count.approve`,
+  `count.cancel`.
+- Front end: `src/inventory/CountsPanel.jsx` (list + open form) and
+  `src/inventory/CountSheet.jsx` (the sheet, variance, workflow buttons). A
+  reason selector only appears on lines that actually differ. i18n block
+  `inventory.counts.*`.
+- Tests: `api/_counts.test.js` (26), wired into `npm test` — 105 total.
+- **Still open:** purchasing/receiving and the costing engine.
+
+## Sign-in email
+- `setEmail(username, currentPassword, nextEmail)` in `api/_accounts.js`, exposed
+  as `PATCH /api/account` (`{ email, current }`). Separate method from `PUT`,
+  which owns the POS token — one body carrying both would be ambiguous.
+- **The current password is required.** The address is a sign-in credential and
+  the password-reset destination, so changing it unchallenged takes the account.
+- The `email:<address>` index moves with it: old key deleted first, new one
+  written after. An empty string removes the address — legal (the username still
+  signs in) but password reset stops working, which the UI states both before and
+  after. Codes: 401 wrong password, 409 taken, 400 malformed.
+- Audit `email.change` records from/to — unlike a password, the addresses are
+  exactly what an owner needs to see later.
+- UI: `src/settings/EmailSetting.jsx` in the account panel of Settings, i18n
+  block `emailChange.*`.
 
 ## Account deletion
 Two paths, both on `DELETE /api/account`:

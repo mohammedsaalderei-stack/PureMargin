@@ -165,6 +165,12 @@ export async function recordMovement(orgId, branchId, input, { policy } = {}) {
        cost is a fact about that delivery, and re-deriving it from today's price
        is how a valuation drifts. Costing (phase 3) reads these. */
     unitCost: Number(input.unitCost) >= 0 ? Number(input.unitCost) : null,
+    /* The same cost expressed per base unit, computed once here rather than
+       re-derived by every reader. "12 per kg" and "0.012 per g" are the same
+       fact, and a consumer that divides by the wrong one is out by a thousand. */
+    costPerBase: Number(input.unitCost) >= 0
+      ? Number(input.unitCost) / convert(1, input.unit, baseUnitOf(ingredient))
+      : null,
     reason: String(input.reason || "").trim(),
     note: String(input.note || "").trim(),
     ref: String(input.ref || "").trim(),
@@ -265,6 +271,26 @@ function fromBaseQty(qtyBase, ingredient) {
 
 function sumBase(ledger, ingredientId) {
   return ledger.reduce((total, m) => (m.ingredientId === ingredientId ? total + m.qtyBase : total), 0);
+}
+
+/* The most recent cost per base unit actually paid for an ingredient, across the
+   branches given. Used to put a money value on a quantity variance before the
+   costing engine exists — the document's "last cost".
+
+   Only incoming entries count: what a plate of waste "cost" is the price it was
+   bought at, not a price attached to throwing it away. Reversed entries are
+   skipped, because a delivery that was reversed never happened. */
+export async function lastCostPerBase(orgId, branchIds, ingredientId) {
+  let best = null;
+  for (const branchId of branchIds) {
+    for (const m of await readLedger(orgId, branchId)) {
+      if (m.ingredientId !== ingredientId) continue;
+      if (m.costPerBase === null || m.costPerBase === undefined) continue;
+      if (m.qtyBase <= 0 || m.reversedBy || m.reverses) continue;
+      if (!best || m.at > best.at) best = m;
+    }
+  }
+  return best ? best.costPerBase : null;
 }
 
 const inWindow = (m, { from, to }) =>
