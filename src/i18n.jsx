@@ -863,7 +863,7 @@ export const STRINGS = {
       tooEarly: "لم تُبع أصناف كافية بعد لترتيب القائمة كما يجب. هذا ما تحرّك حتى الآن.",
       soFar: "ما بيع حتى الآن",
       empty: "لا يوجد تاريخ كافٍ للأصناف بعد.",
-      caveat: "الموقع يعتمد على الإيراد لكل طلب، لا على هامش الربح ال�وقع يعتمد على الإيراد لكل طلب، لا على هامش الربح ال�نتقل إلى شاشة، أو اطرح سؤالًا…",
+      caveat: "الموقع يعتمد على الإيراد لكل طلب، لا على هامش الربح ال�وقع يعتمد على الإيراد لكل طلب، لا على هامش الربح ال�نتقل إلى شاشة، أو اطرح سؤالًا…",
       screens: "الشاشات",
       ask: "اسأل PureMargin",
       askAbout: "اسأل عن",
@@ -2180,7 +2180,14 @@ export const STRINGS = {
       alertTarget: "Apat sa limang bahagi papuntang target", alertFirst: "Unang order ng araw",
       alertPeak: "Kapag nagsisimula ang dagsa", alertWeekly: "Kung paano naging ang linggo",
       alertGoal: "Nalampasan ang target",
-      dailyTarget: "Target para sa araw", eodTime:bago ng isip. Pagkatapos, tuluyang aalisin ang account, ang mga naka-save na usapan at ang koneksyon sa POS.",
+      dailyTarget: "Target para sa araw", eodTime: "Ipadala ang buod ng araw sa",
+      saveAlerts: "I-save", saved: "Na-save",
+      danger: "Pagsasara ng account",
+      dangerLead: "May pitong araw ka para magbago ng isip. Pagkatapos, buburahin ang iyong sign-in at pagkakakilanlan. Ang mga tala ng benta at transaksyon ay itatago nang hiwalay, dahil hinihingi iyon ng batas at hindi naman talaga amin ang mga iyon.",
+      deletePending: "Naihiling na ang pagbura. Ang account mo at lahat ng laman nito ay aalisin sa {date}.",
+      keepAccount: "Panatilihin ang account ko",
+      deleteConfirmTitle: "Burahin ang account na ito?",
+      deleteConfirmLead: "May pitong araw ka para magbago ng isip. Pagkatapos, tuluyang aalisin ang account, ang mga naka-save na usapan at ang koneksyon sa POS.",
       deleteConfirm: "Oo, simulan ang pagbura", deleteCancel: "Huwag na lang",
       requestDelete: "Simulan ang proseso",
     },
@@ -2394,49 +2401,6 @@ export function LanguageProvider({ children }) {
 
 export function useLang() {
   const ctx = useContext(LangContext);
-  if (!ctx) throw new Error("useLang must be used inside LanguageProvider");
-  return ctx;
-}
-(LangContext);
-  if (!ctx) throw new Error("useLang must be used inside LanguageProvider");
-  return ctx;
-}
- ctx = useContext(LangContext);
-  if (!ctx) throw new Error("useLang must be used inside LanguageProvider");
-  return ctx;
-}
-S.indexOf(l) + 1) % LANGS.length]),
-      langs: LANGS.map((id) => ({ id, name: STRINGS[id].langName })),
-    }),
-    [lang]
-  );
-
-  return <LangContext.Provider value={value}>{children}</LangContext.Provider>;
-}
-
-export function useLang() {
-  const ctx = useContext(LangContext);
-  if (!ctx) throw new Error("useLang must be used inside LanguageProvider");
-  return ctx;
-}
-(LangContext);
-  if (!ctx) throw new Error("useLang must be used inside LanguageProvider");
-  return ctx;
-}
- ctx = useContext(LangContext);
-  if (!ctx) throw new Error("useLang must be used inside LanguageProvider");
-  return ctx;
-}
-on useLang() {
-  const ctx = useContext(LangContext);
-  if (!ctx) throw new Error("useLang must be used inside LanguageProvider");
-  return ctx;
-}
-(LangContext);
-  if (!ctx) throw new Error("useLang must be used inside LanguageProvider");
-  return ctx;
-}
- ctx = useContext(LangContext);
   if (!ctx) throw new Error("useLang must be used inside LanguageProvider");
   return ctx;
 }
