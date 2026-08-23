@@ -14,6 +14,7 @@ import ThemeToggle from "./ThemeToggle.jsx";
 import CoreDiagram from "./landing/CoreDiagram.jsx";
 import { DEMOS } from "./landing/Demos.jsx";
 import SectionRail from "./landing/SectionRail.jsx";
+import { LineReveal, Rise, RuleReveal } from "./landing/Reveal.jsx";
 import "./glass.css";
 import "./landing-glass.css";
 
@@ -23,19 +24,32 @@ function Section({ eyebrow, title, lead, children, id, accent }) {
   return (
     <section id={id} ref={ref} className="px-6 md:px-10 lg:px-16 py-16 md:py-24">
       <div className="max-w-6xl mx-auto">
-        <div className={shown ? "rise" : "opacity-0"}>
+        <div>
           {eyebrow && (
-            <span className="eyebrow-chip data text-[11px] uppercase tracking-[0.18em]" style={{ color: accent || C.iris }}>
-              {eyebrow}
-            </span>
+            <Rise>
+              <span className="eyebrow-chip data text-[11px] uppercase tracking-[0.18em]" style={{ color: accent || C.iris }}>
+                {eyebrow}
+              </span>
+            </Rise>
           )}
-          <h2 className="display text-3xl md:text-4xl lg:text-5xl font-extrabold max-w-3xl leading-[1.15] mt-4 grad-text">
+          <LineReveal
+            as="h2"
+            delay={90}
+            className="display text-3xl md:text-4xl lg:text-5xl font-extrabold max-w-3xl leading-[1.15] mt-4 grad-text"
+          >
             {title}
-          </h2>
+          </LineReveal>
+          <RuleReveal
+            delay={260}
+            className="mt-6 max-w-3xl"
+            style={{ height: 1, background: `linear-gradient(to right, ${accent || C.iris}, transparent)` }}
+          />
           {lead && (
-            <p className="mt-4 text-base md:text-lg max-w-2xl" style={{ color: C.slate }}>
-              {lead}
-            </p>
+            <Rise delay={220}>
+              <p className="mt-5 text-base md:text-lg max-w-2xl" style={{ color: C.slate }}>
+                {lead}
+              </p>
+            </Rise>
           )}
         </div>
         <div
@@ -258,14 +272,22 @@ export default function Landing({ onSignIn, onRegister, onPricing }) {
         <section id="story" className="px-6 md:px-10 lg:px-16 pt-14 pb-20 md:pt-20 md:pb-28">
           <div className="max-w-6xl mx-auto grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
             <div>
-              <span className="eyebrow-chip data text-[11px] uppercase tracking-[0.18em] rise" style={{ color: C.iris }}>
-                {t.hero.eyebrow}
-              </span>
-              <h1 className="display text-4xl md:text-5xl lg:text-6xl font-extrabold leading-[1.3] md:leading-[1.08] mt-5 grad-text rise" style={{ animationDelay: "90ms" }}>
+              <Rise>
+                <span className="eyebrow-chip data text-[11px] uppercase tracking-[0.18em]" style={{ color: C.iris }}>
+                  {t.hero.eyebrow}
+                </span>
+              </Rise>
+              <LineReveal
+                as="h1"
+                delay={120}
+                className="display text-4xl md:text-5xl lg:text-6xl font-extrabold leading-[1.3] md:leading-[1.12] mt-5 grad-text"
+              >
                 {t.hero.title}
-              </h1>
-              <p className="mt-6 text-lg max-w-lg rise" style={{ color: C.slate, animationDelay: "180ms" }}>{t.hero.lead}</p>
-              <div className="mt-8 flex flex-wrap gap-3 rise" style={{ animationDelay: "270ms" }}>
+              </LineReveal>
+              <Rise delay={300}>
+                <p className="mt-6 text-lg max-w-lg" style={{ color: C.slate }}>{t.hero.lead}</p>
+              </Rise>
+              <Rise delay={420} className="mt-8 flex flex-wrap gap-3">
                 <button
                   onClick={onRegister}
                   className="gbtn gbtn-primary px-6 py-3 font-semibold inline-flex items-center gap-2"
@@ -278,7 +300,7 @@ export default function Landing({ onSignIn, onRegister, onPricing }) {
                 >
                   {t.hero.see}
                 </button>
-              </div>
+              </Rise>
             </div>
 
             <div className="rise" style={{ animationDelay: "120ms" }}>
@@ -377,15 +399,19 @@ export default function Landing({ onSignIn, onRegister, onPricing }) {
         <div style={{ background: C.panel }}>
           <section id="steps" className="px-6 md:px-10 lg:px-16 py-16 md:py-24">
             <div className="max-w-6xl mx-auto">
-              <span className="eyebrow-chip data text-[11px] uppercase tracking-[0.18em]" style={{ color: C.lilac, borderColor: "rgba(192,132,252,0.3)", background: "rgba(192,132,252,0.08)" }}>
-                {t.steps.eyebrow}
-              </span>
-              <h2
+              <Rise>
+                <span className="eyebrow-chip data text-[11px] uppercase tracking-[0.18em]" style={{ color: C.lilac, borderColor: "rgba(192,132,252,0.3)", background: "rgba(192,132,252,0.08)" }}>
+                  {t.steps.eyebrow}
+                </span>
+              </Rise>
+              <LineReveal
+                as="h2"
+                delay={90}
                 className="display text-3xl md:text-4xl lg:text-5xl font-extrabold max-w-3xl leading-[1.15] mt-4"
                 style={{ color: C.panelText }}
               >
                 {t.steps.title}
-              </h2>
+              </LineReveal>
               <div className="mt-12 grid md:grid-cols-3 gap-8 md:gap-6">
                 {t.steps.items.map((step, i) => (
                   <div key={step.t} className="step-rail md:ps-6" style={{ borderTop: "1px solid rgba(255,255,255,.15)" }}>
@@ -404,9 +430,16 @@ export default function Landing({ onSignIn, onRegister, onPricing }) {
         {/* Close */}
         <section className="px-6 md:px-10 lg:px-16 py-20 md:py-28">
           <div className="max-w-2xl mx-auto text-center">
-            <h2 className="display text-3xl md:text-4xl font-extrabold leading-[1.2] grad-text">{t.close.title}</h2>
-            <p className="mt-4 text-base" style={{ color: C.slate }}>{t.close.lead}</p>
-            <div className="mt-8 flex flex-wrap gap-3 justify-center">
+            <LineReveal
+              as="h2"
+              className="display text-3xl md:text-4xl font-extrabold leading-[1.2] grad-text"
+            >
+              {t.close.title}
+            </LineReveal>
+            <Rise delay={200}>
+              <p className="mt-4 text-base" style={{ color: C.slate }}>{t.close.lead}</p>
+            </Rise>
+            <Rise delay={320} className="mt-8 flex flex-wrap gap-3 justify-center">
               <button
                 onClick={onSignIn}
                 className="gbtn gbtn-primary px-7 py-3.5 font-semibold inline-flex items-center gap-2"
@@ -419,7 +452,7 @@ export default function Landing({ onSignIn, onRegister, onPricing }) {
               >
                 {t.pricing.nav}
               </button>
-            </div>
+            </Rise>
           </div>
         </section>
 
