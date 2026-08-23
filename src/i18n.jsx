@@ -2483,7 +2483,8 @@ export const STRINGS = {
       trend: "اتجاه الإيراد", trendNote: "تدفق الربح اليومي",
       champions: "الأبطال المخفيون",
       championsLead: "هامش عالٍ وكمية قليلة. كل بيعة إضافية تُبقي أكثر من المعتاد.",
-      championsNone: "لا      radar: "رادار نزيف الأرباح", radarClear: "لا نزيف. الهوامش تبدو نظيفة.",
+      championsNone: "لا شيء يبرز بعد — أدخل تكاليف المزيد من الأصناف أولاً.",
+      radar: "رادار نزيف الأرباح", radarClear: "لا نزيف. الهوامش تبدو نظيفة.",
       leakCost: "{name} لا يُبقي سوى {margin}٪ بعد التكلفة. راجع سعر المورّد.",
       leakDiscounts: "الخصومات {pct}٪ من الإيراد — {amount} تنازلت عنها.",
       leakNocost: "{count} أصناف تُباع بلا تكلفة، فالهامش أقل مما يبدو.",
@@ -5093,8 +5094,5 @@ export function LanguageProvider({ children }) {
 export function useLang() {
   const ctx = useContext(LangContext);
   if (!ctx) throw new Error("useLang must be used inside LanguageProvider");
-  return ctx;
-}
-rovider");
   return ctx;
 }
