@@ -240,7 +240,7 @@
   position: absolute;
   width: 16px;
   height: 16px;
-  border-color: rgba(168, 85, 247, 0.55);
+  border-color: rgba(139, 92, 246, 0.4);
   border-style: solid;
   pointer-events: none;
 }

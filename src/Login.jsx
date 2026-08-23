@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { ArrowLeft, Eye, EyeOff, Loader2 } from "lucide-react";
 import { useC } from "./theme.jsx";
-import NeonMark from "./NeonMark.jsx";
+import BrandMark from "./BrandMark.jsx";
 import { useLang } from "./i18n.jsx";
 import LanguagePicker from "./LanguagePicker.jsx";
 
@@ -48,7 +48,7 @@ export default function Login({ onAuthed, onBack, onRegister }) {
     <div className="min-h-full grid lg:grid-cols-2" style={{ background: C.bone }}>
       <div className="hidden lg:flex flex-col justify-between p-14" style={{ background: C.panel }}>
         <div className="flex items-center gap-2">
-          <NeonMark size={34} glow={0.9} />
+          <BrandMark size={34} />
           <span className="display font-extrabold text-lg" style={{ color: C.panelText }}>{t.name}</span>
         </div>
         <div>
@@ -75,7 +75,7 @@ export default function Login({ onAuthed, onBack, onRegister }) {
 <LanguagePicker />
           </div>
 
-          <h1 className="display text-3xl font-extrabold mb-2">{t.login.title}</h1>
+          <h1 classy me="display text-3xl font-extrabold mb-2">{t.login.title}</h1>
           <p className="text-sm mb-8" style={{ color: C.slate }}>{t.login.lead}</p>
 
           <form onSubmit={submit}>

@@ -4,7 +4,7 @@ import {
   Menu, X, Mail, Phone, Instagram, ShieldCheck, BookOpen, Gauge,
 } from "lucide-react";
 import { useC } from "./theme.jsx";
-import NeonMark from "./NeonMark.jsx";
+import BrandMark from "./BrandMark.jsx";
 import { contactRows, hasContact } from "./contact.js";
 import { useLang } from "./i18n.jsx";
 import { useReveal, prefersReducedMotion } from "./hooks.js";
@@ -14,6 +14,7 @@ import ThemeToggle from "./ThemeToggle.jsx";
 import CoreDiagram from "./landing/CoreDiagram.jsx";
 import { DEMOS } from "./landing/Demos.jsx";
 import SectionRail from "./landing/SectionRail.jsx";
+import "./glass.css";
 import "./landing-glass.css";
 
 function Section({ eyebrow, title, lead, children, id, accent }) {
@@ -203,7 +204,7 @@ export default function Landing({ onSignIn, onRegister, onPricing }) {
         <header className="sticky top-0 z-40 px-3 md:px-6 pt-3">
           <div className="glass-header-inner max-w-6xl mx-auto px-5 md:px-8 h-14 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <NeonMark size={32} glow={0.95} />
+              <BrandMark size={32} />
               <span className="display font-extrabold text-lg grad-text">{t.name}</span>
             </div>
 
@@ -422,7 +423,7 @@ export default function Landing({ onSignIn, onRegister, onPricing }) {
             <div className="grid md:grid-cols-[1.4fr_1fr_1fr] gap-10 md:gap-8">
               <div>
                 <div className="flex items-center gap-2 mb-3">
-                  <NeonMark size={34} glow={0.9} />
+                  <BrandMark size={34} />
                   <span className="display font-extrabold text-lg" style={{ color: C.panelText }}>{t.name}</span>
                 </div>
                 <p className="text-sm max-w-xs leading-relaxed" style={{ color: C.panelMuted }}>

@@ -571,6 +571,7 @@ export const STRINGS = {
       morning: "Good morning", afternoon: "Good afternoon", evening: "Good evening",
     },
     theme: { label: "Appearance", light: "Light", dark: "Dark", system: "System" },
+    export: { title: "Export", pdf: "PDF Report", csv: "CSV Data", generating: "Generating…", done: "Downloaded" },
     error: {
       screenTitle: "This screen didn't load",
       screenBody: "The other tabs still work. If it keeps happening, send this message to your developer.",
