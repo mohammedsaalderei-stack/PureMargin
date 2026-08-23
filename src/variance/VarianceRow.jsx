@@ -103,6 +103,3 @@ export default function VarianceRow({ row, open, onToggle, branchNames }) {
     </div>
   );
 }
-div>
-  );
-}
