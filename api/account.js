@@ -1,12 +1,13 @@
 import { requireAuth } from "./_auth.js";
 import {
   getAccount, setPosToken, setBusiness, publicAccount, setEmail,
-  requestDeletion, cancelDeletion, purgeIfDue, deleteNow,
+  requestDeletion, cancelDeletion, purgeIfDue, deleteNow, FREE_FEATURES,
 } from "./_accounts.js";
 import { persistent } from "./_store.js";
 import { clearCache, fetchMerchant } from "./_data.js";
 import { orgFor, effectivePlanFor } from "./_org.js";
 import { recordAudit } from "./_audit.js";
+import { sendMail } from "./_mail.js";
 
 /* Accounts predating organizations have no orgId on the record; orgFor
    backfills one. Without this an older account's changes would go unlogged. */
