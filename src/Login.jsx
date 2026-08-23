@@ -5,7 +5,7 @@ import BrandMark from "./BrandMark.jsx";
 import { useLang } from "./i18n.jsx";
 import LanguagePicker from "./LanguagePicker.jsx";
 
-export default function Login({ onAuthed, onBack, onRegister }) {
+export default function Login({ onAuthed, onBack, onRegister, onForgot }) {
   const C = useC();
   const { t } = useLang();
   const [username, setUsername] = useState("");
@@ -113,6 +113,19 @@ export default function Login({ onAuthed, onBack, onRegister }) {
                 aria-label={show ? t.login.hide : t.login.show}
               >
                 {show ? <EyeOff size={17} /> : <Eye size={17} />}
+              </button>
+            </div>
+
+            {/* Under the field it belongs to, where somebody who has just
+                mistyped a password is already looking. */}
+            <div className="flex justify-end mb-3">
+              <button
+                type="button"
+                onClick={() => onForgot(username)}
+                className="text-xs font-semibold hover:opacity-70"
+                style={{ color: C.iris }}
+              >
+                {t.login.forgot}
               </button>
             </div>
 

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import Landing from "./Landing.jsx";
 import Login from "./Login.jsx";
+import ForgotPassword from "./ForgotPassword.jsx";
 import Register from "./Register.jsx";
 import Pricing from "./Pricing.jsx";
 import Shell from "./Shell.jsx";
@@ -15,6 +16,9 @@ function Routes() {
   const [token, setToken] = useState(() => sessionStorage.getItem("sufra_token") || "");
   const [user, setUser] = useState(() => sessionStorage.getItem("sufra_user") || "");
   const [view, setView] = useState("landing");
+  /* Carried from sign-in into the reset screen, so an address already typed
+     doesn't have to be typed twice. */
+  const [resetIdentifier, setResetIdentifier] = useState("");
   const [splash, setSplash] = useState(() => !sessionStorage.getItem("sufra_seen"));
   /* Set only for the session that just registered, so the connect prompt
      appears once for a new account and not on every sign-in after. */
@@ -89,12 +93,24 @@ function Routes() {
         }}
       />
     );
+  } else if (view === "forgot") {
+    screen = (
+      <ForgotPassword
+        initialIdentifier={resetIdentifier}
+        onBack={() => setView("login")}
+        onReset={signIn}
+      />
+    );
   } else if (view === "login") {
     screen = (
       <Login
         onBack={() => setView("landing")}
         onAuthed={signIn}
         onRegister={() => setView("register")}
+        onForgot={(typed) => {
+          setResetIdentifier(typed || "");
+          setView("forgot");
+        }}
       />
     );
   } else {

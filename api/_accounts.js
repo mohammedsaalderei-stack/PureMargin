@@ -233,6 +233,26 @@ export async function changePassword(username, currentPassword, nextPassword) {
   return { account };
 }
 
+/* Sets a new password without checking the old one.
+   Only reachable behind a verified reset code — the caller is responsible for
+   proving the request came from the address on the account. */
+export async function resetPassword(username, nextPassword) {
+  const account = await getAccount(username);
+  if (!account) return { error: "noaccount" };
+
+  const problem = passwordProblem(nextPassword);
+  if (problem) return { error: problem };
+
+  const salt = crypto.randomBytes(16).toString("hex");
+  account.salt = salt;
+  account.hash = hash(nextPassword, salt);
+  account.passwordChangedAt = Date.now();
+  // Whoever was signed in with the forgotten password is signed out.
+  account.tokenVersion = (account.tokenVersion || 0) + 1;
+  await setJSON(KEY(account.username), account);
+  return { account };
+}
+
 export async function noteLogin(username) {
   const account = await getAccount(username);
   if (!account) return null;
