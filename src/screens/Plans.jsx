@@ -88,7 +88,7 @@ export default function Plans({ account }) {
           <p className="text-sm mb-6" style={{ color: C.slate }}>
             {t.billing.renews}{" "}
             <span dir="ltr" className="font-semibold" style={{ color: C.ink }}>
-              {new Date(plan.until).toLocaleDateString(localeFor(lang))}
+              {formatDate(plan.until, lang)}
             </span>
             {plan.inherited && <span className="ms-2 text-xs">({t.billing.inherited})</span>}
           </p>

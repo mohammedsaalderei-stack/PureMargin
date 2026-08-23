@@ -191,7 +191,7 @@ export default function AdminPage() {
     }} />;
   }
 
-  const fmt = (ms) => (ms ? new Date(ms).toLocaleDateString(localeFor(lang)) : "—");
+  const fmt = (ms) => (ms ? formatDate(ms, lang) : "—");
 
   return (
     <div className="min-h-full" style={{ background: C.bone }}>

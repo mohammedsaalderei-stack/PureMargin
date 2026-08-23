@@ -5034,6 +5034,13 @@ export function localeFor(lang) {
   return LOCALES[lang] || "en-AE";
 }
 
+/* Arabic locales inject invisible bidi control marks (U+200E/200F) into
+   formatted dates, which garble the display when the date sits inside RTL
+   text even with dir="ltr". Strip them so the raw d/m/y renders cleanly. */
+export function formatDate(ms, lang) {
+  return new Date(ms).toLocaleDateString(localeFor(lang)).replace(/[\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, "");
+}
+
 export function fill(template, values = {}) {
   return String(template).replace(/\{(\w+)\}/g, (_, key) =>
     values[key] === undefined ? "" : String(values[key])
