@@ -45,7 +45,7 @@ export default function LanguagePicker({ light = false, compact = false }) {
 
       {open && (
         <div
-          className="absolute end-0 mt-2 z-50 rounded-xl overflow-hidden palette-in"
+          className="absolute end-0 bottom-full mb-2 z-50 rounded-xl overflow-hidden palette-in"
           style={{
             background: C.surface,
             border: `1px solid ${C.hairline}`,

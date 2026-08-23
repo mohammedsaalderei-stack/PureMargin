@@ -8,7 +8,7 @@ export const STRINGS = {
     dir: "ltr",
     name: "PureMargin",
     tagline: "Know what you actually keep",
-    langLabel: "العربية",
+    langLabel: "English",
     wordmark: "PureMargin",
     langName: "English",
 
@@ -1272,7 +1272,7 @@ export const STRINGS = {
     dir: "rtl",
     name: "PureMargin",
     tagline: "اعرف ما يبقى لك فعلًا",
-    langLabel: "English",
+    langLabel: "العربية",
     wordmark: "PureMargin",
     langName: "العربية",
 
