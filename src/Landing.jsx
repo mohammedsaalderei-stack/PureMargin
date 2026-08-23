@@ -261,7 +261,7 @@ export default function Landing({ onSignIn, onRegister, onPricing }) {
               <span className="eyebrow-chip data text-[11px] uppercase tracking-[0.18em] rise" style={{ color: C.iris }}>
                 {t.hero.eyebrow}
               </span>
-              <h1 className="display text-4xl md:text-5xl lg:text-6xl font-extrabold leading-[1.15] md:leading-[1.08] mt-5 grad-text rise" style={{ animationDelay: "90ms" }}>
+              <h1 className="display text-4xl md:text-5xl lg:text-6xl font-extrabold leading-[1.3] md:leading-[1.08] mt-5 grad-text rise" style={{ animationDelay: "90ms" }}>
                 {t.hero.title}
               </h1>
               <p className="mt-6 text-lg max-w-lg rise" style={{ color: C.slate, animationDelay: "180ms" }}>{t.hero.lead}</p>
