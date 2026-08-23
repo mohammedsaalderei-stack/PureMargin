@@ -1,20 +1,44 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Check, Languages } from "lucide-react";
 import { useC } from "./theme.jsx";
 import { useLang } from "./i18n.jsx";
 
 /* Four languages is past the point where a toggle works — a toggle would
-   make Filipino three taps away. A menu keeps every language one tap out. */
+   make Filipino three taps away. A menu keeps every language one tap out.
+
+   Rendered through a portal so it escapes parent overflow / stacking
+   contexts (sidebar bottom, header bar, etc.) and positions itself based
+   on the available viewport space. */
 export default function LanguagePicker({ light = false, compact = false }) {
   const C = useC();
   const { t, lang, set, langs } = useLang();
   const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState(null);
   const ref = useRef(null);
+  const menuRef = useRef(null);
+
+  useLayoutEffect(() => {
+    if (!open || !ref.current) return;
+    const r = ref.current.getBoundingClientRect();
+    const menuW = 168;
+    const menuH = menuRef.current?.offsetHeight || (langs.length * 41 + 8);
+    const gap = 8;
+    const spaceBelow = window.innerHeight - r.bottom;
+    const above = spaceBelow < menuH + gap && r.top > menuH + gap;
+    const left = Math.min(r.left, window.innerWidth - menuW - 8);
+    setPos({
+      left: Math.max(8, left),
+      top: above ? r.top - menuH - gap : r.bottom + gap,
+    });
+  }, [open, langs.length]);
 
   useEffect(() => {
     if (!open) return;
     const onDown = (e) => {
-      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+      if (ref.current && ref.current.contains(e.target)) return;
+      if (menuRef.current && menuRef.current.contains(e.target)) return;
+      setOpen(false);
     };
     const onKey = (e) => e.key === "Escape" && setOpen(false);
     document.addEventListener("mousedown", onDown);
@@ -43,14 +67,17 @@ export default function LanguagePicker({ light = false, compact = false }) {
         {!compact && t.langLabel}
       </button>
 
-      {open && (
+      {open && pos && createPortal(
         <div
-          className="absolute end-0 bottom-full mb-2 z-50 rounded-xl overflow-hidden palette-in"
+          ref={menuRef}
+          className="fixed z-50 rounded-xl overflow-hidden palette-in"
           style={{
             background: C.surface,
             border: `1px solid ${C.hairline}`,
             boxShadow: "0 12px 32px -16px rgba(23,18,31,.4)",
             minWidth: 168,
+            left: pos.left,
+            top: pos.top,
           }}
         >
           {langs.map((l) => {
@@ -70,7 +97,8 @@ export default function LanguagePicker({ light = false, compact = false }) {
               </button>
             );
           })}
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
