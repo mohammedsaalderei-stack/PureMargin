@@ -1,0 +1,185 @@
+/* ===================================================================
+   Editorial quiet-luxury landing — inspired by Vide Infra.
+   Warm paper, charcoal type, thin geometric rules, generous whitespace,
+   large editorial display type. No glass, no glow, no orbs.
+   Scoped to .editorial so the dashboard keeps its own system.
+   =================================================================== */
+
+.editorial {
+  --ed-bg: #E8E4DA;
+  --ed-ink: #1B1A17;
+  --ed-muted: #6C685E;
+  --ed-faint: #9A968C;
+  --ed-line: rgba(27, 26, 23, 0.14);
+  --ed-line-strong: rgba(27, 26, 23, 0.30);
+  --ed-surface: #F3F0E8;
+  --ed-surface-2: #EDE9DF;
+  --ed-accent: #8A6A3F;
+  background: var(--ed-bg);
+  color: var(--ed-ink);
+  min-height: 100%;
+}
+[data-theme="dark"] .editorial {
+  --ed-bg: #131210;
+  --ed-ink: #E8E4DA;
+  --ed-muted: #8E8A7E;
+  --ed-faint: #6A665C;
+  --ed-line: rgba(232, 228, 218, 0.13);
+  --ed-line-strong: rgba(232, 228, 218, 0.30);
+  --ed-surface: #1D1B17;
+  --ed-surface-2: #232118;
+  --ed-accent: #B89A6B;
+}
+
+/* ---- Thin geometric rule ---- */
+.ed-rule { border: 0; border-top: 1px solid var(--ed-line); margin: 0; }
+.ed-rule-strong { border-top: 1px solid var(--ed-line-strong); }
+
+/* ---- Monospace index numeral ---- */
+.ed-num {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  color: var(--ed-accent);
+}
+
+/* ---- Micro eyebrow label ---- */
+.ed-eyebrow {
+  font-family: 'Space Grotesk', 'Tajawal', system-ui, sans-serif;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--ed-muted);
+}
+[dir="rtl"] .ed-eyebrow { letter-spacing: 0.06em; }
+
+/* ---- Buttons ---- */
+.ed-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-family: 'Space Grotesk', 'Tajawal', system-ui, sans-serif;
+  font-weight: 600;
+  font-size: 0.95rem;
+  border-radius: 3px;
+  transition: background .25s ease, color .25s ease, border-color .25s ease, transform .2s ease;
+  cursor: pointer;
+}
+.ed-btn-primary {
+  background: var(--ed-ink);
+  color: var(--ed-bg);
+  border: 1px solid var(--ed-ink);
+}
+.ed-btn-primary:hover { transform: translateY(-1px); }
+[data-theme="dark"] .ed-btn-primary:hover { background: #fff; color: #131210; border-color: #fff; }
+
+.ed-btn-ghost {
+  background: transparent;
+  color: var(--ed-ink);
+  border: 1px solid var(--ed-line-strong);
+}
+.ed-btn-ghost:hover { border-color: var(--ed-ink); background: var(--ed-surface-2); }
+
+/* ---- Text link with arrow ---- */
+.ed-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-weight: 600;
+  color: var(--ed-ink);
+  border-bottom: 1px solid var(--ed-line-strong);
+  padding-bottom: 2px;
+  transition: border-color .2s ease, opacity .2s ease;
+  cursor: pointer;
+}
+.ed-link:hover { border-color: var(--ed-ink); opacity: 0.8; }
+
+/* ---- Surface card ---- */
+.ed-card {
+  background: var(--ed-surface);
+  border: 1px solid var(--ed-line);
+  border-radius: 4px;
+  transition: border-color .3s ease, transform .35s cubic-bezier(.2, .7, .3, 1);
+}
+.ed-card-hover:hover {
+  border-color: var(--ed-line-strong);
+  transform: translateY(-3px);
+}
+
+/* ---- Receipt (hero visual) ---- */
+.ed-receipt {
+  background: var(--ed-surface);
+  border: 1px solid var(--ed-line);
+  border-radius: 4px;
+  position: relative;
+}
+.ed-receipt::before {
+  content: "";
+  position: absolute;
+  left: 16px; right: 16px; top: 0; height: 3px;
+  background-image: radial-gradient(circle at 3px 1.5px, var(--ed-line-strong) 1.4px, transparent 1.5px);
+  background-size: 8px 3px;
+}
+
+/* ---- Decorative thin circle motif ---- */
+.ed-circle {
+  position: absolute;
+  border: 1px solid var(--ed-line);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+/* ---- Section spacing ---- */
+.ed-section { padding: 5.5rem 1.5rem; }
+@media (min-width: 768px) { .ed-section { padding: 7rem 2.5rem; } }
+@media (min-width: 1024px) { .ed-section { padding: 8rem 4rem; } }
+
+.ed-wrap { max-width: 1200px; margin: 0 auto; }
+
+/* ---- Large editorial display ---- */
+.ed-display {
+  font-family: 'Space Grotesk', 'Tajawal', system-ui, sans-serif;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.02;
+  color: var(--ed-ink);
+}
+[dir="rtl"] .ed-display { letter-spacing: 0; font-weight: 800; line-height: 1.15; }
+
+.ed-lead {
+  color: var(--ed-muted);
+  line-height: 1.6;
+}
+
+/* ---- Header ---- */
+.ed-header {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  background: color-mix(in srgb, var(--ed-bg) 88%, transparent);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--ed-line);
+}
+
+/* ---- Capability row connector dot ---- */
+.ed-dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--ed-accent);
+  flex-shrink: 0;
+}
+
+/* ---- Diagram connector ---- */
+.ed-connector {
+  height: 1px;
+  background: var(--ed-line-strong);
+  flex: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ed-card, .ed-btn, .ed-card-hover { transition: none !important; transform: none !important; }
+}
