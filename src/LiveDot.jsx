@@ -7,7 +7,7 @@ import { useLang, fill } from "./i18n.jsx";
    A dashboard that claims to be live should show its own age; otherwise a
    frozen feed and a quiet evening look identical. The dot pulses while a
    fetch is in flight so a refresh is visible even when no number changes. */
-export default function LiveDot({ fetchedAt, refreshing }) {
+export default function LiveDot({ fetchedAt, refreshing, connected = true }) {
   const C = useC();
   const { t } = useLang();
   const [, tick] = useState(0);
@@ -16,6 +16,17 @@ export default function LiveDot({ fetchedAt, refreshing }) {
     const id = setInterval(() => tick((n) => n + 1), 5000);
     return () => clearInterval(id);
   }, []);
+
+  /* Sample figures aren't live, so a pulsing "updated just now" dot would be a
+     lie. A quiet "not connected" label says exactly what it is. */
+  if (!connected) {
+    return (
+      <span className="inline-flex items-center gap-1.5 micro" style={{ color: C.slate }}>
+        <span className="rounded-full" style={{ width: 6, height: 6, background: C.slate, opacity: 0.5 }} />
+        {t.common.demo}
+      </span>
+    );
+  }
 
   if (!fetchedAt) return null;
 

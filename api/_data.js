@@ -1,6 +1,6 @@
 // Pulls sales from Loyverse and shapes them into the metrics the UI needs.
-// With no LOYVERSE_ACCESS_TOKEN set, returns realistic sample data instead,
-// so the app is fully usable before the POS is connected.
+// With no LOYVERSE_ACCESS_TOKEN set, raises NotConnected so the interface
+// prompts for a POS connection rather than inventing figures.
 
 import { buildAdvice } from "./_advice.js";
 import { marginLayer } from "./_margin.js";
@@ -363,6 +363,9 @@ export async function fetchMerchant(token) {
    a month of receipts first. This is the cheap read for that. */
 export async function branchList(posToken) {
   const token = posToken || process.env.LOYVERSE_ACCESS_TOKEN || "";
+  /* No POS linked yet: there are no branches to report. Callers that only
+     need the roster for scope resolution catch this and carry on with an
+     empty list; the dashboard turns it into the connect-your-POS state. */
   if (!token) throw new NotConnected();
 
   /* The cached fetch already holds the roster, so a dashboard request that is
@@ -397,6 +400,9 @@ export async function branchList(posToken) {
 
 export async function getMetrics(posToken, { maxAge = CACHE_MS, overrides = {}, branches = null } = {}) {
   const token = posToken || process.env.LOYVERSE_ACCESS_TOKEN || "";
+  /* No POS linked yet: refuse to invent figures. The interface turns this
+     into the connect-your-POS state rather than presenting sample numbers as
+     if they were the business's own. */
   if (!token) throw new NotConnected();
 
   /* The cache holds the raw upstream read, not the finished payload. Two
@@ -433,8 +439,9 @@ export async function getMetrics(posToken, { maxAge = CACHE_MS, overrides = {}, 
       ? null
       : branches;
 
+  const shaped = finish(aggregate(raw, { overrides, branches: scoped }));
   return {
-    ...finish(aggregate(raw, { overrides, branches: scoped })),
+    ...shaped,
     allBranches: raw.allBranches,
     /* Provenance inputs, passed through rather than recomputed downstream so
        there is exactly one account of where a figure came from. */
@@ -525,7 +532,9 @@ export async function salesLines(posToken, { from, to = Date.now(), branches = n
    say "updated 12 seconds ago" rather than implying they're instantaneous. */
 export function cacheAge(posToken) {
   const token = posToken || process.env.LOYVERSE_ACCESS_TOKEN || "";
-  const hit = cache.get(token.slice(0, 24));
+  if (!token) return null;
+  const key = token.slice(0, 24);
+  const hit = cache.get(key);
   return hit ? Math.round((Date.now() - hit.at) / 1000) : null;
 }
 
