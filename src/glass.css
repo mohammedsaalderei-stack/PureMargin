@@ -104,11 +104,20 @@
 }
 
 /* ---- Gradient text ---- */
+/* Bottom padding keeps background-clip:text from shaving descenders; the
+   matching negative margin leaves layout untouched. */
 .grad-text {
   background: linear-gradient(120deg, var(--ink), var(--lilac) 50%, var(--cyan));
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
+  padding-block-end: 0.18em;
+  margin-block-end: -0.18em;
+}
+[dir="rtl"] .grad-text,
+[lang="hi"] .grad-text {
+  padding-block-end: 0.3em;
+  margin-block-end: -0.3em;
 }
 [data-theme="dark"] .grad-text {
   background: linear-gradient(120deg, #E8E6F0, #A78BFA 50%, #06B6D4);

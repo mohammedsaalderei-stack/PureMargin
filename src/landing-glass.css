@@ -223,6 +223,10 @@
 }
 
 /* ---- Gradient display text ---- */
+/* background-clip:text clips the glyph's descenders to the line box, so
+   Arabic (ق ج ى) and Latin (g y p) tails get shaved off at every viewport.
+   A little bottom padding gives the paint area room; the negative margin
+   keeps surrounding layout/spacing unchanged. */
 .grad-text {
   background: linear-gradient(120deg, var(--ink), var(--lilac) 55%, var(--cyan));
   background-size: 220% 100%;
@@ -230,6 +234,14 @@
   background-clip: text;
   color: transparent;
   animation: text-shimmer 8s ease-in-out infinite;
+  padding-block-end: 0.18em;
+  margin-block-end: -0.18em;
+}
+/* Arabic/Devanagari sit lower in the line box and need more room. */
+[dir="rtl"] .grad-text,
+[lang="hi"] .grad-text {
+  padding-block-end: 0.3em;
+  margin-block-end: -0.3em;
 }
 [data-theme="dark"] .grad-text {
   background: linear-gradient(120deg, #F0E8FF, var(--lilac) 55%, var(--cyan));
