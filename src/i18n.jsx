@@ -3419,7 +3419,7 @@ export const STRINGS = {
     decision: {
       eyebrow: "हम कहाँ रुकते हैं",
       title: "रसोई आप जानते हैं। आँकड़े PureMargin जानता है।",
-      lead: "हम नहीं बताएँगे कि क्या पकाइए। हम बताएँगे कि क्या बिका, कब बिका, और आम तौर पर इसका मतलब क्या होता है — फिर रास्ते से हट जाएँगे।",
+      lead: "हम नहीं बताएँगे कि क्या बनाइए।",
       items: [
         { t: "कुछ भी गढ़ा नहीं", b: "हर आँकड़ा किसी ऐसी रसीद तक जाता है जिसे आप जाकर देख सकते हैं। जवाब न हो तो अंदाज़ा लगाने के बजाय यह कह देता है।" },
         { t: "कुछ भी छिपा नहीं", b: "हर नोट बताता है कि किससे पढ़ा गया और सबूत कितना मज़बूत है, ताकि आप तौलें, मानें नहीं।" },
@@ -5094,5 +5094,12 @@ export function LanguageProvider({ children }) {
 export function useLang() {
   const ctx = useContext(LangContext);
   if (!ctx) throw new Error("useLang must be used inside LanguageProvider");
+  return ctx;
+}
+ = useContext(LangContext);
+  if (!ctx) throw new Error("useLang must be used inside LanguageProvider");
+  return ctx;
+}
+vider");
   return ctx;
 }
