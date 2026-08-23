@@ -2,16 +2,20 @@ import { useEffect, useState } from "react";
 import { Plus, Archive, RotateCcw, Package, Truck, Pencil } from "lucide-react";
 import IngredientForm from "../inventory/IngredientForm.jsx";
 import SupplierList from "../inventory/SupplierList.jsx";
+import StockPanel from "../inventory/StockPanel.jsx";
 import { useC } from "../theme.jsx";
 import { useLang, fill } from "../i18n.jsx";
 
-/* The item master: the ingredients, units and suppliers everything later is
-   built on. Stage 4 phase 1 — definitions only.
+/* Inventory: the item master, and the stock that moves through it.
 
-   There are deliberately no quantities on this screen. A balance is the sum of
-   the movement ledger, which arrives in the next phase; showing an editable
-   "quantity on hand" here would create a second version of a number that has to
-   be derived, and the two would disagree within a week.
+   Phase 1 is the definitions — ingredients, units, suppliers. Phase 2 adds the
+   movement ledger, which is where quantities live.
+
+   There is still no editable "quantity on hand" anywhere on this screen. Every
+   balance in `StockPanel` is the sum of the ledger beneath it, and the only way
+   to change one is to record another entry — including the reversal that
+   corrects a mistake. An editable field here would be a second version of a
+   derived number, and the two would disagree within a week.
 
    Reading needs `view:inventory`, editing needs `manage:inventory`. The server
    enforces both, so a viewer simply sees no buttons rather than buttons that
@@ -223,6 +227,8 @@ export default function Inventory({ token }) {
             {t.inventory.showArchived}
           </label>
         </Panel>
+
+        <StockPanel token={token} ingredients={ingredients} />
 
         <SupplierList
           token={token}

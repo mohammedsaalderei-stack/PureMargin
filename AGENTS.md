@@ -145,6 +145,42 @@ they override the defaults).
   gets 403 here, but the document's role table grants accountants "purchases".
   Revisit when purchasing lands in phase 2.
 
+## Stock movement ledger (stage 4, phase 2)
+- `api/_movements.js` — the ledger. Keys are `inv:<orgId>:moves:<branchId>`, so
+  isolation is structural *and* a branch's ledger can't leak into another's read.
+- **A balance is never stored.** `balances(orgId, branchIds, { ingredients })`
+  sums `qtyBase` over the entries. Do not add an on-hand field anywhere.
+- Every entry keeps the quantity twice: `qty` + `unit` as typed (what a human
+  recognises) and `qtyBase` in the ingredient's base unit (what arithmetic uses).
+  Summing across kg and g entries is only correct on the second.
+- `MOVEMENT_TYPES` is closed and each type carries its sign. `adjust` is the only
+  signed type (sign 0 → taken from the quantity); every other type ignores the
+  sign the user typed, so "waste 500" can't accidentally add stock.
+- **Correction is reversal only.** No delete exists in the module or the route.
+  Reversing twice is refused (`reversed`), and a reversal can't be reversed
+  (`isreversal`), so a double-click can't cancel its own correction.
+- Transfers are two entries sharing a `transferId`, written out-leg first: if the
+  in-leg fails the out-leg is reversed, so stock is never duplicated. Cost is
+  inherited by the receiving branch — moving stock must not revalue it.
+- Negative-stock policy lives at `inv:<orgId>:policy`, default **refuse**.
+  Refusal returns `{ error: "negative", onHand, short }` in the ingredient's
+  stock unit; the client owns the wording.
+- Movement ids are generated server-side, never accepted from the client — a
+  client id is how a retry becomes a double count.
+- `api/stock.js` — `view:inventory` to read, `manage:inventory` to write. Every
+  branch id from a client goes through `effectiveBranches([id], authorized)`
+  (both ends, for transfers), so a body edit can't write into another branch.
+  No DELETE method, deliberately.
+- Audit: `stock.movement`, `stock.transfer`, `stock.reverse`, `stock.policy`.
+- Front end: `src/inventory/StockPanel.jsx` (balances, per-branch split, the
+  per-branch ledger with the reverse control) + `src/inventory/MovementForm.jsx`
+  (one form for movements and transfers). Mounted in `src/screens/Inventory.jsx`.
+  i18n block is `inventory.stock.*` in all four languages.
+- Tests: `api/_movements.test.js` (21), wired into `npm test` — 79 total.
+- **Still open:** stock counts, purchasing/receiving and the costing engine are
+  phase 3+. `unitCost` is recorded on entries now precisely so costing can read
+  history rather than re-derive it from today's price.
+
 ## Account deletion
 Two paths, both on `DELETE /api/account`:
 - default — `requestDeletion`, a 7-day grace window, undoable with `POST`.

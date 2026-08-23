@@ -40,6 +40,14 @@ export const AUDIT_ACTIONS = {
   "supplier.add": "supplier added",
   "supplier.update": "supplier changed",
   "supplier.remove": "supplier removed",
+
+  /* Stage 4, phase 2 — the stock ledger. Movement reversals are named in the
+     document explicitly; ordinary entries are here too because a balance nobody
+     can attribute is the same problem one step earlier. */
+  "stock.movement": "stock movement recorded",
+  "stock.transfer": "stock transferred between branches",
+  "stock.reverse": "stock movement reversed",
+  "stock.policy": "negative-stock policy changed",
 };
 
 export async function recordAudit(orgId, { actor, action, target = "", detail = {} }) {
