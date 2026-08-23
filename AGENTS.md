@@ -237,8 +237,43 @@ they override the defaults).
   → `OrderSheet.jsx` (summary, lines, receipts, returns) → `ReceiveForm.jsx`
   (pre-filled with what is still owed at the agreed price). i18n
   `inventory.purchasing.*`.
-- Tests: `api/_purchasing.test.js` (26) — 131 total.
-- **Still open:** the costing and variance engine, then dashboards.
+- Tests: `api/_purchasing.test.js` (26).
+
+## Recipes and recipe cost (stage 4, phase 5)
+- `api/_costing.js` — ingredient cost per **base unit**, two methods, both real:
+  `last` (newest priced receipt) and `wavg` (value received ÷ quantity received,
+  the default). `costBasis(orgId, branchIds, { to })` walks each branch's ledger
+  **once** and returns both plus provenance (`receipts`, `lastAt`); recipes share
+  one basis rather than re-reading per line.
+  - Only incoming, priced, non-reversed entries inform cost — issues/waste carry an
+    inherited cost and would double-count the delivery.
+  - **No cost is `null`, never 0.** Zero is the one default that flatters margin
+    exactly where data is worst; callers must report the gap.
+- `api/_recipes.js`, key `inv:<orgId>:recipes`. Recipes are org-level master data;
+  **cost is local**, from the authorized branches' ledgers.
+- **Versions are dated and append-only** (`effectiveFrom`, sorted, never edited).
+  `effectiveVersion(recipe, at)` = newest already in force, so a March sale keeps
+  March's recipe. Back-dating slots into history. No DELETE anywhere; archive only.
+- **Lines are net (as they end up in the dish)**; `yieldPct` converts to
+  `drawBase`, the gross draw on stock (150 g at 75% draws 200 g).
+- **Packaging is a separate list**: costed into the dish, excluded from food cost,
+  and *not* subject to yield (trimming a carrot doesn't waste the box).
+- Costing reports `complete`, `coverage` and `unpriced[]`; a partial total is a
+  stated lower bound.
+- `simulate()` applies cost/qty/portion/price overrides to a **copy** of the basis
+  and version and runs the same `costVersion` — no parallel formula, nothing
+  written. Returns before/after/delta including margin points.
+- `marginFor` is **gross** margin only; contribution margin waits for the
+  operating-cost layer the document defers.
+- Route `api/recipes.js`: `view:costs` reads (so the accountant can), `manage:recipes`
+  writes (so the chef can). Simulation only needs read. Audit: `recipe.create`,
+  `recipe.version`, `recipe.archive`, `recipe.restore`.
+- Front end: tab `recipes` in `Shell.jsx` gated on `view:costs`;
+  `src/screens/Recipes.jsx` (list + cost-basis switch) → `recipes/RecipeForm.jsx`
+  → `recipes/RecipeSheet.jsx` → `recipes/CostSimulator.jsx`. i18n `recipes.*`.
+- Tests: `api/_recipes.test.js` (25) — 156 total.
+- **Still open:** theoretical vs actual consumption and the variance engine (this
+  phase is its prerequisite), then dashboards, then the assistant.
 
 ## Sign-in email
 - `setEmail(username, currentPassword, nextEmail)` in `api/_accounts.js`, exposed

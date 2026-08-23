@@ -65,6 +65,13 @@ export const AUDIT_ACTIONS = {
   "po.cancel": "purchase order cancelled",
   "po.receive": "delivery received",
   "po.return": "goods returned to supplier",
+
+  /* Stage 4, phase 5 — recipes. A new version moves every future cost of sales,
+     which is why the document names recipe changes as sensitive. */
+  "recipe.create": "recipe created",
+  "recipe.version": "new recipe version",
+  "recipe.archive": "recipe archived",
+  "recipe.restore": "recipe restored",
 };
 
 export async function recordAudit(orgId, { actor, action, target = "", detail = {} }) {

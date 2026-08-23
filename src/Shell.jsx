@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   BarChart3, LineChart, MessageSquare, Settings as Cog, UtensilsCrossed, Users,
   Search, Lightbulb, PanelRightClose, PanelRightOpen, LogOut, Lock, Wallet,
-  LayoutDashboard, Download, FileText, Table, ChevronDown, Package,
+  LayoutDashboard, Download, FileText, Table, ChevronDown, Package, ChefHat,
 } from "lucide-react";
 import { useC } from "./theme.jsx";
 import BrandMark from "./BrandMark.jsx";
@@ -23,6 +23,7 @@ import Forecast from "./screens/Forecast.jsx";
 import Settings from "./screens/Settings.jsx";
 import Team from "./screens/Team.jsx";
 import Inventory from "./screens/Inventory.jsx";
+import Recipes from "./screens/Recipes.jsx";
 import BranchScope from "./BranchScope.jsx";
 import CommandPalette from "./CommandPalette.jsx";
 import LanguagePicker from "./LanguagePicker.jsx";
@@ -75,7 +76,12 @@ const TEAM_TAB = { id: "team", icon: Users };
    and swipe order for everyone. */
 const INVENTORY_TAB = { id: "inventory", icon: Package };
 
-const TAB_ICONS = Object.fromEntries([...TAB_META, INVENTORY_TAB, TEAM_TAB].map((tb) => [tb.id, tb.icon]));
+/* Recipes ride on `view:costs`, not on `view:inventory`: an accountant reads what
+   dishes cost without writing recipes, and a chef writes them. Appended for the
+   same reason as the others. */
+const RECIPES_TAB = { id: "recipes", icon: ChefHat };
+
+const TAB_ICONS = Object.fromEntries([...TAB_META, INVENTORY_TAB, RECIPES_TAB, TEAM_TAB].map((tb) => [tb.id, tb.icon]));
 
 function useDesktop() {
   const [big, setBig] = useState(() => typeof window !== "undefined" && window.matchMedia("(min-width: 1024px)").matches);
@@ -304,6 +310,7 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
       onAccountChange={refreshEverything} onSeePlans={() => go("billing")} onSession={onSession} onLogout={onLogout} />;
   } else if (tab === "team") { body = <Team token={token} />; }
   else if (tab === "inventory") { body = <Inventory token={token} />; }
+  else if (tab === "recipes") { body = <Recipes token={token} />; }
   else if (locked) { body = <Locked feature={needed} onSeePlans={() => go("billing")} />; }
   else if (tab === "ask") {
     body = <Ask token={token} wide={desktop && !chatsOpen} pending={pending} onPendingUsed={() => setPending("")}
@@ -351,9 +358,11 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
 
   const canManageTeam = Boolean(scope?.capabilities?.includes("manage:users"));
   const canSeeInventory = Boolean(scope?.capabilities?.includes("view:inventory"));
+  const canSeeRecipes = Boolean(scope?.capabilities?.includes("view:costs"));
   const navTabs = [
     ...TAB_META,
     ...(canSeeInventory ? [INVENTORY_TAB] : []),
+    ...(canSeeRecipes ? [RECIPES_TAB] : []),
     ...(canManageTeam ? [TEAM_TAB] : []),
   ];
 
@@ -472,6 +481,7 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
           {[
             ...SECONDARY,
             ...(canSeeInventory ? ["inventory"] : []),
+            ...(canSeeRecipes ? ["recipes"] : []),
             ...(canManageTeam ? ["team"] : []),
           ].map((id) => {
             const Icon = TAB_ICONS[id]; const on = tab === id;
