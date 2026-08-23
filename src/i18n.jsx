@@ -1103,6 +1103,13 @@ export const STRINGS = {
       usingServer: "Using the deployment-wide token set by your administrator.",
     },
 
+    invscan: {
+      title: "Scan a shelf",
+      note: "Photograph a shelf or a delivery and get a list of what the AI can see, with honest quantity estimates.",
+      scan: "Scan shelf",
+      caveat: "These are suggestions, not ledger entries. Use the count workflow to record what's actually on hand.",
+    },
+
     costs: {
       tab: "Bill scan",
       title: "Scan a bill",
@@ -2352,6 +2359,13 @@ export const STRINGS = {
       usingServer: "يُستخدم الرمز العام الذي ضبطه مسؤول النظام.",
     },
 
+    invscan: {
+      title: "امسح رفًا",
+      note: "صوّر رفًا أو تسليمًا واحصل على قائمة بما يراه الذكي، مع تقديرات كمية صريحة.",
+      scan: "امسح الرف",
+      caveat: "هذه اقتراحات لا قيود دفترية. استخدم سير العمل الخاص بالجرد لتسجيل ما هو موجود فعلًا.",
+    },
+
     costs: {
       tab: "مسح الفاتورة",
       title: "امسح فاتورة",
@@ -3592,6 +3606,13 @@ export const STRINGS = {
       usingServer: "आपके एडमिन का सेट किया साझा टोकन इस्तेमाल हो रहा है।",
     },
 
+    invscan: {
+      title: "शेल्फ स्कैन",
+      note: "शेल्फ या डिलीवरी की फोटो लें और एआई जो देखता है उसकी सूची पाएं, साथ में ईमानदार मात्रा अनुमान।",
+      scan: "शेल्फ स्कैन करें",
+      caveat: "ये सुझाव हैं, लेजर प्रविष्टियां नहीं। वास्तविक स्टॉक दर्ज करने के लिए काउंट वर्कफ़्लो का उपयोग करें।",
+    },
+
     costs: {
       tab: "बिल स्कैन",
       title: "बिल स्कैन करें",
@@ -4805,6 +4826,13 @@ export const STRINGS = {
       posNot: "Hindi konektado", posReplace: "Palitan ang token", posRemove: "Idiskonekta",
       posNote: "Naka-encrypt ang token bago itago at hindi kailanman ibinabalik sa browser.",
       usingServer: "Ginagamit ang pangkalahatang token na itinakda ng admin mo.",
+    },
+
+    invscan: {
+      title: "I-scan ang shelf",
+      note: "Kumuha ng litrato ng shelf o delivery at makakuha ng listahan ng nakikita ng AI, kasama ang tapat na quantity estimate.",
+      scan: "I-scan ang shelf",
+      caveat: "Ito ay mga suhestiyon, hindi ledger entries. Gamitin ang count workflow para itala ang aktwal na stock.",
     },
 
     costs: {

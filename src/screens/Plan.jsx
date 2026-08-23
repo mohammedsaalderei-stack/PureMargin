@@ -3,7 +3,7 @@ import { ShoppingCart, AlertTriangle } from "lucide-react";
 import PurchaseLine from "../plan/PurchaseLine.jsx";
 import BranchRanking from "../plan/BranchRanking.jsx";
 import { useC } from "../theme.jsx";
-import { useLang } from "../i18n.jsx";
+import { useLang, fill } from "../i18n.jsx";
 import { scopeQuery, scopeKey } from "../scopeParam.js";
 
 /* Stage 5 — the operational plan.

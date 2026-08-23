@@ -5,7 +5,7 @@ import {
 } from "./_accounts.js";
 import { persistent } from "./_store.js";
 import { clearCache, fetchMerchant } from "./_data.js";
-import { orgFor } from "./_org.js";
+import { orgFor, effectivePlanFor } from "./_org.js";
 import { recordAudit } from "./_audit.js";
 
 /* Accounts predating organizations have no orgId on the record; orgFor

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Scale, AlertTriangle } from "lucide-react";
 import VarianceRow from "../variance/VarianceRow.jsx";
 import { useC } from "../theme.jsx";
-import { useLang } from "../i18n.jsx";
+import { useLang, fill } from "../i18n.jsx";
 import { scopeQuery, scopeKey } from "../scopeParam.js";
 import { DirhamMark } from "../Dirham.jsx";
 
