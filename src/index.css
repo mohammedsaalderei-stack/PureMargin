@@ -1,0 +1,298 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&family=Tajawal:wght@300;400;500;700;800;900&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --ink: #1A1530;
+  --slate: #6B6580;
+  --hairline: rgba(139,92,246,0.12);
+  --bone: #EAE6F2;
+  --surface: #FFFFFF;
+  --panel-glass: rgba(255,255,255,0.80);
+  --panel-solid: rgba(255,255,255,0.94);
+  --panel-grad: rgba(124,58,237,0.05);
+  --row-faint: rgba(124,58,237,0.04);
+  --bar-track: rgba(124,58,237,0.08);
+  --chip-bg: rgba(124,58,237,0.06);
+  --iris: #7C3AED;
+  --iris-deep: #6D28D9;
+  --iris-wash: rgba(124,58,237,0.08);
+  --lilac: #8B5CF6;
+  --lilac-wash: rgba(139,92,246,0.06);
+  --cyan: #0891B2;
+  --cyan-wash: rgba(8,145,178,0.08);
+  --rose: #E11D48;
+  --glow: rgba(124,58,237,0.12);
+  --grid: rgba(124,58,237,0.04);
+  --edge: rgba(124,58,237,0.15);
+}
+
+[data-theme="dark"] {
+  --ink: #E8E6F0;
+  --slate: #8B87A8;
+  --hairline: rgba(255,255,255,0.08);
+  --bone: #0B0815;
+  --surface: #131028;
+  --panel-glass: rgba(11,8,21,0.85);
+  --panel-solid: rgba(15,12,29,0.95);
+  --panel-grad: rgba(15,12,29,0.6);
+  --row-faint: rgba(255,255,255,0.03);
+  --bar-track: rgba(255,255,255,0.06);
+  --chip-bg: rgba(255,255,255,0.05);
+  --iris: #8B5CF6;
+  --iris-deep: #A78BFA;
+  --iris-wash: rgba(139,92,246,0.12);
+  --lilac: #A78BFA;
+  --lilac-wash: rgba(167,139,250,0.10);
+  --cyan: #06B6D4;
+  --cyan-wash: rgba(6,182,212,0.10);
+  --rose: #F43F5E;
+  --glow: rgba(139,92,246,0.25);
+  --grid: rgba(139,92,246,0.04);
+  --edge: rgba(139,92,246,0.20);
+}
+
+html, body, #root { height: 100%; margin: 0; }
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--bone);
+  color: var(--ink);
+  transition: background-color .4s ease, color .3s ease;
+  font-family: 'Inter', 'Tajawal', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+[data-theme="light"] body {
+  background:
+    radial-gradient(1200px 820px at 82% -8%, rgba(139,92,246,0.12), transparent 60%),
+    radial-gradient(1000px 720px at -8% 108%, rgba(8,145,178,0.10), transparent 60%),
+    var(--bone);
+}
+
+/* Display: Space Grotesk for headings, Tajawal for Arabic */
+.display {
+  font-family: 'Space Grotesk', 'Tajawal', system-ui, sans-serif;
+  letter-spacing: -0.01em;
+}
+
+/* Tabular figures */
+.data {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+}
+.figure, .display { font-variant-numeric: tabular-nums; }
+
+/* Micro label */
+.micro {
+  font-family: 'Space Grotesk', 'Tajawal', system-ui, sans-serif;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+/* Arabic: Tajawal throughout, no letter-spacing (cursive script) */
+[dir="rtl"] body,
+[dir="rtl"] .display,
+[dir="rtl"] .data,
+[dir="rtl"] .micro {
+  font-family: 'Tajawal', system-ui, sans-serif;
+}
+[dir="rtl"] .display,
+[dir="rtl"] .micro,
+[dir="rtl"] [class*="tracking-"] {
+  letter-spacing: 0 !important;
+  word-spacing: normal;
+}
+[dir="rtl"] .display { font-weight: 700; }
+[dir="rtl"] .data { font-variant-numeric: normal; }
+
+/* Hindi */
+[lang="hi"] body,
+[lang="hi"] .display,
+[lang="hi"] .data,
+[lang="hi"] .micro {
+  font-family: 'Noto Sans Devanagari', system-ui, sans-serif;
+}
+[lang="hi"] .display { letter-spacing: 0; font-weight: 700; }
+[lang="hi"] .data { font-variant-numeric: tabular-nums; }
+
+[dir="rtl"] .figure {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+  direction: ltr;
+  display: inline-block;
+}
+
+/* Charts always LTR */
+.chart { direction: ltr; }
+
+/* Direction icons flip in RTL */
+[dir="rtl"] .flip-rtl { transform: scaleX(-1); }
+
+:focus-visible {
+  outline: 2px solid var(--iris);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Touch-friendly: kill the tap flash and the 300ms tap delay on controls. */
+* { -webkit-tap-highlight-color: transparent; }
+button, [role="button"], .gbtn, .gpill, .dg-quick { touch-action: manipulation; }
+html { overscroll-behavior-y: none; }
+
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-thumb { background: var(--hairline); border-radius: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+
+/* Animations */
+@keyframes rise {
+  from { opacity: 0; transform: translateY(16px); filter: blur(6px); }
+  to { opacity: 1; transform: none; filter: blur(0); }
+}
+.rise { animation: rise .62s cubic-bezier(.16,.84,.3,1) both; }
+
+/* Cinematic press feedback — every control settles with a spring. */
+button:not(:disabled):active,
+[role="button"]:active {
+  transform: scale(.96);
+}
+.gbtn:not(:disabled):active,
+.gpill:not(:disabled):active,
+.dg-quick:not(:disabled):active {
+  transform: scale(.97);
+}
+
+@keyframes slide-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+.slide-in { animation: slide-in .28s ease-out both; }
+
+@keyframes blink { 0%, 50% { opacity: 1 } 51%, 100% { opacity: 0 } }
+
+/* Skeleton shimmer */
+@keyframes shimmer { 100% { transform: translateX(100%); } }
+.skeleton {
+  position: relative; overflow: hidden;
+  background: var(--hairline); border-radius: 12px;
+}
+.skeleton::after {
+  content: ""; position: absolute; inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.4), transparent);
+  animation: shimmer 1.4s infinite;
+}
+[data-theme="dark"] .skeleton::after {
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.06), transparent);
+}
+
+/* Screen transitions */
+@keyframes screen-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+.screen-in { animation: screen-in .34s cubic-bezier(.2,.7,.3,1) both; }
+
+/* Cinematic screen entrance — slides in from the direction of travel while
+   racking focus (blur → sharp). Used by the tab Transition. */
+@keyframes screen-enter {
+  from { opacity: 0; transform: translateY(var(--enter-from, 16px)) scale(.985); filter: blur(8px); }
+  to { opacity: 1; transform: none; filter: blur(0); }
+}
+
+@keyframes palette-in {
+  from { opacity: 0; transform: translateY(-8px) scale(.985); }
+  to { opacity: 1; transform: none; }
+}
+.palette-in { animation: palette-in .18s ease-out both; }
+
+/* View transitions */
+@keyframes view-in { from { opacity: 0; } to { opacity: 1; } }
+.view-in { animation: view-in .42s cubic-bezier(.2,.75,.3,1) both; }
+
+@keyframes app-in {
+  from { opacity: 0; transform: scale(.988); }
+  to { opacity: 1; transform: none; }
+}
+.app-in { animation: app-in .5s cubic-bezier(.2,.75,.3,1) both; }
+
+@keyframes rail-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+.rail-in { animation: rail-in .45s ease-out .1s both; }
+
+/* Auth transitions */
+@keyframes auth-out {
+  from { opacity: 1; transform: scale(1); }
+  to { opacity: 0; transform: scale(.985); }
+}
+.auth-out { animation: auth-out .26s ease-in both; pointer-events: none; }
+
+@keyframes auth-in {
+  from { opacity: 0; transform: scale(1.008); }
+  to { opacity: 1; transform: none; }
+}
+.auth-in { animation: auth-in .42s cubic-bezier(.2,.75,.3,1) both; }
+
+@keyframes auth-bar {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+.auth-bar {
+  position: fixed; inset-inline: 0; top: 0; height: 2px; z-index: 200;
+  background: var(--iris); transform-origin: left;
+  animation: auth-bar .6s cubic-bezier(.3,.8,.4,1) both;
+}
+[dir="rtl"] .auth-bar { transform-origin: right; }
+
+/* Live indicator */
+@keyframes live-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: .45; transform: scale(.75); }
+}
+@keyframes pulse-glow { 0%, 100% { opacity: .45; } 50% { opacity: 1; } }
+
+/* Truncation */
+.truncate-safe {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Ticket edge — kept for landing receipt demo */
+.ticket { position: relative; background: var(--surface); }
+.ticket::before {
+  content: "";
+  position: absolute; left: 14px; right: 14px; top: 0; height: 3px;
+  background-image: radial-gradient(circle at 3px 1.5px, var(--hairline) 1.5px, transparent 1.6px);
+  background-size: 8px 3px;
+}
+.rule-dashed { border-top: 1px dashed var(--hairline); }
+
+@media (prefers-reduced-motion: reduce) {
+  .rise, .slide-in, .screen-in, .palette-in, .view-in, .app-in, .rail-in,
+  .auth-out, .auth-in, .auth-bar { animation: none; }
+  .skeleton::after { animation: none; }
+  * { scroll-behavior: auto !important; }
+  [style*="live-pulse"] { animation: none !important; }
+}
+
+/* Mobile */
+@media (max-width: 1023px) {
+  html { font-size: 17px; }
+  body { overflow-wrap: anywhere; }
+  .display { letter-spacing: 0; line-height: 1.18; }
+  .micro {
+    font-family: 'Tajawal', system-ui, sans-serif;
+    font-size: 11px;
+    letter-spacing: .06em;
+  }
+  [dir="rtl"] .micro { letter-spacing: 0; }
+  .reading-xl { font-size: 32px; line-height: 1.05; }
+  .reading-lg { font-size: 26px; line-height: 1.1; }
+}

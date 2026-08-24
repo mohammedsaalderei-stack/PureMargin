@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <filter id="wide" x="-90%" y="-90%" width="280%" height="280%">
+      <feGaussianBlur stdDeviation="22"/>
+    </filter>
+    <filter id="mid" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="8"/>
+    </filter>
+    <radialGradient id="halo" cx="50%" cy="46%" r="60%">
+      <stop offset="0%" stop-color="#A855F7" stop-opacity=".45"/>
+      <stop offset="60%" stop-color="#8B3FEB" stop-opacity=".12"/>
+      <stop offset="100%" stop-color="#050308" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="512" height="512" rx="118" fill="#08040E"/>
+  <rect width="512" height="512" rx="118" fill="url(#halo)"/>
+
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round"
+     transform="translate(93 148) scale(1.62)">
+    <g filter="url(#wide)" opacity=".8">
+      <path d="M 26 96 L 26 20 L 58 20 A 22 22 0 0 1 58 64 L 26 64" stroke="#A855F7" stroke-width="17"/>
+      <path d="M 100 96 L 100 20 L 130 62 L 160 20 L 160 96" stroke="#A855F7" stroke-width="17"/>
+    </g>
+    <g filter="url(#mid)">
+      <path d="M 26 96 L 26 20 L 58 20 A 22 22 0 0 1 58 64 L 26 64" stroke="#D8B4FE" stroke-width="11"/>
+      <path d="M 100 96 L 100 20 L 130 62 L 160 20 L 160 96" stroke="#D8B4FE" stroke-width="11"/>
+    </g>
+    <path d="M 26 96 L 26 20 L 58 20 A 22 22 0 0 1 58 64 L 26 64" stroke="#D8B4FE" stroke-width="8" opacity=".9"/>
+    <path d="M 100 96 L 100 20 L 130 62 L 160 20 L 160 96" stroke="#D8B4FE" stroke-width="8" opacity=".9"/>
+    <path d="M 26 96 L 26 20 L 58 20 A 22 22 0 0 1 58 64 L 26 64" stroke="#FFFFFF" stroke-width="3"/>
+    <path d="M 100 96 L 100 20 L 130 62 L 160 20 L 160 96" stroke="#FFFFFF" stroke-width="3"/>
+  </g>
+</svg>

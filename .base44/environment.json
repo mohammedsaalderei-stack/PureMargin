@@ -1,0 +1,27 @@
+{
+  "previewPort": 3000,
+  "healthPath": "/",
+  "startCommand": "docker compose -f docker-compose.base44.yml up -d",
+  "secrets": [
+    {
+      "name": "ANTHROPIC_API_KEY",
+      "description": "Required for the Ask (اسأل) screen to call Claude. Get it from the Anthropic Console → API Keys. The app boots without it; only the assistant chat returns an error.",
+      "requiredAtBoot": false
+    },
+    {
+      "name": "ADMIN_EMAIL",
+      "description": "Email of the account that may open the admin panel at #/admin. Must match an account that has already registered. Without it the panel refuses every sign-in, and there is no other way to grant the first admin.",
+      "requiredAtBoot": false
+    },
+    {
+      "name": "LOYVERSE_ACCESS_TOKEN",
+      "description": "Optional. Connects a real Loyverse POS so the dashboard shows live sales. Without it the app runs on labelled demo data.",
+      "requiredAtBoot": false
+    },
+    {
+      "name": "FEEDBACK_WEBHOOK_URL",
+      "description": "Optional. Where 'not helpful' reports and support tickets are delivered (e.g. a Slack/Discord webhook).",
+      "requiredAtBoot": false
+    }
+  ]
+}

@@ -1,0 +1,333 @@
+/* ===================================================================
+   Futuristic glassmorphism landing
+   Built on the app's existing palette (iris / lilac / cyan / neon on a
+   midnight substrate). No new wording or features — pure presentation.
+   =================================================================== */
+
+/* Fixed ambient aura: floating glow orbs behind all content.
+   position: fixed so it never interferes with sticky positioning. */
+.glass-aura {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+.orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(90px);
+  pointer-events: none;
+  will-change: transform;
+}
+.orb-1 {
+  width: 520px; height: 520px;
+  background: radial-gradient(circle, var(--iris), transparent 70%);
+  top: -160px; inset-inline-end: -120px;
+  opacity: 0.55;
+  animation: drift 20s ease-in-out infinite;
+}
+.orb-2 {
+  width: 460px; height: 460px;
+  background: radial-gradient(circle, var(--cyan), transparent 70%);
+  bottom: -180px; inset-inline-start: -140px;
+  opacity: 0.4;
+  animation: drift 26s ease-in-out infinite reverse;
+}
+.orb-3 {
+  width: 380px; height: 380px;
+  background: radial-gradient(circle, var(--neon), transparent 70%);
+  top: 38%; inset-inline-start: 32%;
+  opacity: 0.28;
+  animation: drift 30s ease-in-out infinite;
+}
+@keyframes drift {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(34px, -28px) scale(1.08); }
+}
+/* Light mode: orbs become soft pastel washes, not neon smudges. */
+[data-theme="light"] .orb-1 { opacity: 0.22; }
+[data-theme="light"] .orb-2 { opacity: 0.18; }
+[data-theme="light"] .orb-3 { opacity: 0.12; }
+
+/* ---- Frosted glass surface ---- */
+.glass {
+  background: rgba(255, 255, 255, 0.035);
+  backdrop-filter: blur(22px) saturate(160%);
+  -webkit-backdrop-filter: blur(22px) saturate(160%);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    inset 0 0 28px rgba(139, 92, 246, 0.05),
+    0 28px 64px -36px rgba(0, 0, 0, 0.85);
+}
+[data-theme="light"] .glass {
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(124, 58, 237, 0.14);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 20px 50px -32px rgba(80, 40, 140, 0.20);
+}
+
+/* ---- Glass card with shimmer sweep on hover ---- */
+.glass-card {
+  position: relative;
+  overflow: hidden;
+  border-radius: 20px;
+  will-change: transform;
+  transition:
+    transform .45s cubic-bezier(.2, .7, .3, 1),
+    border-color .45s ease,
+    box-shadow .45s ease;
+}
+.glass-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    115deg,
+    transparent 30%,
+    rgba(255, 255, 255, 0.09) 48%,
+    transparent 66%
+  );
+  transform: translateX(-130%);
+  transition: transform .9s ease;
+}
+.glass-card:hover {
+  transform: translateY(-8px);
+  border-color: rgba(168, 85, 247, 0.5);
+  box-shadow:
+    0 0 0 1px rgba(168, 85, 247, 0.22),
+    0 0 44px -8px rgba(168, 85, 247, 0.38),
+    0 42px 90px -36px rgba(168, 85, 247, 0.42),
+    inset 0 1px 0 rgba(255, 255, 255, 0.16);
+}
+.glass-card:hover::before {
+  transform: translateX(130%);
+}
+
+/* ---- Floating glass header ---- */
+.glass-header-inner {
+  background: rgba(8, 6, 14, 0.5);
+  backdrop-filter: blur(18px) saturate(150%);
+  -webkit-backdrop-filter: blur(18px) saturate(150%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 14px 44px -28px rgba(0, 0, 0, 0.85);
+}
+[data-theme="light"] .glass-header-inner {
+  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid rgba(124, 58, 237, 0.14);
+  box-shadow: 0 10px 30px -20px rgba(80, 40, 140, 0.25);
+}
+
+/* ---- Glass buttons ---- */
+.gbtn {
+  position: relative;
+  overflow: hidden;
+  border-radius: 999px;
+  transition: transform .25s ease, box-shadow .25s ease, border-color .25s ease, background .25s ease;
+}
+.gbtn-primary {
+  background: linear-gradient(135deg, var(--iris), var(--neon));
+  color: var(--onPrimary);
+  box-shadow:
+    0 0 26px -6px var(--iris),
+    inset 0 1px 0 rgba(255, 255, 255, 0.28);
+}
+.gbtn-primary::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -130%;
+  width: 60%;
+  height: 100%;
+  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.38), transparent);
+  transform: skewX(-18deg);
+  transition: left .7s cubic-bezier(.2, .7, .3, 1);
+  pointer-events: none;
+}
+.gbtn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 0 44px -4px var(--iris),
+    inset 0 1px 0 rgba(255, 255, 255, 0.34);
+}
+.gbtn-primary:hover::after {
+  left: 140%;
+}
+.gbtn-ghost {
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--ink);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+.gbtn-ghost:hover {
+  border-color: rgba(168, 85, 247, 0.5);
+  background: rgba(168, 85, 247, 0.1);
+  transform: translateY(-2px);
+}
+[data-theme="light"] .gbtn-ghost {
+  border: 1px solid rgba(80, 40, 140, 0.25);
+  background: rgba(255, 255, 255, 0.5);
+}
+
+/* ---- Reflective podium under the hero visual ---- */
+.podium {
+  position: relative;
+  display: flex;
+  justify-content: center;
+}
+.podium-glow {
+  position: absolute;
+  left: 50%;
+  bottom: -14px;
+  width: 82%;
+  height: 72px;
+  transform: translateX(-50%);
+  background: radial-gradient(ellipse at center, var(--iris), rgba(6,182,212,0.4) 45%, transparent 72%);
+  filter: blur(34px);
+  opacity: 0.62;
+  animation: glow-pulse 5s ease-in-out infinite;
+}
+.podium-ring {
+  position: absolute;
+  left: 50%;
+  bottom: -8px;
+  width: 74%;
+  height: 32px;
+  transform: translateX(-50%);
+  border: 1px solid rgba(168, 85, 247, 0.45);
+  border-radius: 50%;
+  background: linear-gradient(to top, rgba(168, 85, 247, 0.16), transparent);
+  box-shadow: 0 0 24px -4px rgba(168, 85, 247, 0.4);
+  animation: ring-pulse 5s ease-in-out infinite;
+}
+@keyframes glow-pulse {
+  0%, 100% { opacity: 0.48; transform: translateX(-50%) scale(1); }
+  50% { opacity: 0.85; transform: translateX(-50%) scale(1.09); }
+}
+@keyframes ring-pulse {
+  0%, 100% { opacity: 0.5; transform: translateX(-50%) scale(1); }
+  50% { opacity: 0.9; transform: translateX(-50%) scale(1.06); }
+}
+
+.float { animation: float 6s ease-in-out infinite; }
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-12px); }
+}
+
+/* ---- Gradient display text ---- */
+/* background-clip:text clips the glyph's descenders to the line box, so
+   Arabic (ق ج ى) and Latin (g y p) tails get shaved off at every viewport.
+   A little bottom padding gives the paint area room; the negative margin
+   keeps surrounding layout/spacing unchanged. */
+.grad-text {
+  background: linear-gradient(120deg, var(--ink), var(--lilac) 55%, var(--cyan));
+  background-size: 220% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: text-shimmer 8s ease-in-out infinite;
+  padding-block-end: 0.18em;
+  margin-block-end: -0.18em;
+}
+/* Arabic/Devanagari sit lower in the line box and need more room. */
+[dir="rtl"] .grad-text,
+[lang="hi"] .grad-text {
+  padding-block-end: 0.3em;
+  margin-block-end: -0.3em;
+}
+[data-theme="dark"] .grad-text {
+  background: linear-gradient(120deg, #F0E8FF, var(--lilac) 55%, var(--cyan));
+  background-size: 220% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+@keyframes text-shimmer {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+/* ---- Big HUD index numerals ---- */
+.index-num {
+  font-family: 'Orbitron', 'Tajawal', monospace;
+  font-weight: 800;
+  font-size: 1.5rem;
+  line-height: 1;
+  opacity: 0.16;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+@media (min-width: 1024px) {
+  .index-num { font-size: 2.75rem; }
+}
+[dir="rtl"] .index-num { letter-spacing: 0; }
+
+/* ---- Protocol steps rail ---- */
+.step-rail { position: relative; }
+.step-rail::before {
+  content: "";
+  position: absolute;
+  inset-inline-start: 0;
+  top: 8px;
+  bottom: 8px;
+  width: 1px;
+  background: linear-gradient(to bottom, var(--iris), transparent);
+}
+
+/* ---- HUD corner brackets on a panel ---- */
+.bracket {
+  position: relative;
+}
+.bracket::before,
+.bracket::after {
+  content: "";
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  border-color: rgba(139, 92, 246, 0.4);
+  border-style: solid;
+  pointer-events: none;
+}
+.bracket::before {
+  top: 10px; inset-inline-start: 10px;
+  border-width: 1px 0 0 1px;
+  border-radius: 5px 0 0 0;
+}
+.bracket::after {
+  bottom: 10px; inset-inline-end: 10px;
+  border-width: 0 1px 1px 0;
+  border-radius: 0 0 5px 0;
+}
+[dir="rtl"] .bracket::before { border-width: 1px 1px 0 0; border-radius: 0 5px 0 0; }
+[dir="rtl"] .bracket::after { border-width: 0 0 1px 1px; border-radius: 0 0 0 5px; }
+
+/* ---- Eyebrow chip ---- */
+.eyebrow-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(168, 85, 247, 0.3);
+  background: rgba(168, 85, 247, 0.08);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+/* ---- Section divider line ---- */
+.hairline-edge { border-top: 1px solid rgba(255, 255, 255, 0.06); }
+[data-theme="light"] .hairline-edge { border-top: 1px solid rgba(80, 40, 140, 0.1); }
+
+@media (prefers-reduced-motion: reduce) {
+  .float, .orb, .podium-glow, .podium-ring, .grad-text { animation: none !important; }
+  .glass-card::before, .gbtn-primary::after { display: none; }
+}

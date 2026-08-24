@@ -1,0 +1,15 @@
+{
+  "name": "PureMargin",
+  "short_name": "PureMargin",
+  "description": "Net profit intelligence for restaurants, cafes and cloud kitchens.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#08060E",
+  "theme_color": "#08060E",
+  "orientation": "any",
+  "lang": "ar",
+  "dir": "rtl",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
