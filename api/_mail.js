@@ -31,7 +31,7 @@ function from() {
   if (!configuredFrom) return DEFAULT_FROM;
 
   const address = configuredFrom.match(/<([^>]+)>\s*$/)?.[1] ?? configuredFrom;
-  if (/^[^\s@]+@[^\s@.]+\.[^\s@]+$/.test(address.trim())) return configuredFrom;
+  if (/^[^\s@<>]+@[^\s@.<>]+\.[^\s@<>]+$/.test(address.trim())) return configuredFrom;
 
   console.warn(
     "[mail] MAIL_FROM is not a valid sender — expected `email@example.com` or " +

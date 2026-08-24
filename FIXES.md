@@ -103,6 +103,52 @@ Now declared in all three places, with an empty value you must fill in.
 Case and surrounding whitespace don't matter — both the stored email and the
 env var are lowercased and trimmed.
 
+## 7. `MAIL_FROM` validator accepted a malformed sender — Resend 422
+
+`api/_mail.js` has a guard meant to reject a badly-formed `MAIL_FROM` and fall
+back to Resend's shared sender. It let `<anything>@riafdoluu.resend.app`
+through, and Resend refused the whole send:
+
+```
+"name": "validation_error",
+"message": "Invalid `from` field. The email address needs to follow the
+            `email@example.com` or `Name <email@example.com>` format.",
+"statusCode": 422
+```
+
+Two things combined. The extraction regex `<([^>]+)>\s*$` anchors the closing
+bracket to the end of the string, so with the brackets in the middle it didn't
+match and the raw string was validated instead. And the validator's character
+classes `[^\s@]` don't exclude `<` or `>`, so `<anything>` was accepted as a
+local part.
+
+Excluded angle brackets from all three classes:
+
+```js
+- if (/^[^\s@]+@[^\s@.]+\.[^\s@]+$/.test(address.trim())) return configuredFrom;
++ if (/^[^\s@<>]+@[^\s@.<>]+\.[^\s@<>]+$/.test(address.trim())) return configuredFrom;
+```
+
+A malformed sender now falls back with a logged warning instead of costing
+somebody their reset code.
+
+The underlying cause was configuration: `<anything>` is a placeholder from the
+Resend dashboard meaning "choose a mailbox name", copied in literally. With
+`puremargin.ae` verified, set:
+
+```
+MAIL_FROM=PureMargin <noreply@puremargin.ae>
+```
+
+## 8. Undocumented mail and POS environment variables
+
+`RESEND_API_KEY`, `MAIL_FROM`, `MAIL_REPLY_TO`, `FEEDBACK_EMAIL_TO`,
+`POS_ACCESS_TOKEN` and `POS_API_BASE` are all read by the code but appeared
+nowhere in `.env.example` — the same gap that hid `ADMIN_EMAIL`, and the reason
+the sender placeholder was guessed at rather than looked up. All six are now
+documented, with the `MAIL_FROM` entry calling out the placeholder trap
+specifically.
+
 ---
 
 ## Verified clean
