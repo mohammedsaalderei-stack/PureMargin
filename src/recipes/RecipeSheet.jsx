@@ -2,7 +2,7 @@ import { useState } from "react";
 import { X, AlertTriangle, FlaskConical, Pencil, Archive } from "lucide-react";
 import CostSimulator from "./CostSimulator.jsx";
 import { useC } from "../theme.jsx";
-import { useLang } from "../i18n.jsx";
+import { useLang, fill } from "../i18n.jsx";
 import { DirhamMark } from "../Dirham.jsx";
 
 /* One recipe, costed: where each line's money comes from.

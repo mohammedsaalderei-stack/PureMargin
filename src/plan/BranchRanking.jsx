@@ -1,5 +1,5 @@
 import { useC } from "../theme.jsx";
-import { useLang } from "../i18n.jsx";
+import { useLang, fill } from "../i18n.jsx";
 import { DirhamMark } from "../Dirham.jsx";
 
 /* Which branch leaked the most, and why.

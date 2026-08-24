@@ -1,6 +1,6 @@
 import { AlertTriangle } from "lucide-react";
 import { useC } from "../theme.jsx";
-import { useLang } from "../i18n.jsx";
+import { useLang, fill } from "../i18n.jsx";
 import { DirhamMark } from "../Dirham.jsx";
 
 /* One ingredient's story: what the recipes expected, what the store gave up, and

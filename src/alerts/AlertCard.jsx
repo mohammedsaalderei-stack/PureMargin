@@ -1,6 +1,6 @@
 import { AlertTriangle, Eye, Info } from "lucide-react";
 import { useC } from "../theme.jsx";
-import { useLang } from "../i18n.jsx";
+import { useLang, fill } from "../i18n.jsx";
 import { DirhamMark } from "../Dirham.jsx";
 
 /* One finding: what happened, the threshold it crossed, what it's worth, and the

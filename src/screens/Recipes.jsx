@@ -3,7 +3,7 @@ import { Plus, ChefHat, AlertTriangle } from "lucide-react";
 import RecipeForm from "../recipes/RecipeForm.jsx";
 import RecipeSheet from "../recipes/RecipeSheet.jsx";
 import { useC } from "../theme.jsx";
-import { useLang } from "../i18n.jsx";
+import { useLang, fill } from "../i18n.jsx";
 import { DirhamMark } from "../Dirham.jsx";
 
 /* Recipes and what they cost — stage 4, phase 5.

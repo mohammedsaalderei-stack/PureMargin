@@ -208,6 +208,14 @@ export const STRINGS = {
       showing: "Showing {count} of {total} branches",
     },
     team: {
+      joinedNow: "They're on the team — they already had an account.",
+      inviteSent: "Invitation sent.",
+      pendingTitle: "Pending invitations",
+      pendingNote: "Sent but not accepted yet. They join the moment they register with that address.",
+      revoke: "Withdraw invitation",
+      emailPlaceholder: "Email address",
+      invite: "Send invitation",
+      planNote: "Members work under the packages on this account.",
       tab: "Team",
       title: "Team and permissions",
       lead: "Who can see what. Everyone signs in to the whole organisation; their role decides which branches and which sections they reach.",
@@ -219,7 +227,7 @@ export const STRINGS = {
       noBranchesYet: "Connect your POS to see branches here.",
       remove: "Remove from team",
       addTitle: "Add or update someone",
-      addNote: "Use the username they sign in with. You can add them before they register — the role waits for them.",
+      addNote: "Use the email address they sign in with. You can invite them before they register — the role waits for them.",
       usernamePlaceholder: "Username",
       branchesLabel: "Branches they may see",
       add: "Save member",
@@ -831,6 +839,7 @@ export const STRINGS = {
 
 
     menu: {
+      byRevenue: "by revenue",
       tab: "Menu",
       title: "How your menu earns",
       lead: "Every dish placed by how often it sells against what it brings in per order. The lines are your own medians, so this is your menu judged against itself.",
@@ -1103,6 +1112,13 @@ export const STRINGS = {
       usingServer: "Using the deployment-wide token set by your administrator.",
     },
 
+    aiscan: {
+      locked: "That needs a package this account doesn't have yet.",
+      failed: "The photo couldn't be read. Try again in better light.",
+      analyzing: "Reading the photo…",
+      retake: "Take another",
+      take: "Take a photo",
+    },
     invscan: {
       title: "Scan a shelf",
       note: "Photograph a shelf or a delivery and get a list of what the AI can see, with honest quantity estimates.",
@@ -1131,6 +1147,7 @@ export const STRINGS = {
     },
 
     billing: {
+      active: "Active",
       tab: "Packages", title: "Choose what you need",
       lead: "Your account is set up. Pick the pieces you'll use — you can add the rest later, and drop any of them just as easily.",
       pickOne: "Nothing selected yet", selected: "{n} selected",
@@ -1472,6 +1489,14 @@ export const STRINGS = {
       showing: "يُعرض {count} من {total} فرعًا",
     },
     team: {
+      joinedNow: "أصبح في الفريق — كان لديه حساب بالفعل.",
+      inviteSent: "أُرسلت الدعوة.",
+      pendingTitle: "دعوات معلّقة",
+      pendingNote: "أُرسلت ولم تُقبل بعد. ينضمّ فور تسجيله بهذا البريد.",
+      revoke: "سحب الدعوة",
+      emailPlaceholder: "البريد الإلكتروني",
+      invite: "إرسال دعوة",
+      planNote: "يعمل الأعضاء ضمن الباقات المفعّلة على هذا الحساب.",
       tab: "الفريق",
       title: "الفريق والصلاحيات",
       lead: "من يرى ماذا. الجميع يدخل إلى المؤسسة كاملة، والدور هو ما يحدّد الفروع والأقسام التي يصل إليها.",
@@ -2095,6 +2120,7 @@ export const STRINGS = {
 
 
     menu: {
+      byRevenue: "حسب الإيراد",
       tab: "القائمة",
       title: "كيف تكسب قائمتك",
       lead: "كل طبق موضوع حسب عدد مرات طلبه مقابل ما يجلبه في الطلب الواحد. الخطوط هي وسطاء أرقامك أنت، فالقائمة تُقاس على نفسها.",
@@ -2367,6 +2393,13 @@ export const STRINGS = {
       usingServer: "يُستخدم الرمز العام الذي ضبطه مسؤول النظام.",
     },
 
+    aiscan: {
+      locked: "هذا يحتاج باقة لا يملكها هذا الحساب بعد.",
+      failed: "تعذّرت قراءة الصورة. أعد المحاولة بإضاءة أفضل.",
+      analyzing: "جارٍ قراءة الصورة…",
+      retake: "التقط صورة أخرى",
+      take: "التقط صورة",
+    },
     invscan: {
       title: "امسح رفًا",
       note: "صوّر رفًا أو تسليمًا واحصل على قائمة بما يراه الذكي، مع تقديرات كمية صريحة.",
@@ -2395,6 +2428,7 @@ export const STRINGS = {
     },
 
     billing: {
+      active: "مفعّلة",
       tab: "الباقات", title: "اختر ما تحتاجه",
       lead: "حسابك جاهز. اختر القطع التي ستستخدمها — تستطيع إضافة الباقي لاحقًا، وإلغاء أي منها بالسهولة نفسها.",
       pickOne: "لم تختر شيئًا بعد", selected: "{n} مختارة",
@@ -2708,6 +2742,14 @@ export const STRINGS = {
       showing: "{total} में से {count} ब्रांच दिख रही हैं",
     },
     team: {
+      joinedNow: "वे टीम में आ गए — उनका खाता पहले से था।",
+      inviteSent: "निमंत्रण भेज दिया गया।",
+      pendingTitle: "लंबित निमंत्रण",
+      pendingNote: "भेजे गए, अभी स्वीकार नहीं हुए। उस पते से रजिस्टर करते ही वे जुड़ जाएँगे।",
+      revoke: "निमंत्रण वापस लीजिए",
+      emailPlaceholder: "ईमेल पता",
+      invite: "निमंत्रण भेजिए",
+      planNote: "सदस्य इसी खाते के पैकेजों के तहत काम करते हैं।",
       tab: "टीम",
       title: "टीम और अनुमतियाँ",
       lead: "कौन क्या देख सकता है। सब पूरे संगठन में साइन इन करते हैं; भूमिका तय करती है कि कौन-सी ब्रांच और कौन-से हिस्से मिलें।",
@@ -2719,7 +2761,7 @@ export const STRINGS = {
       noBranchesYet: "ब्रांच यहाँ देखने के लिए POS जोड़ें।",
       remove: "टीम से हटाएँ",
       addTitle: "किसी को जोड़ें या बदलें",
-      addNote: "वही यूज़रनेम लिखें जिससे वे साइन इन करते हैं। रजिस्टर करने से पहले भी जोड़ सकते हैं — भूमिका उनका इंतज़ार करेगी।",
+      addNote: "वही ईमेल पता लिखें जिससे वे साइन इन करते हैं। रजिस्टर करने से पहले भी निमंत्रण भेज सकते हैं — भूमिका उनका इंतज़ार करेगी।",
       usernamePlaceholder: "यूज़रनेम",
       branchesLabel: "वे कौन-सी ब्रांच देख सकते हैं",
       add: "सदस्य सहेजें",
@@ -3289,6 +3331,7 @@ export const STRINGS = {
     },
 
     menu: {
+      byRevenue: "कमाई के हिसाब से",
       tab: "मेन्यू",
       title: "आपका मेन्यू कैसे कमाता है",
       lead: "हर डिश इस हिसाब से रखी गई है कि वह कितनी बार बिकती है और हर ऑर्डर पर कितना लाती है। रेखाएँ आपके अपने मध्यक हैं — यानी मेन्यू की तुलना ख़ुद से।",
@@ -3526,8 +3569,6 @@ export const STRINGS = {
         watch: "उस शाखा की बिक्री, ऑर्डर, और ऑर्डर कब आते हैं।",
         caution: "शाखाएँ अलग मोहल्लों में हैं। फ़ासले का कुछ हिस्सा सड़क है, रसोई नहीं।" },
       risk: { title: "बहुत कुछ {name} पर टिका है",
-        body: "एक ही व्यंजन आपकी कमाई का बड़ा हिस्सा उठा रह�ोई नहीं।" },
-      risk: { title: "बहुत कुछ {name} पर टिका है",
         body: "एक ही व्यंजन आपकी कमाई का बड़ा हिस्सा उठा रहा है। यह अच्छी समस्या है — तब तक, जब तक सप्लायर न बदले, दाम न हिले, या लोग ऊब न जाएँ।",
         impact: "दूसरा मज़बूत व्यंजन होने का मतलब है कि एक व्यंजन का बुरा महीना पूरे कारोबार का बुरा महीना नहीं बनता।",
         plan: ["इसके ठीक पीछे बैठे दो व्यंजन ढूँढिए।", "उनमें से एक को तय अवधि के लिए मेन्यू में बेहतर जगह दीजिए।", "देखिए कुल बढ़ा या ऑर्डर बस व्यंजनों के बीच खिसके।"],
@@ -3622,6 +3663,13 @@ export const STRINGS = {
       usingServer: "आपके एडमिन का सेट किया साझा टोकन इस्तेमाल हो रहा है।",
     },
 
+    aiscan: {
+      locked: "इसके लिए वह पैकेज चाहिए जो इस खाते के पास अभी नहीं है।",
+      failed: "तस्वीर पढ़ी नहीं जा सकी। बेहतर रोशनी में दोबारा कोशिश कीजिए।",
+      analyzing: "तस्वीर पढ़ी जा रही है…",
+      retake: "दूसरी तस्वीर लीजिए",
+      take: "तस्वीर लीजिए",
+    },
     invscan: {
       title: "शेल्फ स्कैन",
       note: "शेल्फ या डिलीवरी की फोटो लें और एआई जो देखता है उसकी सूची पाएं, साथ में ईमानदार मात्रा अनुमान।",
@@ -3650,6 +3698,7 @@ export const STRINGS = {
     },
 
     billing: {
+      active: "सक्रिय",
       tab: "पैकेज", title: "जो चाहिए वह चुनिए",
       lead: "आपका खाता तैयार है। जो हिस्से इस्तेमाल करेंगे वही चुनिए — बाक़ी बाद में जोड़ सकते हैं, और उतनी ही आसानी से हटा भी सकते हैं।",
       pickOne: "अभी कुछ नहीं चुना", selected: "{n} चुने गए",
@@ -3940,6 +3989,14 @@ export const STRINGS = {
       showing: "Ipinapakita ang {count} sa {total} branch",
     },
     team: {
+      joinedNow: "Nasa team na sila — mayroon na silang account.",
+      inviteSent: "Naipadala ang imbitasyon.",
+      pendingTitle: "Mga nakabinbing imbitasyon",
+      pendingNote: "Naipadala pero hindi pa tinatanggap. Sasali sila sa oras na magrehistro sila gamit ang address na iyon.",
+      revoke: "Bawiin ang imbitasyon",
+      emailPlaceholder: "Email address",
+      invite: "Magpadala ng imbitasyon",
+      planNote: "Gumagana ang mga miyembro sa ilalim ng mga pakete ng account na ito.",
       tab: "Team",
       title: "Team at mga permission",
       lead: "Sino ang makakakita ng ano. Lahat ay nagsa-sign in sa buong organisasyon; ang role ang nagtatakda kung aling branch at aling bahagi ang maaabot nila.",
@@ -3951,7 +4008,7 @@ export const STRINGS = {
       noBranchesYet: "Ikonekta ang POS mo para lumabas ang mga branch dito.",
       remove: "Alisin sa team",
       addTitle: "Magdagdag o mag-update ng tao",
-      addNote: "Gamitin ang username na ginagamit nila sa pag-sign in. Maaari mo silang idagdag bago pa sila magrehistro — hihintayin sila ng role.",
+      addNote: "Gamitin ang email address na ginagamit nila sa pag-sign in. Maaari mo silang imbitahan bago pa sila magrehistro — hihintayin sila ng role.",
       usernamePlaceholder: "Username",
       branchesLabel: "Mga branch na makikita nila",
       add: "I-save ang miyembro",
@@ -4521,6 +4578,7 @@ export const STRINGS = {
     },
 
     menu: {
+      byRevenue: "ayon sa kita",
       tab: "Menu",
       title: "Paano kumikita ang menu mo",
       lead: "Nakalagay ang bawat putahe ayon sa dalas ng benta laban sa dala nito kada order. Sarili mong median ang mga linya — ang menu mo, sinusukat sa sarili nito.",
@@ -4852,6 +4910,13 @@ export const STRINGS = {
       usingServer: "Ginagamit ang pangkalahatang token na itinakda ng admin mo.",
     },
 
+    aiscan: {
+      locked: "Kailangan nito ng pakete na wala pa sa account na ito.",
+      failed: "Hindi mabasa ang larawan. Subukan ulit sa mas maliwanag na ilaw.",
+      analyzing: "Binabasa ang larawan…",
+      retake: "Kumuha ng iba",
+      take: "Kumuha ng larawan",
+    },
     invscan: {
       title: "I-scan ang shelf",
       note: "Kumuha ng litrato ng shelf o delivery at makakuha ng listahan ng nakikita ng AI, kasama ang tapat na quantity estimate.",
@@ -4880,6 +4945,7 @@ export const STRINGS = {
     },
 
     billing: {
+      active: "Aktibo",
       tab: "Pakete", title: "Piliin ang kailangan mo",
       lead: "Handa na ang account mo. Piliin ang mga pirasong gagamitin — puwedeng idagdag ang iba mamaya, at kasingdali ring tanggalin.",
       pickOne: "Wala pang napipili", selected: "{n} ang napili",

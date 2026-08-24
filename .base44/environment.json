@@ -9,6 +9,11 @@
       "requiredAtBoot": false
     },
     {
+      "name": "ADMIN_EMAIL",
+      "description": "Email of the account that may open the admin panel at #/admin. Must match an account that has already registered. Without it the panel refuses every sign-in, and there is no other way to grant the first admin.",
+      "requiredAtBoot": false
+    },
+    {
       "name": "LOYVERSE_ACCESS_TOKEN",
       "description": "Optional. Connects a real Loyverse POS so the dashboard shows live sales. Without it the app runs on labelled demo data.",
       "requiredAtBoot": false
