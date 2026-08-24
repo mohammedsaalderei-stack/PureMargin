@@ -911,7 +911,7 @@ export const STRINGS = {
     decision: {
       eyebrow: "Where we stop",
       title: "You know your kitchen. PureMargin knows the numbers.",
-      lead: "We won't tell you what to make.",
+      lead: "We won't tell you what to make. We'll tell you what sold, when it sold, and what that usually means — then we get out of the way.",
       items: [
         { t: "Nothing invented", b: "Every figure traces back to a receipt you could go and find. If the data can't answer, it says so instead of guessing." },
         { t: "Nothing hidden", b: "Each note shows what it was read from and how strong the evidence is, so you can weigh it rather than take it." },
@@ -2192,7 +2192,7 @@ export const STRINGS = {
     decision: {
       eyebrow: "أين نتوقف",
       title: "أنت تعرف واجهة المشروع. وPureMargin تعرف الأرقام.",
-      lead: "لن نخبرك بما تطبخ. سنخبرك بما بيع، ومتى بيع، وماذا يعني ذلك عادة — ثم نبتعد عن الطريق.",
+      lead: "لن نخبرك بما تصنع. سنخبرك بما بِيع، ومتى بِيع، وماذا يعني ذلك عادةً — ثم نبتعد عن الطريق.",
       items: [
         { t: "لا شيء مُختلق", b: "كل رقم يعود إلى فاتورة يمكنك الذهاب وإيجادها. وإذا عجزت البيانات عن الإجابة، تقول ذلك بدل أن تخمّن." },
         { t: "لا شيء مخفي", b: "كل ملاحظة تعرض مما قُرئت وكم دليلها قوي، لتزنها بنفسك بدل أن تأخذها كما هي." },
@@ -3462,7 +3462,7 @@ export const STRINGS = {
     decision: {
       eyebrow: "हम कहाँ रुकते हैं",
       title: "रसोई आप जानते हैं। आँकड़े PureMargin जानता है।",
-      lead: "हम नहीं बताएँगे कि क्या बनाइए।",
+      lead: "हम नहीं बताएँगे कि क्या बनाइए। हम बताएँगे कि क्या बिका, कब बिका, और आम तौर पर उसका क्या मतलब होता है — फिर रास्ते से हट जाएँगे।",
       items: [
         { t: "कुछ भी गढ़ा नहीं", b: "हर आँकड़ा किसी ऐसी रसीद तक जाता है जिसे आप जाकर देख सकते हैं। जवाब न हो तो अंदाज़ा लगाने के बजाय यह कह देता है।" },
         { t: "कुछ भी छिपा नहीं", b: "हर नोट बताता है कि किससे पढ़ा गया और सबूत कितना मज़बूत है, ताकि आप तौलें, मानें नहीं।" },
@@ -4709,7 +4709,7 @@ export const STRINGS = {
     decision: {
       eyebrow: "Saan kami humihinto",
       title: "Kilala mo ang kusina mo. Kilala ng PureMargin ang mga numero.",
-      lead: "Hindi namin sasabihin kung ano ang gagawin.",
+      lead: "Hindi namin sasabihin kung ano ang gagawin. Sasabihin namin kung ano ang nabenta, kailan nabenta, at ano ang karaniwang ibig sabihin niyon — pagkatapos ay uurong kami sa gilid.",
       items: [
         { t: "Walang inimbento", b: "Bawat numero ay may resibong mahahanap mo. Kung hindi kayang sagutin ng datos, sinasabi nito imbes na manghula." },
         { t: "Walang itinatago", b: "Ipinapakita ng bawat tala kung saan binasa at gaano katibay ang ebidensya, para timbangin mo, hindi basta tanggapin." },

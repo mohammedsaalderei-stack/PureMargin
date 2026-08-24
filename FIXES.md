@@ -149,6 +149,37 @@ the sender placeholder was guessed at rather than looked up. All six are now
 documented, with the `MAIL_FROM` entry calling out the placeholder trap
 specifically.
 
+## 9. Invitation links carried the wrong domain
+
+`api/team.js` built the invite URL from the request headers:
+
+```js
+const origin = req.headers.origin || (req.headers.host ? `https://${req.headers.host}` : "");
+```
+
+Whatever host the inviter happened to be on went into someone else's inbox —
+a preview build, or the project's `*.vercel.app` address. The link worked but
+didn't look like the product, and a preview URL stops resolving once that
+deployment is rotated away.
+
+Replaced with a `publicOrigin(req)` helper that prefers a new `APP_URL`
+environment variable, tolerates a missing scheme or a trailing slash, and
+falls back to the old header-derived behaviour when unset, so a deployment
+that hasn't configured it still sends a working link.
+
+Set `APP_URL=https://puremargin.ae`.
+
+This was the only place in the codebase building a URL from request headers.
+
+## 10. `decision.lead` was truncated in three languages
+
+Arabic carried the full three-part line; English, Hindi and Tagalog had only
+the opening sentence, so the section lost its point mid-thought. Completed all
+three, and changed the Arabic verb from تطبخ (cook) to تصنع (make) so the line
+isn't restricted to kitchens. Also added a diacritic to بِيع, which without it
+reads ambiguously as the noun "sale" rather than the passive "was sold", and
+corrected عادة to عادةً.
+
 ---
 
 ## Verified clean

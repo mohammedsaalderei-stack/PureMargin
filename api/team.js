@@ -19,6 +19,23 @@ import { readSyncs } from "./_sync.js";
 import { getJSON, setJSON, del } from "./_store.js";
 import { sendMail } from "./_mail.js";
 
+/* The address invitation links point at.
+
+   Derived from the request headers, an invitation carries whatever host the
+   inviter happened to be on — a preview deployment, or the project's
+   `*.vercel.app` address — into somebody else's inbox. The link still works,
+   but it doesn't look like the product, and a preview URL stops resolving
+   once that deployment is rotated away.
+
+   APP_URL pins it. Unset, the old header-derived behaviour stands, so a
+   deployment that hasn't configured it still sends a working link. */
+function publicOrigin(req) {
+  const configured = String(process.env.APP_URL || "").trim().replace(/\/+$/, "");
+  if (configured) return /^https?:\/\//i.test(configured) ? configured : `https://${configured}`;
+  const host = req.headers.host;
+  return host ? `https://${host}` : "";
+}
+
 /* ── Email invitations ────────────────────────────────────────
 
    The owner types an address and a role; the person gets a sign-up link and
@@ -141,7 +158,7 @@ export default async function handler(req, res) {
       list.push({ token, email: address, role, at: invite.at });
       await setJSON(ORG_INVITES_KEY(org.id), list);
 
-      const origin = req.headers.origin || (req.headers.host ? `https://${req.headers.host}` : "");
+      const origin = publicOrigin(req);
       const link = `${origin}/?invite=${token}`;
       const orgName = org.name || session.username;
       await sendMail({
