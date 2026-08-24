@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Analytics } from "@vercel/analytics/react";
 import Landing from "./Landing.jsx";
 import Login from "./Login.jsx";
 import ForgotPassword from "./ForgotPassword.jsx";
@@ -175,6 +176,7 @@ export default function App() {
     <ThemeProvider>
       <LanguageProvider>
         <Routes />
+        <Analytics />
       </LanguageProvider>
     </ThemeProvider>
   );

@@ -10,6 +10,7 @@
     "test": "REDIS_URL= KV_URL= KV_REST_API_URL= node api/_org.test.js && REDIS_URL= KV_URL= KV_REST_API_URL= node api/_journal.test.js && REDIS_URL= KV_URL= KV_REST_API_URL= node api/_inventory.test.js && REDIS_URL= KV_URL= KV_REST_API_URL= node api/_movements.test.js && REDIS_URL= KV_URL= KV_REST_API_URL= node api/_counts.test.js && REDIS_URL= KV_URL= KV_REST_API_URL= node api/_purchasing.test.js && REDIS_URL= KV_URL= KV_REST_API_URL= node api/_recipes.test.js && REDIS_URL= KV_URL= KV_REST_API_URL= node api/_variance.test.js && REDIS_URL= KV_URL= KV_REST_API_URL= node api/_alerts.test.js && REDIS_URL= KV_URL= KV_REST_API_URL= node api/_operations.test.js && REDIS_URL= KV_URL= KV_REST_API_URL= node api/_grounding.test.js"
   },
   "dependencies": {
+    "@vercel/analytics": "^2.0.1",
     "@vitejs/plugin-react": "^4.3.3",
     "autoprefixer": "^10.4.20",
     "lucide-react": "^0.454.0",
