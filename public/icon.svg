@@ -1,34 +1,24 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
   <defs>
-    <filter id="wide" x="-90%" y="-90%" width="280%" height="280%">
-      <feGaussianBlur stdDeviation="22"/>
-    </filter>
-    <filter id="mid" x="-60%" y="-60%" width="220%" height="220%">
-      <feGaussianBlur stdDeviation="8"/>
-    </filter>
-    <radialGradient id="halo" cx="50%" cy="46%" r="60%">
-      <stop offset="0%" stop-color="#A855F7" stop-opacity=".45"/>
-      <stop offset="60%" stop-color="#8B3FEB" stop-opacity=".12"/>
-      <stop offset="100%" stop-color="#050308" stop-opacity="0"/>
-    </radialGradient>
+    <linearGradient id="barG" gradientUnits="userSpaceOnUse" x1="20.75" y1="6.00" x2="20.75" y2="105.00">
+      <stop offset="0" stop-color="#6873ED"/>
+      <stop offset="1" stop-color="#279FDD"/>
+    </linearGradient>
+    <linearGradient id="sqrG" gradientUnits="userSpaceOnUse" x1="107.25" y1="38.00" x2="107.25" y2="105.00">
+      <stop offset="0" stop-color="#3C448A"/>
+      <stop offset="1" stop-color="#1C5982"/>
+    </linearGradient>
+    <linearGradient id="mG" gradientUnits="userSpaceOnUse" x1="130.50" y1="0.00" x2="206.00" y2="111.00">
+      <stop offset="0" stop-color="#7E54DF"/>
+      <stop offset="1" stop-color="#07A5C1"/>
+    </linearGradient>
   </defs>
-
-  <rect width="512" height="512" rx="118" fill="#08040E"/>
-  <rect width="512" height="512" rx="118" fill="url(#halo)"/>
-
-  <g fill="none" stroke-linecap="round" stroke-linejoin="round"
-     transform="translate(93 148) scale(1.62)">
-    <g filter="url(#wide)" opacity=".8">
-      <path d="M 26 96 L 26 20 L 58 20 A 22 22 0 0 1 58 64 L 26 64" stroke="#A855F7" stroke-width="17"/>
-      <path d="M 100 96 L 100 20 L 130 62 L 160 20 L 160 96" stroke="#A855F7" stroke-width="17"/>
-    </g>
-    <g filter="url(#mid)">
-      <path d="M 26 96 L 26 20 L 58 20 A 22 22 0 0 1 58 64 L 26 64" stroke="#D8B4FE" stroke-width="11"/>
-      <path d="M 100 96 L 100 20 L 130 62 L 160 20 L 160 96" stroke="#D8B4FE" stroke-width="11"/>
-    </g>
-    <path d="M 26 96 L 26 20 L 58 20 A 22 22 0 0 1 58 64 L 26 64" stroke="#D8B4FE" stroke-width="8" opacity=".9"/>
-    <path d="M 100 96 L 100 20 L 130 62 L 160 20 L 160 96" stroke="#D8B4FE" stroke-width="8" opacity=".9"/>
-    <path d="M 26 96 L 26 20 L 58 20 A 22 22 0 0 1 58 64 L 26 64" stroke="#FFFFFF" stroke-width="3"/>
-    <path d="M 100 96 L 100 20 L 130 62 L 160 20 L 160 96" stroke="#FFFFFF" stroke-width="3"/>
+  <rect width="512" height="512" rx="118" fill="#08060E"/>
+  <g transform="translate(56.00 147.26) scale(1.94175)">
+    <rect x="0" y="6" width="41.5" height="99" rx="13" fill="url(#barG)"/>
+    <rect x="87" y="38" width="40.5" height="67" rx="13" fill="url(#sqrG)"/>
+    <circle cx="64" cy="55.5" r="9.5" fill="#06B6D4"/>
+    <path d="M 136.5 105.0 L 136.5 6.0 L 168.5 55.0 L 200.0 6.0 L 200.0 105.0" fill="none" stroke="url(#mG)" stroke-width="12"
+          stroke-linecap="round" stroke-linejoin="round"/>
   </g>
 </svg>

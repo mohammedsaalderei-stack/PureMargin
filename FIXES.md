@@ -180,6 +180,40 @@ isn't restricted to kitchens. Also added a diacritic to بِيع, which without 
 reads ambiguously as the noun "sale" rather than the passive "was sold", and
 corrected عادة to عادةً.
 
+## 11. App icon replaced, and iOS never had one
+
+The home screen icon is now the logo mark — the bar, dot, block and M — drawn
+from the wordmark. Geometry was measured off the supplied logo into a 206x112
+mark space and used to generate both the SVG and every PNG from the same
+constants, so the vector and raster copies cannot drift.
+
+Separately, `index.html` pointed `apple-touch-icon` at `/icon.svg`. **iOS does
+not accept SVG for `apple-touch-icon`** — Safari needs a PNG. Anyone adding the
+app to an iPhone home screen got a screenshot of the page rather than an icon.
+That is fixed, and it is probably the reason the icon looked wrong in the first
+place.
+
+The manifest also declared a single SVG with `"purpose": "any maskable"`. One
+image cannot serve both well: a maskable icon is cropped to a circle covering
+the central 80%, so an icon drawn to fill the tile loses its edges, while one
+padded for the crop looks small everywhere else. They are now separate entries.
+
+| File | Size | Role |
+| --- | --- | --- |
+| `icon.svg` | vector | Favicon and any-purpose manifest icon |
+| `icon-192.png` | 192 | Android home screen, standard |
+| `icon-512.png` | 512 | Android splash and install prompt |
+| `icon-maskable-512.png` | 512 | Adaptive icons, padded to the safe zone |
+| `apple-touch-icon.png` | 180 | iOS home screen |
+
+The maskable variant was checked programmatically: its furthest mark pixel sits
+184px from centre against a 204.8px limit, so nothing clips under any mask
+shape. The iOS icon is full-bleed opaque RGB with no rounding of its own, since
+iOS applies its own squircle and rounding it twice leaves pale corners.
+
+Tile colour is `#08060E`, matching `background_color` so the icon blends into
+the splash screen rather than showing a seam.
+
 ---
 
 ## Verified clean
