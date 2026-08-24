@@ -2,12 +2,13 @@ import { useEffect, useRef, useState } from "react";
 import {
   BarChart3, LineChart, MessageSquare, Settings as Cog, UtensilsCrossed, Users,
   Search, Lightbulb, PanelRightClose, PanelRightOpen, LogOut, Lock, Wallet,
-  LayoutDashboard, Download, FileText, Table, ChevronDown, Package, ChefHat, Scale, BellRing, ShoppingCart,
+  LayoutDashboard, Download, FileText, Table, ChevronDown, Package, ChefHat, Scale, BellRing, ShoppingCart, Camera,
 } from "lucide-react";
 import { useC } from "./theme.jsx";
 import BrandMark from "./BrandMark.jsx";
 import { useLang, fill } from "./i18n.jsx";
 import { useSwipe } from "./hooks-nav.js";
+import { useRoute, navigate } from "./router.js";
 import {
   listConversations, saveConversation, deleteConversation, newId, getConversation,
   fetchRemote, pushRemote, deleteRemote, merge,
@@ -27,6 +28,7 @@ import Recipes from "./screens/Recipes.jsx";
 import Variance from "./screens/Variance.jsx";
 import Alerts from "./screens/Alerts.jsx";
 import Plan from "./screens/Plan.jsx";
+import Costs from "./screens/Costs.jsx";
 import BranchScope from "./BranchScope.jsx";
 import CommandPalette from "./CommandPalette.jsx";
 import LanguagePicker from "./LanguagePicker.jsx";
@@ -56,8 +58,11 @@ const EMPTY_METRICS = {
 
 const POLL_MS = 30 * 1000;
 
+/* Ordered by importance: the numbers you check first, the AI bill scanner a
+   cashier lives in, then analysis, with account plumbing last. */
 const TAB_META = [
   { id: "overview", icon: LayoutDashboard },
+  { id: "costs", icon: Camera },
   { id: "ask", icon: MessageSquare },
   { id: "watch", icon: BarChart3 },
   { id: "menu", icon: UtensilsCrossed },
@@ -143,7 +148,16 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
   const C = useC();
   const { t, rtl } = useLang();
   const desktop = useDesktop();
-  const [tab, setTab] = useState("overview");
+  /* The open screen is part of the address (`#/app/<tab>`), so every tab can
+     be linked to and the browser's back button — and Backspace — step back
+     through the screens you actually visited. */
+  const route = useRoute();
+  /* An address naming a screen that doesn't exist opens the dashboard rather
+     than a blank pane. */
+  const routeTab = route.name === "app" && Object.hasOwn(SCREEN_FEATURE, route.param) ? route.param : "overview";
+  const [tab, setTabState] = useState(routeTab);
+  useEffect(() => { setTabState(routeTab); }, [routeTab]);
+  const setTab = (next) => { setTabState(next); navigate(`app/${next}`); };
   const [palette, setPalette] = useState(false);
   const [pending, setPending] = useState("");
   const [direction, setDirection] = useState(1);
@@ -328,12 +342,13 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
       token={token} conversationCount={conversations.length} account={account} onConnect={() => setConnectOpen(true)}
       onAccountChange={refreshEverything} onSeePlans={() => go("billing")} onSession={onSession} onLogout={onLogout} />;
   } else if (tab === "team") { body = <Team token={token} />; }
+  else if (locked) { body = <Locked feature={needed} onSeePlans={() => go("billing")} />; }
+  else if (tab === "costs") { body = <Costs token={token} />; }
   else if (tab === "inventory") { body = <Inventory token={token} />; }
   else if (tab === "recipes") { body = <Recipes token={token} />; }
   else if (tab === "variance") { body = <Variance token={token} branches={branches} />; }
   else if (tab === "alerts") { body = <Alerts token={token} branches={branches} />; }
   else if (tab === "plan") { body = <Plan token={token} branches={branches} />; }
-  else if (locked) { body = <Locked feature={needed} onSeePlans={() => go("billing")} />; }
   else if (tab === "ask") {
     body = <Ask token={token} wide={desktop && !chatsOpen} pending={pending} onPendingUsed={() => setPending("")}
       messages={messages} onMessagesChange={updateMessages} data={unconnectedAccount ? null : data}
@@ -383,12 +398,18 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
   const canSeeRecipes = Boolean(scope?.capabilities?.includes("view:costs"));
   const canSeePlan = Boolean(scope?.capabilities?.includes("view:forecast") ||
     scope?.capabilities?.includes("view:profitability"));
+  /* Importance order: today's numbers, the bill scanner, the assistant, then
+     operations (permission-gated), then the analysis screens, then the team,
+     with billing and settings last. */
+  const byId = Object.fromEntries(TAB_META.map((tb) => [tb.id, tb]));
   const navTabs = [
-    ...TAB_META,
+    byId.overview, byId.costs, byId.ask,
     ...(canSeeInventory ? [INVENTORY_TAB, ALERTS_TAB] : []),
     ...(canSeePlan ? [PLAN_TAB] : []),
     ...(canSeeRecipes ? [RECIPES_TAB, VARIANCE_TAB] : []),
+    byId.watch, byId.menu, byId.forecast, byId.advice,
     ...(canManageTeam ? [TEAM_TAB] : []),
+    byId.billing, byId.settings,
   ];
 
   /* Only offered where it means something: more than one authorized branch. */
@@ -434,7 +455,7 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
                     boxShadow: on ? "inset 0 0 0 1px rgba(139,92,246,0.2)" : "none",
                   }}>
                   <Icon size={17} />
-                  <span className="flex-1 text-start">{t[id].tab}</span>
+                  <span className="flex-1 text-start">{t[id]?.tab || id}</span>
                   {!entitlements(account).has(SCREEN_FEATURE[id]) && <Lock size={12} style={{ color: C.slate }} />}
                 </button>
               );
@@ -475,7 +496,7 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
             )}
 
             <div className="flex items-center gap-2">
-              <LanguagePicker /><ThemeToggle />
+              <LanguagePicker /><ThemeToggle compact />
             </div>
             <div className="flex items-center justify-between gap-2 pt-3" style={{ borderTop: `1px solid ${C.hairline}` }}>
               <span className="text-xs truncate" style={{ color: C.slate }}>

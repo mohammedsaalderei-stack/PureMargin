@@ -20,10 +20,33 @@ export default async function handler(req, res) {
     const { account, error } = await createAccount({ username, password, email });
     if (error) return res.status(409).json({ error });
 
+    /* An invitation claims the account for the inviting organization before
+       it gets a chance to found its own. The link's token wins; failing
+       that, a pending invite against the registered address counts too. */
+    const { inviteForToken, inviteForEmail, consumeInvite } = await import("./team.js");
+    const { setMember } = await import("./_org.js");
+    const { getJSON, setJSON } = await import("./_store.js");
+    const invite =
+      (await inviteForToken(req.body?.inviteToken)) || (await inviteForEmail(account.email));
+    if (invite) {
+      const { error: joinError } = await setMember(invite.orgId, account.username, {
+        role: invite.role,
+        branches: invite.branches || [],
+      });
+      if (!joinError) {
+        const fresh = await getJSON(`acct:${account.username}`);
+        if (fresh) {
+          fresh.orgId = invite.orgId;
+          await setJSON(`acct:${account.username}`, fresh);
+        }
+        await consumeInvite(invite);
+      }
+    }
+
     /* Every account owns an organization from the moment it exists, with
        itself as owner. A single restaurant never has to know the concept, and
        a group grows out of the same record by adding members. */
-    await orgFor(account);
+    if (!invite) await orgFor(account);
 
     return res.status(200).json({
       token: issueToken(account.username, account.tokenVersion || 0),

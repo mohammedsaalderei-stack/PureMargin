@@ -82,6 +82,14 @@ export const ROLES = {
        the entire point of the count workflow. */
     can: ["view:inventory", "manage:recipes", "manage:inventory"],
   },
+  cashier: {
+    label: "Cashier",
+    scope: "assigned",
+    /* The till. A cashier scans bills through the costs screen and reads the
+       day's table; nothing back-of-house, nothing financial beyond their own
+       shift's view. */
+    can: ["view:dashboard"],
+  },
   accountant: {
     label: "Accountant",
     scope: "assigned",
@@ -172,6 +180,34 @@ export async function orgFor(account) {
 
 export function membership(org, username) {
   return org?.members?.[normalise(username)] || null;
+}
+
+/* The plan that actually applies to an account.
+
+   A package belongs to the organization's owner, and it covers everyone in
+   the organization: a cashier or chef added to the team gets whatever the
+   owner has, without buying anything themselves. A member's own plan (if an
+   admin granted one directly) still counts — the union of both applies. */
+export async function effectivePlanFor(account) {
+  const own = account?.plan || { items: [], since: null, until: null };
+  try {
+    const org = await orgFor(account);
+    if (!org || org.ownerUsername === account.username) return { ...own, inherited: false };
+    const owner = await getAccount(org.ownerUsername);
+    const ownerPlan = owner?.plan;
+    const ownerActive =
+      ownerPlan?.items?.length && !(ownerPlan.until && ownerPlan.until < Date.now());
+    if (!ownerActive) return { ...own, inherited: false };
+    const ownActive = own.items?.length && !(own.until && own.until < Date.now());
+    return {
+      items: [...new Set([...(ownActive ? own.items : []), ...ownerPlan.items])],
+      since: own.since || ownerPlan.since,
+      until: Math.max(own.until || 0, ownerPlan.until || 0) || null,
+      inherited: true,
+    };
+  } catch {
+    return { ...own, inherited: false };
+  }
 }
 
 /* ── Membership administration ────────────────────────────────

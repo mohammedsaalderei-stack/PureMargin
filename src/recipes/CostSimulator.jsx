@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { FlaskConical } from "lucide-react";
 import { useC } from "../theme.jsx";
-import { useLang } from "../i18n.jsx";
+import { useLang, fill } from "../i18n.jsx";
 import { DirhamMark } from "../Dirham.jsx";
 
 /* "What if?" — modelled against the live recipe, saved nowhere.
@@ -17,7 +17,7 @@ import { DirhamMark } from "../Dirham.jsx";
 
 export default function CostSimulator({ token, recipe, method, onClose }) {
   const C = useC();
-  const { t, fill } = useLang();
+  const { t } = useLang();
   const s = t.recipes;
 
   const lines = [...(recipe.effective?.lines || []), ...(recipe.effective?.packaging || [])];

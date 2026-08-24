@@ -35,8 +35,9 @@ export default function Team({ token }) {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
-  const [username, setUsername] = useState("");
-  const [role, setRole] = useState("branch_manager");
+  const [email, setEmail] = useState("");
+  const [role, setRole] = useState("cashier");
+  const [invitedMsg, setInvitedMsg] = useState("");
   const [picked, setPicked] = useState([]);
 
   const auth = { Authorization: `Bearer ${token}` };
@@ -59,16 +60,25 @@ export default function Team({ token }) {
   }, []);
 
   const save = async () => {
-    setBusy(true); setError("");
+    setBusy(true); setError(""); setInvitedMsg("");
     try {
       const res = await fetch("/api/team", {
         method: "POST",
         headers: { ...auth, "Content-Type": "application/json" },
-        body: JSON.stringify({ username, role, branches: picked }),
+        body: JSON.stringify({ email, role, branches: picked }),
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) { setError(t.team.errors[json.error] || t.team.failed); return; }
-      setUsername(""); setPicked([]);
+      setInvitedMsg(json.joined ? t.team.joinedNow : t.team.inviteSent);
+      setEmail(""); setPicked([]);
+      await load();
+    } finally { setBusy(false); }
+  };
+
+  const revokeInvite = async (address) => {
+    setBusy(true);
+    try {
+      await fetch(`/api/team?email=${encodeURIComponent(address)}`, { method: "DELETE", headers: auth });
       await load();
     } finally { setBusy(false); }
   };
@@ -136,11 +146,32 @@ export default function Team({ token }) {
           </div>
         </Panel>
 
+        {(state?.invites || []).length > 0 && (
+          <Panel title={t.team.pendingTitle} note={t.team.pendingNote}>
+            <div className="space-y-1.5">
+              {state.invites.map((inv) => (
+                <div key={inv.email} className="flex items-center gap-3 py-2 px-3 rounded-lg text-sm"
+                  style={{ background: "var(--chip-bg)" }}>
+                  <Clock size={13} style={{ color: C.slate }} />
+                  <span className="flex-1 min-w-0 truncate" dir="ltr">{inv.email}</span>
+                  <span className="text-[11px]" style={{ color: C.slate }}>
+                    {state?.roles?.find((r) => r.key === inv.role)?.label || inv.role}
+                  </span>
+                  <button onClick={() => revokeInvite(inv.email)} disabled={busy}
+                    className="p-1 rounded-lg" style={{ color: C.rose }} title={t.team.revoke}>
+                    <Trash2 size={13} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </Panel>
+        )}
+
         <Panel title={t.team.addTitle} note={t.team.addNote}>
           <div className="space-y-3">
-            <input value={username} onChange={(e) => setUsername(e.target.value)}
-              placeholder={t.team.usernamePlaceholder} autoComplete="off"
-              className="w-full px-3 py-2 rounded-lg text-sm"
+            <input value={email} onChange={(e) => setEmail(e.target.value)}
+              placeholder={t.team.emailPlaceholder} autoComplete="off" type="email" dir="ltr"
+              className="w-full px-3 py-2 rounded-lg text-sm text-start"
               style={{ border: `1px solid ${C.hairline}`, background: "transparent", color: C.ink }} />
 
             <select value={role} onChange={(e) => { setRole(e.target.value); setPicked([]); }}
@@ -179,12 +210,15 @@ export default function Team({ token }) {
             )}
 
             {error && <p className="text-xs" style={{ color: C.rose }}>{error}</p>}
+            {invitedMsg && <p className="text-xs" style={{ color: C.iris }}>{invitedMsg}</p>}
 
-            <button onClick={save} disabled={busy || !username.trim()}
+            <button onClick={save} disabled={busy || !email.includes("@")}
               className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-60"
               style={{ background: C.iris, color: C.onPrimary }}>
-              <UserPlus size={14} />{t.team.add}
+              <UserPlus size={14} />{t.team.invite}
             </button>
+
+            <p className="text-[11px]" style={{ color: C.slate }}>{t.team.planNote}</p>
           </div>
         </Panel>
 

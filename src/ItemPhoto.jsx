@@ -3,7 +3,7 @@ import { useC } from "./theme.jsx";
 
 /* A dish photo from the POS catalogue.
 
-   Loyverse carries an image on most items, so these are the owner's own
+   Most POS catalogues carry an image on items, so these are the owner's own
    photographs of their own food — not stock imagery and not an emoji
    standing in for one. When an item has no photo, or the URL fails, it
    falls back to a tile carrying the item's initials rather than a broken

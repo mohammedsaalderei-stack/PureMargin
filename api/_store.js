@@ -142,6 +142,26 @@ export async function del(key) {
   return true;
 }
 
+/* Keys under a prefix — used by the admin panel to enumerate accounts.
+   KEYS is fine at this scale; a deployment with enough accounts for it to
+   hurt would already have moved user records to a real database. */
+export async function listKeys(prefix) {
+  warnOnce();
+  const pattern = `${prefix}*`;
+  try {
+    if (backend === "tcp") {
+      const client = await tcpClient();
+      if (client) return await client.keys(pattern);
+    } else if (backend === "http") {
+      return (await rest(["KEYS", pattern])) || [];
+    }
+  } catch (err) {
+    console.error("[sufra] listKeys failed:", err.message);
+    return [];
+  }
+  return [...memory.keys()].filter((k) => k.startsWith(prefix));
+}
+
 /* Test seam. */
 export function __resetMemory() {
   memory.clear();

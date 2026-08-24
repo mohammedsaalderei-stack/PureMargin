@@ -38,7 +38,7 @@ export function aggregate({ receipts, limitedHistory, catalogue, storeNames, now
   }
 
   /* An owner-entered cost always wins over the POS value — they know what
-     they actually pay, and Loyverse costs are often left at zero. */
+     they actually pay, and POS costs are often left at zero. */
   const costFor = (itemName, variantName) => {
     const override = overrides[itemName];
     if (typeof override === "number" && override > 0) return override;
@@ -157,7 +157,7 @@ export function aggregate({ receipts, limitedHistory, catalogue, storeNames, now
 
   return {
     connected: true,
-    source: "Loyverse POS",
+    source: "POS",
     payments: [...byPayment.entries()]
       .map(([method, amount]) => ({
         method,

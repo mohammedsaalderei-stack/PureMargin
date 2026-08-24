@@ -1,5 +1,5 @@
 import { requireAuth } from "./_auth.js";
-import { grantPlan, cancelPlan, getAccount, publicAccount, FEATURES, FREE_FEATURES } from "./_accounts.js";
+import { cancelPlan, publicAccount, FEATURES, FREE_FEATURES } from "./_accounts.js";
 
 /* Mock checkout.
    There is no payment processor behind this — it takes a list of packages
@@ -10,7 +10,7 @@ import { grantPlan, cancelPlan, getAccount, publicAccount, FEATURES, FREE_FEATUR
    marked point and keep everything else. Entitlements are granted in exactly
    one place, so there is exactly one thing to secure. */
 
-const PRICES = { assistant: 200, menu: 150, forecast: 100 };
+const PRICES = { assistant: 200, menu: 150, forecast: 100, operations: 300, billscan: 150 };
 
 export default async function handler(req, res) {
   const session = await requireAuth(req, res);
@@ -22,36 +22,16 @@ export default async function handler(req, res) {
     }
 
     if (req.method === "POST") {
-      const { items, months = 1, cancel } = req.body || {};
+      const { cancel } = req.body || {};
 
       if (cancel) {
         const account = await cancelPlan(session.username);
         return res.status(200).json({ account: publicAccount(account) });
       }
 
-      if (!Array.isArray(items) || !items.length) {
-        return res.status(400).json({ error: "items" });
-      }
-
-      const known = items.filter((i) => FEATURES.includes(i));
-      if (!known.length) return res.status(400).json({ error: "items" });
-
-      const existing = await getAccount(session.username);
-      if (!existing) return res.status(404).json({ error: "noaccount" });
-
-      // ---- A real payment check belongs here. ----
-      // const paid = await processor.verify(req.body.paymentIntentId);
-      // if (!paid) return res.status(402).json({ error: "payment" });
-
-      const amount = known.reduce((sum, i) => sum + (PRICES[i] || 0), 0) * months;
-      const account = await grantPlan(session.username, known, months);
-
-      return res.status(200).json({
-        account: publicAccount(account),
-        charged: amount,
-        currency: "AED",
-        mock: true,
-      });
+      /* Self-serve purchase is closed: packages are activated by an admin
+         through the admin panel, after payment is arranged directly. */
+      return res.status(403).json({ error: "adminonly" });
     }
 
     return res.status(405).json({ error: "Use GET or POST." });

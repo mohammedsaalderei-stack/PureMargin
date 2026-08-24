@@ -428,6 +428,31 @@ Two paths, both on `DELETE /api/account`:
 - i18n: new `scope.*` and `team.*` blocks plus `account.deleteNow*` in all four
   languages (en, ar, hi, tl).
 
+## Routing (`src/router.js`)
+- Screens are addresses in the hash: `#/` landing, `#/login`, `#/register`,
+  `#/forgot`, `#/pricing`, `#/admin`, and `#/app/<tab>` for every dashboard tab.
+  Hash routing on purpose — deep links work with no host rewrite to maintain.
+- `navigate(path)` pushes (so Back returns); `{ replace: true }` is for
+  corrections the user didn't choose (normalising an unknown route, sending a
+  signed-in session back to the app) which must not become a stop on the way back.
+- `pushState` never fires `hashchange`, so `navigate` dispatches `sufra:route`;
+  `useRoute` listens to that plus `hashchange` and `popstate`.
+- `useBackspaceBack` (mounted once in `App.jsx`) makes Backspace go back, unless
+  the keystroke is editing text (input/textarea/select/contenteditable).
+- `Shell.jsx` derives its tab from `#/app/<tab>` and validates it against
+  `SCREEN_FEATURE`, so an unknown tab opens the dashboard, not a blank pane.
+
+## Admin panel
+- `#/admin` → `src/AdminPage.jsx` (it was written but never routed to before).
+  Its own sign-in, its own 30-minute token; an app session is never accepted.
+- Access = `ADMIN_EMAIL` (from the environment, can't be removed through the API)
+  plus the addresses in the `admins:extra` key, managed from the panel itself.
+- Strings live in `src/i18n-admin.js`, merged into the dictionary as `t.admin` by
+  the language provider — operator-only wording, kept out of the big file.
+- `api/_accounts.js` was missing `PLAN_MONTHS` entirely, which crashed the whole
+  API server on import of `admin.js` (every route 500). `FEATURES` also lacked
+  `operations` and `billscan`, so those two packages could not be granted at all.
+
 ## Notes
 - `vite.config.js` was extended with `host`, `allowedHosts: true`, and the
   `/api` proxy — needed to run outside Vercel. Original had only `port: 5173`.

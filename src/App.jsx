@@ -6,16 +6,38 @@ import Register from "./Register.jsx";
 import Pricing from "./Pricing.jsx";
 import Shell from "./Shell.jsx";
 import Splash from "./Splash.jsx";
+import AdminPage from "./AdminPage.jsx";
 import { LanguageProvider } from "./i18n.jsx";
 import { ThemeProvider } from "./theme.jsx";
 import { prefersReducedMotion } from "./hooks.js";
+import { useRoute, navigate, useBackspaceBack } from "./router.js";
 
 const OUT_MS = 260;
+
+/* Public screens live at their own URL; the signed-in app is `#/app/<tab>`. */
+const PUBLIC_VIEWS = ["landing", "login", "register", "forgot", "pricing"];
 
 function Routes() {
   const [token, setToken] = useState(() => sessionStorage.getItem("sufra_token") || "");
   const [user, setUser] = useState(() => sessionStorage.getItem("sufra_user") || "");
-  const [view, setView] = useState("landing");
+  /* A team invitation link opens straight onto the sign-up form, carrying
+     its token so registration lands the account in the inviting team. */
+  const [inviteToken] = useState(() => new URLSearchParams(window.location.search).get("invite") || "");
+
+  const route = useRoute();
+  useBackspaceBack();
+  const setView = (next) => navigate(next === "landing" ? "" : next);
+
+  /* An invitation link opens the sign-up form, and the admin panel keeps its
+     own address (`#/admin`) with its own sign-in. */
+  useEffect(() => {
+    if (inviteToken && route.name === "landing") navigate("register", { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const adminView = route.name === "admin";
+  const view = PUBLIC_VIEWS.includes(route.name) ? route.name : "landing";
+
   /* Carried from sign-in into the reset screen, so an address already typed
      doesn't have to be typed twice. */
   const [resetIdentifier, setResetIdentifier] = useState("");
@@ -53,6 +75,7 @@ function Routes() {
   const signIn = (tk, name) => transition(() => {
     setToken(tk);
     setUser(name);
+    navigate("app/overview");
   });
 
   const signOut = () => transition(() => {
@@ -63,8 +86,16 @@ function Routes() {
     setView("landing");
   });
 
+  /* A signed-in session that lands on a public address is put back on the app,
+     without leaving that address behind for the back button to return to. */
+  useEffect(() => {
+    if (token && !adminView && route.name !== "app") navigate("app/overview", { replace: true });
+  }, [token, adminView, route.name]);
+
   let screen;
-  if (token) {
+  if (adminView) {
+    screen = <AdminPage />;
+  } else if (token) {
     screen = (
       <Shell
         token={token}
@@ -85,6 +116,7 @@ function Routes() {
   } else if (view === "register") {
     screen = (
       <Register
+        inviteToken={inviteToken}
         onBack={() => setView("landing")}
         onSignIn={() => setView("login")}
         onRegistered={(tk, name) => {
@@ -123,7 +155,7 @@ function Routes() {
   return (
     <>
       {phase !== "idle" && <div className="auth-bar" />}
-      <div className={`${cls} min-h-full`} key={token ? "app" : view}>
+      <div className={`${cls} min-h-full`} key={adminView ? "admin" : token ? "app" : view}>
         {screen}
       </div>
       {splash && (
