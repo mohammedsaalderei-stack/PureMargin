@@ -5,6 +5,7 @@ import SupplierList from "../inventory/SupplierList.jsx";
 import StockPanel from "../inventory/StockPanel.jsx";
 import CountsPanel from "../inventory/CountsPanel.jsx";
 import PurchasingPanel from "../purchasing/PurchasingPanel.jsx";
+import InventoryScan from "../ai/InventoryScan.jsx";
 import { useC } from "../theme.jsx";
 import { useLang, fill } from "../i18n.jsx";
 
@@ -139,6 +140,9 @@ export default function Inventory({ token }) {
           <h2 className="display text-2xl md:text-3xl font-bold grad-text">{t.inventory.title}</h2>
           <p className="text-sm mt-1" style={{ color: C.slate }}>{t.inventory.lead}</p>
         </div>
+
+        {/* AI stock reading — photo in, suggested list out. */}
+        <InventoryScan token={token} />
 
         {(adding || editing) && (
           <Panel title={editing ? t.inventory.editTitle : t.inventory.addTitle}

@@ -16,7 +16,7 @@ const ERRORS = {
   server: "errServer",
 };
 
-export default function Register({ onBack, onRegistered, onSignIn }) {
+export default function Register({ onBack, onRegistered, onSignIn, inviteToken = "" }) {
   const C = useC();
   const { t } = useLang();
   const [form, setForm] = useState({ email: "", username: "", password: "", confirm: "" });

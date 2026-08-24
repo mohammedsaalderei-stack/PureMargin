@@ -1,12 +1,13 @@
-// Pulls sales from Loyverse and shapes them into the metrics the UI needs.
-// With no LOYVERSE_ACCESS_TOKEN set, raises NotConnected so the interface
-// prompts for a POS connection rather than inventing figures.
+// Pulls sales from the connected POS API and shapes them into the metrics
+// the UI needs. Works with any Loyverse-compatible POS API; point POS_API_BASE
+// at a different base URL to use another provider. With no token set, raises
+// NotConnected so the interface prompts for a POS connection.
 
 import { buildAdvice } from "./_advice.js";
 import { marginLayer } from "./_margin.js";
 import { aggregate } from "./_aggregate.js";
 
-const BASE = "https://api.loyverse.com/v1.0";
+const BASE = process.env.POS_API_BASE || "https://api.loyverse.com/v1.0";
 /* Short, because the dashboard polls and people expect today's number to
    move. Loyverse rate-limits, so this still shields the API from a room
    full of tablets all refreshing at once — the cache is keyed by token, so
@@ -197,11 +198,11 @@ async function call(path, token) {
       detail = body.slice(0, 160);
     }
     const label =
-      res.status === 402 ? "Loyverse only returns the last 31 days of receipts on this plan (Unlimited Sales History is not enabled)" :
+      res.status === 402 ? "The POS only returns the last 31 days of receipts on this plan" :
       res.status === 401 ? "The access token was rejected" :
       res.status === 403 ? "That token doesn't have permission to read this" :
-      res.status === 429 ? "Loyverse is rate-limiting the connection" :
-      `Loyverse returned ${res.status}`;
+      res.status === 429 ? "The POS API is rate-limiting the connection" :
+      `The POS API returned ${res.status}`;
     throw new Error(detail ? `${label}: ${detail}` : label);
   }
   return res.json();
@@ -362,7 +363,7 @@ export async function fetchMerchant(token) {
    computed — assigning a branch manager to a branch shouldn't require pulling
    a month of receipts first. This is the cheap read for that. */
 export async function branchList(posToken) {
-  const token = posToken || process.env.LOYVERSE_ACCESS_TOKEN || "";
+  const token = posToken || process.env.POS_ACCESS_TOKEN || process.env.LOYVERSE_ACCESS_TOKEN || "";
   /* No POS linked yet: there are no branches to report. Callers that only
      need the roster for scope resolution catch this and carry on with an
      empty list; the dashboard turns it into the connect-your-POS state. */
@@ -399,7 +400,7 @@ export async function branchList(posToken) {
 }
 
 export async function getMetrics(posToken, { maxAge = CACHE_MS, overrides = {}, branches = null } = {}) {
-  const token = posToken || process.env.LOYVERSE_ACCESS_TOKEN || "";
+  const token = posToken || process.env.POS_ACCESS_TOKEN || process.env.LOYVERSE_ACCESS_TOKEN || "";
   /* No POS linked yet: refuse to invent figures. The interface turns this
      into the connect-your-POS state rather than presenting sample numbers as
      if they were the business's own. */
@@ -475,7 +476,7 @@ export async function getMetrics(posToken, { maxAge = CACHE_MS, overrides = {}, 
    The provenance of the read travels with it, because a variance figure resting
    on a stale or truncated sales history is a different claim from one that isn't. */
 export async function salesLines(posToken, { from, to = Date.now(), branches = null, maxAge = CACHE_MS } = {}) {
-  const token = posToken || process.env.LOYVERSE_ACCESS_TOKEN || "";
+  const token = posToken || process.env.POS_ACCESS_TOKEN || process.env.LOYVERSE_ACCESS_TOKEN || "";
   if (!token) throw new NotConnected();
 
   const key = token.slice(0, 24);
@@ -531,7 +532,7 @@ export async function salesLines(posToken, { from, to = Date.now(), branches = n
 /* Seconds since these figures were actually fetched, so the interface can
    say "updated 12 seconds ago" rather than implying they're instantaneous. */
 export function cacheAge(posToken) {
-  const token = posToken || process.env.LOYVERSE_ACCESS_TOKEN || "";
+  const token = posToken || process.env.POS_ACCESS_TOKEN || process.env.LOYVERSE_ACCESS_TOKEN || "";
   if (!token) return null;
   const key = token.slice(0, 24);
   const hit = cache.get(key);

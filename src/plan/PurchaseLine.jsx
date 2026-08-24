@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Clock, ChevronDown } from "lucide-react";
 import { useC } from "../theme.jsx";
-import { useLang } from "../i18n.jsx";
+import { useLang, fill } from "../i18n.jsx";
 
 /* One purchase recommendation.
 
@@ -14,7 +14,7 @@ const TONE = { high: "cyan", medium: "iris", low: "slate" };
 
 export default function PurchaseLine({ line }) {
   const C = useC();
-  const { t, fill } = useLang();
+  const { t } = useLang();
   const s = t.plan;
   const [open, setOpen] = useState(false);
 

@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { ADMIN_STRINGS } from "./i18n-admin.js";
 
 /* Every string in the product, in both languages.
    Arabic is written for a Gulf business audience: plain, direct, no formal padding. */
@@ -7,7 +8,7 @@ export const STRINGS = {
     dir: "ltr",
     name: "PureMargin",
     tagline: "Know what you actually keep",
-    langLabel: "العربية",
+    langLabel: "English",
     wordmark: "PureMargin",
     langName: "English",
 
@@ -783,7 +784,7 @@ export const STRINGS = {
       extrasNote: "Discounts and refunds come from your receipts. Product cost needs item costs from the POS.",
       noBranches: "No branch data yet.",
       noItems: "No item data yet.",
-      limitedHistory: "Your Loyverse plan returns the last 31 days only, so there is no earlier period to compare against. Turning on Unlimited Sales History in Loyverse brings the comparisons back.",
+      limitedHistory: "Your POS plan returns the last 31 days only, so there is no earlier period to compare against. Enabling full sales history in your POS brings the comparisons back.",
       failedTitle: "Your numbers didn't load",
     },
 
@@ -901,7 +902,7 @@ export const STRINGS = {
     decision: {
       eyebrow: "Where we stop",
       title: "You know your kitchen. PureMargin knows the numbers.",
-      lead: "We won't tell you what to cook. We'll tell you what sold, when it sold, and what that usually means — then get out of the way.",
+      lead: "We won't tell you what to make.",
       items: [
         { t: "Nothing invented", b: "Every figure traces back to a receipt you could go and find. If the data can't answer, it says so instead of guessing." },
         { t: "Nothing hidden", b: "Each note shows what it was read from and how strong the evidence is, so you can weigh it rather than take it." },
@@ -915,6 +916,13 @@ export const STRINGS = {
       title: "Start with one thing. Add the rest when it earns its place.",
       lead: "Each piece stands on its own and joins the same table when you're ready for it.",
       perMonth: "a month",
+      termLabel: "Paying for",
+      terms: { 1: "1 month", 3: "3 months", 6: "6 months", 12: "12 months" },
+      billedAs: "{total} for {n} months, paid once",
+      extraPlans: [
+        { name: "The back of house", body: "Stock, recipes and what the kitchen actually consumed against what it should have — the whole operations suite.", features: ["Ingredients, suppliers and units in one master", "Stock movements, transfers and counts", "Recipe costs that follow your real purchase prices", "Leakage: theoretical against actual, by branch", "Order plans and low-stock alerts"] },
+        { name: "The bill scanner", body: "Photograph a supplier invoice and it reads the lines, prices and units into your costs.", features: ["Arabic and English invoices", "Lines matched to ingredients you already have", "Prices updated where they've moved", "Every reading shown before it's saved"] },
+      ],
       onRequest: "Quoted",
       onRequestNote: "Depends on your POS and how many branches",
       offer: "First year · half price",
@@ -1079,8 +1087,8 @@ export const STRINGS = {
 
     connect: {
       title: "Connect your POS",
-      lead: "PureMargin reads your sales from Loyverse. Paste the access token and the table fills in within a minute or two.",
-      where: "Loyverse Back Office → Integrations → Access tokens",
+      lead: "PureMargin reads your sales from your POS. Paste your POS API access token and the table fills in within a minute or two.",
+      where: "Your POS back office → Integrations / API → Access tokens",
       token: "Access token", placeholder: "Paste it here",
       save: "Connect", saving: "Connecting", later: "Not now",
       skipNote: "You can do this any time from Settings. Until then you'll see sample figures, clearly marked.",
@@ -1089,10 +1097,37 @@ export const STRINGS = {
       emptyTitle: "Nothing on the table yet",
       emptyLead: "Connect your POS and this fills with your own service.",
       emptyAction: "Connect now",
-      posTitle: "Your POS", posConnected: "Connected to Loyverse",
+      posTitle: "Your POS", posConnected: "Connected to your POS",
       posNot: "Not connected", posReplace: "Replace token", posRemove: "Disconnect",
       posNote: "The token is encrypted before it's stored and never sent back to the browser.",
       usingServer: "Using the deployment-wide token set by your administrator.",
+    },
+
+    invscan: {
+      title: "Scan a shelf",
+      note: "Photograph a shelf or a delivery and get a list of what the AI can see, with honest quantity estimates.",
+      scan: "Scan shelf",
+      caveat: "These are suggestions, not ledger entries. Use the count workflow to record what's actually on hand.",
+    },
+
+    costs: {
+      tab: "Bill scan",
+      title: "Scan a bill",
+      lead: "Photograph a printed bill and the AI reads each line, matches it to your menu, and prices it against your costs — so the profit on that sale lands without any typing.",
+      scan: "Scan bill",
+      linesTitle: "Lines",
+      amount: "Amount",
+      cost: "Cost",
+      profit: "Profit",
+      unmatchedTitle: "Couldn't match",
+      unmatchedNote: "Pick the menu item and enter the amount for each line the AI couldn't place.",
+      pickItem: "Pick an item…",
+      amountPlaceholder: "Amount",
+      total: "Total",
+      totalCost: "Cost",
+      totalProfit: "Profit",
+      partialNote: "{n} lines have no cost, so the profit shown is partial.",
+      empty: "Scan a bill to see each line priced against your costs.",
     },
 
     billing: {
@@ -1118,7 +1153,15 @@ export const STRINGS = {
         assistantBody: "Ask questions in your own words, and the notes that come out of your service.",
         menuBody: "Every dish placed by how often it sells against what it earns, so you can see what carries the menu.",
         forecastBody: "A range for the month ahead, built from how you've actually traded.",
+        operations: "Operations suite", billscan: "AI bill scanner",
+        operationsBody: "Inventory, recipes, variance and the operational plan — the full kitchen loop.",
+        billscanBody: "Photograph a supplier bill and the items and prices come in as ingredients.",
       },
+      viewLead: "These are the packages on your account. New ones are added by our team — reach out to get more.",
+      inherited: "inherited from team owner",
+      getTitle: "Want more?",
+      getLead: "New packages are activated by our team. Get in touch and we'll add them to your account.",
+      lockedLeadAdmin: "It's added by our team. Get in touch to have it on your account.",
     },
     live: {
       justNow: "updated just now",
@@ -1229,7 +1272,7 @@ export const STRINGS = {
     dir: "rtl",
     name: "PureMargin",
     tagline: "اعرف ما يبقى لك فعلًا",
-    langLabel: "English",
+    langLabel: "العربية",
     wordmark: "PureMargin",
     langName: "العربية",
 
@@ -1440,7 +1483,7 @@ export const STRINGS = {
       noBranchesYet: "اربط الكاشير لتظهر الفروع هنا.",
       remove: "إزالة من الفريق",
       addTitle: "إضافة شخص أو تعديله",
-      addNote: "استخدم اسم المستخدم الذي يسجّل به. يمكنك إضافته قبل أن يسجّل — والدور ينتظره.",
+      addNote: "أدخل بريدهم وسنرسل لهم دعوة للانضمام إلى فريقك.",
       usernamePlaceholder: "اسم المستخدم",
       branchesLabel: "الفروع المسموح له بها",
       add: "حفظ العضو",
@@ -2005,7 +2048,7 @@ export const STRINGS = {
       extrasNote: "الخصومات والمرتجعات تأتي من فواتيرك. تكلفة المنتجات تحتاج تكاليف الأصناف من نظام الكاشير.",
       noBranches: "لا توجد بيانات فروع بعد.",
       noItems: "لا توجد بيانات أصناف بعد.",
-      limitedHistory: "باقة Loyverse لديك تُرجع آخر 31 يومًا فقط، فلا توجد فترة سابقة للمقارنة بها. تفعيل Unlimited Sales History في Loyverse يعيد المقارنات.",
+      limitedHistory: "باقة الكاشير لديك تُرجع آخر 31 يومًا فقط، فلا توجد فترة سابقة للمقارنة بها. تفعيل سجل المبيعات الكامل في نظام الكاشير يعيد المقارنات.",
       failedTitle: "لم تُحمّل أرقامك",
     },
 
@@ -2062,7 +2105,7 @@ export const STRINGS = {
       puzzle: "الألغاز",
       drag: "الأثقال",
       starBody: "تُطلب كثيرًا وتكسب جيدًا. احمِ هذه — موقعها في القائمة وتوفرها، ولا تخفّض سعرها أبدًا.",
-      workhorseBody: "شعبية لكن رخيصة. هي التي تجلب الناس. راجع تكلفة الحصة وهل يثبت رفع بسيط في السعر.",
+      workhorseBody: "شعبية لكن رخيصة. هي التي تجلب الناس. راجع تكلفة الحصة وهل يثبت ر رخيصة. هي التي تجلب الناس. راجع تكلفة الحصة وهل يثبت رفع بسيط في السعر.",
       puzzleBody: "تكسب جيدًا لكن نادرًا ما تُطلب. تستحق موقعًا أفضل في القائمة أو ترشيحًا من الموظفين قبل حذفها.",
       dragBody: "لا شعبية ولا ربح. كل صنف منها يكلفك تحضيرًا ومخزونًا ومساحة في القائمة.",
       perOrder: "لكل طلب",
@@ -2071,7 +2114,27 @@ export const STRINGS = {
       tooEarly: "لم تُبع أصناف كافية بعد لترتيب القائمة كما يجب. هذا ما تحرّك حتى الآن.",
       soFar: "ما بيع حتى الآن",
       empty: "لا يوجد تاريخ كافٍ للأصناف بعد.",
-      caveat: "الموقع يعتمد على الإيراد لكل طلب، لا على هامش الربح ال�وقع يعتمد على الإيراد لكل طلب، لا على هامش الربح ال�نتقل إلى شاشة، أو اطرح سؤالًا…",
+      caveat: "الموقع يعتمد على الإيراد لكل طلب، لا على هامش الربح الحقيقي — تكلفة الأصناف ليست في تغذية الكاشير. أضفها ويصبح هذا قراءة ربحية حقيقية.",
+      quadrantOf: "الرباعي",
+    },
+
+    insights: {
+      title: "ما الذي تغير",
+      trend: "المبيعات {dir} {pct}% خلال آخر سبعة أيام",
+      bestDay: "{day} كان أقوى أيامك",
+      topItem: "{name} يحمل {share}% من إيراد الأصناف الأعلى",
+      spread: "{peak} أكثر ازدحامًا من {quiet} بحوالي {ratio}×",
+      branchGap: "{top} متقدم على {bottom} بنسبة {pct}%",
+      weekend: "العطلات {dir} أيام الأسبوع بنسبة {pct}%",
+      up: "أعلى",
+      down: "أسفل",
+      above: "فوق",
+      below: "تحت",
+    },
+
+    palette: {
+      open: "بحث",
+      placeholder: "انتقل إلى شاشة، أو اطرح سؤالًا…",
       screens: "الشاشات",
       ask: "اسأل PureMargin",
       askAbout: "اسأل عن",
@@ -2086,7 +2149,7 @@ export const STRINGS = {
     core: {
       eyebrow: "كيف تجتمع الأمور",
       title: "كل شيء ينتهي على PureMargin واحدة.",
-      lead: "الكاشير والفروع والقائمة — مفروشة جنبًا إلى جنب، بدل أن تتناثر على خمس شاشات يخالف بعضها بعضًا بهدوء.",
+      lead: "الكاشير والفروع والقائمة — جميعها جنبًا إلى جنب، بدل أن تتناثر على خمس شاشات يخالف بعضها بعضًا بهدوء.",
       sourcesLabel: "ما تُحضره",
       coreTitle: "PureMargin واحدة",
       coreBody: "منظّفة ومطابَقة ومفروشة — فلا تتجادل شاشتان حول الثلاثاء الماضي.",
@@ -2102,7 +2165,7 @@ export const STRINGS = {
 
     decision: {
       eyebrow: "أين نتوقف",
-      title: "أنت تعرف مطبخك. وPureMargin تعرف الأرقام.",
+      title: "أنت تعرف واجهة المشروع. وPureMargin تعرف الأرقام.",
       lead: "لن نخبرك بما تطبخ. سنخبرك بما بيع، ومتى بيع، وماذا يعني ذلك عادة — ثم نبتعد عن الطريق.",
       items: [
         { t: "لا شيء مُختلق", b: "كل رقم يعود إلى فاتورة يمكنك الذهاب وإيجادها. وإذا عجزت البيانات عن الإجابة، تقول ذلك بدل أن تخمّن." },
@@ -2117,6 +2180,13 @@ export const STRINGS = {
       title: "ابدأ بشيء واحد. وأضف الباقي حين يستحق مكانه.",
       lead: "كل قطعة تقف وحدها، وتنضم إلى الPureMargin نفسها حين تجهز لها.",
       perMonth: "شهريًا",
+      termLabel: "مدة الدفع",
+      terms: { 1: "شهر", 3: "٣ أشهر", 6: "٦ أشهر", 12: "١٢ شهرًا" },
+      billedAs: "{total} لمدة {n} أشهر، تُدفع مرة واحدة",
+      extraPlans: [
+        { name: "المطبخ الخلفي", body: "المخزون والوصفات وما استهلكه المطبخ فعلًا مقابل ما كان يجب أن يستهلكه — حزمة العمليات كاملة.", features: ["المكوّنات والموردون والوحدات في سجل واحد", "حركات المخزون والتحويلات والجرد", "تكاليف الوصفات وفق أسعار شرائك الحقيقية", "الفاقد: النظري مقابل الفعلي، لكل فرع", "خطط الشراء وتنبيهات نقص المخزون"] },
+        { name: "قارئ الفواتير", body: "صوّر فاتورة المورد فيقرأ البنود والأسعار والوحدات ويضعها في تكاليفك.", features: ["فواتير بالعربية والإنجليزية", "ربط البنود بمكوّنات موجودة عندك", "تحديث الأسعار التي تغيّرت", "عرض كل قراءة قبل حفظها"] },
+      ],
       onRequest: "بعرض سعر",
       onRequestNote: "حسب نظام الكاشير وعدد الفروع",
       offer: "السنة الأولى · نصف السعر",
@@ -2281,8 +2351,8 @@ export const STRINGS = {
 
     connect: {
       title: "اربط كاشيرك",
-      lead: "PureMargin يقرأ مبيعاتك من Loyverse. الصق رمز الوصول وتمتلئ الPureMargin خلال دقيقة أو دقيقتين.",
-      where: "لوحة Loyverse ← التكاملات ← رموز الوصول",
+      lead: "PureMargin يقرأ مبيعاتك من نظام الكاشير لديك. الصق رمز وصول API الخاص بالكاشير وتمتلئ الجداول خلال دقيقة أو دقيقتين.",
+      where: "لوحة نظام الكاشير ← التكاملات / API ← رموز الوصول",
       token: "رمز الوصول", placeholder: "الصقه هنا",
       save: "اربط", saving: "جارٍ الربط", later: "ليس الآن",
       skipNote: "تستطيع فعل ذلك في أي وقت من الإعدادات. حتى ذلك الحين سترى أرقامًا تجريبية، مُعلَّمة بوضوح.",
@@ -2291,10 +2361,37 @@ export const STRINGS = {
       emptyTitle: "لا شيء على الPureMargin بعد",
       emptyLead: "اربط كاشيرك وتمتلئ هذه بخدمتك أنت.",
       emptyAction: "اربط الآن",
-      posTitle: "كاشيرك", posConnected: "مربوط بـ Loyverse",
+      posTitle: "كاشيرك", posConnected: "مربوط بنظام الكاشير",
       posNot: "غير مربوط", posReplace: "استبدل الرمز", posRemove: "افصل الربط",
       posNote: "الرمز يُشفَّر قبل حفظه ولا يُعاد إلى المتصفح أبدًا.",
       usingServer: "يُستخدم الرمز العام الذي ضبطه مسؤول النظام.",
+    },
+
+    invscan: {
+      title: "امسح رفًا",
+      note: "صوّر رفًا أو تسليمًا واحصل على قائمة بما يراه الذكي، مع تقديرات كمية صريحة.",
+      scan: "امسح الرف",
+      caveat: "هذه اقتراحات لا قيود دفترية. استخدم سير العمل الخاص بالجرد لتسجيل ما هو موجود فعلًا.",
+    },
+
+    costs: {
+      tab: "مسح الفاتورة",
+      title: "امسح فاتورة",
+      lead: "صوّر فاتورة مطبوعة، يقرأ الذكي كل سطر ويطابقه مع قائمتك ويسعّره حسب تكاليفك — فيصل ربح تلك البيعة دون أي كتابة.",
+      scan: "امسح الفاتورة",
+      linesTitle: "السطور",
+      amount: "المبلغ",
+      cost: "التكلفة",
+      profit: "الربح",
+      unmatchedTitle: "تعذّت المطابقة",
+      unmatchedNote: "اختر الصنف من القائمة وأدخل المبلغ لكل سطر لم يستطع الذكي مطابقته.",
+      pickItem: "اختر صنفًا…",
+      amountPlaceholder: "المبلغ",
+      total: "الإجمالي",
+      totalCost: "التكلفة",
+      totalProfit: "الربح",
+      partialNote: "{n} سطور بلا تكلفة، فالربح المعروض جزئي.",
+      empty: "امسح فاتورة لرؤية كل سطر مسعّرًا حسب تكاليفك.",
     },
 
     billing: {
@@ -2320,7 +2417,15 @@ export const STRINGS = {
         assistantBody: "اسأل بكلماتك أنت، والملاحظات التي تخرج من خدمتك.",
         menuBody: "كل صنف موضوع حسب تكرار بيعه مقابل ما يكسبه، لترى ما يحمل القائمة فعلًا.",
         forecastBody: "نطاق للشهر المقبل، مبني على طريقة تداولك فعلًا.",
+        operations: "حزمة العمليات", billscan: "ماسح الفواتير",
+        operationsBody: "المخزون والوصفات والتباين والخطة التشغيلية — حلقة المطبخ الكاملة.",
+        billscanBody: "صوّر فاتورة مورد والمكونات والأسعار تدخل كمخزون.",
       },
+      viewLead: "هذه الباقات على حسابك. الباقات الجديدة يضيفها فريقنا — تواصل معنا للمزيد.",
+      inherited: "موروثة من مالك الفريق",
+      getTitle: "تريد المزيد؟",
+      getLead: "الباقات الجديدة يفعّلها فريقنا. تواصل معنا وسنضيفها إلى حسابك.",
+      lockedLeadAdmin: "يضيفها فريقنا. تواصل معنا لتكون على حسابك.",
     },
     live: {
       justNow: "حُدّثت للتو",
@@ -2378,7 +2483,7 @@ export const STRINGS = {
       trend: "اتجاه الإيراد", trendNote: "تدفق الربح اليومي",
       champions: "الأبطال المخفيون",
       championsLead: "هامش عالٍ وكمية قليلة. كل بيعة إضافية تُبقي أكثر من المعتاد.",
-      championsNone: "لا شيء يبرز بعد — نحتاج تكاليف لمزيد من الأصناف أولًا.",
+      championsNone: "لا شيء يبرز بعد — أدخل تكاليف المزيد من الأصناف أولاً.",
       radar: "رادار نزيف الأرباح", radarClear: "لا نزيف. الهوامش تبدو نظيفة.",
       leakCost: "{name} لا يُبقي سوى {margin}٪ بعد التكلفة. راجع سعر المورّد.",
       leakDiscounts: "الخصومات {pct}٪ من الإيراد — {amount} تنازلت عنها.",
@@ -3179,7 +3284,7 @@ export const STRINGS = {
       extrasNote: "छूट और वापसी आपके बिलों से आती हैं। उत्पाद लागत के लिए POS से आइटम लागत चाहिए।",
       noBranches: "अभी शाखाओं का डेटा नहीं है।",
       noItems: "अभी आइटम का डेटा नहीं है।",
-      limitedHistory: "आपका Loyverse प्लान सिर्फ़ पिछले 31 दिन देता है, इसलिए तुलना के लिए पहले की कोई अवधि नहीं है। Loyverse में Unlimited Sales History चालू करने से तुलनाएँ लौट आती हैं।",
+      limitedHistory: "आपका POS प्लान सिर्फ़ पिछले 31 दिन देता है, इसलिए तुलना के लिए पहले की कोई अवधि नहीं है। POS में पूरा सेल्स इतिहास चालू करने से तुलनाएँ लौट आती हैं।",
       failedTitle: "आपके आँकड़े लोड नहीं हुए",
     },
 
@@ -3314,7 +3419,7 @@ export const STRINGS = {
     decision: {
       eyebrow: "हम कहाँ रुकते हैं",
       title: "रसोई आप जानते हैं। आँकड़े PureMargin जानता है।",
-      lead: "हम नहीं बताएँगे कि क्या पकाइए। हम बताएँगे कि क्या बिका, कब बिका, और आम तौर पर इसका मतलब क्या होता है — फिर रास्ते से हट जाएँगे।",
+      lead: "हम नहीं बताएँगे कि क्या बनाइए।",
       items: [
         { t: "कुछ भी गढ़ा नहीं", b: "हर आँकड़ा किसी ऐसी रसीद तक जाता है जिसे आप जाकर देख सकते हैं। जवाब न हो तो अंदाज़ा लगाने के बजाय यह कह देता है।" },
         { t: "कुछ भी छिपा नहीं", b: "हर नोट बताता है कि किससे पढ़ा गया और सबूत कितना मज़बूत है, ताकि आप तौलें, मानें नहीं।" },
@@ -3328,6 +3433,13 @@ export const STRINGS = {
       title: "एक चीज़ से शुरू कीजिए। बाक़ी तब जोड़िए जब वह अपनी जगह कमा ले।",
       lead: "हर हिस्सा अकेले भी चलता है, और तैयार होने पर उसी मेज़ पर आ जाता है।",
       perMonth: "प्रति माह",
+      termLabel: "भुगतान अवधि",
+      terms: { 1: "1 माह", 3: "3 माह", 6: "6 माह", 12: "12 माह" },
+      billedAs: "{n} माह के लिए {total}, एक बार में",
+      extraPlans: [
+        { name: "रसोई का पिछला हिस्सा", body: "स्टॉक, रेसिपी और रसोई ने जो असल में खर्च किया बनाम जो होना चाहिए था — पूरा ऑपरेशंस पैकेज।", features: ["सामग्री, सप्लायर और इकाइयाँ एक ही जगह", "स्टॉक की आवाजाही, ट्रांसफ़र और गिनती", "आपकी असली खरीद क़ीमतों पर रेसिपी लागत", "लीकेज: सैद्धांतिक बनाम वास्तविक, शाखावार", "ऑर्डर योजना और कम स्टॉक की चेतावनी"] },
+        { name: "बिल स्कैनर", body: "सप्लायर का बिल फ़ोटो कीजिए — लाइनें, क़ीमतें और इकाइयाँ पढ़कर आपकी लागत में आ जाती हैं।", features: ["हिंदी-अंग्रेज़ी और अरबी बिल", "पहले से मौजूद सामग्री से मिलान", "जहाँ क़ीमत बदली, वहाँ अपडेट", "सेव करने से पहले हर पढ़ी गई लाइन दिखती है"] },
+      ],
       onRequest: "कोटेशन पर",
       onRequestNote: "आपके काउंटर और शाखाओं की संख्या पर निर्भर",
       offer: "पहला साल · आधी क़ीमत",
@@ -3340,7 +3452,7 @@ export const STRINGS = {
         { name: "जोड़ना", body: "जो काउंटर आप पहले से चलाते हैं, PureMargin को उससे जोड़ते हैं और भरोसा करने से पहले आँकड़े मिलाते हैं।", features: ["आपका मौजूदा काउंटर पढ़ता है — नया उपकरण नहीं", "हर शाखा एक बार जुड़ती है", "आँकड़े आपकी अपनी रिपोर्ट से मिलाए जाते हैं", "एक बार का ख़र्च, मासिक नहीं"] },
         { name: "मेज़", body: "पूरा हफ़्ता सजा हुआ — बिक्री, ऑर्डर, शाखाएँ, घंटे, और कौन-सा व्यंजन सचमुच मेन्यू सँभालता है।", features: ["आज बनाम कल, इस महीने बनाम पिछले", "शाखाएँ साथ-साथ", "घंटे-दर-घंटे माँग", "मेन्यू के चार हिस्से: क्या कमाता है, क्या बस बिकता है"] },
         { name: "सहायक", body: "अपने शब्दों में पूछिए और अपने ही आँकड़ों से जवाब पाइए, हिसाब दिखाकर।", features: ["अरबी, अंग्रेज़ी, हिन्दी, फ़िलिपीनो", "जवाब आपकी सेवा से, कभी गढ़े हुए नहीं", "बातचीत सहेजी जाती है, धागा फिर उठा सकते हैं", "करने लायक़ नोट्स, सबूत के साथ"] },
-        { name: "आगे क्या", body: "अगले महीने का दायरा, आपके असली कारोबार से बना — सतर्क, संभावित और अच्छा।", features: ["तीन परिदृश्य, कभी एक आँकड़ा नहीं", "जितना आगे देखे, उतना ईमानदारी से चौड़ा", "स्टाफ़ और ऑर्डर दायरे पर तय कीजिए", "जो नहीं जान सकता, साफ़ कह देता है"] },
+        { name: "आगे क्या", body: "अगले महीने का दायरा, आपके असली कारोबार से बना — सतर्क, संभावित और अच्छा।", features: ["तीन परिदृश्य, कभी एक आँकड़ा नहीं", "जितना आगे देखे, उतना ईमानदारी से चौड़ा", "स्टाफ़ और ऑर्डर दायरे पर तय कीजिए", "जो नहीं जान सकता, स दायरे पर तय कीजिए", "जो नहीं जान सकता, साफ़ कह देता है"] },
       ],
     },
 
@@ -3413,6 +3525,8 @@ export const STRINGS = {
         plan: ["इसके खुलने के घंटे और स्टाफ़ की तुलना सबसे मज़बूत शाखा से कीजिए।", "देखिए लोकप्रिय व्यंजन वहाँ सचमुच उपलब्ध हैं, सिर्फ़ मेन्यू पर नहीं।", "इसका घंटेवार आकार देखिए — भीड़ का ग़ायब होना पूरे सपाट दिन से अलग समस्या है।"],
         watch: "उस शाखा की बिक्री, ऑर्डर, और ऑर्डर कब आते हैं।",
         caution: "शाखाएँ अलग मोहल्लों में हैं। फ़ासले का कुछ हिस्सा सड़क है, रसोई नहीं।" },
+      risk: { title: "बहुत कुछ {name} पर टिका है",
+        body: "एक ही व्यंजन आपकी कमाई का बड़ा हिस्सा उठा रह�ोई नहीं।" },
       risk: { title: "बहुत कुछ {name} पर टिका है",
         body: "एक ही व्यंजन आपकी कमाई का बड़ा हिस्सा उठा रहा है। यह अच्छी समस्या है — तब तक, जब तक सप्लायर न बदले, दाम न हिले, या लोग ऊब न जाएँ।",
         impact: "दूसरा मज़बूत व्यंजन होने का मतलब है कि एक व्यंजन का बुरा महीना पूरे कारोबार का बुरा महीना नहीं बनता।",
@@ -3492,8 +3606,8 @@ export const STRINGS = {
 
     connect: {
       title: "अपना काउंटर जोड़िए",
-      lead: "PureMargin आपकी बिक्री Loyverse से पढ़ता है। ऐक्सेस टोकन चिपकाइए और एक-दो मिनट में मेज़ भर जाएगी।",
-      where: "Loyverse बैक ऑफ़िस → Integrations → Access tokens",
+      lead: "PureMargin आपकी बिक्री आपके POS से पढ़ता है। POS API ऐक्सेस टोकन चिपकाइए और एक-दो मिनट में मेज़ भर जाएगी।",
+      where: "आपका POS बैक ऑफ़िस → Integrations / API → Access tokens",
       token: "ऐक्सेस टोकन", placeholder: "यहाँ चिपकाइए",
       save: "जोड़ें", saving: "जुड़ रहा है", later: "अभी नहीं",
       skipNote: "यह आप कभी भी सेटिंग्स से कर सकते हैं। तब तक नमूना आँकड़े दिखेंगे, साफ़ निशान के साथ।",
@@ -3502,10 +3616,37 @@ export const STRINGS = {
       emptyTitle: "मेज़ पर अभी कुछ नहीं",
       emptyLead: "काउंटर जोड़िए और यह आपकी अपनी सेवा से भर जाएगी।",
       emptyAction: "अभी जोड़ें",
-      posTitle: "आपका काउंटर", posConnected: "Loyverse से जुड़ा",
+      posTitle: "आपका काउंटर", posConnected: "POS से जुड़ा",
       posNot: "जुड़ा नहीं", posReplace: "टोकन बदलें", posRemove: "अलग करें",
       posNote: "टोकन सहेजने से पहले एन्क्रिप्ट होता है और ब्राउज़र को कभी वापस नहीं भेजा जाता।",
       usingServer: "आपके एडमिन का सेट किया साझा टोकन इस्तेमाल हो रहा है।",
+    },
+
+    invscan: {
+      title: "शेल्फ स्कैन",
+      note: "शेल्फ या डिलीवरी की फोटो लें और एआई जो देखता है उसकी सूची पाएं, साथ में ईमानदार मात्रा अनुमान।",
+      scan: "शेल्फ स्कैन करें",
+      caveat: "ये सुझाव हैं, लेजर प्रविष्टियां नहीं। वास्तविक स्टॉक दर्ज करने के लिए काउंट वर्कफ़्लो का उपयोग करें।",
+    },
+
+    costs: {
+      tab: "बिल स्कैन",
+      title: "बिल स्कैन करें",
+      lead: "एक छपे बिल की फोटो लें — एआई हर लाइन पढ़ता है, आपके मेन्यू से मिलाता है, और आपकी लागत पर मूल्य लगाता है, तो उस बिक्री का मुनाफा बिना टाइप किए सामने आता है।",
+      scan: "बिल स्कैन करें",
+      linesTitle: "लाइनें",
+      amount: "रकम",
+      cost: "लागत",
+      profit: "मुनाफा",
+      unmatchedTitle: "मिलान नहीं हुआ",
+      unmatchedNote: "जिन लाइनों को एआई नहीं पहचान पाया, उनके लिए मेन्यू आइटम चुनें और रकम दर्ज करें।",
+      pickItem: "आइटम चुनें…",
+      amountPlaceholder: "रकम",
+      total: "कुल",
+      totalCost: "लागत",
+      totalProfit: "मुनाफा",
+      partialNote: "{n} लाइनों की लागत नहीं है, इसलिए दिखलाया गया मुनाफा आंशिक है।",
+      empty: "अपनी लागत के हिसाब से हर लाइन का मूल्य देखने के लिए एक बिल स्कैन करें।",
     },
 
     billing: {
@@ -3531,7 +3672,15 @@ export const STRINGS = {
         assistantBody: "अपने शब्दों में सवाल, और आपकी सेवा से निकले नोट्स।",
         menuBody: "हर व्यंजन इस हिसाब से रखा गया कि कितनी बार बिकता है और कितना कमाता है, ताकि दिखे मेन्यू कौन सँभालता है।",
         forecastBody: "अगले महीने का दायरा, आपके असली कारोबार से बना।",
+        operations: "ऑपरेशन्स सूट", billscan: "AI बिल स्कैनर",
+        operationsBody: "इन्वेंटरी, रेसिपी, वैरियंस और ऑपरेशनल प्लान — पूरा किचन लूप।",
+        billscanBody: "सप्लायर के बिल की फोटो लें और सामग्री और कीमतें इन्वेंटरी में आ जाती हैं।",
       },
+      viewLead: "ये आपके खाते के पैकेज हैं। नए पैकेज हमारी टीम जोड़ती है — और पाने के लिए संपर्क करें।",
+      inherited: "टीम मालिक से विरासत में",
+      getTitle: "और चाहिए?",
+      getLead: "नए पैकेज हमारी टीम चालू करती है। संपर्क करें और हम उन्हें आपके खाते में जोड़ देंगे।",
+      lockedLeadAdmin: "इसे हमारी टीम जोड़ती है। अपने खाते में पाने के लिए संपर्क करें।",
     },
     live: {
       justNow: "अभी अपडेट हुआ",
@@ -4367,7 +4516,7 @@ export const STRINGS = {
       extrasNote: "Galing sa resibo mo ang diskwento at refund. Kailangan ng gastos ng item mula sa POS para sa product cost.",
       noBranches: "Wala pang datos ng sangay.",
       noItems: "Wala pang datos ng item.",
-      limitedHistory: "Huling 31 araw lang ang ibinibigay ng Loyverse plan mo, kaya walang naunang panahong maihahambing. Ibalik ang paghahambing sa pamamagitan ng pag-on ng Unlimited Sales History sa Loyverse.",
+      limitedHistory: "Huling 31 araw lang ang ibinibigay ng POS plan mo, kaya walang naunang panahong maihahambing. Ibalik ang paghahambing sa pamamagitan ng pag-on ng buong sales history sa POS mo.",
       failedTitle: "Hindi na-load ang mga numero mo",
     },
 
@@ -4502,7 +4651,7 @@ export const STRINGS = {
     decision: {
       eyebrow: "Saan kami humihinto",
       title: "Kilala mo ang kusina mo. Kilala ng PureMargin ang mga numero.",
-      lead: "Hindi namin sasabihin kung ano ang lutuin. Sasabihin namin kung ano ang nabenta, kailan nabenta, at ano ang karaniwang ibig sabihin niyon — tapos aalis kami sa daan.",
+      lead: "Hindi namin sasabihin kung ano ang gagawin.",
       items: [
         { t: "Walang inimbento", b: "Bawat numero ay may resibong mahahanap mo. Kung hindi kayang sagutin ng datos, sinasabi nito imbes na manghula." },
         { t: "Walang itinatago", b: "Ipinapakita ng bawat tala kung saan binasa at gaano katibay ang ebidensya, para timbangin mo, hindi basta tanggapin." },
@@ -4516,6 +4665,13 @@ export const STRINGS = {
       title: "Magsimula sa isa. Idagdag ang iba kapag pinatunayan nilang sulit.",
       lead: "Kayang tumayo nang mag-isa ng bawat piraso, at sumasama sa parehong mesa kapag handa ka na.",
       perMonth: "kada buwan",
+      termLabel: "Bayad para sa",
+      terms: { 1: "1 buwan", 3: "3 buwan", 6: "6 buwan", 12: "12 buwan" },
+      billedAs: "{total} para sa {n} buwan, isang bayad",
+      extraPlans: [
+        { name: "Ang likod ng kusina", body: "Stock, recipe, at kung ano talaga ang nagamit ng kusina kumpara sa dapat — buong operations suite.", features: ["Sangkap, supplier at yunit sa isang master", "Galaw ng stock, transfer at counting", "Gastos ng recipe base sa totoong presyo ng bili", "Leakage: teoretikal kumpara sa aktwal, kada sangay", "Plano ng order at alerto sa kulang na stock"] },
+        { name: "Ang bill scanner", body: "Kunan ng larawan ang invoice ng supplier at babasahin nito ang mga linya, presyo at yunit papasok sa gastos mo.", features: ["Invoice sa Ingles at Arabic", "Mga linyang itinutugma sa sangkap na meron ka na", "Presyong ina-update kung nagbago", "Bawat nabasa ay ipinapakita bago i-save"] },
+      ],
       onRequest: "May quote",
       onRequestNote: "Depende sa POS mo at bilang ng sangay",
       offer: "Unang taon · kalahating presyo",
@@ -4680,8 +4836,8 @@ export const STRINGS = {
 
     connect: {
       title: "Ikonekta ang POS mo",
-      lead: "Binabasa ng PureMargin ang benta mo mula sa Loyverse. I-paste ang access token at mapupuno ang mesa sa loob ng isa o dalawang minuto.",
-      where: "Loyverse Back Office → Integrations → Access tokens",
+      lead: "Binabasa ng PureMargin ang benta mo mula sa POS mo. I-paste ang POS API access token at mapupuno ang mesa sa loob ng isa o dalawang minuto.",
+      where: "Your POS back office → Integrations / API → Access tokens",
       token: "Access token", placeholder: "I-paste dito",
       save: "Ikonekta", saving: "Kumokonekta", later: "Hindi muna",
       skipNote: "Puwede mo itong gawin anumang oras sa Settings. Hanggang doon, sample na numero ang makikita, may malinaw na marka.",
@@ -4690,10 +4846,37 @@ export const STRINGS = {
       emptyTitle: "Wala pang nasa mesa",
       emptyLead: "Ikonekta ang POS mo at mapupuno ito ng sarili mong serbisyo.",
       emptyAction: "Ikonekta na",
-      posTitle: "Ang POS mo", posConnected: "Konektado sa Loyverse",
+      posTitle: "Ang POS mo", posConnected: "Konektado sa POS",
       posNot: "Hindi konektado", posReplace: "Palitan ang token", posRemove: "Idiskonekta",
       posNote: "Naka-encrypt ang token bago itago at hindi kailanman ibinabalik sa browser.",
       usingServer: "Ginagamit ang pangkalahatang token na itinakda ng admin mo.",
+    },
+
+    invscan: {
+      title: "I-scan ang shelf",
+      note: "Kumuha ng litrato ng shelf o delivery at makakuha ng listahan ng nakikita ng AI, kasama ang tapat na quantity estimate.",
+      scan: "I-scan ang shelf",
+      caveat: "Ito ay mga suhestiyon, hindi ledger entries. Gamitin ang count workflow para itala ang aktwal na stock.",
+    },
+
+    costs: {
+      tab: "Bayarin scan",
+      title: "I-scan ang bayarin",
+      lead: "Kumuha ng litrato ng nakalimbag na bayarin at binabasa ng AI ang bawat linya, tinutugma sa menu mo, at pinapresyo sa gastos mo — kaya kita ng benta na lumalabas nang walang pag-type.",
+      scan: "I-scan ang bayarin",
+      linesTitle: "Mga linya",
+      amount: "Halaga",
+      cost: "Gastos",
+      profit: "Kita",
+      unmatchedTitle: "Hindi matugma",
+      unmatchedNote: "Piliin ang menu item at ilagay ang halaga para sa bawat linya na hindi mapansin ng AI.",
+      pickItem: "Pumili ng item…",
+      amountPlaceholder: "Halaga",
+      total: "Kabuuan",
+      totalCost: "Gastos",
+      totalProfit: "Kita",
+      partialNote: "{n} linya walang gastos, kaya ang kitang ipinapakita ay bahagi lang.",
+      empty: "Mag-scan ng bayarin para makita ang bawat linya na presyo laban sa gastos mo.",
     },
 
     billing: {
@@ -4719,7 +4902,15 @@ export const STRINGS = {
         assistantBody: "Magtanong sa sarili mong salita, at ang mga talang lumalabas sa serbisyo mo.",
         menuBody: "Nakalagay ang bawat putahe ayon sa dalas ng benta laban sa kinikita, para makita kung alin ang bumubuhay sa menu.",
         forecastBody: "Saklaw para sa susunod na buwan, gawa sa tunay mong takbo.",
+        operations: "Operations suite", billscan: "AI bill scanner",
+        operationsBody: "Inventory, recipes, variance at operational plan — ang buong kitchen loop.",
+        billscanBody: "Kumuha ng litrato ng supplier bill at papasok ang items at presyo bilang ingredients.",
       },
+      viewLead: "Ito ang mga pakete sa account mo. Ang mga bago ay idinadagdag ng team namin — makipag-ugnayan para sa higit.",
+      inherited: "mana mula sa team owner",
+      getTitle: "Gusto ng higit?",
+      getLead: "Ang mga bagong pakete ay ina-activate ng team namin. Makipag-ugnayan at idadagdag namin sa account mo.",
+      lockedLeadAdmin: "Idinadagdag ito ng team namin. Makipag-ugnayan para maging sa account mo.",
     },
     live: {
       justNow: "kaka-update lang",
@@ -4797,6 +4988,28 @@ export const STRINGS = {
   },
 };
 
+/* Key-by-key fallback to English.
+
+   A key missing from a translation must never crash a screen — it renders in
+   English instead. Every language is deep-merged over the English strings once
+   at module load, so `t.section.key` always resolves to something. */
+function withFallback(base, over) {
+  if (Array.isArray(base) || Array.isArray(over)) return over !== undefined ? over : base;
+  const out = { ...base };
+  for (const k of Object.keys(over || {})) {
+    const b = base?.[k];
+    const o = over[k];
+    out[k] =
+      b && o && typeof b === "object" && typeof o === "object" && !Array.isArray(b) && !Array.isArray(o)
+        ? withFallback(b, o)
+        : o;
+  }
+  return out;
+}
+for (const l of Object.keys(STRINGS)) {
+  if (l !== "en") STRINGS[l] = withFallback(STRINGS.en, STRINGS[l]);
+}
+
 /* Fills {placeholders} in a template string. */
 /* Number and date formatting locales.
 
@@ -4819,6 +5032,13 @@ const LOCALES = {
 
 export function localeFor(lang) {
   return LOCALES[lang] || "en-AE";
+}
+
+/* Arabic locales inject invisible bidi control marks (U+200E/200F) into
+   formatted dates, which garble the display when the date sits inside RTL
+   text even with dir="ltr". Strip them so the raw d/m/y renders cleanly. */
+export function formatDate(ms, lang) {
+  return new Date(ms).toLocaleDateString(localeFor(lang)).replace(/[\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, "");
 }
 
 export function fill(template, values = {}) {
@@ -4859,7 +5079,7 @@ export function LanguageProvider({ children }) {
       lang,
       dir: STRINGS[lang].dir,
       rtl: STRINGS[lang].dir === "rtl",
-      t: STRINGS[lang],
+      t: { ...STRINGS[lang], admin: ADMIN_STRINGS[lang] || ADMIN_STRINGS.en },
       set: (next) => LANGS.includes(next) && setLang(next),
       /* Kept so existing call sites still work: cycles through the list. */
       toggle: () => setLang((l) => LANGS[(LANGS.indexOf(l) + 1) % LANGS.length]),

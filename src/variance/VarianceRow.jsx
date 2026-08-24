@@ -13,7 +13,7 @@ import { DirhamMark } from "../Dirham.jsx";
 
 export default function VarianceRow({ row, open, onToggle, branchNames }) {
   const C = useC();
-  const { t, fill } = useLang();
+  const { t } = useLang();
   const s = t.variance;
 
   const money = (n) => (

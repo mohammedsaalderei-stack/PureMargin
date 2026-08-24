@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { CheckCircle2, AlertCircle, RefreshCw, Plug, Loader2 as Spin, Loader2, Send, LifeBuoy, Instagram, Mail, Phone } from "lucide-react";
 import { useC } from "../theme.jsx";
-import { useLang, fill, localeFor } from "../i18n.jsx";
+import { useLang, fill, localeFor, formatDate } from "../i18n.jsx";
 import { contactRows } from "../contact.js";
 import { BUILD } from "../build.js";
 import { KeyRound, LogOut as SignOutIcon } from "lucide-react";
@@ -235,7 +235,7 @@ export default function Settings({ data, user, onRefresh, refreshing, token, con
     plan?.since && plan?.until ? Math.max(1, Math.ceil((plan.until - plan.since) / 864e5)) : 0;
   const subPct = termDays ? Math.round((subDays / termDays) * 1000) / 10 : 0;
   const fmt = (ts) =>
-    ts ? new Date(ts).toLocaleDateString(localeFor(lang)) : "—";
+    ts ? formatDate(ts, lang) : "—";
 
   return (
     <div className="h-full overflow-y-auto">

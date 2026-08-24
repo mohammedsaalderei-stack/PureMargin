@@ -19,7 +19,7 @@ import { DirhamMark } from "../Dirham.jsx";
 
 export default function Recipes({ token }) {
   const C = useC();
-  const { t, fill } = useLang();
+  const { t } = useLang();
   const s = t.recipes;
 
   const [state, setState] = useState(null);

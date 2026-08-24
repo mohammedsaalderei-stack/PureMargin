@@ -9,12 +9,42 @@
    DELETE — remove a member: ?username=
 */
 
+import crypto from "crypto";
 import { requireAuth } from "./_auth.js";
 import { scopeFor, setMember, removeMember, ROLES, ROLE_KEYS } from "./_org.js";
-import { getAccount, normalise, posTokenFor } from "./_accounts.js";
+import { getAccount, normalise, posTokenFor, validEmail, getAccountByEmail } from "./_accounts.js";
 import { branchList } from "./_data.js";
 import { recordAudit, readAudit } from "./_audit.js";
 import { readSyncs } from "./_sync.js";
+import { getJSON, setJSON, del } from "./_store.js";
+import { sendMail } from "./_mail.js";
+
+/* ── Email invitations ────────────────────────────────────────
+
+   The owner types an address and a role; the person gets a sign-up link and
+   the seat is waiting when they register. The invite is stored twice — by
+   token (what the link carries) and by address (what registration checks),
+   plus a per-org list so the Team screen can show who hasn't accepted yet. */
+const INVITE_TOKEN_KEY = (token) => `teaminvite:${token}`;
+const INVITE_EMAIL_KEY = (email) => `teaminvite-email:${String(email).trim().toLowerCase()}`;
+const ORG_INVITES_KEY = (orgId) => `teaminvites:${orgId}`;
+
+export async function inviteForEmail(email) {
+  const token = await getJSON(INVITE_EMAIL_KEY(email));
+  return token ? getJSON(INVITE_TOKEN_KEY(token)) : null;
+}
+
+export async function inviteForToken(token) {
+  return token ? getJSON(INVITE_TOKEN_KEY(String(token))) : null;
+}
+
+export async function consumeInvite(invite) {
+  if (!invite?.token) return;
+  const list = ((await getJSON(ORG_INVITES_KEY(invite.orgId))) || []).filter((i) => i.token !== invite.token);
+  await setJSON(ORG_INVITES_KEY(invite.orgId), list);
+  await del(INVITE_TOKEN_KEY(invite.token));
+  await del(INVITE_EMAIL_KEY(invite.email));
+}
 
 export default async function handler(req, res) {
   const session = await requireAuth(req, res);
@@ -59,6 +89,8 @@ export default async function handler(req, res) {
     return res.status(200).json({
       organization: { id: org.id, name: org.name, ownerUsername: org.ownerUsername },
       members: members.sort((a, b) => Number(b.isOwner) - Number(a.isOwner)),
+      /* Addresses invited but not yet registered. */
+      invites: (await getJSON(ORG_INVITES_KEY(org.id))) || [],
       roles: ROLE_KEYS.map((key) => ({ key, label: ROLES[key].label, scope: ROLES[key].scope })),
       availableBranches: branchIds,
       /* Returned with the team rather than from its own endpoint: the audit log
@@ -71,7 +103,61 @@ export default async function handler(req, res) {
   }
 
   if (req.method === "POST") {
-    const { username, role, branches } = req.body || {};
+    const { username, email, role, branches } = req.body || {};
+
+    /* The email path: invite someone who may not have an account yet. */
+    if (!username && email) {
+      if (!validEmail(email)) return res.status(400).json({ error: "email" });
+      if (!ROLE_KEYS.includes(role)) return res.status(400).json({ error: "role" });
+
+      const address = String(email).trim().toLowerCase();
+
+      /* Someone already registered with this address just gets the seat —
+         no email round-trip needed. */
+      const existing = await getAccountByEmail(address);
+      if (existing) {
+        const requested = (branches || []).map(String);
+        const { error } = await setMember(org.id, existing.username, { role, branches: requested });
+        if (error) return res.status(error === "owner" ? 409 : 400).json({ error });
+        /* Their account may have been running its own empty org; point it here. */
+        existing.orgId = org.id;
+        await setJSON(`acct:${normalise(existing.username)}`, existing);
+        await recordAudit(org.id, {
+          actor: session.username, action: "member.add", target: existing.username,
+          detail: { role, branches: requested, viaEmail: address },
+        });
+        return res.status(200).json({ ok: true, joined: existing.username });
+      }
+
+      const token = crypto.randomBytes(24).toString("base64url");
+      const invite = {
+        token, orgId: org.id, email: address,
+        role, branches: (branches || []).map(String),
+        invitedBy: session.username, at: Date.now(),
+      };
+      await setJSON(INVITE_TOKEN_KEY(token), invite);
+      await setJSON(INVITE_EMAIL_KEY(address), token);
+      const list = ((await getJSON(ORG_INVITES_KEY(org.id))) || []).filter((i) => i.email !== address);
+      list.push({ token, email: address, role, at: invite.at });
+      await setJSON(ORG_INVITES_KEY(org.id), list);
+
+      const origin = req.headers.origin || (req.headers.host ? `https://${req.headers.host}` : "");
+      const link = `${origin}/?invite=${token}`;
+      const orgName = org.name || session.username;
+      await sendMail({
+        to: address,
+        subject: `You've been invited to ${orgName} on PureMargin`,
+        text: `${session.username} invited you to join ${orgName} on PureMargin as ${ROLES[role]?.label || role}.\n\nCreate your account here: ${link}\n\nAny packages the team owns apply to you automatically.`,
+        html: `<p><strong>${session.username}</strong> invited you to join <strong>${orgName}</strong> on PureMargin as <strong>${ROLES[role]?.label || role}</strong>.</p><p><a href="${link}">Create your account</a> to accept. Any packages the team owns apply to you automatically.</p>`,
+      });
+
+      await recordAudit(org.id, {
+        actor: session.username, action: "member.invite", target: address,
+        detail: { role, branches: invite.branches },
+      });
+      return res.status(200).json({ ok: true, invited: address });
+    }
+
     const id = normalise(username);
     if (!id) return res.status(400).json({ error: "username" });
     if (!ROLE_KEYS.includes(role)) return res.status(400).json({ error: "role" });
@@ -104,6 +190,17 @@ export default async function handler(req, res) {
   }
 
   if (req.method === "DELETE") {
+    /* Withdrawing an unaccepted email invitation. */
+    if (req.query?.email) {
+      const invite = await inviteForEmail(req.query.email);
+      if (!invite || invite.orgId !== org.id) return res.status(404).json({ error: "noinvite" });
+      await consumeInvite(invite);
+      await recordAudit(org.id, {
+        actor: session.username, action: "member.uninvite", target: invite.email,
+      });
+      return res.status(200).json({ ok: true });
+    }
+
     const id = normalise(req.query?.username);
     if (!id) return res.status(400).json({ error: "username" });
     const removed = (org.members || {})[id];

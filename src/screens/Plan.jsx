@@ -3,7 +3,7 @@ import { ShoppingCart, AlertTriangle } from "lucide-react";
 import PurchaseLine from "../plan/PurchaseLine.jsx";
 import BranchRanking from "../plan/BranchRanking.jsx";
 import { useC } from "../theme.jsx";
-import { useLang } from "../i18n.jsx";
+import { useLang, fill } from "../i18n.jsx";
 import { scopeQuery, scopeKey } from "../scopeParam.js";
 
 /* Stage 5 — the operational plan.
@@ -18,22 +18,45 @@ const HORIZONS = { d3: 3, d7: 7, d14: 14 };
 
 export default function Plan({ token, branches = [] }) {
   const C = useC();
-  const { t, fill } = useLang();
+  const { t } = useLang();
   const s = t.plan;
 
   const [data, setData] = useState(null);
   const [horizon, setHorizon] = useState("d7");
+  const [failed, setFailed] = useState("");
 
   async function load(next = horizon) {
-    const res = await fetch(`/api/operations?horizon=${HORIZONS[next]}${scopeQuery(branches)}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (res.ok) setData(await res.json());
+    setFailed("");
+    try {
+      const res = await fetch(`/api/operations?horizon=${HORIZONS[next]}${scopeQuery(branches)}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) { setData(await res.json()); return; }
+      const json = await res.json().catch(() => ({}));
+      setFailed(json.error || "failed");
+    } catch {
+      setFailed("failed");
+    }
   }
 
   useEffect(() => { load(); // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scopeKey(branches)]);
 
+  /* A failed request is said plainly, with a retry — never a blank screen. */
+  if (!data && failed) {
+    return (
+      <div className="h-full flex items-center justify-center p-8">
+        <div className="max-w-sm text-center">
+          <AlertTriangle size={28} className="mx-auto mb-3" style={{ color: C.rose }} />
+          <p className="display font-bold text-lg mb-2">{t.watch.failedTitle}</p>
+          <p className="text-sm mb-5" style={{ color: C.slate }}>{s.noSales}</p>
+          <button onClick={() => load()} className="gpill gpill-primary px-4 py-2 text-sm font-semibold">
+            {t.common.tryAgain}
+          </button>
+        </div>
+      </div>
+    );
+  }
   if (!data) return null;
 
   const plan = data.plan;
