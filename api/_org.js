@@ -24,7 +24,13 @@
 import crypto from "crypto";
 import { getJSON, setJSON, del } from "./_store.js";
 import { capabilitiesFor } from "./_tabs.js";
+import { ROLES, ROLE_KEYS, isRole, can } from "./_roles.js";
 import { getAccount, normalise } from "./_accounts.js";
+
+/* Re-exported: the role table moved to its own module to break an import
+   cycle, and every caller that already asks _org.js for it should keep
+   working without a sweep through the codebase. */
+export { ROLES, ROLE_KEYS, isRole, can };
 
 const ORG_KEY = (id) => `org:${id}`;
 
@@ -43,85 +49,7 @@ export async function saveOrg(org) {
    organization and quietly orphan the membership they were given. */
 const INVITE_KEY = (username) => `invite:${normalise(username)}`;
 
-/* ── Roles ────────────────────────────────────────────────────
 
-   Capabilities are coarse on purpose. A permission per button produces a
-   matrix nobody can reason about; these are the five jobs the direction
-   document names, with the scope rule each one defaults to.
-
-   scope:
-     all      — every branch the organization has
-     assigned — only the branches explicitly assigned to the member
-*/
-export const ROLES = {
-  owner: {
-    label: "Owner",
-    scope: "all",
-    can: [
-      "view:dashboard", "view:profitability", "view:forecast", "view:inventory",
-      "view:costs", "view:reports", "export",
-      "manage:recipes", "manage:inventory", "manage:costs",
-      "manage:users", "manage:integrations", "manage:billing",
-      "approve:counts", "manage:purchasing",
-    ],
-  },
-  ops: {
-    label: "Operations manager",
-    /* Assigned rather than all: an ops manager covering three of nine
-       branches must not see the other six. An owner can assign all of them. */
-    scope: "assigned",
-    can: [
-      "view:dashboard", "view:profitability", "view:forecast", "view:inventory",
-      "view:costs", "view:reports", "export",
-      "manage:recipes", "manage:inventory", "approve:counts", "manage:purchasing",
-    ],
-  },
-  branch_manager: {
-    label: "Branch manager",
-    scope: "assigned",
-    can: [
-      "view:dashboard", "view:profitability", "view:inventory", "view:reports",
-      "export", "manage:inventory", "approve:counts", "manage:purchasing",
-    ],
-  },
-  chef: {
-    label: "Chef / Inventory lead",
-    scope: "assigned",
-    /* Recipes, counts and waste — deliberately no costs or profitability, and
-       deliberately no `approve:counts`: a chef records a count, and somebody
-       else approves the adjustment it writes into the ledger. That separation is
-       the entire point of the count workflow. */
-    can: ["view:inventory", "manage:recipes", "manage:inventory"],
-  },
-  cashier: {
-    label: "Cashier",
-    scope: "assigned",
-    /* The till. A cashier scans bills through the costs screen and reads the
-       day's table; nothing back-of-house, nothing financial beyond their own
-       shift's view. */
-    can: ["view:dashboard"],
-  },
-  accountant: {
-    label: "Accountant",
-    scope: "assigned",
-    /* Costs, purchases, reports and exports, but no recipe or integration
-       administration — straight from the direction document's table. */
-    /* "Costs, purchases, reports and exports" — so purchasing is theirs, and
-       `view:inventory` comes with it because a purchase order is unreadable
-       without the item master behind it. Still no recipes, users or
-       integrations. */
-    can: [
-      "view:costs", "view:reports", "view:profitability", "export", "manage:costs",
-      "view:inventory", "manage:purchasing",
-    ],
-  },
-};
-
-export const ROLE_KEYS = Object.keys(ROLES);
-
-export function isRole(role) {
-  return Object.prototype.hasOwnProperty.call(ROLES, role);
-}
 
 /* ── Organization records ─────────────────────────────────────
 
@@ -300,9 +228,7 @@ export function parseBranchParam(value) {
   return list.map((v) => String(v).trim()).filter(Boolean);
 }
 
-export function can(role, capability) {
-  return Boolean(ROLES[role]?.can.includes(capability));
-}
+
 
 /* Everything a request needs to make an authorization decision, derived from
    the session — never from the request body. */

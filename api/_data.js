@@ -1,15 +1,18 @@
 // Pulls sales from the connected POS API and shapes them into the metrics
-// the UI needs. Works with any Loyverse-compatible POS API; point POS_API_BASE
+// the UI needs. The vendor-specific parts live in _pos.js; POS_PROVIDER picks
 // at a different base URL to use another provider. With no token set, raises
 // NotConnected so the interface prompts for a POS connection.
 
 import { buildAdvice } from "./_advice.js";
 import { marginLayer } from "./_margin.js";
 import { aggregate } from "./_aggregate.js";
+import { provider } from "./_pos.js";
 
-const BASE = process.env.POS_API_BASE || "https://api.loyverse.com/v1.0";
+/* Everything vendor-specific — base URL, auth, endpoint names, field names,
+   pagination — lives in _pos.js. Read per call rather than captured at module
+   load, so changing POS_PROVIDER takes effect without a cold start. */
 /* Short, because the dashboard polls and people expect today's number to
-   move. Loyverse rate-limits, so this still shields the API from a room
+   move. Tills rate-limit, so this still shields the API from a room
    full of tablets all refreshing at once — the cache is keyed by token, so
    every device on one account shares a single upstream call. */
 const CACHE_MS = 45 * 1000;
@@ -180,30 +183,28 @@ function finish(m) {
 }
 
 /* ---------------------------------------------------------------- */
-/*  Live Loyverse                                                     */
+/*  Live POS                                                          */
 /* ---------------------------------------------------------------- */
 async function call(path, token) {
-  const res = await fetch(`${BASE}${path}`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+  const pos = provider();
+  const res = await fetch(`${pos.base}${path}`, { headers: pos.auth(token) });
   if (!res.ok) {
     /* Loyverse explains itself in the body; a bare status code sends people
        hunting for a problem the response already named. */
     const body = await res.text().catch(() => "");
-    let detail = "";
-    try {
-      const parsed = JSON.parse(body);
-      detail = parsed.details || parsed.message || parsed.error || "";
-    } catch {
-      detail = body.slice(0, 160);
-    }
+    const detail = pos.detail(body);
     const label =
-      res.status === 402 ? "The POS only returns the last 31 days of receipts on this plan" :
+      res.status === 402 ? "The POS only returns a limited history of receipts on this plan" :
       res.status === 401 ? "The access token was rejected" :
       res.status === 403 ? "That token doesn't have permission to read this" :
       res.status === 429 ? "The POS API is rate-limiting the connection" :
       `The POS API returned ${res.status}`;
-    throw new Error(detail ? `${label}: ${detail}` : label);
+    /* The status rides on the error: the history ladder asks the adapter
+       whether a refusal was the plan talking, and a message alone makes that a
+       string-matching guess. */
+    const err = new Error(detail ? `${label}: ${detail}` : label);
+    err.status = res.status;
+    throw err;
   }
   return res.json();
 }
@@ -212,13 +213,12 @@ async function allReceipts(token, sinceIso) {
   const out = [];
   let cursor = null;
 
-  // Loyverse paginates; cap the walk so a huge account can't hang the request.
+  // Tills paginate; cap the walk so a huge account can't hang the request.
   for (let page = 0; page < 12; page++) {
-    const qs = new URLSearchParams({ created_at_min: sinceIso, limit: "250" });
-    if (cursor) qs.set("cursor", cursor);
-    const data = await call(`/receipts?${qs}`, token);
-    out.push(...(data.receipts || []));
-    cursor = data.cursor;
+    const pos = provider();
+    const data = await call(pos.receiptsPath(sinceIso, cursor), token);
+    out.push(...pos.receiptsOf(data));
+    cursor = pos.nextCursor(data);
     if (!cursor) break;
   }
   return out;
@@ -248,12 +248,11 @@ const HISTORY_LADDER = [365, 180, 90, 60, 30];
 const COMPARISON_DAYS = 60;
 
 async function probeWindow(token, sinceIso) {
-  const qs = new URLSearchParams({ created_at_min: sinceIso, limit: "1" });
-  await call(`/receipts?${qs}`, token);
+  await call(provider().probePath(sinceIso), token);
 }
 
 function planRefused(err) {
-  return /\b402\b|PAYMENT_REQUIRED|31 days/i.test(err?.message || "");
+  return provider().historyRefused(err?.status, err?.message || "");
 }
 
 export async function widestHistoryDays(token, now = Date.now(), ladder = HISTORY_LADDER) {
@@ -289,35 +288,33 @@ async function fetchReceipts(token, now) {
    endpoint has `cost` on each variant, so we read it once and join it to
    the line items by name.
 
-   Loyverse paginates items too, and an item can have several variants at
+   Items paginate too, and an item can have several variants at
    different costs; we key on both the item name and the variant name so a
    large latte and a small one aren't averaged together. */
 async function fetchCatalogue(token) {
   const byName = new Map();
   let cursor = null;
 
+  const pos = provider();
   for (let page = 0; page < 10; page++) {
-    const qs = new URLSearchParams({ limit: "250" });
-    if (cursor) qs.set("cursor", cursor);
-    const data = await call(`/items?${qs}`, token);
+    const data = await call(pos.itemsPath(cursor), token);
 
-    for (const item of data.items || []) {
-      const image = item.image_url || null;
-      for (const variant of item.variants || [{}]) {
-        const cost = Number(variant.cost) || 0;
-        const key = variant.variant_name
-          ? `${item.item_name}||${variant.variant_name}`
-          : item.item_name;
-        byName.set(key, { cost, image, category: item.category_id || null });
+    for (const raw of pos.itemsOf(data)) {
+      const item = pos.item(raw);
+      if (!item.name) continue;
+      for (const variant of item.variants.length ? item.variants : [{ name: "", cost: 0 }]) {
+        const key = variant.name ? `${item.name}||${variant.name}` : item.name;
+        byName.set(key, { cost: variant.cost, image: item.image, category: item.category });
       }
       // Fallback entry so a line item without a variant name still resolves.
-      if (!byName.has(item.item_name)) {
-        const first = (item.variants || [])[0] || {};
-        byName.set(item.item_name, { cost: Number(first.cost) || 0, image, category: null });
+      if (!byName.has(item.name)) {
+        byName.set(item.name, {
+          cost: item.variants[0]?.cost || 0, image: item.image, category: null,
+        });
       }
     }
 
-    cursor = data.cursor;
+    cursor = pos.nextCursor(data);
     if (!cursor) break;
   }
 
@@ -413,7 +410,7 @@ export async function branchList(posToken) {
 
   /* The cached fetch already holds the roster, so a dashboard request that is
      about to aggregate anyway doesn't pay for a second /stores call — which
-     matters because Loyverse rate-limits and this is now read on every metrics
+     matters because tills rate-limit and this is now read on every metrics
      request to resolve the scope. */
   const hit = cache.get(token.slice(0, 24));
   if (hit) {
@@ -427,18 +424,19 @@ export async function branchList(posToken) {
      when scope resolution did, and an unwrapped failure here reached the
      endpoint as a generic 500 — which is precisely the "no sales" versus
      "couldn't ask" confusion the provenance work exists to remove. */
+  const pos = provider();
   let data;
   try {
-    data = await call("/stores", token);
+    data = await call(pos.storesPath(), token);
   } catch (err) {
-    console.error("Loyverse branch list failed:", err.message);
+    console.error("POS branch list failed:", err.message);
     throw new PosUnreachable(err.message);
   }
 
-  return (data?.stores || []).map((s) => ({
-    id: String(s.id),
-    name: s.name || "Unnamed branch",
-  }));
+  return pos.storesOf(data).map((raw) => {
+    const store = pos.store(raw);
+    return { id: store.id, name: store.name || "Unnamed branch" };
+  });
 }
 
 export async function getMetrics(posToken, { maxAge = CACHE_MS, overrides = {}, branches = null } = {}) {
@@ -449,7 +447,7 @@ export async function getMetrics(posToken, { maxAge = CACHE_MS, overrides = {}, 
   if (!token) throw new NotConnected();
 
   /* The cache holds the raw upstream read, not the finished payload. Two
-     requests with different branch scopes share one Loyverse call and are
+     requests with different branch scopes share one upstream call and are
      aggregated separately — which is the point of splitting the two, since the
      fetch is the expensive half and the scope changes per user. Overrides no
      longer belong in the key for the same reason: they're applied during
@@ -467,7 +465,7 @@ export async function getMetrics(posToken, { maxAge = CACHE_MS, overrides = {}, 
     try {
       raw = await fetchRaw(token);
     } catch (err) {
-      console.error("Loyverse fetch failed:", err.message);
+      console.error("POS fetch failed:", err.message);
       throw new PosUnreachable(err.message);
     }
     fetched = true;
@@ -536,23 +534,25 @@ export async function salesLines(posToken, { from, to = Date.now(), branches = n
   }
 
   const allowed = branches === null ? null : new Set(branches.map(String));
+  const pos = provider();
   const rows = new Map();
 
   for (const r of raw.receipts) {
     if (r.receipt_type === "REFUND" || r.cancelled_at) continue;
-    const branchId = String(r.store_id || "unknown");
+    const receipt = pos.receipt(r);
+    const branchId = receipt.branchId;
     if (allowed && !allowed.has(branchId)) continue;
-    const at = new Date(r.receipt_date).getTime();
+    const at = receipt.at;
     if (from && at < from) continue;
     if (to && at > to) continue;
 
-    for (const li of r.line_items || []) {
-      const name = li.item_name || "Unnamed item";
-      const variant = li.variant_name || "";
+    for (const li of receipt.lines) {
+      const name = li.name || "Unnamed item";
+      const variant = li.variant;
       const mapKey = `${branchId}||${name}||${variant}`;
       const row = rows.get(mapKey) || { branchId, name, variant, qty: 0, revenue: 0, lines: 0 };
-      row.qty += Number(li.quantity) || 0;
-      row.revenue += Number(li.total_money) || 0;
+      row.qty += li.qty;
+      row.revenue += li.revenue;
       row.lines += 1;
       rows.set(mapKey, row);
     }

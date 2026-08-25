@@ -165,6 +165,24 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
   const [rawTab, setTabState] = useState(routeTab);
   useEffect(() => { setTabState(routeTab); }, [routeTab]);
 
+
+  const setTab = (next) => { setTabState(next); navigate(`app/${next}`); };
+  const [palette, setPalette] = useState(false);
+  const [pending, setPending] = useState("");
+  const [direction, setDirection] = useState(1);
+  const [data, setData] = useState(null);
+  const [error, setError] = useState("");
+  const [refreshing, setRefreshing] = useState(false);
+  const [needsPos, setNeedsPos] = useState(false);
+  const [mobileMenu, setMobileMenu] = useState(false);
+  const [fetchedAt, setFetchedAt] = useState(null);
+  const [exportOpen, setExportOpen] = useState(false);
+  const [dateRange, setDateRange] = useState("monthly");
+  /* The user's authorization scope, from the server. `branches` is what the
+     interface is asking for; empty means every branch they're allowed to see,
+     the same convention the API uses. */
+  const [scope, setScope] = useState(null);
+
   /* What this person may open.
 
      The list is the server's answer, not the browser's: `/api/scope` resolves
@@ -195,22 +213,6 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
 
   const tab = allowed(rawTab) ? rawTab : "overview";
 
-  const setTab = (next) => { setTabState(next); navigate(`app/${next}`); };
-  const [palette, setPalette] = useState(false);
-  const [pending, setPending] = useState("");
-  const [direction, setDirection] = useState(1);
-  const [data, setData] = useState(null);
-  const [error, setError] = useState("");
-  const [refreshing, setRefreshing] = useState(false);
-  const [needsPos, setNeedsPos] = useState(false);
-  const [mobileMenu, setMobileMenu] = useState(false);
-  const [fetchedAt, setFetchedAt] = useState(null);
-  const [exportOpen, setExportOpen] = useState(false);
-  const [dateRange, setDateRange] = useState("monthly");
-  /* The user's authorization scope, from the server. `branches` is what the
-     interface is asking for; empty means every branch they're allowed to see,
-     the same convention the API uses. */
-  const [scope, setScope] = useState(null);
   const [branches, setBranches] = useState([]);
   const mainRef = useRef(null);
 

@@ -168,7 +168,13 @@ await test("the effective version is the newest one already in force", async () 
 await test("a back-dated version slots into history rather than on top of it", async () => {
   await seed();
   const now = Date.now();
-  await rc.saveVersion("org1", burger({ portions: 4 }));
+  /* Explicit rather than defaulted. Leaving saveVersion to stamp its own
+     `effectiveFrom` made this race the clock: if a millisecond passed between
+     `now` above and the write, the new version was dated after `now` and the
+     assertion below found the back-dated one instead. Failed roughly one run
+     in three, which is the worst frequency — often enough to erode trust in
+     the suite, rare enough to be dismissed as a fluke. */
+  await rc.saveVersion("org1", burger({ effectiveFrom: now, portions: 4 }));
   await rc.saveVersion("org1", burger({ effectiveFrom: now - 10 * DAY, portions: 1 }));
   const recipe = await rc.getRecipe("org1", "cheeseburger");
   assert.strictEqual(rc.effectiveVersion(recipe, now).portions, 4);

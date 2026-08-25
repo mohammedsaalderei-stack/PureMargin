@@ -346,30 +346,114 @@ defensible — the title names the place they know, the lead avoids prescribing
 the craft — but if you would rather move the whole section away from kitchens,
 all four titles need changing together, not just the Arabic.
 
+
+---
+
+# Deployment readiness pass
+
+## 19. A whole screen died on a temporal dead zone
+
+The production build reported `Cannot access 'me' before initialization` and
+took the screen down. `me` was a minified name that appears nowhere in the
+source: `src/Shell.jsx` read `scope?.tabs` on line 179 while `scope` was
+declared by a `useState` on line 213. Legal to write, fatal to run, and
+invisible to every other check here — the file parses, the imports resolve,
+and the identifier is genuinely declared.
+
+Caused by a block being moved up during the tab-gating work. The access block
+now sits below the state it reads.
+
+## 20. A circular import between `_org.js` and `_tabs.js`
+
+`_org.js` imported `capabilitiesFor` from `_tabs.js`, which imported `ROLES`
+back from `_org.js`. Benign in this instance, because neither module read the
+other's binding while evaluating — but a cycle is exactly how the failure
+above happens, and the next edit could have made it real.
+
+The role table now lives in `api/_roles.js`, imported by both and re-exported
+from `_org.js` so every existing caller keeps working.
+
+Added `scripts/check-cycles.mjs`, wired into `npm run check` alongside the
+import checker. It follows static and dynamic imports and reports the ring.
+
+*Not* added: a temporal-dead-zone checker. It was written, and it produced
+twenty false positives on the first run — function parameters and same-depth
+names in different scopes — because catching this properly needs real scope
+analysis, which needs a parser. A checker that fails the build on noise gets
+switched off, so shipping a noisy one would have been worse than shipping
+none. The gap is real and named in "Still worth doing" below.
+
+## 21. A test that failed about one run in three
+
+`api/_recipes.test.js` captured `Date.now()` and then let `saveVersion` stamp
+its own timestamp. If a millisecond passed between the two, the new version
+was dated *after* the moment being asserted against, and the test found the
+back-dated version instead.
+
+Pre-existing, not introduced here — it fails on the previous tree too. Worth
+naming because that failure rate is the worst kind: often enough to erode
+trust in the suite, rare enough to be dismissed as a fluke and re-run.
+
+## 22. The POS layer no longer assumes Loyverse
+
+`store_id`, `line_items`, `total_money`, a `cursor` field, a 31-day history
+cap — none of those are facts about point-of-sale systems. They are facts
+about Loyverse, and they were spread through the metrics module.
+
+Everything vendor-specific now lives in `api/_pos.js`: base URL, how a token
+is presented, endpoint names, pagination, and every field name. The rest of
+the app works on a normalised shape and never sees a vendor's spelling.
+
+- **`POS_PROVIDER=loyverse`** — the built-in adapter, unchanged behaviour, and
+  the default, so nothing about an existing deployment changes.
+- **`POS_PROVIDER=custom`** — an adapter driven entirely by `POS_FIELD_*`
+  variables, for any other REST till with a paged receipts endpoint. Dotted
+  paths are followed, so `location.id` reads a nested field, and the auth
+  header can be something other than `Authorization: Bearer`.
+
+**The custom adapter is a described shape, not a tested one.** It exists so
+somebody can point this at another till without waiting for a release, and it
+should be verified against a real account before its numbers are trusted. The
+Loyverse adapter is the one that has been run in anger.
+
+14 tests cover the adapter contract: every provider answers the same
+questions, an unknown provider name falls back rather than crashing, non-numeric
+money reads as zero rather than NaN, and a real 500 is not mistaken for a
+plan-imposed history limit.
+
+## 23. Three undocumented environment variables
+
+`ANTHROPIC_MODEL`, `API_PORT` and `KV_URL` were read by the code and appeared
+nowhere in `.env.example` — the same gap that hid `ADMIN_EMAIL` and the mail
+block in earlier rounds. All three documented, with a note that `KV_URL` and
+`REDIS_URL` should never both be set.
+
 ---
 
 ## Verified clean
 
-- All 12 test suites pass, including the new import check and throttle tests
+- All 19 test suites pass, three consecutive runs, no flakes
+- `npm run check`: 163 files, every import resolves, no circular imports
 - Every `.js` file passes `node --check`
-- No unresolved imports; no missing named or default exports
-- No JSX component used without an import
-- No React hook called after an early return
+- No undefined identifiers, missing i18n keys, duplicate keys, or hook-order faults
 - Every `/api/*` endpoint the frontend calls has a matching handler
-- No duplicate keys, missing i18n keys, or encoding corruption
-- All config files present and valid JSON
+- Every environment variable the code reads is documented
+- No encoding corruption anywhere in the tree
+- `package.json`, `vercel.json`, `manifest.webmanifest` and the Base44 manifest all valid
 
 ## Still worth doing
 
-1. **A Content-Security-Policy**, written against the deployed site. See 15.
-2. **A service worker.** The manifest declares `display: standalone`, so the
-   app installs and opens chromeless — but with no network it shows the browser
-   error page, which is jarring for something that presents itself as an app.
-   An offline shell is a contained addition.
-3. **Delete `check_errors.cjs`.** It has a hardcoded Chrome path
-   (`/root/.cache/puppeteer/chrome/linux-127.0.6533.88/…`) and hardcoded test
-   credentials. Removing it drops the last reason to keep puppeteer at all.
-4. **`src/i18n.jsx` is over 5,100 lines** and every language ships to every
-   visitor. Splitting per language behind a dynamic import would cut what a
-   first-time visitor downloads by roughly three quarters. Worth doing when
-   the file next needs restructuring, not before.
+1. **Run the app before deploying.** Nothing in this repository has been
+   rendered. There is no `node_modules` in the environment these changes were
+   made in, so no dev server, no `vite build`, and no browser. The API logic is
+   covered by tests; every React screen is static analysis only. `npm run build
+   && npm run preview`, then click every tab in Arabic and English, is not
+   optional before this goes out.
+2. **A Content-Security-Policy**, written against the deployed site.
+3. **A service worker.** The manifest declares `display: standalone`, so with
+   no network the app shows the browser error page.
+4. **Delete `check_errors.cjs`** — hardcoded Chrome path, hardcoded test
+   credentials, and the last reason puppeteer is installed at all.
+5. **Split `src/i18n.jsx`.** Over 5,000 lines, and every language ships to
+   every visitor.
+6. **A real TDZ check**, which needs a parser. See 20.

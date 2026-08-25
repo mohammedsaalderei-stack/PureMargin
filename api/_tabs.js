@@ -1,4 +1,4 @@
-import { ROLES, ROLE_KEYS } from "./_org.js";
+import { ROLES, ROLE_KEYS } from "./_roles.js";
 
 /* Which tab needs what, and the exceptions an owner can make.
 
