@@ -23,9 +23,20 @@
 
 import crypto from "crypto";
 import { getJSON, setJSON, del } from "./_store.js";
+import { capabilitiesFor } from "./_tabs.js";
 import { getAccount, normalise } from "./_accounts.js";
 
 const ORG_KEY = (id) => `org:${id}`;
+
+/* Persist an organization record. Exported so the tab-grant route can write
+   one without reaching for the store key directly — the key shape is this
+   module's business, and a second place that knows it is a second place to
+   fix when it changes. */
+export async function saveOrg(org) {
+  if (!org?.id) return null;
+  await setJSON(ORG_KEY(org.id), org);
+  return org;
+}
 
 /* An owner can add a member before that person has an account. This index is
    what makes the seat find them: without it, registering would create a fresh
@@ -307,7 +318,10 @@ export async function scopeFor(account, allBranchIds = []) {
     org,
     role,
     isOwner: org?.ownerUsername === normalise(account.username),
-    capabilities: role ? ROLES[role].can : [],
+    /* Base capabilities plus whatever the owner has opened up for this role
+       or this person. Assembled here so every caller — the scope endpoint,
+       the nav, and each data route — reads the same list. */
+    capabilities: role ? capabilitiesFor(org, account.username, role) : [],
     authorized: role ? authorizedBranches(org, account.username, allBranchIds) : [],
   };
 }

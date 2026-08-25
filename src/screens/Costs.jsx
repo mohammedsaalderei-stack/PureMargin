@@ -45,6 +45,37 @@ export default function Costs({ token }) {
 
   const money = (n) => (n === null || n === undefined ? "—" : <Money value={Math.round(n * 100) / 100} />);
 
+  /* Corrections to what the scan read.
+
+     The scanner is a reading of a photograph and it is occasionally wrong —
+     a smudged 11 becomes 4, a handwritten addition is missed, a dish is
+     matched to the wrong menu entry. Before this the result was final, so
+     one misread digit meant discarding the whole scan and typing the bill by
+     hand, which is the work the feature exists to remove.
+
+     Edits are held here rather than sent back for re-analysis: the numbers
+     are already priced from the owner's own cost table, so a corrected
+     quantity re-prices locally and instantly. `edits` is keyed by line index
+     because two lines of a bill can legitimately read identically. */
+  const [edits, setEdits] = useState({});
+  const editLine = (i, patch) =>
+    setEdits((e) => ({ ...e, [i]: { ...(e[i] || {}), ...patch } }));
+
+  const applyEdits = (line, i) => {
+    const e = edits[i];
+    if (!e) return line;
+    const qty = e.qty !== undefined ? Number(e.qty) : line.qty;
+    const amount = e.amount !== undefined ? Number(e.amount) : line.amount;
+    const name = e.menuItem !== undefined ? e.menuItem : line.menuItem;
+    const entry = menu.find((m) => m.name === name);
+    const unit = entry?.cost || 0;
+    const cost = name && unit > 0 && Number.isFinite(qty) ? Math.round(unit * qty * 100) / 100 : null;
+    const profit = cost !== null && Number.isFinite(amount) ? Math.round((amount - cost) * 100) / 100 : null;
+    return { ...line, qty, amount, menuItem: name || null, cost, profit, edited: true };
+  };
+
+  const lines = (result?.lines || []).map(applyEdits);
+
   /* Manually resolved lines, priced from the menu list. */
   const resolved = Object.entries(manual)
     .filter(([, v]) => v.item && Number(v.amount) > 0)
@@ -56,7 +87,7 @@ export default function Costs({ token }) {
     });
 
   const allLines = result
-    ? [...(result.lines || []).filter((l) => l.menuItem), ...resolved]
+    ? [...lines.filter((l) => l.menuItem), ...resolved]
     : [];
   const totalCost = allLines.reduce((sum, l) => (l.cost !== null && sum !== null ? sum + l.cost : null), 0);
   const totalAmount = allLines.reduce((sum, l) => sum + (l.amount || 0), 0);
@@ -75,7 +106,7 @@ export default function Costs({ token }) {
 
         <div className="panel p-5 md:p-6">
           <PhotoScan token={token} kind="bill" buttonLabel={s.scan}
-            onResult={(r) => { setResult(r); setManual({}); }} />
+            onResult={(r) => { setResult(r); setManual({}); setEdits({}); }} />
         </div>
 
         {result && (
@@ -93,17 +124,41 @@ export default function Costs({ token }) {
               </h3>
 
               <div className="space-y-1.5">
-                {(result.lines || []).map((l, i) => (
-                  <div key={i} className="flex items-center gap-3 py-2 px-3 rounded-lg text-sm"
+                {lines.map((l, i) => (
+                  <div key={i} className="flex items-center gap-2 py-2 px-3 rounded-lg text-sm flex-wrap"
                     style={{ background: "var(--chip-bg)" }}>
-                    <div className="flex-1 min-w-0">
-                      <div className="font-medium truncate">{l.menuItem || l.text}</div>
-                      {l.menuItem && l.text !== l.menuItem && (
-                        <div className="text-[11px] truncate" style={{ color: C.slate }}>{l.text}</div>
-                      )}
+                    <div className="flex-1 min-w-[8rem]">
+                      <select
+                        value={l.menuItem || ""}
+                        onChange={(e) => editLine(i, { menuItem: e.target.value })}
+                        aria-label={s.pickItem}
+                        className="w-full bg-transparent font-medium outline-none text-sm"
+                        style={{ color: C.ink }}
+                      >
+                        <option value="">{s.unmatchedTitle}</option>
+                        {menu.map((m) => (
+                          <option key={m.name} value={m.name}>{m.name}</option>
+                        ))}
+                      </select>
+                      <div className="text-[11px] truncate" style={{ color: C.slate }}>{l.text}</div>
                     </div>
-                    <span className="data text-xs shrink-0" style={{ color: C.slate }} dir="ltr">×{l.qty || 1}</span>
-                    <span className="data text-xs shrink-0 w-16 text-end">{money(l.amount)}</span>
+
+                    <input
+                      type="number" min="0" step="any" inputMode="decimal" dir="ltr"
+                      value={l.qty ?? ""}
+                      onChange={(e) => editLine(i, { qty: e.target.value })}
+                      aria-label={s.qty}
+                      className="data text-xs shrink-0 w-14 text-end rounded px-1.5 py-1 outline-none"
+                      style={{ background: C.surface, border: `1px solid ${C.hairline}`, color: C.ink }}
+                    />
+                    <input
+                      type="number" min="0" step="any" inputMode="decimal" dir="ltr"
+                      value={l.amount ?? ""}
+                      onChange={(e) => editLine(i, { amount: e.target.value })}
+                      aria-label={s.amount}
+                      className="data text-xs shrink-0 w-20 text-end rounded px-1.5 py-1 outline-none"
+                      style={{ background: C.surface, border: `1px solid ${C.hairline}`, color: C.ink }}
+                    />
                     <span className="data text-xs shrink-0 w-16 text-end" style={{ color: C.slate }}>{money(l.cost)}</span>
                     <span className="data text-xs font-semibold shrink-0 w-16 text-end"
                       style={{ color: l.profit === null ? C.slate : l.profit >= 0 ? C.iris : C.rose }}>
@@ -112,8 +167,11 @@ export default function Costs({ token }) {
                   </div>
                 ))}
               </div>
+              <p className="text-[11px] mt-2" style={{ color: C.slate }}>{s.editHint}</p>
+
               <div className="flex justify-end gap-3 mt-1 px-3">
-                <span className="text-[10px] uppercase tracking-wide w-16 text-end" style={{ color: C.slate }}>{s.amount}</span>
+                <span className="text-[10px] uppercase tracking-wide w-14 text-end" style={{ color: C.slate }}>{s.qty}</span>
+                <span className="text-[10px] uppercase tracking-wide w-20 text-end" style={{ color: C.slate }}>{s.amount}</span>
                 <span className="text-[10px] uppercase tracking-wide w-16 text-end" style={{ color: C.slate }}>{s.cost}</span>
                 <span className="text-[10px] uppercase tracking-wide w-16 text-end" style={{ color: C.slate }}>{s.profit}</span>
               </div>

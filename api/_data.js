@@ -224,21 +224,62 @@ async function allReceipts(token, sinceIso) {
   return out;
 }
 
-/* Loyverse caps receipt history at 31 days unless the account has the
+/* How far back this account is actually allowed to read.
+
+   Loyverse caps receipt history at 31 days unless the account carries the
    Unlimited Sales History add-on; asking for more returns 402 rather than a
-   short list. So: ask for 60 days to make month-on-month comparison
-   possible, and quietly narrow to 30 if the plan won't allow it. The
-   narrowed case is flagged, because it means there's no prior period to
-   compare against and the interface must not imply otherwise. */
-async function fetchReceipts(token, now) {
-  const wide = new Date(now - 60 * DAY).toISOString();
-  try {
-    return { receipts: await allReceipts(token, wide), limitedHistory: false, since: wide };
-  } catch (err) {
-    if (!/\b402\b|PAYMENT_REQUIRED|31 days/i.test(err.message)) throw err;
-    const narrow = new Date(now - 30 * DAY).toISOString();
-    return { receipts: await allReceipts(token, narrow), limitedHistory: true, since: narrow };
+   short list. The previous version asked for 60 days and fell back to 30, so
+   an account that had paid for unlimited history still only ever saw two
+   months — the add-on bought nothing, and every screen kept saying "last 30
+   days" because that was all there was.
+
+   Now it finds the widest window the plan permits, cheaply. Each probe is a
+   single-receipt request, so the ladder costs a handful of tiny calls rather
+   than several full paginated walks, and only the window that wins is fetched
+   in full.
+
+   The ladder stops at a year. Beyond that the page cap below truncates the
+   result anyway, and a silently truncated history is worse than a short one
+   that knows it is short. */
+const HISTORY_LADDER = [365, 180, 90, 60, 30];
+
+/* Below this there is no prior period to compare against, and the interface
+   must not imply otherwise. */
+const COMPARISON_DAYS = 60;
+
+async function probeWindow(token, sinceIso) {
+  const qs = new URLSearchParams({ created_at_min: sinceIso, limit: "1" });
+  await call(`/receipts?${qs}`, token);
+}
+
+function planRefused(err) {
+  return /\b402\b|PAYMENT_REQUIRED|31 days/i.test(err?.message || "");
+}
+
+export async function widestHistoryDays(token, now = Date.now(), ladder = HISTORY_LADDER) {
+  for (const days of ladder) {
+    const since = new Date(now - days * DAY).toISOString();
+    try {
+      await probeWindow(token, since);
+      return days;
+    } catch (err) {
+      if (!planRefused(err)) throw err;
+    }
   }
+  /* Every rung refused, which should not happen — 30 days is the floor the
+     free plan allows. Take the floor rather than returning nothing. */
+  return ladder[ladder.length - 1];
+}
+
+async function fetchReceipts(token, now) {
+  const days = await widestHistoryDays(token, now);
+  const since = new Date(now - days * DAY).toISOString();
+  return {
+    receipts: await allReceipts(token, since),
+    limitedHistory: days < COMPARISON_DAYS,
+    historyDays: days,
+    since,
+  };
 }
 
 /* The catalogue: cost and photo per item.
@@ -311,6 +352,7 @@ async function fetchRaw(token) {
     receiptCount: history.receipts.length,
     receipts: history.receipts,
     limitedHistory: history.limitedHistory,
+    historyDays: history.historyDays,
     catalogue,
     storeNames: Object.fromEntries((storesRes.stores || []).map((s) => [s.id, s.name])),
     allBranches: (storesRes.stores || []).map((s) => String(s.id)),
@@ -451,6 +493,7 @@ export async function getMetrics(posToken, { maxAge = CACHE_MS, overrides = {}, 
       since: raw.since,
       receiptCount: raw.receiptCount,
       limitedHistory: raw.limitedHistory,
+      historyDays: raw.historyDays,
       wentUpstream: fetched,
       branchNames: raw.storeNames,
       // How many item costs came from the owner rather than the POS.
@@ -525,6 +568,7 @@ export async function salesLines(posToken, { from, to = Date.now(), branches = n
       /* True when the POS wouldn't give us the whole window asked for, which
          understates theoretical usage and must never be silently absorbed. */
       limitedHistory: raw.limitedHistory,
+      historyDays: raw.historyDays,
     },
   };
 }

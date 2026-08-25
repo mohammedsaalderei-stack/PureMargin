@@ -8,6 +8,7 @@
 
 import { requireAuth } from "./_auth.js";
 import { scopeFor, ROLES } from "./_org.js";
+import { allowedTabs } from "./_tabs.js";
 import { posTokenFor } from "./_accounts.js";
 import { branchList } from "./_data.js";
 
@@ -35,6 +36,11 @@ export default async function handler(req, res) {
       roleLabel: scope.role ? ROLES[scope.role].label : null,
       isOwner: scope.isOwner,
       capabilities: scope.capabilities,
+      /* The definitive list of tabs this person may open, resolved from the
+         same capabilities the data routes check. The browser renders this
+         rather than deciding for itself, so the nav and the API can never
+         disagree about what exists. */
+      tabs: allowedTabs(scope.capabilities),
       organization: scope.org ? { id: scope.org.id, name: scope.org.name } : null,
       /* Only the branches this user may see. The ones they may not are absent
          rather than marked — a disabled entry still discloses that a branch

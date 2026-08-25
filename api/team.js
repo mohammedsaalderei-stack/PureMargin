@@ -11,9 +11,10 @@
 
 import crypto from "crypto";
 import { requireAuth } from "./_auth.js";
-import { scopeFor, setMember, removeMember, ROLES, ROLE_KEYS } from "./_org.js";
+import { scopeFor, setMember, removeMember, ROLES, ROLE_KEYS, saveOrg, can } from "./_org.js";
 import { getAccount, normalise, posTokenFor, validEmail, getAccountByEmail } from "./_accounts.js";
 import { branchList } from "./_data.js";
+import { normaliseGrants, grantable, grantedTabs } from "./_tabs.js";
 import { recordAudit, readAudit } from "./_audit.js";
 import { readSyncs } from "./_sync.js";
 import { getJSON, setJSON, del } from "./_store.js";
@@ -93,6 +94,7 @@ export default async function handler(req, res) {
           roleLabel: ROLES[m.role]?.label || m.role,
           scope: ROLES[m.role]?.scope || "assigned",
           branches: m.branches || [],
+          extraTabs: grantedTabs(org, username, m.role),
           since: m.since || null,
           isOwner: username === org.ownerUsername,
           /* An invited username with no account yet still holds its role, so
@@ -204,6 +206,34 @@ export default async function handler(req, res) {
       },
     });
     return res.status(200).json({ ok: true });
+  }
+
+  /* Opening a tab somebody's role does not normally include.
+
+     PATCH { roles: { chef: ["variance"] }, users: { fatima: ["watch"] } }
+
+     The whole map is replaced rather than merged, so removing a grant is
+     sending it without that entry — a merge-only endpoint gives no way to take
+     something back except a second verb nobody remembers exists.
+
+     Team and Packages cannot be granted. They are controls, not views: Team
+     lets somebody change roles, which lets them grant themselves everything
+     else. An owner who wants a second administrator has a way to say so, and
+     that decision should look like what it is. */
+  if (req.method === "PATCH") {
+    if (!can(member.role, "manage:users")) return res.status(403).json({ error: "forbidden" });
+
+    const grants = normaliseGrants(req.body || {});
+    const org2 = { ...org, tabGrants: grants };
+    await saveOrg(org2);
+
+    await recordAudit(org.id, {
+      actor: session.username,
+      action: "tabs.grant",
+      detail: grants,
+    });
+
+    return res.status(200).json({ grants, grantable: grantable() });
   }
 
   if (req.method === "DELETE") {

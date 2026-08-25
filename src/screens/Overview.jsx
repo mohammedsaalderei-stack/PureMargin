@@ -233,6 +233,7 @@ function QuickActions({ onAsk, onOpenCosts, onGo }) {
 /* ─── Food cost indicator ────────────────────────────────── */
 function FoodCostIndicator({ data }) {
   const C = useC();
+  const { t } = useLang();
   const cost = data.extras?.cost || 0;
   const sales = data.totals?.sales || 1;
   const pct = sales > 0 ? ((cost / sales) * 100).toFixed(1) : 0;
@@ -244,7 +245,7 @@ function FoodCostIndicator({ data }) {
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <Target size={14} style={{ color: over ? C.rose : "#10B981" }} />
-          <SectionLabel>Food Cost %</SectionLabel>
+          <SectionLabel>{t.overview.foodCostPct}</SectionLabel>
         </div>
         <span className="text-xs px-2.5 py-0.5 rounded-full font-semibold"
           style={{ background: over ? "rgba(244,63,94,0.12)" : "rgba(16,185,129,0.12)",

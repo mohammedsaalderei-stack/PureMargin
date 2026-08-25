@@ -165,51 +165,19 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
   const [rawTab, setTabState] = useState(routeTab);
   useEffect(() => { setTabState(routeTab); }, [routeTab]);
 
-  /* What each role sees.
+  /* What this person may open.
 
-     Every tab is named here against the capability that earns it. Before this,
-     ten of them were in the list unconditionally, so a cashier — whose only
-     capability is `view:dashboard` — opened the app to the thirty-day sales
-     table, menu profitability, the forecast, the advice feed and the billing
-     screen. The API refuses most of the underlying calls, so it was not a data
-     breach; it was worse in a quieter way, because a screen that renders and
-     then fails is read as the software being broken rather than as a door that
-     was never theirs.
+     The list is the server's answer, not the browser's: `/api/scope` resolves
+     it from the same capabilities every data route checks, including any tab
+     the owner has opened up for this role or this person. Deciding it here as
+     well would give the nav and the API two opinions, and the one that draws
+     a screen the other refuses to feed is the one people report as a bug.
 
-     `null` means everybody: the assistant answers within whatever scope the
-     caller already has, messages are how the team reaches each other, and
-     settings is a person's own account. Everything else has to be earned.
-
-     Two capabilities are worth reading twice. `view:profitability` gates the
-     analysis screens, which is what keeps a cashier out of margin data. And
-     `manage:billing` gates Packages, because what the business pays is the
-     owner's business and nobody else's. */
-  const capabilities = scope?.capabilities || [];
-  const may = (...needed) => needed.some((c) => capabilities.includes(c));
-
-  const TAB_ACCESS = {
-    overview: "view:dashboard",
-    costs: "view:dashboard",
-    ask: null,
-    inventory: "view:inventory",
-    alerts: "view:inventory",
-    plan: "manage:purchasing",
-    recipes: "manage:recipes",
-    variance: "view:costs",
-    watch: "view:profitability",
-    menu: "view:profitability",
-    forecast: "view:forecast",
-    advice: "view:profitability",
-    messages: null,
-    team: "manage:users",
-    billing: "manage:billing",
-    settings: null,
-  };
-
-  const allowed = (id) => {
-    const needed = TAB_ACCESS[id];
-    return needed === null || needed === undefined ? true : may(needed);
-  };
+     Until scope arrives, nothing but the tabs that need no permission — a
+     brief empty nav is better than one that offers a tab and withdraws it. */
+  const OPEN_TABS = ["ask", "messages", "settings", "overview"];
+  const allowedIds = scope?.tabs || OPEN_TABS;
+  const allowed = (id) => allowedIds.includes(id);
 
   const canManageTeam = allowed("team");
 
@@ -225,10 +193,6 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
     byId.billing, byId.settings,
   ].filter((tb) => tb && allowed(tb.id));
 
-  /* The nav only offers what is allowed; the router still has to enforce it.
-     Tabs are addressable — `#/app/watch` is a URL anybody can type or keep in
-     a bookmark from a previous role — so a tab that isn't theirs resolves to
-     the dashboard rather than rendering a screen that will fail its fetches. */
   const tab = allowed(rawTab) ? rawTab : "overview";
 
   const setTab = (next) => { setTabState(next); navigate(`app/${next}`); };

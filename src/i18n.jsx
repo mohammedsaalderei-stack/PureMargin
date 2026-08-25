@@ -861,6 +861,25 @@ export const STRINGS = {
       weekly: "This week",
       monthly: "This month",
     },
+    roleNames: {
+      owner: "Owner",
+      ops: "Operations manager",
+      branch_manager: "Branch manager",
+      chef: "Chef / Inventory lead",
+      cashier: "Cashier",
+      accountant: "Accountant",
+    },
+    grants: {
+      title: "Extra access",
+      lead: "Open a tab somebody's role does not normally include. Team and Packages stay with you.",
+      byRole: "By role",
+      byPerson: "By person",
+      save: "Save access",
+      saving: "Saving…",
+      saved: "Access updated.",
+      none: "No extra access given.",
+      pickTabs: "Tabs",
+    },
     settings: {
       usernameTitle: "Username",
       usernameLead: "What you sign in with, and how the team sees you.",
@@ -1178,6 +1197,11 @@ export const STRINGS = {
       take: "Take a photo",
     },
     invscan: {
+      itemName: "Item",
+      qty: "Qty",
+      unit: "Unit",
+      remove: "Remove",
+      editHint: "Correct anything the photo got wrong before you count.",
       title: "Scan a shelf",
       note: "Photograph a shelf or a delivery and get a list of what the AI can see, with honest quantity estimates.",
       scan: "Scan shelf",
@@ -1185,6 +1209,8 @@ export const STRINGS = {
     },
 
     costs: {
+      qty: "Qty",
+      editHint: "Anything the scan got wrong can be corrected here — totals re-price as you type.",
       tab: "Bill scan",
       title: "Scan a bill",
       lead: "Photograph a printed bill and the AI reads each line, matches it to your menu, and prices it against your costs — so the profit on that sale lands without any typing.",
@@ -1283,6 +1309,7 @@ export const STRINGS = {
     },
 
     overview: {
+      foodCostPct: "Food cost %",
       tab: "Overview", title: "Overview",
       totalSales: "Total sales", pureMargin: "Pure margin", netProfit: "Net profit",
       marginPct: "{n}% margin", scoreLabel: "Profit purity",
@@ -2200,6 +2227,25 @@ export const STRINGS = {
       weekly: "هذا الأسبوع",
       monthly: "هذا الشهر",
     },
+    roleNames: {
+      owner: "المالك",
+      ops: "مدير العمليات",
+      branch_manager: "مدير الفرع",
+      chef: "الطاهي / مسؤول المخزون",
+      cashier: "الكاشير",
+      accountant: "المحاسب",
+    },
+    grants: {
+      title: "صلاحيات إضافية",
+      lead: "افتح تبويبًا لا يشمله دور الشخص عادةً. يبقى الفريق والباقات لك وحدك.",
+      byRole: "حسب الدور",
+      byPerson: "حسب الشخص",
+      save: "حفظ الصلاحيات",
+      saving: "جارٍ الحفظ…",
+      saved: "حُدّثت الصلاحيات.",
+      none: "لم تُمنح صلاحيات إضافية.",
+      pickTabs: "التبويبات",
+    },
     settings: {
       usernameTitle: "اسم المستخدم",
       usernameLead: "ما تسجّل الدخول به، وكيف يراك الفريق.",
@@ -2517,6 +2563,11 @@ export const STRINGS = {
       take: "التقط صورة",
     },
     invscan: {
+      itemName: "الصنف",
+      qty: "الكمية",
+      unit: "الوحدة",
+      remove: "إزالة",
+      editHint: "صحّح ما أخطأت فيه الصورة قبل الجرد.",
       title: "امسح رفًا",
       note: "صوّر رفًا أو تسليمًا واحصل على قائمة بما يراه AI، مع تقديرات كمية صريحة.",
       scan: "امسح الرف",
@@ -2524,6 +2575,8 @@ export const STRINGS = {
     },
 
     costs: {
+      qty: "الكمية",
+      editHint: "صحّح هنا ما أخطأ فيه المسح — تُعاد الحسابات أثناء الكتابة.",
       tab: "مسح الفاتورة",
       title: "امسح فاتورة",
       lead: "صوّر فاتورة مطبوعة، يقرأ AI كل سطر ويطابقه مع قائمتك ويسعّره حسب تكاليفك — فيصل ربح تلك البيعة دون أي كتابة.",
@@ -2622,6 +2675,7 @@ export const STRINGS = {
     },
 
     overview: {
+      foodCostPct: "نسبة تكلفة الطعام",
       tab: "نظرة عامة", title: "نظرة عامة",
       totalSales: "إجمالي المبيعات", pureMargin: "الهامش النقي", netProfit: "صافي الربح",
       marginPct: "هامش {n}٪", scoreLabel: "درجة نقاء الأرباح",
@@ -3536,6 +3590,25 @@ export const STRINGS = {
       weekly: "इस हफ़्ते",
       monthly: "इस महीने",
     },
+    roleNames: {
+      owner: "मालिक",
+      ops: "ऑपरेशंस मैनेजर",
+      branch_manager: "शाखा प्रबंधक",
+      chef: "शेफ़ / इन्वेंटरी प्रभारी",
+      cashier: "कैशियर",
+      accountant: "लेखाकार",
+    },
+    grants: {
+      title: "अतिरिक्त पहुँच",
+      lead: "ऐसा टैब खोलिए जो किसी की भूमिका में सामान्यतः नहीं आता। टीम और पैकेज आपके पास ही रहेंगे।",
+      byRole: "भूमिका से",
+      byPerson: "व्यक्ति से",
+      save: "पहुँच सहेजें",
+      saving: "सहेजा जा रहा है…",
+      saved: "पहुँच अपडेट हुई।",
+      none: "कोई अतिरिक्त पहुँच नहीं दी गई।",
+      pickTabs: "टैब",
+    },
     settings: {
       usernameTitle: "यूज़रनेम",
       usernameLead: "जिससे आप साइन इन करते हैं, और जिस नाम से टीम आपको देखती है।",
@@ -3845,6 +3918,11 @@ export const STRINGS = {
       take: "तस्वीर लीजिए",
     },
     invscan: {
+      itemName: "वस्तु",
+      qty: "मात्रा",
+      unit: "इकाई",
+      remove: "हटाएँ",
+      editHint: "गिनती से पहले तस्वीर की गलतियाँ सुधार लीजिए।",
       title: "शेल्फ स्कैन",
       note: "शेल्फ या डिलीवरी की फोटो लें और एआई जो देखता है उसकी सूची पाएं, साथ में ईमानदार मात्रा अनुमान।",
       scan: "शेल्फ स्कैन करें",
@@ -3852,6 +3930,8 @@ export const STRINGS = {
     },
 
     costs: {
+      qty: "मात्रा",
+      editHint: "स्कैन में जो गलत आया उसे यहीं सुधारिए — टाइप करते ही जोड़ फिर से बनता है।",
       tab: "बिल स्कैन",
       title: "बिल स्कैन करें",
       lead: "एक छपे बिल की फोटो लें — एआई हर लाइन पढ़ता है, आपके मेन्यू से मिलाता है, और आपकी लागत पर मूल्य लगाता है, तो उस बिक्री का मुनाफा बिना टाइप किए सामने आता है।",
@@ -3950,6 +4030,7 @@ export const STRINGS = {
     },
 
     overview: {
+      foodCostPct: "फ़ूड कॉस्ट %",
       tab: "अवलोकन", title: "अवलोकन",
       totalSales: "कुल बिक्री", pureMargin: "शुद्ध मार्जिन", netProfit: "शुद्ध लाभ",
       marginPct: "{n}% मार्जिन", scoreLabel: "लाभ शुद्धता",
@@ -4841,6 +4922,25 @@ export const STRINGS = {
       weekly: "Ngayong linggo",
       monthly: "Ngayong buwan",
     },
+    roleNames: {
+      owner: "May-ari",
+      ops: "Operations manager",
+      branch_manager: "Branch manager",
+      chef: "Chef / Inventory lead",
+      cashier: "Cashier",
+      accountant: "Accountant",
+    },
+    grants: {
+      title: "Karagdagang akses",
+      lead: "Magbukas ng tab na wala sa karaniwang tungkulin ng isang tao. Sa iyo pa rin ang Team at Packages.",
+      byRole: "Ayon sa tungkulin",
+      byPerson: "Ayon sa tao",
+      save: "I-save ang akses",
+      saving: "Sini-save…",
+      saved: "Na-update ang akses.",
+      none: "Walang naibigay na karagdagang akses.",
+      pickTabs: "Mga tab",
+    },
     settings: {
       usernameTitle: "Username",
       usernameLead: "Ang ginagamit mo sa pag-sign in, at kung paano ka nakikita ng team.",
@@ -5150,6 +5250,11 @@ export const STRINGS = {
       take: "Kumuha ng larawan",
     },
     invscan: {
+      itemName: "Item",
+      qty: "Dami",
+      unit: "Yunit",
+      remove: "Alisin",
+      editHint: "Itama ang anumang namali sa larawan bago magbilang.",
       title: "I-scan ang shelf",
       note: "Kumuha ng litrato ng shelf o delivery at makakuha ng listahan ng nakikita ng AI, kasama ang tapat na quantity estimate.",
       scan: "I-scan ang shelf",
@@ -5157,6 +5262,8 @@ export const STRINGS = {
     },
 
     costs: {
+      qty: "Dami",
+      editHint: "Maitatama rito ang anumang namali sa scan — nagbabago agad ang kabuuan.",
       tab: "Bayarin scan",
       title: "I-scan ang bayarin",
       lead: "Kumuha ng litrato ng nakalimbag na bayarin at binabasa ng AI ang bawat linya, tinutugma sa menu mo, at pinapresyo sa gastos mo — kaya kita ng benta na lumalabas nang walang pag-type.",
@@ -5255,6 +5362,7 @@ export const STRINGS = {
     },
 
     overview: {
+      foodCostPct: "Food cost %",
       tab: "Pangkalahatan", title: "Pangkalahatang tanaw",
       totalSales: "Kabuuang benta", pureMargin: "Purong margin", netProfit: "Netong kita",
       marginPct: "{n}% na margin", scoreLabel: "Kalinisan ng kita",
