@@ -20,6 +20,8 @@ import { getAccount, posTokenFor } from "./_accounts.js";
 import { effectivePlanFor } from "./_org.js";
 import { getMetrics } from "./_data.js";
 import { getJSON } from "./_store.js";
+import { orgFor, membership, can } from "./_org.js";
+import { depletionFor } from "./_depletion.js";
 
 /* Overridable without a deploy, so a model rename doesn't take the scanner
    down until somebody ships a commit. */
@@ -226,7 +228,28 @@ export default async function handler(req, res) {
     if (!parsed) return res.status(502).json({ error: "parse" });
 
     const result = kind === "bill" ? priceBill(parsed, menuForPricing) : parsed;
-    return res.status(200).json({ kind, result });
+
+    /* What this bill took out of the store, offered rather than applied.
+
+       Only to somebody who could commit it anyway: proposing movements to a
+       cashier would show them a button they cannot press, and the count
+       workflow deliberately separates recording from approving. Failure here
+       is silent — the scan itself worked, and losing the pricing because a
+       recipe lookup threw would be a poor trade. */
+    let depletion = null;
+    if (kind === "bill" && result.lines?.length) {
+      try {
+        const org = await orgFor(account);
+        const me = org ? membership(org, account.username) : null;
+        if (me && can(me.role, "manage:inventory")) {
+          depletion = await depletionFor(org.id, result.lines);
+        }
+      } catch (err) {
+        console.error("depletion plan failed:", err);
+      }
+    }
+
+    return res.status(200).json({ kind, result, depletion });
   } catch (err) {
     console.error("ai endpoint failed:", err);
     return res.status(500).json({ error: "server" });

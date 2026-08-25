@@ -162,8 +162,75 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
   /* An address naming a screen that doesn't exist opens the dashboard rather
      than a blank pane. */
   const routeTab = route.name === "app" && Object.hasOwn(SCREEN_FEATURE, route.param) ? route.param : "overview";
-  const [tab, setTabState] = useState(routeTab);
+  const [rawTab, setTabState] = useState(routeTab);
   useEffect(() => { setTabState(routeTab); }, [routeTab]);
+
+  /* What each role sees.
+
+     Every tab is named here against the capability that earns it. Before this,
+     ten of them were in the list unconditionally, so a cashier — whose only
+     capability is `view:dashboard` — opened the app to the thirty-day sales
+     table, menu profitability, the forecast, the advice feed and the billing
+     screen. The API refuses most of the underlying calls, so it was not a data
+     breach; it was worse in a quieter way, because a screen that renders and
+     then fails is read as the software being broken rather than as a door that
+     was never theirs.
+
+     `null` means everybody: the assistant answers within whatever scope the
+     caller already has, messages are how the team reaches each other, and
+     settings is a person's own account. Everything else has to be earned.
+
+     Two capabilities are worth reading twice. `view:profitability` gates the
+     analysis screens, which is what keeps a cashier out of margin data. And
+     `manage:billing` gates Packages, because what the business pays is the
+     owner's business and nobody else's. */
+  const capabilities = scope?.capabilities || [];
+  const may = (...needed) => needed.some((c) => capabilities.includes(c));
+
+  const TAB_ACCESS = {
+    overview: "view:dashboard",
+    costs: "view:dashboard",
+    ask: null,
+    inventory: "view:inventory",
+    alerts: "view:inventory",
+    plan: "manage:purchasing",
+    recipes: "manage:recipes",
+    variance: "view:costs",
+    watch: "view:profitability",
+    menu: "view:profitability",
+    forecast: "view:forecast",
+    advice: "view:profitability",
+    messages: null,
+    team: "manage:users",
+    billing: "manage:billing",
+    settings: null,
+  };
+
+  const allowed = (id) => {
+    const needed = TAB_ACCESS[id];
+    return needed === null || needed === undefined ? true : may(needed);
+  };
+
+  const canManageTeam = allowed("team");
+
+  /* Importance order: today's numbers, the bill scanner, the assistant, then
+     operations, then the analysis screens, then the team, with billing and
+     settings last. */
+  const byId = Object.fromEntries(TAB_META.map((tb) => [tb.id, tb]));
+  const navTabs = [
+    byId.overview, byId.costs, byId.ask,
+    INVENTORY_TAB, ALERTS_TAB, PLAN_TAB, RECIPES_TAB, VARIANCE_TAB,
+    byId.watch, byId.menu, byId.forecast, byId.advice,
+    MESSAGES_TAB, TEAM_TAB,
+    byId.billing, byId.settings,
+  ].filter((tb) => tb && allowed(tb.id));
+
+  /* The nav only offers what is allowed; the router still has to enforce it.
+     Tabs are addressable — `#/app/watch` is a URL anybody can type or keep in
+     a bookmark from a previous role — so a tab that isn't theirs resolves to
+     the dashboard rather than rendering a screen that will fail its fetches. */
+  const tab = allowed(rawTab) ? rawTab : "overview";
+
   const setTab = (next) => { setTabState(next); navigate(`app/${next}`); };
   const [palette, setPalette] = useState(false);
   const [pending, setPending] = useState("");
@@ -400,26 +467,6 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
   const liveDot = data && !unconnectedAccount && <LiveDot fetchedAt={fetchedAt} refreshing={refreshing} connected={data.connected} />;
 
   const labelFor = (id) => { const full = t[id]?.tab || id; return full.length > 12 ? full.split(/\s+/)[0] : full; };
-
-  const canManageTeam = Boolean(scope?.capabilities?.includes("manage:users"));
-  const canSeeInventory = Boolean(scope?.capabilities?.includes("view:inventory"));
-  const canSeeRecipes = Boolean(scope?.capabilities?.includes("view:costs"));
-  const canSeePlan = Boolean(scope?.capabilities?.includes("view:forecast") ||
-    scope?.capabilities?.includes("view:profitability"));
-  /* Importance order: today's numbers, the bill scanner, the assistant, then
-     operations (permission-gated), then the analysis screens, then the team,
-     with billing and settings last. */
-  const byId = Object.fromEntries(TAB_META.map((tb) => [tb.id, tb]));
-  const navTabs = [
-    byId.overview, byId.costs, byId.ask,
-    ...(canSeeInventory ? [INVENTORY_TAB, ALERTS_TAB] : []),
-    ...(canSeePlan ? [PLAN_TAB] : []),
-    ...(canSeeRecipes ? [RECIPES_TAB, VARIANCE_TAB] : []),
-    byId.watch, byId.menu, byId.forecast, byId.advice,
-    MESSAGES_TAB,
-    ...(canManageTeam ? [TEAM_TAB] : []),
-    byId.billing, byId.settings,
-  ];
 
   /* Only offered where it means something: more than one authorized branch. */
   const scopePicker = scope?.branches?.length > 1 && (

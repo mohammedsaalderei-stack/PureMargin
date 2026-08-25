@@ -42,6 +42,13 @@ const RECIPES = (orgId) => `inv:${orgId}:recipes`;
 
 const round = (n, places = 6) => (Number.isFinite(n) ? Number(n.toFixed(places)) : n);
 
+/* Every recipe as stored. Exported so the bill scanner can map menu items to
+   what they consume without going through the costing path, which builds a
+   cost basis it would have no use for. */
+export async function listRecipes(orgId) {
+  return Object.values((await readAll(orgId)) || {});
+}
+
 async function readAll(orgId) {
   return (await getJSON(RECIPES(orgId))) || {};
 }
