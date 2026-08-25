@@ -310,3 +310,14 @@ button:not(:disabled):active,
 [dir="rtl"] div[dir="ltr"]:not(:has(input)):not(:has(textarea)):not(:has(select)) {
   text-align: right;
 }
+
+/* The mobile navigation drawer, entering from the trailing edge.
+
+   `translateX(100%)` would be the wrong direction in Arabic, where the drawer
+   sits on the left. A logical property has no transform equivalent, so the
+   two directions are given separate keyframes and picked by [dir]. */
+@keyframes drawer-in-ltr { from { transform: translateX(100%); } to { transform: none; } }
+@keyframes drawer-in-rtl { from { transform: translateX(-100%); } to { transform: none; } }
+.drawer-in { animation: drawer-in-ltr .22s cubic-bezier(.32,.72,0,1) both; }
+[dir="rtl"] .drawer-in { animation-name: drawer-in-rtl; }
+@media (prefers-reduced-motion: reduce) { .drawer-in { animation: none; } }

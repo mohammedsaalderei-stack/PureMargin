@@ -22,6 +22,8 @@ import { getMetrics } from "./_data.js";
 import { getJSON } from "./_store.js";
 import { orgFor, membership, can } from "./_org.js";
 import { depletionFor } from "./_depletion.js";
+import { claimScan, refundScan, scanUsage } from "./_scanquota.js";
+import { matchPurchase } from "./_purchase.js";
 
 /* Overridable without a deploy, so a model rename doesn't take the scanner
    down until somebody ships a commit. */
@@ -133,6 +135,31 @@ export function priceBill(parsed, menu) {
   };
 }
 
+function supplierPrompt(langNote) {
+  return `You read photos of supplier invoices and delivery notes for a
+restaurant, and of grocery receipts where a restaurant has bought supplies.
+
+Transcribe every purchased line exactly as printed. Report only what is on the
+paper. Do not identify which ingredient a line refers to, do not convert
+units, and do not calculate a unit price — those are done afterwards against
+the business's own records, and a guess here would be written into a stock
+balance as though it were measured.
+
+If a quantity, a unit or an amount cannot be read, use null. A null is a
+question somebody answers in two seconds; a wrong number is a discrepancy
+somebody hunts for next month.
+
+Respond with ONLY this JSON, nothing else:
+{
+  "supplier": "<supplier or shop name, or null>",
+  "invoiceNo": "<invoice or receipt number, or null>",
+  "date": "<date as printed, or null>",
+  "lines": [{ "text": "<line as printed>", "qty": <number, or null>, "unit": "<kg, g, l, ml, box, pcs… as printed, or null>", "amount": <line total, or null> }],
+  "total": <invoice total as printed, or null>
+}
+${langNote}`;
+}
+
 function inventoryPrompt(langNote) {
   return `You read photos of restaurant stock — shelves, fridges, deliveries, crates.
 
@@ -147,9 +174,21 @@ ${langNote}`;
 }
 
 export default async function handler(req, res) {
-  if (req.method !== "POST") return res.status(405).json({ error: "Use POST." });
   const session = await requireAuth(req, res);
   if (!session) return;
+
+  /* Reading the allowance must not consume one, so it is its own method. The
+     scanner asks on open, which is how somebody sees "12 left this month"
+     before taking the photo rather than after. */
+  if (req.method === "GET") {
+    const account = await getAccount(session.username);
+    const org = account ? await orgFor(account) : null;
+    return res.status(200).json({
+      scans: await scanUsage(org?.id || `solo:${session.username}`),
+    });
+  }
+
+  if (req.method !== "POST") return res.status(405).json({ error: "Use GET or POST." });
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return res.status(500).json({ error: "noai" });
@@ -157,7 +196,7 @@ export default async function handler(req, res) {
   const { kind, image, lang } = req.body || {};
   const img = parseDataUrl(image);
   if (!img) return res.status(400).json({ error: "image" });
-  if (!["bill", "inventory"].includes(kind)) return res.status(400).json({ error: "kind" });
+  if (!["bill", "inventory", "supplier"].includes(kind)) return res.status(400).json({ error: "kind" });
 
   try {
     const account = await getAccount(session.username);
@@ -168,6 +207,18 @@ export default async function handler(req, res) {
     if (!items.includes(needed)) {
       return res.status(402).json({ error: "locked", feature: needed });
     }
+
+    /* The allowance is claimed before the model is called. Counting afterwards
+       would let a burst of parallel requests all pass the check, and would hand
+       out free scans exactly when something is retrying hardest. */
+    const org = await orgFor(account);
+    const claim = await claimScan(org?.id || `solo:${account.username}`);
+    if (!claim.allowed) {
+      return res.status(429).json({
+        error: "quota", used: claim.used, limit: claim.limit, resetsAt: claim.resetsAt,
+      });
+    }
+    const spend = org?.id || `solo:${account.username}`;
 
     const langNote = LANG_NOTE[lang] || LANG_NOTE.en;
     let prompt;
@@ -188,6 +239,8 @@ export default async function handler(req, res) {
       }
       menuForPricing = menu;
       prompt = billPrompt(menu, langNote);
+    } else if (kind === "supplier") {
+      prompt = supplierPrompt(langNote);
     } else {
       prompt = inventoryPrompt(langNote);
     }
@@ -219,15 +272,23 @@ export default async function handler(req, res) {
     if (!upstream.ok) {
       const detail = await upstream.text();
       console.error("ai analysis failed:", upstream.status, detail.slice(0, 300));
+      /* The model never answered, so the person got nothing. Charging them a
+         scan for our own outage would be a quiet tax on it. */
+      await refundScan(spend);
       return res.status(502).json({ error: "ai" });
     }
 
     const data = await upstream.json();
     const text = (data.content || []).map((b) => b.text || "").join("");
     const parsed = extractJSON(text);
-    if (!parsed) return res.status(502).json({ error: "parse" });
+    if (!parsed) {
+      await refundScan(spend);
+      return res.status(502).json({ error: "parse" });
+    }
 
-    const result = kind === "bill" ? priceBill(parsed, menuForPricing) : parsed;
+    let result = parsed;
+    if (kind === "bill") result = priceBill(parsed, menuForPricing);
+    else if (kind === "supplier") result = await matchPurchase(org?.id, parsed);
 
     /* What this bill took out of the store, offered rather than applied.
 
@@ -249,7 +310,10 @@ export default async function handler(req, res) {
       }
     }
 
-    return res.status(200).json({ kind, result, depletion });
+    return res.status(200).json({
+      kind, result, depletion,
+      scans: { used: claim.used, limit: claim.limit, left: claim.left, resetsAt: claim.resetsAt },
+    });
   } catch (err) {
     console.error("ai endpoint failed:", err);
     return res.status(500).json({ error: "server" });

@@ -330,9 +330,41 @@ export default function Overview({ data, dateRange, onDateRangeChange, onAsk, on
         <div className="flex items-center justify-between flex-wrap gap-3 g-stagger" style={{ "--i": 0 }}>
           <div>
             <h2 className="display text-2xl md:text-3xl font-bold grad-text">{t.overview.title}</h2>
-            <p className="text-xs mt-1" style={{ color: C.slate }}>Profitability & Operations Overview</p>
+            <p className="text-xs mt-1" style={{ color: C.slate }}>{t.overview.subtitle}</p>
           </div>
           <FilterBar dateRange={dateRange} onDateChange={onDateRangeChange} />
+        </div>
+
+        {/* The headline.
+
+            Net margin was already on this screen, but four cards down and the
+            same size as peak hour — so the first thing an owner saw was sales,
+            which is the number that flatters and the one they already know
+            from the till. What they open this app to find out is what they
+            kept. It goes first, and it is the largest thing on the page. */}
+        <div className="glass-card p-5 md:p-7 g-stagger relative overflow-hidden" style={{ "--i": 1 }}>
+          <div className="absolute inset-0 pointer-events-none"
+            style={{ background: "radial-gradient(ellipse at 75% 40%, rgba(6,182,212,0.14) 0%, transparent 70%)" }} />
+          <div className="relative flex flex-wrap items-end justify-between gap-4">
+            <div className="min-w-0">
+              <SectionLabel>{t.overview.pureMargin}</SectionLabel>
+              <div className="text-xs mt-1" style={{ color: C.slate }}>{t.overview.netProfit}</div>
+              <div className="display font-bold leading-none mt-3 truncate-safe"
+                style={{ fontSize: "clamp(2.5rem, 9vw, 4.25rem)", color: C.cyan }}>
+                <Money value={Math.round(profit)} />
+              </div>
+            </div>
+            <div className="flex items-center gap-3 flex-wrap">
+              <span className="inline-block text-sm font-bold px-3 py-1.5 rounded-full"
+                style={{ background: "rgba(6,182,212,0.12)", color: C.cyan, border: "1px solid rgba(6,182,212,0.2)" }}>
+                {fill(t.overview.marginPct, { n: data.totals?.marginPct ?? 0 })}
+              </span>
+              <div className="flex items-center gap-2">
+                <TrendIndicator value={filteredTotals.salesDelta} />
+                <span className="text-xs" style={{ color: C.slate }}>{t.watch.vsPrior}</span>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Summary KPI cards */}
@@ -372,22 +404,6 @@ export default function Overview({ data, dateRange, onDateRangeChange, onAsk, on
                 <span className="text-xs" style={{ color: C.slate }}>{t.watch.vsPrior}</span>
               </div>
             )}
-          </div>
-
-          <div className="glass-card p-6 flex flex-col justify-between g-stagger relative overflow-hidden" style={{ "--i": 6 }}>
-            <div className="absolute inset-0 pointer-events-none"
-              style={{ background: "radial-gradient(ellipse at 80% 50%, rgba(6,182,212,0.10) 0%, transparent 70%)" }} />
-            <div>
-              <SectionLabel>{t.overview.pureMargin}</SectionLabel>
-              <div className="text-xs mt-1.5" style={{ color: C.slate }}>{t.overview.netProfit}</div>
-            </div>
-            <div className="display font-bold leading-none mt-5 truncate-safe" style={{ fontSize: 40, color: C.cyan }}>
-              <Money value={Math.round(profit)} />
-            </div>
-            <span className="inline-block text-xs font-semibold px-2.5 py-1 rounded-full mt-3 self-start"
-              style={{ background: "rgba(6,182,212,0.12)", color: C.cyan, border: "1px solid rgba(6,182,212,0.2)" }}>
-              {fill(t.overview.marginPct, { n: data.totals?.marginPct ?? 0 })}
-            </span>
           </div>
 
           {/* Score ring */}

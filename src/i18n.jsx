@@ -210,6 +210,9 @@ export const STRINGS = {
       showing: "Showing {count} of {total} branches",
     },
     team: {
+      saveFailed: "Couldn't save that. Try again.",
+      inviteNotMailed: "Invited — but the email didn't go out. Send them this link:",
+      inviteLink: "Invitation link",
       joinedNow: "They're on the team — they already had an account.",
       inviteSent: "Invitation sent.",
       pendingTitle: "Pending invitations",
@@ -236,6 +239,7 @@ export const STRINGS = {
       forbidden: "Only the account owner can manage the team.",
       failed: "Couldn't load the team.",
       errors: {
+        email: "That doesn't look like an email address.",
         username: "Enter a username.",
         role: "Pick a role.",
         branch: "That branch isn't in this organisation.",
@@ -800,7 +804,7 @@ export const STRINGS = {
     },
 
     forecast: {
-      tab: "What's coming",
+      tab: "Forecasting future sales",
       title: "The next 30 days",
       lead: "A range, not a promise. Built from how you've traded so far — use the spread to plan staffing and orders, not a single number.",
       cautious: "Cautious",
@@ -894,6 +898,28 @@ export const STRINGS = {
       errServer: "Couldn't record that. Nothing was written.",
       partial: "Not counted: {items} — no recipe on file, so what they used isn't known.",
     },
+    supplierscan: {
+      title: "Delivery note",
+      scan: "Scan a delivery note",
+      lead: "Photograph a supplier invoice or a grocery receipt. Each line is matched to an ingredient you already keep, and the unit cost comes from what you actually paid.",
+      noHeader: "No supplier or invoice number on the page.",
+      branch: "Receive into",
+      ingredient: "Ingredient",
+      qty: "Qty",
+      unit: "Unit",
+      unitCost: "Unit cost",
+      remove: "Remove",
+      noMatch: "— pick an ingredient —",
+      source: "From a delivery note",
+      unitMismatch: "The note says {invoice}; the shelf counts {stock}. Convert before receiving.",
+      editHint: "Correct anything the photo got wrong. Nothing is received until you press the button.",
+      commit: "Receive {count} lines",
+      saving: "Writing…",
+      done: "{count} lines received.",
+      pickBranch: "Choose a branch first.",
+      errUnit: "A unit on one line doesn't fit that ingredient.",
+      errServer: "Couldn't record that. Nothing was written.",
+    },
     settings: {
       usernameTitle: "Username",
       usernameLead: "What you sign in with, and how the team sees you.",
@@ -926,6 +952,7 @@ export const STRINGS = {
 
 
     menu: {
+      dragHint: "Drag items between columns to reclassify your strategy.",
       byRevenue: "by revenue",
       tab: "Menu",
       title: "How your menu earns",
@@ -1204,6 +1231,8 @@ export const STRINGS = {
     },
 
     aiscan: {
+      quotaLeft: "{n} scans left this month",
+      quotaOut: "You've used all 100 scans this month. The allowance resets on the 1st.",
       locked: "That needs a package this account doesn't have yet.",
       failed: "The photo couldn't be read. Try again in better light.",
       analyzing: "Reading the photo…",
@@ -1225,7 +1254,7 @@ export const STRINGS = {
     costs: {
       qty: "Qty",
       editHint: "Anything the scan got wrong can be corrected here — totals re-price as you type.",
-      tab: "Bill scan",
+      tab: "Cost calculation",
       title: "Scan a bill",
       lead: "Photograph a printed bill and the AI reads each line, matches it to your menu, and prices it against your costs — so the profit on that sale lands without any typing.",
       scan: "Scan bill",
@@ -1590,6 +1619,9 @@ export const STRINGS = {
       showing: "يُعرض {count} من {total} فرعًا",
     },
     team: {
+      saveFailed: "تعذّر الحفظ. حاول مجددًا.",
+      inviteNotMailed: "تمت الدعوة — لكن البريد لم يُرسل. أرسل له هذا الرابط:",
+      inviteLink: "رابط الدعوة",
       joinedNow: "أصبح في الفريق — كان لديه حساب بالفعل.",
       inviteSent: "أُرسلت الدعوة.",
       pendingTitle: "دعوات معلّقة",
@@ -1616,6 +1648,7 @@ export const STRINGS = {
       forbidden: "إدارة الفريق لمالك الحساب فقط.",
       failed: "تعذّر تحميل الفريق.",
       errors: {
+        email: "هذا لا يبدو بريدًا إلكترونيًا.",
         username: "أدخل اسم مستخدم.",
         role: "اختر دورًا.",
         branch: "هذا الفرع ليس في هذه المؤسسة.",
@@ -2180,7 +2213,7 @@ export const STRINGS = {
     },
 
     forecast: {
-      tab: "القادم",
+      tab: "توقّع المبيعات القادمة",
       title: "الثلاثون يومًا القادمة",
       lead: "نطاق، وليس وعدًا. مبني على طريقة تداولك حتى الآن — استخدم النطاق لتخطيط الموظفين والطلبيات، لا رقمًا واحدًا.",
       cautious: "متحفظ",
@@ -2274,6 +2307,28 @@ export const STRINGS = {
       errServer: "تعذّر التسجيل. لم يُكتب شيء.",
       partial: "غير محسوب: {items} — لا وصفة مسجّلة، فما استهلكته غير معروف.",
     },
+    supplierscan: {
+      title: "إشعار التسليم",
+      scan: "امسح إشعار تسليم",
+      lead: "صوّر فاتورة مورّد أو إيصال بقالة. يُطابَق كل سطر مع مكوّن تحتفظ به أصلًا، وتأتي تكلفة الوحدة مما دفعته فعلًا.",
+      noHeader: "لا اسم مورّد ولا رقم فاتورة على الورقة.",
+      branch: "الاستلام في",
+      ingredient: "المكوّن",
+      qty: "الكمية",
+      unit: "الوحدة",
+      unitCost: "تكلفة الوحدة",
+      remove: "إزالة",
+      noMatch: "— اختر مكوّنًا —",
+      source: "من إشعار تسليم",
+      unitMismatch: "الإشعار يقول {invoice}، والرف يعدّ بـ{stock}. حوّل قبل الاستلام.",
+      editHint: "صحّح ما أخطأت فيه الصورة. لا يُستلم شيء حتى تضغط الزر.",
+      commit: "استلام {count} سطور",
+      saving: "جارٍ التسجيل…",
+      done: "استُلمت {count} سطور.",
+      pickBranch: "اختر فرعًا أولًا.",
+      errUnit: "وحدة أحد السطور لا تناسب ذلك المكوّن.",
+      errServer: "تعذّر التسجيل. لم يُكتب شيء.",
+    },
     settings: {
       usernameTitle: "اسم المستخدم",
       usernameLead: "ما تسجّل الدخول به، وكيف يراك الفريق.",
@@ -2306,6 +2361,7 @@ export const STRINGS = {
 
 
     menu: {
+      dragHint: "اسحب الأصناف بين الأعمدة لإعادة تصنيف خطتك.",
       byRevenue: "حسب الإيراد",
       tab: "القائمة",
       title: "كيف تكسب قائمتك",
@@ -2584,6 +2640,8 @@ export const STRINGS = {
     },
 
     aiscan: {
+      quotaLeft: "بقيت {n} عمليات مسح هذا الشهر",
+      quotaOut: "استُهلكت المئة عملية مسح لهذا الشهر. تتجدّد في الأول من الشهر.",
       locked: "هذا يحتاج باقة لا يملكها هذا الحساب بعد.",
       failed: "تعذّرت قراءة الصورة. أعد المحاولة بإضاءة أفضل.",
       analyzing: "جارٍ قراءة الصورة…",
@@ -2605,7 +2663,7 @@ export const STRINGS = {
     costs: {
       qty: "الكمية",
       editHint: "صحّح هنا ما أخطأ فيه المسح — تُعاد الحسابات أثناء الكتابة.",
-      tab: "مسح الفاتورة",
+      tab: "حساب التكلفة",
       title: "امسح فاتورة",
       lead: "صوّر فاتورة مطبوعة، يقرأ AI كل سطر ويطابقه مع قائمتك ويسعّره حسب تكاليفك — فيصل ربح تلك البيعة دون أي كتابة.",
       scan: "امسح الفاتورة",
@@ -2703,6 +2761,7 @@ export const STRINGS = {
     },
 
     overview: {
+      subtitle: "نظرة على الربحية والتشغيل",
       foodCostPct: "نسبة تكلفة الطعام",
       tab: "نظرة عامة", title: "نظرة عامة",
       totalSales: "إجمالي المبيعات", pureMargin: "الهامش النقي", netProfit: "صافي الربح",
@@ -2942,6 +3001,9 @@ export const STRINGS = {
       showing: "{total} में से {count} ब्रांच दिख रही हैं",
     },
     team: {
+      saveFailed: "सहेजा नहीं जा सका। फिर कोशिश कीजिए।",
+      inviteNotMailed: "निमंत्रण बन गया — पर ईमेल नहीं गया। उन्हें यह लिंक भेजिए:",
+      inviteLink: "निमंत्रण लिंक",
       joinedNow: "वे टीम में आ गए — उनका खाता पहले से था।",
       inviteSent: "निमंत्रण भेज दिया गया।",
       pendingTitle: "लंबित निमंत्रण",
@@ -2968,6 +3030,7 @@ export const STRINGS = {
       forbidden: "टीम केवल खाता मालिक ही चला सकता है।",
       failed: "टीम लोड नहीं हो सकी।",
       errors: {
+        email: "यह ईमेल पता नहीं लगता।",
         username: "यूज़रनेम भरें।",
         role: "भूमिका चुनें।",
         branch: "यह ब्रांच इस संगठन में नहीं है।",
@@ -3532,6 +3595,7 @@ export const STRINGS = {
     },
 
     menu: {
+      dragHint: "रणनीति बदलने के लिए वस्तुओं को कॉलम के बीच खींचिए।",
       byRevenue: "कमाई के हिसाब से",
       tab: "मेन्यू",
       title: "आपका मेन्यू कैसे कमाता है",
@@ -3557,7 +3621,7 @@ export const STRINGS = {
     },
 
     forecast: {
-      tab: "आगे क्या",
+      tab: "आगामी बिक्री का पूर्वानुमान",
       title: "अगले 30 दिन",
       lead: "यह एक दायरा है, वादा नहीं। अब तक के आपके कारोबार से बना — स्टाफ़ और ऑर्डर की योजना एक आँकड़े पर नहीं, इस दायरे पर बनाइए।",
       cautious: "सतर्क",
@@ -3650,6 +3714,28 @@ export const STRINGS = {
       errShort: "{name} पर्याप्त नहीं है। मात्रा बदलिए या पहले आवक दर्ज कीजिए।",
       errServer: "दर्ज नहीं हो सका। कुछ भी नहीं लिखा गया।",
       partial: "नहीं गिना गया: {items} — रेसिपी दर्ज नहीं, इसलिए खपत अज्ञात है।",
+    },
+    supplierscan: {
+      title: "डिलीवरी नोट",
+      scan: "डिलीवरी नोट स्कैन करें",
+      lead: "सप्लायर का बिल या किराने की रसीद फोटो कीजिए। हर पंक्ति आपके मौजूदा मकोवन से मिलाई जाती है, और इकाई लागत वही होती है जो आपने चुकाई।",
+      noHeader: "पन्ने पर सप्लायर या बिल नंबर नहीं है।",
+      branch: "किस शाखा में",
+      ingredient: "सामग्री",
+      qty: "मात्रा",
+      unit: "इकाई",
+      unitCost: "इकाई लागत",
+      remove: "हटाएँ",
+      noMatch: "— सामग्री चुनिए —",
+      source: "डिलीवरी नोट से",
+      unitMismatch: "नोट में {invoice} है; शेल्फ़ {stock} में गिनता है। पहले बदलिए।",
+      editHint: "तस्वीर की गलतियाँ सुधार लीजिए। बटन दबाने तक कुछ दर्ज नहीं होगा।",
+      commit: "{count} पंक्तियाँ लीजिए",
+      saving: "दर्ज हो रहा है…",
+      done: "{count} पंक्तियाँ दर्ज हुईं।",
+      pickBranch: "पहले शाखा चुनिए।",
+      errUnit: "एक पंक्ति की इकाई उस सामग्री से मेल नहीं खाती।",
+      errServer: "दर्ज नहीं हो सका। कुछ नहीं लिखा गया।",
     },
     settings: {
       usernameTitle: "यूज़रनेम",
@@ -3953,6 +4039,8 @@ export const STRINGS = {
     },
 
     aiscan: {
+      quotaLeft: "इस महीने {n} स्कैन बचे हैं",
+      quotaOut: "इस महीने के सभी 100 स्कैन हो चुके। अगली पहली तारीख को नए मिलेंगे।",
       locked: "इसके लिए वह पैकेज चाहिए जो इस खाते के पास अभी नहीं है।",
       failed: "तस्वीर पढ़ी नहीं जा सकी। बेहतर रोशनी में दोबारा कोशिश कीजिए।",
       analyzing: "तस्वीर पढ़ी जा रही है…",
@@ -3974,7 +4062,7 @@ export const STRINGS = {
     costs: {
       qty: "मात्रा",
       editHint: "स्कैन में जो गलत आया उसे यहीं सुधारिए — टाइप करते ही जोड़ फिर से बनता है।",
-      tab: "बिल स्कैन",
+      tab: "लागत गणना",
       title: "बिल स्कैन करें",
       lead: "एक छपे बिल की फोटो लें — एआई हर लाइन पढ़ता है, आपके मेन्यू से मिलाता है, और आपकी लागत पर मूल्य लगाता है, तो उस बिक्री का मुनाफा बिना टाइप किए सामने आता है।",
       scan: "बिल स्कैन करें",
@@ -4072,6 +4160,7 @@ export const STRINGS = {
     },
 
     overview: {
+      subtitle: "लाभप्रदता और संचालन का सार",
       foodCostPct: "फ़ूड कॉस्ट %",
       tab: "अवलोकन", title: "अवलोकन",
       totalSales: "कुल बिक्री", pureMargin: "शुद्ध मार्जिन", netProfit: "शुद्ध लाभ",
@@ -4288,6 +4377,9 @@ export const STRINGS = {
       showing: "Ipinapakita ang {count} sa {total} branch",
     },
     team: {
+      saveFailed: "Hindi na-save. Subukan ulit.",
+      inviteNotMailed: "Naimbitahan — pero hindi umalis ang email. Ipadala sa kanila ang link na ito:",
+      inviteLink: "Link ng imbitasyon",
       joinedNow: "Nasa team na sila — mayroon na silang account.",
       inviteSent: "Naipadala ang imbitasyon.",
       pendingTitle: "Mga nakabinbing imbitasyon",
@@ -4314,6 +4406,7 @@ export const STRINGS = {
       forbidden: "Ang may-ari lang ng account ang makakapamahala ng team.",
       failed: "Hindi ma-load ang team.",
       errors: {
+        email: "Mukhang hindi email address iyan.",
         username: "Maglagay ng username.",
         role: "Pumili ng role.",
         branch: "Wala ang branch na iyon sa organisasyong ito.",
@@ -4878,6 +4971,7 @@ export const STRINGS = {
     },
 
     menu: {
+      dragHint: "I-drag ang mga item sa pagitan ng kolum para baguhin ang klasipikasyon.",
       byRevenue: "ayon sa kita",
       tab: "Menu",
       title: "Paano kumikita ang menu mo",
@@ -4903,7 +4997,7 @@ export const STRINGS = {
     },
 
     forecast: {
-      tab: "Ang parating",
+      tab: "Pagtataya ng benta",
       title: "Susunod na 30 araw",
       lead: "Saklaw, hindi pangako. Batay sa naging takbo ng benta mo — gamitin ang saklaw sa pagpaplano ng tao at order, hindi ang iisang numero.",
       cautious: "Maingat",
@@ -4996,6 +5090,28 @@ export const STRINGS = {
       errShort: "Kulang ang {name}. Baguhin ang dami o magtala muna ng dating stock.",
       errServer: "Hindi naitala. Walang naisulat.",
       partial: "Hindi nabilang: {items} — walang recipe, kaya hindi alam ang naubos.",
+    },
+    supplierscan: {
+      title: "Delivery note",
+      scan: "I-scan ang delivery note",
+      lead: "Kunan ng larawan ang invoice ng supplier o resibo ng grocery. Itinutugma ang bawat linya sa sangkap na mayroon ka na, at ang unit cost ay galing sa aktwal mong binayaran.",
+      noHeader: "Walang supplier o invoice number sa papel.",
+      branch: "Tanggapin sa",
+      ingredient: "Sangkap",
+      qty: "Dami",
+      unit: "Yunit",
+      unitCost: "Halaga bawat yunit",
+      remove: "Alisin",
+      noMatch: "— pumili ng sangkap —",
+      source: "Mula sa delivery note",
+      unitMismatch: "{invoice} ang nasa note; {stock} ang binibilang sa istante. I-convert muna.",
+      editHint: "Itama ang namali sa larawan. Walang matatanggap hangga't hindi pinipindot ang button.",
+      commit: "Tanggapin ang {count} linya",
+      saving: "Isinusulat…",
+      done: "{count} linya ang natanggap.",
+      pickBranch: "Pumili muna ng sangay.",
+      errUnit: "May yunit sa isang linya na hindi bagay sa sangkap na iyon.",
+      errServer: "Hindi naitala. Walang naisulat.",
     },
     settings: {
       usernameTitle: "Username",
@@ -5299,6 +5415,8 @@ export const STRINGS = {
     },
 
     aiscan: {
+      quotaLeft: "{n} scan na lang ngayong buwan",
+      quotaOut: "Naubos na ang 100 scan ngayong buwan. Magre-reset sa ika-1.",
       locked: "Kailangan nito ng pakete na wala pa sa account na ito.",
       failed: "Hindi mabasa ang larawan. Subukan ulit sa mas maliwanag na ilaw.",
       analyzing: "Binabasa ang larawan…",
@@ -5320,7 +5438,7 @@ export const STRINGS = {
     costs: {
       qty: "Dami",
       editHint: "Maitatama rito ang anumang namali sa scan — nagbabago agad ang kabuuan.",
-      tab: "Bayarin scan",
+      tab: "Pagkuwenta ng gastos",
       title: "I-scan ang bayarin",
       lead: "Kumuha ng litrato ng nakalimbag na bayarin at binabasa ng AI ang bawat linya, tinutugma sa menu mo, at pinapresyo sa gastos mo — kaya kita ng benta na lumalabas nang walang pag-type.",
       scan: "I-scan ang bayarin",
@@ -5418,6 +5536,7 @@ export const STRINGS = {
     },
 
     overview: {
+      subtitle: "Pangkalahatang tingin sa kita at operasyon",
       foodCostPct: "Food cost %",
       tab: "Pangkalahatan", title: "Pangkalahatang tanaw",
       totalSales: "Kabuuang benta", pureMargin: "Purong margin", netProfit: "Netong kita",

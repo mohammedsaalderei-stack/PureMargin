@@ -273,7 +273,7 @@ export default function Menu({ data, token, onSaved }) {
 
         {view === "board" ? (
           <>
-            <p className="text-xs" style={{ color: C.slate }}>Drag items between columns to reclassify your strategy.</p>
+            <p className="text-xs" style={{ color: C.slate }}>{t.menu.dragHint}</p>
             <KanbanBoard items={menu.items} onMove={handleMove} />
           </>
         ) : (

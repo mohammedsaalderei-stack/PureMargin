@@ -168,18 +168,36 @@ export default async function handler(req, res) {
       const origin = publicOrigin(req);
       const link = `${origin}/?invite=${token}`;
       const orgName = org.name || session.username;
-      await sendMail({
-        to: address,
-        subject: `You've been invited to ${orgName} on PureMargin`,
-        text: `${session.username} invited you to join ${orgName} on PureMargin as ${ROLES[role]?.label || role}.\n\nCreate your account here: ${link}\n\nAny packages the team owns apply to you automatically.`,
-        html: `<p><strong>${session.username}</strong> invited you to join <strong>${orgName}</strong> on PureMargin as <strong>${ROLES[role]?.label || role}</strong>.</p><p><a href="${link}">Create your account</a> to accept. Any packages the team owns apply to you automatically.</p>`,
-      });
+
+      /* The seat is already written. If the mail fails the invitation is still
+         real and still waiting, so failing the request would be a lie in the
+         other direction — and worse, the owner retries, a second token is
+         issued, and the first one is orphaned.
+
+         Before this, a throw from sendMail escaped to the outer handler and
+         came back as a 500, which the screen rendered as "Couldn't load the
+         team." An owner reading that has no way to know the person was in fact
+         invited, so they try again, and again. Now the failure is reported as
+         what it is: invited, not emailed, here is the link to send them. */
+      let mailed = false;
+      try {
+        await sendMail({
+          to: address,
+          subject: `You've been invited to ${orgName} on PureMargin`,
+          text: `${session.username} invited you to join ${orgName} on PureMargin as ${ROLES[role]?.label || role}.\n\nCreate your account here: ${link}\n\nAny packages the team owns apply to you automatically.`,
+          html: `<p><strong>${session.username}</strong> invited you to join <strong>${orgName}</strong> on PureMargin as <strong>${ROLES[role]?.label || role}</strong>.</p><p><a href="${link}">Create your account</a> to accept. Any packages the team owns apply to you automatically.</p>`,
+        });
+        mailed = true;
+      } catch (err) {
+        console.error("invitation mail failed:", err?.message || err);
+      }
 
       await recordAudit(org.id, {
         actor: session.username, action: "member.invite", target: address,
-        detail: { role, branches: invite.branches },
+        detail: { role, branches: invite.branches, mailed },
       });
-      return res.status(200).json({ ok: true, invited: address });
+
+      return res.status(200).json({ ok: true, invited: address, mailed, link });
     }
 
     const id = normalise(username);

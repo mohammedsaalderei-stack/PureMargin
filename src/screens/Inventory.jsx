@@ -6,6 +6,7 @@ import StockPanel from "../inventory/StockPanel.jsx";
 import CountsPanel from "../inventory/CountsPanel.jsx";
 import PurchasingPanel from "../purchasing/PurchasingPanel.jsx";
 import InventoryScan from "../ai/InventoryScan.jsx";
+import SupplierScan from "../ai/SupplierScan.jsx";
 import { useC } from "../theme.jsx";
 import { useLang, fill } from "../i18n.jsx";
 
@@ -142,7 +143,11 @@ export default function Inventory({ token }) {
         </div>
 
         {/* AI stock reading — photo in, suggested list out. */}
+        {/* Counting a shelf and receiving a delivery are the two ways stock
+            arrives at a number, so both scanners sit together rather than one
+            being discovered later somewhere else. */}
         <InventoryScan token={token} />
+        <SupplierScan token={token} />
 
         {(adding || editing) && (
           <Panel title={editing ? t.inventory.editTitle : t.inventory.addTitle}

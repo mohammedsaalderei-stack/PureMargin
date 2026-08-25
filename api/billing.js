@@ -10,7 +10,23 @@ import { cancelPlan, publicAccount, FEATURES, FREE_FEATURES } from "./_accounts.
    marked point and keep everything else. Entitlements are granted in exactly
    one place, so there is exactly one thing to secure. */
 
-const PRICES = { assistant: 200, menu: 150, forecast: 100, operations: 300, billscan: 150 };
+/* Monthly, in dirhams. `null` means priced per order rather than per month —
+   the till hardware is quoted against what a site actually needs, and a made-up
+   number on the pricing page would be a number somebody plans around. */
+const PRICES = {
+  assistant: 250,
+  operations: 150,
+  billscan: 200,
+  menu: 150,
+  forecast: 100,
+  pos_hardware: null,
+};
+
+/* Each branch beyond the first costs half again of the monthly total, because
+   a second kitchen is more reading, more reconciling and more support — but
+   not twice the product. Expressed as a percentage rather than a second price
+   list so it cannot drift out of step when a package price changes. */
+const BRANCH_SURCHARGE_PCT = 50;
 
 export default async function handler(req, res) {
   const session = await requireAuth(req, res);
@@ -18,7 +34,7 @@ export default async function handler(req, res) {
 
   try {
     if (req.method === "GET") {
-      return res.status(200).json({ prices: PRICES, features: FEATURES, free: FREE_FEATURES, mock: true });
+      return res.status(200).json({ prices: PRICES, features: FEATURES, free: FREE_FEATURES, branchSurchargePct: BRANCH_SURCHARGE_PCT, mock: true });
     }
 
     if (req.method === "POST") {

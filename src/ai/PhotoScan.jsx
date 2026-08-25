@@ -1,7 +1,7 @@
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import { Camera, Loader2, RotateCcw } from "lucide-react";
 import { useC } from "../theme.jsx";
-import { useLang } from "../i18n.jsx";
+import { useLang, fill } from "../i18n.jsx";
 
 /* Take or choose a photo, send it to the AI, hand the parsed result up.
 
@@ -28,6 +28,17 @@ export default function PhotoScan({ token, kind, onResult, buttonLabel }) {
   const [preview, setPreview] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  /* Read on open, which costs nothing: GET reports the allowance without
+     spending one. Somebody sees "12 left" before taking the photo rather than
+     after being refused. */
+  const [scans, setScans] = useState(null);
+
+  useEffect(() => {
+    fetch("/api/ai", { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => j?.scans && setScans(j.scans))
+      .catch(() => {});
+  }, [token]);
 
   async function analyze(file) {
     setBusy(true);
@@ -42,9 +53,15 @@ export default function PhotoScan({ token, kind, onResult, buttonLabel }) {
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError(json.error === "locked" ? s.locked : s.failed);
+        /* A spent allowance is not a failure of the photo, and saying "the
+           photo couldn't be read" would send somebody outside to retake it. */
+        setError(json.error === "locked" ? s.locked
+          : json.error === "quota" ? s.quotaOut
+          : s.failed);
+        if (json.error === "quota") setScans({ left: 0 });
         return;
       }
+      if (json.scans) setScans(json.scans);
       /* The depletion plan rides alongside the result rather than inside it:
          it is a proposal about stock, not part of what the photo said. */
       onResult(json.result, image, json.depletion || null);
@@ -92,6 +109,11 @@ export default function PhotoScan({ token, kind, onResult, buttonLabel }) {
         {busy ? s.analyzing : preview ? s.retake : buttonLabel || s.take}
       </button>
 
+      {scans && scans.left !== undefined && !error && (
+        <p className="text-[11px] mt-2" style={{ opacity: 0.7 }}>
+          {fill(s.quotaLeft, { n: scans.left })}
+        </p>
+      )}
       {error && <p className="text-xs mt-2" style={{ color: C.rose }}>{error}</p>}
     </div>
   );

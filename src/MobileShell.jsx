@@ -1,15 +1,29 @@
-import { MoreHorizontal, MessageSquare } from "lucide-react";
+import { Menu as MenuIcon, MessageSquare } from "lucide-react";
 import { useC } from "./theme.jsx";
 import { useLang } from "./i18n.jsx";
 import BrandMark from "./BrandMark.jsx";
 
-const PRIMARY = ["overview", "ask", "watch", "menu", "advice"];
-const SECONDARY = ["forecast", "billing", "settings"];
+/* The bottom bar is gone.
+
+   It held five tabs and a "more" button, which meant the app had two classes
+   of screen — the five that were reachable and the rest, behind a lid. Which
+   five was a hand-written list, and it had already gone stale once: Bill scan,
+   the screen a cashier uses all shift, was in neither list and could not be
+   opened on a phone at all.
+
+   A single drawer holds everything, so there is no list to drift and no tier.
+   It opens from the trailing edge — the right in English, the left in Arabic —
+   because that is the side the thumb of the hand holding the phone reaches,
+   and because `inset-inline-end` follows the writing direction without a
+   second layout for RTL.
+
+   PRIMARY is kept and exported: Shell reads it to decide which tabs are worth
+   surfacing first inside the drawer. It no longer decides what is reachable. */
+const PRIMARY = ["overview", "costs", "ask", "watch", "advice"];
 
 export default function MobileShell({ tab, go, tabIcons, labelFor, children, liveDot, onOpenChats, onOpenMenu, menuOpen, sheet }) {
   const C = useC();
   const { t } = useLang();
-  const inMore = SECONDARY.includes(tab);
 
   return (
     <div className="h-screen flex flex-col relative overflow-hidden" style={{ background: C.bone }}>
@@ -26,47 +40,20 @@ export default function MobileShell({ tab, go, tabIcons, labelFor, children, liv
               <MessageSquare size={19} />
             </button>
           )}
+          <button onClick={onOpenMenu}
+            className="p-2.5 rounded-lg min-w-[44px] min-h-[44px] flex items-center justify-center"
+            style={{ color: menuOpen ? C.iris : C.ink }}
+            aria-label={t.nav.menu} aria-expanded={menuOpen} aria-haspopup="menu">
+            <MenuIcon size={21} strokeWidth={menuOpen ? 2.4 : 2} />
+          </button>
         </div>
       </header>
 
       {sheet}
       <main className="flex-1 min-h-0 overflow-hidden">{children}</main>
 
-      <nav className="shrink-0 z-20"
-        style={{ background: "var(--panel-glass)", backdropFilter: "blur(20px)",
-          borderTop: `1px solid ${C.hairline}`, paddingBottom: "env(safe-area-inset-bottom)" }}
-        aria-label={t.nav.menu}>
-        <div className="flex items-stretch">
-          {PRIMARY.map((id) => {
-            const Icon = tabIcons[id];
-            const on = tab === id;
-            return (
-              <button key={id} onClick={() => go(id)}
-                className="flex-1 min-w-0 flex flex-col items-center justify-center gap-1 relative"
-                style={{ height: 58, color: on ? C.iris : C.slate }} aria-current={on ? "page" : undefined}>
-                <span className="absolute top-0 rounded-full transition-all duration-300"
-                  style={{ height: 2, width: on ? 26 : 0, background: C.iris,
-                    boxShadow: on ? `0 0 8px ${C.iris}66` : "none" }} />
-                <Icon size={19} strokeWidth={on ? 2.3 : 1.8} />
-                <span className="text-[10px] font-medium leading-none truncate-safe max-w-full px-1"
-                  style={{ opacity: on ? 1 : 0.75 }}>{labelFor(id)}</span>
-              </button>
-            );
-          })}
-          <button onClick={onOpenMenu}
-            className="flex-1 min-w-0 flex flex-col items-center justify-center gap-1 relative"
-            style={{ height: 58, color: menuOpen || inMore ? C.iris : C.slate }}
-            aria-label={t.nav.menu} aria-expanded={menuOpen}>
-            <span className="absolute top-0 rounded-full transition-all duration-300"
-              style={{ height: 2, width: inMore ? 26 : 0, background: C.iris,
-                boxShadow: inMore ? `0 0 8px ${C.iris}66` : "none" }} />
-            <MoreHorizontal size={19} strokeWidth={menuOpen || inMore ? 2.3 : 1.8} />
-            <span className="text-[10px] font-medium leading-none" style={{ opacity: 0.85 }}>{t.nav.more}</span>
-          </button>
-        </div>
-      </nav>
     </div>
   );
 }
 
-export { PRIMARY, SECONDARY };
+export { PRIMARY };

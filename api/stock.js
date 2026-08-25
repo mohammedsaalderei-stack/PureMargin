@@ -131,6 +131,65 @@ export default async function handler(req, res) {
         return res.status(200).json({ movement: out.movement });
       }
 
+      /* A whole delivery, received together.
+
+         Same reasoning as the consume batch below: validated as a set, then
+         written, so a dropped connection mid-invoice cannot leave the store
+         holding half a delivery with nothing to say which half.
+
+         A unit cost rides on each line. That is the point of scanning the note
+         rather than counting the boxes — the price actually paid this week is
+         what makes every recipe cost downstream true, and re-typing it from
+         the same piece of paper is where it stops being true. */
+      if (what === "receive-batch") {
+        const branch = permitted(body.branchId);
+        if (!branch.length) return res.status(403).json({ error: "branch" });
+
+        const rows = Array.isArray(body.movements) ? body.movements : [];
+        if (!rows.length) return res.status(400).json({ error: "empty" });
+
+        const prepared = rows.map((row) => ({
+          ingredientId: String(row.ingredientId || ""),
+          qty: Number(row.qty),
+          unit: String(row.unit || ""),
+          unitCost: Number.isFinite(Number(row.unitCost)) && Number(row.unitCost) > 0
+            ? Number(row.unitCost)
+            : undefined,
+          type: "receive",
+          note: String(body.note || "").slice(0, 200),
+        }));
+
+        if (prepared.some((r) => !r.ingredientId || !(r.qty > 0) || !r.unit)) {
+          return res.status(400).json({ error: "line" });
+        }
+
+        const dry = await Promise.all(prepared.map((r) =>
+          recordMovement(orgId, branch[0], { ...r, actor: session.username, dryRun: true })));
+        const refused = dry.find((d) => d.error);
+        if (refused) {
+          return res.status(400).json({
+            error: refused.error,
+            ingredientId: refused.ingredientId || null,
+            ingredientName: refused.ingredientName || null,
+          });
+        }
+
+        const written = [];
+        for (const r of prepared) {
+          const out = await recordMovement(orgId, branch[0], { ...r, actor: session.username });
+          if (out.error) break;
+          written.push(out.movement);
+        }
+
+        await recordAudit(orgId, {
+          actor: session.username,
+          action: "stock.receive",
+          detail: { branchId: branch[0], lines: written.length, source: "supplierscan" },
+        });
+
+        return res.status(200).json({ movements: written });
+      }
+
       /* A whole bill's consumption, committed together.
 
          The single-movement route would work in a loop from the browser, but a

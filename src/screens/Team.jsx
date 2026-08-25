@@ -39,6 +39,7 @@ export default function Team({ token }) {
   const [email, setEmail] = useState("");
   const [role, setRole] = useState("cashier");
   const [invitedMsg, setInvitedMsg] = useState("");
+  const [inviteLink, setInviteLink] = useState("");
   const [picked, setPicked] = useState([]);
 
   const auth = { Authorization: `Bearer ${token}` };
@@ -69,8 +70,15 @@ export default function Team({ token }) {
         body: JSON.stringify({ email, role, branches: picked }),
       });
       const json = await res.json().catch(() => ({}));
-      if (!res.ok) { setError(t.team.errors[json.error] || t.team.failed); return; }
-      setInvitedMsg(json.joined ? t.team.joinedNow : t.team.inviteSent);
+      if (!res.ok) { setError(t.team.errors[json.error] || t.team.saveFailed); return; }
+      if (json.joined) setInvitedMsg(t.team.joinedNow);
+      else if (json.mailed === false) {
+        /* Invited, but the mail did not go. Saying "sent" here is how somebody
+           ends up waiting on an email that was never delivered, so hand over
+           the link instead and let them pass it on themselves. */
+        setInviteLink(json.link || "");
+        setInvitedMsg(t.team.inviteNotMailed);
+      } else setInvitedMsg(t.team.inviteSent);
       setEmail(""); setPicked([]);
       await load();
     } finally { setBusy(false); }
@@ -212,6 +220,17 @@ export default function Team({ token }) {
 
             {error && <p className="text-xs" style={{ color: C.rose }}>{error}</p>}
             {invitedMsg && <p className="text-xs" style={{ color: C.iris }}>{invitedMsg}</p>}
+            {inviteLink && (
+              <input
+                readOnly
+                value={inviteLink}
+                onFocus={(e) => e.target.select()}
+                dir="ltr"
+                aria-label={t.team.inviteLink}
+                className="w-full px-3 py-2 rounded-lg text-xs text-start"
+                style={{ border: `1px solid ${C.hairline}`, background: C.bone, color: C.ink }}
+              />
+            )}
 
             <button onClick={save} disabled={busy || !email.includes("@")}
               className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-60"

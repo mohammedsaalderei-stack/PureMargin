@@ -139,7 +139,18 @@ export const FREE_FEATURES = ["table"];
    or a package would be sellable with nothing behind it — and anything missing
    here can't be granted at all, which is how the operations suite and the bill
    scanner were unsellable. */
-export const FEATURES = ["assistant", "menu", "forecast", "operations", "billscan"];
+export const FEATURES = [
+  "assistant", "menu", "forecast", "operations", "billscan", "pos_hardware",
+];
+
+/* How many bill scans a month buys, whatever package it came with.
+
+   Every scan is a vision-model call against a photograph, and that is the one
+   cost here that scales with use rather than with accounts. A cap makes the
+   ceiling visible to whoever is paying instead of arriving as a surprise, and
+   100 is comfortably above what a single site gets through in a month while
+   still stopping a stuck retry loop from running up a bill overnight. */
+export const SCAN_LIMIT_PER_MONTH = 100;
 
 /* The terms a subscription can be activated for, in months. Anything else is
    treated as a single month rather than refused, so a stray value can never

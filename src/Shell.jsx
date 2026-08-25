@@ -36,7 +36,7 @@ import ThemeToggle from "./ThemeToggle.jsx";
 import Skeleton from "./Skeleton.jsx";
 import { ConnectDialog, EmptyTable } from "./Connect.jsx";
 import LiveDot from "./LiveDot.jsx";
-import MobileShell, { PRIMARY } from "./MobileShell.jsx";
+import MobileShell from "./MobileShell.jsx";
 import Plans, { Locked } from "./screens/Plans.jsx";
 import { entitlements, SCREEN_FEATURE } from "./entitlements.js";
 import Transition from "./Transition.jsx";
@@ -538,27 +538,43 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
 
   /* ---------------- Mobile ---------------- */
   const mobileSheet = mobileMenu && (
-    <div className="absolute inset-0 z-40" style={{ background: C.scrim }} onClick={() => setMobileMenu(false)}>
-      <div className="absolute bottom-[58px] inset-x-0 p-4 space-y-4 palette-in"
-        style={{ background: "var(--panel-solid)", backdropFilter: "blur(20px)", borderTop: `1px solid ${C.hairline}`,
+    <div className="absolute inset-0 z-40" style={{ background: C.scrim }} onClick={() => setMobileMenu(false)}
+      role="presentation">
+      {/* A drawer off the trailing edge rather than a lid over a bottom bar.
+
+          `inset-inline-end` is the whole reason this needs no second layout for
+          Arabic: it resolves to the right in a left-to-right page and the left
+          in a right-to-left one, which is the same edge in both — the one the
+          thumb holding the phone reaches. A hardcoded `right-0` would have put
+          the Arabic drawer under the user's palm. */}
+      <div className="absolute inset-y-0 w-[82%] max-w-[330px] overflow-y-auto p-4 space-y-4 drawer-in"
+        style={{ insetInlineEnd: 0, background: "var(--panel-solid)", backdropFilter: "blur(20px)",
+          borderInlineStart: `1px solid ${C.hairline}`,
           paddingBottom: "calc(env(safe-area-inset-bottom) + 16px)" }}
-        onClick={(e) => e.stopPropagation()}>
+        onClick={(e) => e.stopPropagation()}
+        role="menu" aria-label={t.nav.menu}>
         <Greeting user={user} business={account?.account?.business} />
         {scopePicker}
-        <div className="grid grid-cols-3 gap-2">
-          {/* Everything the person can reach that isn't already on the bottom
-              bar. Derived from the nav rather than listed again, because the
-              hand-written list had silently dropped Bill scan — a cashier's
-              main screen, unreachable on the device cashiers actually use. A
-              second list is a second thing to forget to update. */}
-          {navTabs.map((tb) => tb.id).filter((id) => !PRIMARY.includes(id)).map((id) => {
+        {/* Every tab, in nav order, with no second tier. The bottom bar's
+            hand-written list of five had already gone stale once — Bill scan,
+            a cashier's whole shift, was in neither list and unreachable on a
+            phone. One list that comes from the nav cannot drift from it. */}
+        <div className="flex flex-col gap-1" role="none">
+          {navTabs.map(({ id }) => {
             const Icon = TAB_ICONS[id]; const on = tab === id;
             const locked = !entitlements(account).has(SCREEN_FEATURE[id]);
             return (
-              <button key={id} onClick={() => go(id)} className="glass-card p-3 flex flex-col items-center gap-1.5"
-                style={{ color: on ? C.iris : C.ink }}>
-                <Icon size={19} /><span className="text-xs font-medium truncate-safe max-w-full">{t[id].tab}</span>
-                {locked && <Lock size={10} style={{ color: C.slate }} />}
+              <button key={id} onClick={() => go(id)} role="menuitem"
+                className="w-full flex items-center gap-3 px-3 py-3 rounded-xl text-start"
+                style={{
+                  minHeight: 48,
+                  color: on ? C.iris : C.ink,
+                  background: on ? C.irisWash : "transparent",
+                }}
+                aria-current={on ? "page" : undefined}>
+                <Icon size={19} strokeWidth={on ? 2.3 : 1.8} className="shrink-0" />
+                <span className="text-sm font-medium truncate-safe flex-1">{t[id].tab}</span>
+                {locked && <Lock size={12} style={{ color: C.slate }} className="shrink-0" />}
               </button>
             );
           })}
