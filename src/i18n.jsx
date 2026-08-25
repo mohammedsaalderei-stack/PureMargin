@@ -133,6 +133,7 @@ export const STRINGS = {
     },
 
     login: {
+      tooMany: "Too many attempts. Wait about {mins} minutes and try again.",
       title: "Sign in",
       lead: "Use the credentials for your business account.",
       username: "Email or username",
@@ -1414,6 +1415,7 @@ export const STRINGS = {
     },
 
     login: {
+      tooMany: "محاولات كثيرة. انتظر نحو {mins} دقيقة ثم حاول مجددًا.",
       title: "تسجيل الدخول",
       lead: "استخدم بيانات حساب نشاطك التجاري.",
       username: "البريد الإلكتروني أو اسم المستخدم",
@@ -2191,7 +2193,7 @@ export const STRINGS = {
 
     decision: {
       eyebrow: "أين نتوقف",
-      title: "أنت تعرف واجهة المشروع. وPureMargin تعرف الأرقام.",
+      title: "أنت تعرف مطبخك. وPureMargin تعرف الأرقام.",
       lead: "لن نخبرك بما تصنع. سنخبرك بما بِيع، ومتى بِيع، وماذا يعني ذلك عادةً — ثم نبتعد عن الطريق.",
       items: [
         { t: "لا شيء مُختلق", b: "كل رقم يعود إلى فاتورة يمكنك الذهاب وإيجادها. وإذا عجزت البيانات عن الإجابة، تقول ذلك بدل أن تخمّن." },
@@ -2667,6 +2669,7 @@ export const STRINGS = {
     footer: { rights: "PureMargin — खाद्य कारोबार के लिए बिक्री की समझ।" },
 
     login: {
+      tooMany: "बहुत बार कोशिश हो गई। लगभग {mins} मिनट रुककर फिर कोशिश करें।",
       title: "साइन इन करें",
       lead: "अपने कारोबारी खाते की जानकारी डालें।",
       username: "ईमेल या यूज़रनेम",
@@ -3914,6 +3917,7 @@ export const STRINGS = {
     footer: { rights: "PureMargin — pag-unawa sa benta para sa negosyong pagkain." },
 
     login: {
+      tooMany: "Sobrang dami nang subok. Maghintay ng mga {mins} minuto at subukan ulit.",
       title: "Mag-sign in",
       lead: "Gamitin ang detalye ng account ng negosyo mo.",
       username: "Email o username",

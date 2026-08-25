@@ -2,7 +2,7 @@ import { useState } from "react";
 import { ArrowLeft, Eye, EyeOff, Loader2 } from "lucide-react";
 import { useC } from "./theme.jsx";
 import BrandMark from "./BrandMark.jsx";
-import { useLang } from "./i18n.jsx";
+import { useLang, fill } from "./i18n.jsx";
 import LanguagePicker from "./LanguagePicker.jsx";
 
 export default function Login({ onAuthed, onBack, onRegister, onForgot }) {
@@ -31,7 +31,15 @@ export default function Login({ onAuthed, onBack, onRegister, onForgot }) {
       });
       const data = await res.json();
       if (!res.ok) {
-        setError(t.login.wrong);
+        /* A lockout is a different problem from a wrong password, and saying
+           so stops somebody burning the rest of the window on guesses that
+           can't succeed. */
+        if (res.status === 429) {
+          const mins = Math.max(1, Math.round((data?.retryInSeconds || 900) / 60));
+          setError(fill(t.login.tooMany, { mins }));
+        } else {
+          setError(t.login.wrong);
+        }
         return;
       }
       sessionStorage.setItem("sufra_token", data.token);

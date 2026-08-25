@@ -214,32 +214,162 @@ iOS applies its own squircle and rounding it twice leaves pale corners.
 Tile colour is `#08060E`, matching `background_color` so the icon blends into
 the splash screen rather than showing a seam.
 
+
+---
+
+# Second pass
+
+A full re-audit after the first round shipped. The analyzers came back clean —
+no undefined identifiers, no missing translation keys, no duplicate keys, no
+hook-order problems — so this round is gaps and hardening rather than repair,
+with one exception.
+
+## 12. Sign-in accepted unlimited password guesses
+
+`api/login.js` had no throttling of any kind. The reset flow caps attempts at
+five and the admin panel pauses 600ms on a bad password, but the front door —
+the one that issues a session token — did neither. An account password was
+only as strong as the time an attacker was willing to spend, and nothing in
+the logs would have looked unusual.
+
+Added `api/_throttle.js`: eight failures against one identifier within fifteen
+minutes closes it, and the endpoint answers 429 with `Retry-After` instead of
+checking the password at all. A correct password clears the run immediately.
+
+Three details that matter:
+
+- **The window runs from the first failure, not the last.** Extending it on
+  every attempt would let a slow trickle of guesses hold somebody out of their
+  own account indefinitely.
+- **Counting is per identifier, not per IP.** An attacker spraying one password
+  across many accounts is a different problem wanting different handling; this
+  stops the case that actually breaks a single account, and changing address
+  doesn't sidestep it. The cost is that somebody who knows your email can lock
+  you out for the window — which is why it is fifteen minutes, not a day.
+- **Identifiers are matched case- and whitespace-insensitively**, so
+  `Owner@Example.com` and `  owner@example.com  ` count against the same total.
+
+Ten tests in `api/_throttle.test.js` cover the ceiling, expiry, window
+behaviour, clearing on success, and both normalisation cases.
+
+The UI showed "check the password and try again" for every failed response,
+including a lockout, so a locked-out person would keep guessing into a wall.
+`Login.jsx` now reads the 429 and shows a new `login.tooMany` string with the
+wait in minutes, in all four languages.
+
+## 13. A guard so the Plan-tab bug cannot come back
+
+`scripts/check-imports.mjs`, wired into `npm test` and runnable as
+`npm run check`. No dependencies — it runs anywhere node does. Three checks:
+
+1. every relative import resolves to a file that exists
+2. every named import is actually exported by that file
+3. no call site uses a name some module in this project exports, unless the
+   file imports or declares it
+
+The third is the one that matters, and it catches the original bug exactly:
+reverting `BranchRanking.jsx` to its broken state produces
+
+```
+FAIL src/plan/BranchRanking.jsx: "fill" is used but never imported or declared (line 33)
+```
+
+It is deliberately narrow, firing only on names the project itself exports.
+A typo'd browser global slips through, but it cannot cry wolf about ordinary
+local variables — and a checker that fails the build on noise gets switched
+off. Verified: zero findings across all 146 files in their current state.
+
+This replaces the earlier recommendation to add ESLint. ESLint's `no-undef`
+would also have caught it, but it needs a dependency, a config, and a decision
+about every other rule it brings. This is thirty seconds of setup and one
+job done well.
+
+## 14. Shared links had no preview image
+
+`index.html` declared `twitter:card` as `summary_large_image` but supplied no
+image, so a link posted to WhatsApp, Twitter or LinkedIn rendered as a bare
+grey box. Added `public/og-image.png` — 1200x630, generated from the same logo
+constants as the icons — plus `og:image`, `og:image:width`, `og:image:height`,
+`og:image:alt`, `og:url`, `og:site_name`, `twitter:image` and a canonical link.
+
+The card carries the mark alone rather than the wordmark, because the brand
+display face (Space Grotesk) is a webfont and substituting a different one
+would have shipped an off-brand image.
+
+## 15. No security headers
+
+The deployment sent none. `vercel.json` now sets, on every response:
+
+| Header | Value | Why |
+| --- | --- | --- |
+| `X-Content-Type-Options` | `nosniff` | Stops MIME-sniffing an upload into a script |
+| `X-Frame-Options` | `DENY` | The app can't be framed, so it can't be clickjacked |
+| `Referrer-Policy` | `strict-origin-when-cross-origin` | Keeps paths out of third-party referer logs |
+| `Permissions-Policy` | geolocation, microphone, payment, USB off | Nothing here needs them |
+| `Strict-Transport-Security` | 2 years, subdomains, preload | Forecloses downgrade attempts |
+
+`/api/*` also gets `Cache-Control: no-store` and `X-Robots-Tag: noindex`, and
+`/assets/*` gets a one-year immutable cache, which is safe because Vite
+fingerprints those filenames.
+
+**No Content-Security-Policy.** It is the header that would help most, but the
+app loads webfonts from Google Fonts and this build has inline styles
+throughout, so a CSP written blind would either break the site or be so loose
+it achieves nothing. Worth doing deliberately, with the deployed site in front
+of you, rather than guessed at from source.
+
+## 16. Crawler files
+
+Added `public/robots.txt` (allows the site, disallows `/api/`, points at the
+sitemap) and a minimal `public/sitemap.xml`. The signed-in app lives behind a
+session so there is nothing else for a crawler to reach.
+
+## 17. `puppeteer` moved to devDependencies
+
+It was a production dependency whose only consumer is `check_errors.cjs`, a
+leftover debug script, so every install pulled a full Chromium — including
+every Vercel build.
+
+**Run `npm install` once locally and commit the updated `package-lock.json`**,
+so the lockfile matches. Vercel's `npm install` reconciles it either way, but
+`npm ci` would fail on a mismatch.
+
+## 18. `decision.title` said something different in Arabic
+
+English, Hindi and Tagalog all used the kitchen; Arabic said
+واجهة المشروع — the front of the business. Arabic now reads
+أنت تعرف مطبخك, matching the other three.
+
+Note the mild tension with fix 10: the lead says تصنع (make) rather than
+تطبخ (cook), while the title now says مطبخك (your kitchen). That is
+defensible — the title names the place they know, the lead avoids prescribing
+the craft — but if you would rather move the whole section away from kitchens,
+all four titles need changing together, not just the Arabic.
+
 ---
 
 ## Verified clean
 
-- All 11 API test suites pass
+- All 12 test suites pass, including the new import check and throttle tests
 - Every `.js` file passes `node --check`
 - No unresolved imports; no missing named or default exports
 - No JSX component used without an import
 - No React hook called after an early return
 - Every `/api/*` endpoint the frontend calls has a matching handler
-- No remaining duplicate keys, missing i18n keys, or encoding corruption
-- `vite.config.js`, `tailwind.config.js`, `vercel.json` all present and valid
+- No duplicate keys, missing i18n keys, or encoding corruption
+- All config files present and valid JSON
 
-## Recommended, not applied
+## Still worth doing
 
-`package.json` was left untouched so it stays in sync with
-`package-lock.json`. Two things worth doing yourself:
-
-1. **Add ESLint.** All six `fill` bugs would have been caught instantly by
-   `no-undef`. This is the single change that stops the class of bug that
-   broke your Plan tab from recurring — nothing in a Vite build catches an
-   unresolved bare identifier, because it compiles to a global lookup that
-   only fails at runtime.
-2. **Move `puppeteer` to `devDependencies`.** It's a production dependency
-   today, so it pulls a full Chromium on every install, including on Vercel.
-   Its only consumer is `check_errors.cjs`, a leftover debug script with a
-   hardcoded Chrome path
+1. **A Content-Security-Policy**, written against the deployed site. See 15.
+2. **A service worker.** The manifest declares `display: standalone`, so the
+   app installs and opens chromeless — but with no network it shows the browser
+   error page, which is jarring for something that presents itself as an app.
+   An offline shell is a contained addition.
+3. **Delete `check_errors.cjs`.** It has a hardcoded Chrome path
    (`/root/.cache/puppeteer/chrome/linux-127.0.6533.88/…`) and hardcoded test
-   credentials. Consider deleting that script too.
+   credentials. Removing it drops the last reason to keep puppeteer at all.
+4. **`src/i18n.jsx` is over 5,100 lines** and every language ships to every
+   visitor. Splitting per language behind a dynamic import would cut what a
+   first-time visitor downloads by roughly three quarters. Worth doing when
+   the file next needs restructuring, not before.

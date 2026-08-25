@@ -1,5 +1,8 @@
 import { issueToken } from "./_auth.js";
 import { verifyPassword, publicAccount, noteLogin } from "./_accounts.js";
+import {
+  lockState, noteFailure, clearFailures, retryAfterSeconds, pause,
+} from "./_throttle.js";
 
 /* Sign-in has exactly one path: a stored account whose password hash
    matches. There is no shared-password fallback and no demo mode.
@@ -18,12 +21,34 @@ export default async function handler(req, res) {
   }
 
   try {
+    /* Refuse before checking the password at all, so a locked identifier costs
+       an attacker a round trip and tells them nothing. */
+    const gate = await lockState(identifier);
+    if (gate.locked) {
+      res.setHeader("Retry-After", retryAfterSeconds(gate.retryInMs));
+      return res.status(429).json({
+        error: "toomany",
+        retryInSeconds: retryAfterSeconds(gate.retryInMs),
+      });
+    }
+
     const account = await verifyPassword(identifier, password);
     if (!account) {
+      const state = await noteFailure(identifier);
+      await pause();
+      if (state.locked) {
+        res.setHeader("Retry-After", retryAfterSeconds(state.retryInMs));
+        return res.status(429).json({
+          error: "toomany",
+          retryInSeconds: retryAfterSeconds(state.retryInMs),
+        });
+      }
       /* One message for both "no such account" and "wrong password", so the
          response can't be used to work out which addresses are registered. */
       return res.status(401).json({ error: "credentials" });
     }
+
+    await clearFailures(identifier);
 
     /* Use the record noteLogin wrote, not the one read before it —
        otherwise the response carries the previous sign-in time. */

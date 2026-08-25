@@ -1,0 +1,10 @@
+# PureMargin
+# The signed-in app lives behind /#/app and needs a session, so there is
+# nothing there for a crawler to reach. The API is disallowed to keep it out
+# of search results and crawl budget.
+
+User-agent: *
+Allow: /
+Disallow: /api/
+
+Sitemap: https://puremargin.ae/sitemap.xml
