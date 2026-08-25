@@ -6,6 +6,7 @@ import {
 import { useC, compact } from "../theme.jsx";
 import { Money } from "../Dirham.jsx";
 import { useLang, fill } from "../i18n.jsx";
+import { FilterBar, useDateRangeData } from "./Overview.jsx";
 import { useCountUp, useStagger } from "../hooks.js";
 import { SectionLabel, TrendIndicator } from "../ui.jsx";
 import "../glass.css";
@@ -126,11 +127,18 @@ function Insights({ items }) {
 
 const ACCENT_COLORS = ["#8B5CF6", "#06B6D4", "#10B981", "#F472B6"];
 
-export default function Watch({ data }) {
+export default function Watch({ data, dateRange = "monthly", onDateRangeChange }) {
   const C = useC();
   const { t } = useLang();
-  const totals = data?.totals || {};
-  const daily = data?.daily || [];
+  /* The screen used to render the whole fetched window regardless of what was
+     selected elsewhere, so it always said "last 30 days" even when the rest of
+     the app was showing today. It now slices the same way Overview does, from
+     the same shared hook, and the heading names the period actually on screen.
+
+     The ceiling is still whatever the POS plan allows: `limitedHistory` means
+     the account's plan capped the pull at 30 days, so a longer selection has
+     nothing further to show and says so rather than padding. */
+  const { totals, series: daily } = useDateRangeData(data || {}, dateRange);
   const stores = data?.stores || [];
   const items = data?.items || [];
   const hours = data?.hours || [];
@@ -146,7 +154,14 @@ export default function Watch({ data }) {
       <div className="max-w-6xl mx-auto px-4 md:px-8 py-5 md:py-8 space-y-4 md:space-y-5">
         <div className="g-stagger" style={{ "--i": 0 }}>
           <h2 className="display text-2xl md:text-3xl font-bold grad-text">{t.watch.title}</h2>
-          <p className="text-sm mt-1" style={{ color: C.slate }}>{data?.limitedHistory ? t.watch.limitedHistory : t.watch.lead}</p>
+          <p className="text-sm mt-1" style={{ color: C.slate }}>
+            {data?.limitedHistory ? t.watch.limitedHistory : fill(t.watch.leadRange, { range: t.ranges[dateRange] })}
+          </p>
+          {onDateRangeChange && (
+            <div className="mt-3">
+              <FilterBar dateRange={dateRange} onDateChange={onDateRangeChange} />
+            </div>
+          )}
         </div>
 
         {observations?.length > 0 && <Insights items={observations} />}

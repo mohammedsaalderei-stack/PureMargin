@@ -379,7 +379,7 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
   else if (tab === "overview") {
     body = <Overview data={data} dateRange={dateRange} onDateRangeChange={setDateRange}
       onAsk={(q) => { startNewChat(); setPending(q); }} onOpenCosts={() => go("menu")} onGo={go} />;
-  } else if (tab === "watch") { body = <Watch data={data} />; }
+  } else if (tab === "watch") { body = <Watch data={data} dateRange={dateRange} onDateRangeChange={setDateRange} />; }
   else if (tab === "menu") { body = <Menu data={data} token={token} onSaved={() => load({ fresh: true })} />; }
   else if (tab === "forecast") { body = <Forecast data={data} />; }
   else if (tab === "advice") { body = <Advice data={data} onAsk={(q) => { startNewChat(); setPending(q); }} />; }

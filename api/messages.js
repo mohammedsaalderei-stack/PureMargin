@@ -5,8 +5,9 @@ import { branchList } from "./_data.js";
 import { recordAudit } from "./_audit.js";
 import { sendMail } from "./_mail.js";
 import {
-  listMessages, postMessage, markRead, lastReadAt,
-  recipientsFor, matchesAudience, audienceIsEveryone, MAX_BODY,
+  listMessages, postMessage, markRead, lastReadAt, recipientsFor,
+  matchesAudience, audienceIsEveryone, addressable, visibleTo, isDirect,
+  MAX_BODY,
 } from "./_messages.js";
 
 /* The team board.
@@ -20,17 +21,22 @@ import {
    everyone could reach everyone's inbox, the flag would be worth nothing
    within a week, and the people it is meant to reach would start ignoring it. */
 
-function publicMessage(message, member) {
+function publicMessage(message, member, username) {
   return {
     ...message,
-    forMe: matchesAudience(message.audience, member),
+    forMe: matchesAudience(message.audience, member, username),
     everyone: audienceIsEveryone(message.audience),
+    direct: isDirect(message),
   };
 }
 
 /* An important message names its audience in the subject, because somebody
    scanning a phone inbox decides whether to open it from that line alone. */
-function subjectFor(orgName, audience, branchNames) {
+function subjectFor(orgName, audience, branchNames, author) {
+  /* A personal message says who it is from; that is what makes somebody open
+     it. A broadcast says who it is for, because that is what makes somebody
+     decide whether it concerns them. */
+  if (audience.users?.length) return `[${orgName}] ${author} sent you a message`;
   const parts = [];
   if (audience.branches.length) {
     parts.push(audience.branches.map((id) => branchNames[id] || id).join(", "));
@@ -59,7 +65,11 @@ export default async function handler(req, res) {
 
   try {
     if (req.method === "GET") {
-      const messages = await listMessages(org.id);
+      const all = await listMessages(org.id);
+      /* Private threads are filtered out here, not in the browser. Sending
+         them and hiding them client-side would put every private message in
+         the network tab of everyone in the organization. */
+      const messages = all.filter((m) => visibleTo(m, account.username));
       const since = await lastReadAt(org.id, account.username);
       let branches = [];
       try {
@@ -71,7 +81,7 @@ export default async function handler(req, res) {
         branches = [];
       }
       return res.status(200).json({
-        messages: messages.map((m) => publicMessage(m, member)),
+        messages: messages.map((m) => publicMessage(m, member, account.username)),
         lastReadAt: since,
         me: account.username,
         role: member.role,
@@ -79,18 +89,36 @@ export default async function handler(req, res) {
         maxLength: MAX_BODY,
         branches: branches.map((b) => ({ id: String(b.id), name: b.name })),
         roles: Object.entries(ROLES).map(([key, r]) => ({ key, label: r.label })),
+        /* Who this person may write to directly, and whether they may address
+           a whole branch or role. Both are decided here; the picker only
+           renders what it is given. */
+        people: addressable(org, account.username),
+        mayBroadcast: mayFlag,
       });
     }
 
     if (req.method === "POST") {
-      const { body, important = false, branches = [], roles = [] } = req.body || {};
+      const { body, important = false, branches = [], roles = [], users = [] } = req.body || {};
       const flagged = Boolean(important) && mayFlag;
+
+      /* A recipient outside this person's reach is dropped rather than
+         refused. The picker cannot offer one, so a name arriving here is
+         either a stale tab or somebody editing the request; neither deserves
+         an error message explaining who else exists in the organization. */
+      const reachable = new Set(addressable(org, account.username).map((p) => p.username));
+      const to = (Array.isArray(users) ? users : []).filter((u) => reachable.has(String(u).trim().toLowerCase()));
+
+      /* Branch and role targeting is a broadcast, which stays with whoever can
+         manage people. A direct message is not, so anyone may send one. */
+      const audience = mayFlag
+        ? { branches, roles, users: to }
+        : { branches: [], roles: [], users: to };
 
       const { message, error } = await postMessage(org.id, {
         author: account.username,
         body,
         important: flagged,
-        audience: { branches, roles },
+        audience,
       });
       if (error) return res.status(400).json({ error });
 
@@ -98,7 +126,7 @@ export default async function handler(req, res) {
          to accept a message because an inbox is unreachable is worse than one
          that accepts it and delivers late. */
       let notified = 0;
-      if (flagged) {
+      if (flagged || isDirect(message)) {
         try {
           const names = {};
           try {
@@ -107,7 +135,7 @@ export default async function handler(req, res) {
           } catch { /* subject falls back to branch ids */ }
 
           const orgName = org.name || account.username;
-          const subject = subjectFor(orgName, message.audience, names);
+          const subject = subjectFor(orgName, message.audience, names, account.username);
           const targets = recipientsFor(org, message);
 
           for (const target of targets) {
@@ -116,8 +144,10 @@ export default async function handler(req, res) {
             await sendMail({
               to: person.email,
               subject,
-              text: `${account.username} marked a message important on the ${orgName} board.\n\n${message.body}\n\nOpen PureMargin to reply.`,
-              html: `<p><strong>${account.username}</strong> marked a message important on the <strong>${orgName}</strong> board.</p>`
+              text: isDirect(message)
+                ? `${account.username} sent you a message on ${orgName}.\n\n${message.body}\n\nOpen PureMargin to reply.`
+                : `${account.username} marked a message important on the ${orgName} board.\n\n${message.body}\n\nOpen PureMargin to reply.`,
+              html: `<p><strong>${account.username}</strong> ${isDirect(message) ? "sent you a message on" : "marked a message important on the"} <strong>${orgName}</strong>${isDirect(message) ? "." : " board."}</p>`
                 + `<blockquote style="margin:16px 0;padding:12px 16px;border-inline-start:3px solid #8B5CF6;background:#F7F6FB;white-space:pre-wrap">${escapeHtml(message.body)}</blockquote>`
                 + `<p>Open PureMargin to reply.</p>`,
             });
@@ -134,7 +164,7 @@ export default async function handler(req, res) {
         });
       }
 
-      return res.status(200).json({ message: publicMessage(message, member), notified });
+      return res.status(200).json({ message: publicMessage(message, member, account.username), notified });
     }
 
     if (req.method === "PUT") {

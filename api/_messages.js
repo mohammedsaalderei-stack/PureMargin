@@ -45,11 +45,57 @@ export function bodyProblem(body) {
 export function normaliseAudience(audience = {}) {
   const branches = [...new Set((audience.branches || []).map(String).filter(Boolean))];
   const roles = [...new Set((audience.roles || []).map(String).filter((r) => ROLE_KEYS.includes(r)))];
-  return { branches, roles };
+  const users = [...new Set((audience.users || []).map((u) => normalise(String(u))).filter(Boolean))];
+  return { branches, roles, users };
+}
+
+/* Who this member is allowed to write to directly.
+
+   A cashier's world is their branch. Letting them open a private thread with
+   an accountant three branches away is not collaboration, it is a way to
+   route around a manager, and the org chart already says as much — so the
+   list is drawn from the same branch assignments that decide what they can
+   see. Anyone whose scope is the whole organization can reach everyone,
+   because their scope already is everyone.
+
+   The list is computed here rather than filtered in the browser. A recipient
+   picker that merely hides names is a suggestion; this is the rule, and the
+   endpoint checks against it before writing anything. */
+export function addressable(org, username) {
+  const me = membership(org, username);
+  if (!me || !org?.members) return [];
+  const wide = me.role === "owner" || !(me.branches || []).length;
+
+  return Object.entries(org.members)
+    .filter(([name]) => name !== normalise(username))
+    .filter(([, them]) => {
+      if (wide) return true;
+      /* Somebody with no branches of their own — an owner, an accountant —
+         is reachable by anyone, since there is no branch to be outside of. */
+      if (them.role === "owner" || !(them.branches || []).length) return true;
+      return (them.branches || []).some((b) => (me.branches || []).includes(b));
+    })
+    .map(([name, them]) => ({ username: name, role: them.role }));
+}
+
+export function isDirect(message) {
+  return Boolean(message?.audience?.users?.length);
+}
+
+/* Whether this member may see a message at all.
+
+   Broadcasts are open to the whole organization: targeting decides who is
+   notified, not who may look. A message named to specific people is the one
+   exception — that is a conversation, and a board that shows everyone else's
+   private threads is not a feature anybody asked for. */
+export function visibleTo(message, username) {
+  if (!isDirect(message)) return true;
+  const me = normalise(username);
+  return message.author === me || message.audience.users.includes(me);
 }
 
 export function audienceIsEveryone(audience) {
-  return !audience.branches.length && !audience.roles.length;
+  return !audience.branches.length && !audience.roles.length && !(audience.users || []).length;
 }
 
 /* Whether a given member falls inside a message's audience.
@@ -58,8 +104,11 @@ export function audienceIsEveryone(audience) {
    organization, so a message aimed at one branch is still aimed at them —
    excluding the owner from a branch announcement would be a strange reading
    of "everyone at Al Ain". */
-export function matchesAudience(audience, member) {
+export function matchesAudience(audience, member, username) {
   if (!member) return false;
+  /* A named recipient list overrides the broader filters: the message is for
+     those people, whatever branch or role they happen to hold. */
+  if (audience.users?.length) return audience.users.includes(normalise(username || ""));
   if (audience.roles.length && !audience.roles.includes(member.role)) return false;
   if (audience.branches.length) {
     if (member.role === "owner") return true;
@@ -101,10 +150,13 @@ export async function postMessage(orgId, { author, body, important = false, audi
    Only important messages notify, and never the author — nobody needs an
    email telling them what they just wrote. */
 export function recipientsFor(org, message) {
-  if (!org?.members || !message.important) return [];
+  /* Two things earn an email: the important flag, and being named personally.
+     A message addressed to you by name is the one case where not telling you
+     until you next open the app defeats the point of sending it. */
+  if (!org?.members || !(message.important || isDirect(message))) return [];
   return Object.entries(org.members)
     .filter(([username, member]) =>
-      username !== message.author && matchesAudience(message.audience, member))
+      username !== message.author && matchesAudience(message.audience, member, username))
     .map(([username, member]) => ({ username, role: member.role }));
 }
 
@@ -133,6 +185,9 @@ export async function unreadCount(org, username) {
   const since = await lastReadAt(org.id, username);
   const list = await listMessages(org.id);
   return list.filter(
-    (m) => m.at > since && m.author !== normalise(username) && matchesAudience(m.audience, member),
+    (m) => m.at > since
+      && m.author !== normalise(username)
+      && visibleTo(m, username)
+      && matchesAudience(m.audience, member, username),
   ).length;
 }

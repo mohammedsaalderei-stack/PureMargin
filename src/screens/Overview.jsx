@@ -18,21 +18,29 @@ import Provenance from "../Provenance.jsx";
 import "../glass.css";
 
 /* ─── Date + category filter bar ─────────────────────────── */
-const DATE_RANGES = [
+/* Labels come from the dictionary; they used to be hardcoded English and
+   stayed English in Arabic, Hindi and Filipino. */
+export const DATE_RANGES = [
   { key: "daily", label: "Today" },
   { key: "weekly", label: "This Week" },
   { key: "monthly", label: "This Month" },
 ];
 
-const CATEGORIES = [
-  { key: "all", label: "All" },
-  { key: "food", label: "Food" },
-  { key: "drinks", label: "Drinks" },
-  { key: "desserts", label: "Desserts" },
-];
+/* The category filter that used to sit here was removed. It never worked:
+   the third argument was passed to a hook that took two, so nothing was ever
+   filtered, and the four labels were hardcoded English that stayed English in
+   Arabic. They were also invented — the POS reports a category_id, a raw
+   identifier, and only on menu items, never on the daily sales series the
+   cards actually read.
 
-function FilterBar({ dateRange, onDateChange, category, onCategoryChange }) {
+   Making it real means fetching category names from the POS and aggregating
+   receipt lines by category per day. That is a worthwhile feature and a
+   backend change; a row of buttons that silently does nothing is not a
+   smaller version of it. */
+
+export function FilterBar({ dateRange, onDateChange }) {
   const C = useC();
+  const { t } = useLang();
   return (
     <div className="flex items-center gap-3 flex-wrap">
       <div className="flex items-center gap-2">
@@ -40,24 +48,17 @@ function FilterBar({ dateRange, onDateChange, category, onCategoryChange }) {
         <div className="glass-filter" role="group">
           {DATE_RANGES.map((r) => (
             <button key={r.key} aria-pressed={dateRange === r.key} onClick={() => onDateChange(r.key)}>
-              {r.label}
+              {t.ranges[r.key]}
             </button>
           ))}
         </div>
-      </div>
-      <div className="glass-filter" role="group">
-        {CATEGORIES.map((c) => (
-          <button key={c.key} aria-pressed={category === c.key} onClick={() => onCategoryChange(c.key)}>
-            {c.label}
-          </button>
-        ))}
       </div>
     </div>
   );
 }
 
 /* ─── Derived totals by date range ───────────────────────── */
-function useDateRangeData(data, range) {
+export function useDateRangeData(data, range) {
   return useMemo(() => {
     const daily = data.daily || [];
     if (!daily.length) return { totals: data.totals || {}, series: [] };
@@ -310,10 +311,9 @@ function LeakageRadar({ data, onAsk, onOpenCosts }) {
 export default function Overview({ data, dateRange, onDateRangeChange, onAsk, onOpenCosts, onGo }) {
   const C = useC();
   const { t } = useLang();
-  const [category, setCategory] = useState("all");
 
   const margin = data.margin || {};
-  const { totals: filteredTotals, series } = useDateRangeData(data, dateRange, category);
+  const { totals: filteredTotals, series } = useDateRangeData(data, dateRange);
 
   const sales = useCountUp(filteredTotals.sales || 0);
   const profit = useCountUp(data.totals?.netProfit ?? 0);
@@ -331,7 +331,7 @@ export default function Overview({ data, dateRange, onDateRangeChange, onAsk, on
             <h2 className="display text-2xl md:text-3xl font-bold grad-text">{t.overview.title}</h2>
             <p className="text-xs mt-1" style={{ color: C.slate }}>Profitability & Operations Overview</p>
           </div>
-          <FilterBar dateRange={dateRange} onDateChange={onDateRangeChange} category={category} onCategoryChange={setCategory} />
+          <FilterBar dateRange={dateRange} onDateChange={onDateRangeChange} />
         </div>
 
         {/* Summary KPI cards */}

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { AlertTriangle, Send, Loader2, Users, Check } from "lucide-react";
+import { AlertTriangle, Send, Loader2, Users, Check, Lock, User } from "lucide-react";
 import { useC } from "../theme.jsx";
 import { useLang, fill, formatDate } from "../i18n.jsx";
 
@@ -40,6 +40,12 @@ export default function Messages({ token }) {
   const [important, setImportant] = useState(false);
   const [branches, setBranches] = useState([]);
   const [roles, setRoles] = useState([]);
+  const [people, setPeople] = useState([]);
+  /* "board" writes to the organization; "direct" writes to named people and
+     is visible only to them. Kept as an explicit choice rather than inferred
+     from whether anybody is selected, so it is never ambiguous on screen who
+     is about to read what. */
+  const [mode, setMode] = useState("board");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [note, setNote] = useState("");
@@ -73,12 +79,17 @@ export default function Messages({ token }) {
 
   async function post() {
     if (!body.trim()) { setError(s.errEmpty); return; }
+    if (mode === "direct" && !people.length) { setError(s.errNoPerson); return; }
     setBusy(true); setError(""); setNote("");
     try {
       const res = await fetch("/api/messages", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ body, important, branches, roles }),
+        body: JSON.stringify(
+          mode === "direct"
+            ? { body, users: people }
+            : { body, important, branches, roles },
+        ),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -88,7 +99,7 @@ export default function Messages({ token }) {
       if (important) {
         setNote(data.notified ? fill(s.notified, { count: data.notified }) : s.notifiedNone);
       }
-      setBody(""); setImportant(false); setBranches([]); setRoles([]);
+      setBody(""); setImportant(false); setBranches([]); setRoles([]); setPeople([]);
       await load();
     } catch {
       setError(s.errServer);
@@ -160,8 +171,10 @@ export default function Messages({ token }) {
               <p className="text-sm whitespace-pre-wrap leading-relaxed">{msg.body}</p>
 
               <p className="text-[11px] mt-2 flex items-center gap-1" style={{ color: C.slate }}>
-                <Users size={11} />
-                {msg.everyone ? s.everyone : names.join(" · ")}
+                {msg.direct ? <Lock size={11} /> : <Users size={11} />}
+                {msg.direct
+                  ? `${s.privately} · ${msg.audience.users.join(", ")}`
+                  : msg.everyone ? s.everyone : names.join(" · ")}
               </p>
             </article>
           );
@@ -182,7 +195,32 @@ export default function Messages({ token }) {
           style={{ borderColor: C.hairline, background: C.bone, color: C.ink }}
         />
 
-        {mayFlag && (
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          <Chip C={C} on={mode === "board"} onClick={() => setMode("board")}>{s.toBoard}</Chip>
+          <Chip C={C} on={mode === "direct"} onClick={() => setMode("direct")}>{s.toPerson}</Chip>
+        </div>
+
+        {mode === "direct" && (
+          <div className="mt-3">
+            <p className="text-[11px] font-bold uppercase tracking-wide mb-1" style={{ color: C.slate }}>
+              {s.recipients}
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {(state.people || []).map((p) => (
+                <Chip key={p.username} C={C} on={people.includes(p.username)}
+                      onClick={() => toggle(people, setPeople, p.username)}>
+                  <User size={10} className="inline-block me-1" />{p.username}
+                </Chip>
+              ))}
+            </div>
+            {!(state.people || []).length && (
+              <p className="text-[11px] mt-1" style={{ color: C.slate }}>{s.nobodyToWriteTo}</p>
+            )}
+            <p className="text-[11px] mt-1.5" style={{ color: C.slate }}>{s.directHint}</p>
+          </div>
+        )}
+
+        {mode === "board" && mayFlag && (
           <div className="mt-3 flex flex-col gap-2">
             <label className="flex items-start gap-2 text-sm font-semibold cursor-pointer">
               <input
@@ -199,7 +237,7 @@ export default function Messages({ token }) {
               </span>
             </label>
 
-            {important && (
+            {(
               <div className="flex flex-col gap-2 pt-1">
                 <div>
                   <p className="text-[11px] font-bold uppercase tracking-wide mb-1" style={{ color: C.slate }}>
@@ -238,7 +276,7 @@ export default function Messages({ token }) {
           </div>
         )}
 
-        {!mayFlag && (
+        {mode === "board" && !mayFlag && (
           <p className="text-[11px] mt-2" style={{ color: C.slate }}>{s.onlyOwner}</p>
         )}
 
@@ -252,7 +290,7 @@ export default function Messages({ token }) {
         <button
           type="button"
           onClick={post}
-          disabled={busy || !body.trim()}
+          disabled={busy || !body.trim() || (mode === "direct" && !people.length)}
           className="mt-3 inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold disabled:opacity-50"
           style={{ background: C.iris, color: "#fff" }}
         >

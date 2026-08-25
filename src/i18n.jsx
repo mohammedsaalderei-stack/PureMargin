@@ -771,6 +771,7 @@ export const STRINGS = {
       },
     },
     watch: {
+      leadRange: "{range}, laid out in full.",
       tab: "The table",
       title: "Last 30 days",
       lead: "Compared with the 30 days before it.",
@@ -821,6 +822,13 @@ export const STRINGS = {
     },
 
     messages: {
+      toBoard: "To the board",
+      toPerson: "To a person",
+      recipients: "Who",
+      privately: "Private",
+      directHint: "Only you and the people you pick can see this.",
+      nobodyToWriteTo: "Nobody outside your branch to write to yet.",
+      errNoPerson: "Pick who this is for.",
       tab: "Messages",
       title: "Team messages",
       lead: "One board for the whole team. Everyone can read everything here — who a message is addressed to decides who gets told about it, not who is allowed to look.",
@@ -847,6 +855,11 @@ export const STRINGS = {
       justNow: "just now",
       branchesAll: "All branches",
       rolesAll: "All roles",
+    },
+    ranges: {
+      daily: "Today",
+      weekly: "This week",
+      monthly: "This month",
     },
     settings: {
       usernameTitle: "Username",
@@ -2097,6 +2110,7 @@ export const STRINGS = {
       },
     },
     watch: {
+      leadRange: "{range}، مبسوطًا كاملًا.",
       tab: "الجدول",
       title: "آخر 30 يومًا",
       lead: "مقارنة بالثلاثين يومًا التي سبقتها.",
@@ -2147,6 +2161,13 @@ export const STRINGS = {
     },
 
     messages: {
+      toBoard: "إلى اللوحة",
+      toPerson: "إلى شخص",
+      recipients: "إلى مَن",
+      privately: "خاصة",
+      directHint: "لا يراها إلا أنت ومن تختارهم.",
+      nobodyToWriteTo: "لا أحد خارج فرعك لمراسلته بعد.",
+      errNoPerson: "اختر لمن هذه الرسالة.",
       tab: "الرسائل",
       title: "رسائل الفريق",
       lead: "لوحة واحدة للفريق كله. الجميع يقرأ كل شيء هنا — تحديد المُرسَل إليهم يقرّر من يصله إشعار، لا من يحقّ له الاطلاع.",
@@ -2173,6 +2194,11 @@ export const STRINGS = {
       justNow: "الآن",
       branchesAll: "كل الفروع",
       rolesAll: "كل الأدوار",
+    },
+    ranges: {
+      daily: "اليوم",
+      weekly: "هذا الأسبوع",
+      monthly: "هذا الشهر",
     },
     settings: {
       usernameTitle: "اسم المستخدم",
@@ -2492,7 +2518,7 @@ export const STRINGS = {
     },
     invscan: {
       title: "امسح رفًا",
-      note: "صوّر رفًا أو تسليمًا واحصل على قائمة بما يراه الذكي، مع تقديرات كمية صريحة.",
+      note: "صوّر رفًا أو تسليمًا واحصل على قائمة بما يراه AI، مع تقديرات كمية صريحة.",
       scan: "امسح الرف",
       caveat: "هذه اقتراحات لا قيود دفترية. استخدم سير العمل الخاص بالجرد لتسجيل ما هو موجود فعلًا.",
     },
@@ -2500,14 +2526,14 @@ export const STRINGS = {
     costs: {
       tab: "مسح الفاتورة",
       title: "امسح فاتورة",
-      lead: "صوّر فاتورة مطبوعة، يقرأ الذكي كل سطر ويطابقه مع قائمتك ويسعّره حسب تكاليفك — فيصل ربح تلك البيعة دون أي كتابة.",
+      lead: "صوّر فاتورة مطبوعة، يقرأ AI كل سطر ويطابقه مع قائمتك ويسعّره حسب تكاليفك — فيصل ربح تلك البيعة دون أي كتابة.",
       scan: "امسح الفاتورة",
       linesTitle: "السطور",
       amount: "المبلغ",
       cost: "التكلفة",
       profit: "الربح",
       unmatchedTitle: "تعذّت المطابقة",
-      unmatchedNote: "اختر الصنف من القائمة وأدخل المبلغ لكل سطر لم يستطع الذكي مطابقته.",
+      unmatchedNote: "اختر الصنف من القائمة وأدخل المبلغ لكل سطر لم يستطع AI مطابقته.",
       pickItem: "اختر صنفًا…",
       amountPlaceholder: "المبلغ",
       total: "الإجمالي",
@@ -3395,6 +3421,7 @@ export const STRINGS = {
       },
     },
     watch: {
+      leadRange: "{range}, पूरा बिछा हुआ।",
       tab: "मेज़",
       title: "पिछले 30 दिन",
       lead: "उससे पहले के 30 दिनों के मुक़ाबले।",
@@ -3470,6 +3497,13 @@ export const STRINGS = {
     },
 
     messages: {
+      toBoard: "बोर्ड पर",
+      toPerson: "किसी व्यक्ति को",
+      recipients: "किसे",
+      privately: "निजी",
+      directHint: "इसे केवल आप और आपके चुने हुए लोग देख सकते हैं।",
+      nobodyToWriteTo: "आपकी शाखा के बाहर अभी कोई नहीं है।",
+      errNoPerson: "चुनिए कि यह किसके लिए है।",
       tab: "संदेश",
       title: "टीम के संदेश",
       lead: "पूरी टीम के लिए एक बोर्ड। यहाँ हर कोई सब पढ़ सकता है — संदेश किसके नाम है यह तय करता है कि सूचना किसे जाए, यह नहीं कि देख कौन सकता है।",
@@ -3496,6 +3530,11 @@ export const STRINGS = {
       justNow: "अभी",
       branchesAll: "सभी शाखाएँ",
       rolesAll: "सभी भूमिकाएँ",
+    },
+    ranges: {
+      daily: "आज",
+      weekly: "इस हफ़्ते",
+      monthly: "इस महीने",
     },
     settings: {
       usernameTitle: "यूज़रनेम",
@@ -4687,6 +4726,7 @@ export const STRINGS = {
       },
     },
     watch: {
+      leadRange: "{range}, nakabuklat nang buo.",
       tab: "Ang mesa",
       title: "Huling 30 araw",
       lead: "Kumpara sa 30 araw bago nito.",
@@ -4762,6 +4802,13 @@ export const STRINGS = {
     },
 
     messages: {
+      toBoard: "Sa board",
+      toPerson: "Sa isang tao",
+      recipients: "Kanino",
+      privately: "Pribado",
+      directHint: "Ikaw lang at ang mga pipiliin mo ang makakakita nito.",
+      nobodyToWriteTo: "Wala pang masusulatan sa labas ng sangay mo.",
+      errNoPerson: "Piliin kung para kanino ito.",
       tab: "Mga mensahe",
       title: "Mga mensahe ng team",
       lead: "Isang board para sa buong team. Mababasa ng lahat ang lahat dito — ang pinag-uukulan ng mensahe ang nagpapasya kung sino ang aabisuhan, hindi kung sino ang puwedeng tumingin.",
@@ -4788,6 +4835,11 @@ export const STRINGS = {
       justNow: "ngayon lang",
       branchesAll: "Lahat ng sangay",
       rolesAll: "Lahat ng tungkulin",
+    },
+    ranges: {
+      daily: "Ngayon",
+      weekly: "Ngayong linggo",
+      monthly: "Ngayong buwan",
     },
     settings: {
       usernameTitle: "Username",
