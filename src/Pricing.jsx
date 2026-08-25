@@ -13,8 +13,15 @@ import ThemeToggle from "./ThemeToggle.jsx";
    it's the only one that shows a struck-through price — a badge on every
    card would make the discount meaningless. Prices are per month; the
    duration selector shows what a 1, 3, 6 or 12 month term comes to. */
-const PRICES = [null, 200, 200, 100, 300, 150];
-const WAS = [null, null, 400, null, null, null];
+/* Aligned index-for-index with `pricing.plans` followed by `pricing.extraPlans`
+   in the dictionary. `null` is not free — it means the card shows "on request"
+   instead of a monthly figure, which is right for hardware quoted per order and
+   for a branch surcharge that is a percentage of a total this page cannot know.
+
+   No launch discount at the moment, so no card carries a struck-through price;
+   a badge on every card would make the discount mean nothing. */
+const PRICES = [250, 150, 200, null, null];
+const WAS = [null, null, null, null, null];
 
 const TERMS = [1, 3, 6, 12];
 

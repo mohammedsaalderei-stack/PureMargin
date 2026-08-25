@@ -384,10 +384,63 @@ export async function setPosToken(username, token) {
 
 /* The decrypted POS token for this account, or the server-wide one as a
    fallback so a single-tenant deployment keeps working unchanged. */
+/* The till token this person reads through.
+
+   A till belongs to a business, not to a person. Before this, the lookup went
+   no further than the caller's own account, so every member the owner added
+   was met with "connect your POS" — a screen asking a cashier for a
+   credential they have no way to obtain and no business holding. The ones who
+   did obtain it ended up with the owner's key pasted into their own account,
+   which is the same key in more places, held by more people, and revocable in
+   none of them.
+
+   Now a member reads through the owner's connection. The token is fetched
+   server-side per request and never travels to the browser — not for the
+   owner either, who set it and does not need it back.
+
+   The order matters. A member's own token still wins if they have one, so an
+   existing deployment where somebody did paste their own key keeps working
+   rather than silently switching tills underneath them. */
 export async function posTokenFor(username) {
   const account = await getAccount(username);
   const own = account?.posToken ? decrypt(account.posToken) : "";
-  return own || process.env.POS_ACCESS_TOKEN || process.env.LOYVERSE_ACCESS_TOKEN || "";
+  if (own) return own;
+
+  if (account?.orgId) {
+    const org = await getJSON(`org:${account.orgId}`);
+    const owner = org?.ownerUsername;
+    if (owner && normalise(owner) !== normalise(username)) {
+      const ownerAccount = await getAccount(owner);
+      const shared = ownerAccount?.posToken ? decrypt(ownerAccount.posToken) : "";
+      if (shared) return shared;
+    }
+  }
+
+  return process.env.POS_ACCESS_TOKEN || process.env.LOYVERSE_ACCESS_TOKEN || "";
+}
+
+/* Whether this person is the one who connects the till, or merely reads
+   through somebody else's connection. The interface uses it to decide between
+   showing a connect form and saying "your owner has connected this" — asking
+   a cashier for a key is how the key ends up in six places. */
+export async function posOwnership(username) {
+  const account = await getAccount(username);
+  if (!account) return { canConnect: false, connected: false, viaOwner: false };
+
+  const own = Boolean(account.posToken);
+  if (!account.orgId) {
+    return { canConnect: true, connected: own || Boolean(process.env.POS_ACCESS_TOKEN || process.env.LOYVERSE_ACCESS_TOKEN), viaOwner: false };
+  }
+
+  const org = await getJSON(`org:${account.orgId}`);
+  const isOwner = org?.ownerUsername && normalise(org.ownerUsername) === normalise(username);
+  const token = await posTokenFor(username);
+
+  return {
+    canConnect: Boolean(isOwner),
+    connected: Boolean(token),
+    viaOwner: Boolean(!isOwner && token && !own),
+  };
 }
 
 export async function noteQuestion(username) {

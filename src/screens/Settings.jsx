@@ -10,6 +10,9 @@ import ThemeToggle from "../ThemeToggle.jsx";
 import DeleteConfirm from "../DeleteConfirm.jsx";
 import EmailSetting from "../settings/EmailSetting.jsx";
 import UsernameSetting from "../settings/UsernameSetting.jsx";
+/* The single list, shared with the bell that reads these. Two copies is how a
+   switch gets added in one place and silently ignored in the other. */
+import { ALERT_KEYS } from "../notices.js";
 
 function Panel({ title, children }) {
   const C = useC();
@@ -32,10 +35,6 @@ function Row({ label, value }) {
 }
 
 /* Edit these once and they update everywhere they appear. */
-const ALERT_KEYS = [
-  "alertEod", "alertSwing", "alertMargin", "alertOrder",
-  "alertTarget", "alertFirst", "alertPeak", "alertWeekly", "alertGoal",
-];
 
 const DEFAULT_ALERTS = {
   alertEod: true, alertSwing: true, alertMargin: true, alertOrder: false,
@@ -243,7 +242,27 @@ export default function Settings({ data, user, onRefresh, refreshing, token, con
       <div className="max-w-3xl mx-auto px-4 md:px-8 py-5 md:py-8 space-y-4 md:space-y-5">
         <h2 className="display text-2xl md:text-3xl font-extrabold">{t.settings.title}</h2>
 
-        {account?.account && (
+        {/* A member sees that the till is connected and by whom; they do not
+            see a form, and they never see the key. */}
+        {account?.account && account?.pos?.canConnect === false && (
+          <Panel title={t.connect.posTitle}>
+            <div className="flex items-start gap-3 p-4 rounded-lg"
+              style={{ background: account?.pos?.connected ? C.irisWash : C.lilacWash }}>
+              <Plug size={18} className="mt-0.5 shrink-0"
+                style={{ color: account?.pos?.connected ? C.iris : C.lilac }} />
+              <div>
+                <div className="font-semibold text-sm mb-1">
+                  {account?.pos?.connected ? t.connect.posConnected : t.connect.posNot}
+                </div>
+                <p className="text-sm leading-relaxed" style={{ color: C.slate }}>
+                  {account?.pos?.connected ? t.connect.viaOwner : t.connect.askOwner}
+                </p>
+              </div>
+            </div>
+          </Panel>
+        )}
+
+        {account?.account && account?.pos?.canConnect !== false && (
           <Panel title={t.connect.posTitle}>
             <div
               className="flex items-start gap-3 p-4 rounded-lg mb-4"

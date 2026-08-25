@@ -134,6 +134,22 @@ export default async function handler(req, res) {
       if (!validEmail(email)) return res.status(400).json({ error: "email" });
       if (!ROLE_KEYS.includes(role)) return res.status(400).json({ error: "role" });
 
+      /* A branch-scoped role with no branches sees nothing at all.
+
+         It used to be accepted, which produced the worst kind of member: they
+         sign in, every screen is empty, and there is nothing on it explaining
+         why. The owner meanwhile has a full member list and no reason to
+         suspect anything. Refused at the door instead, where the person who
+         made the omission is still looking at the form.
+
+         Only roles scoped to assigned branches are checked. An owner or an
+         accountant covers the whole business by definition, and demanding a
+         branch for them would be inventing a restriction the role does not
+         have. */
+      if (ROLES[role]?.scope === "assigned" && !(branches || []).length) {
+        return res.status(400).json({ error: "nobranch" });
+      }
+
       const address = String(email).trim().toLowerCase();
 
       /* Someone already registered with this address just gets the seat —

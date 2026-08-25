@@ -37,6 +37,7 @@ import Skeleton from "./Skeleton.jsx";
 import { ConnectDialog, EmptyTable } from "./Connect.jsx";
 import LiveDot from "./LiveDot.jsx";
 import MobileShell from "./MobileShell.jsx";
+import NotificationBell from "./NotificationBell.jsx";
 import Plans, { Locked } from "./screens/Plans.jsx";
 import { entitlements, SCREEN_FEATURE } from "./entitlements.js";
 import Transition from "./Transition.jsx";
@@ -294,7 +295,15 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
       const res = await fetch("/api/account", { headers: { Authorization: `Bearer ${token}` } });
       if (!res.ok) return;
       const json = await res.json(); setAccount(json);
-      const shouldPrompt = json.account && !json.account.posConnected && !json.serverToken;
+      /* Only the person who can actually connect a till gets the prompt. A
+         member reads through the owner's connection, so pushing them at a
+         connect screen would be asking a cashier for a credential they have no
+         way to obtain and no business holding. */
+      const shouldPrompt = json.account
+        && json.pos?.canConnect !== false
+        && !json.pos?.connected
+        && !json.account.posConnected
+        && !json.serverToken;
       if (shouldPrompt && (justRegistered || !skipped)) setConnectOpen(true);
     } catch { /* */ }
   }
@@ -519,6 +528,7 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
 
             <div className="flex items-center gap-2">
               <LanguagePicker /><ThemeToggle compact />
+              <NotificationBell data={data} />
             </div>
             <div className="flex items-center justify-between gap-2 pt-3" style={{ borderTop: `1px solid ${C.hairline}` }}>
               <span className="text-xs truncate" style={{ color: C.slate }}>
@@ -606,7 +616,8 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
 
   return (
     <MobileShell tab={tab} go={go} tabIcons={TAB_ICONS} labelFor={labelFor} liveDot={liveDot}
-      onOpenChats={() => setChatsOpen(true)} onOpenMenu={() => setMobileMenu((v) => !v)} menuOpen={mobileMenu} sheet={mobileSheet}>
+      onOpenChats={() => setChatsOpen(true)} onOpenMenu={() => setMobileMenu((v) => !v)} menuOpen={mobileMenu} sheet={mobileSheet}
+      bell={<NotificationBell data={data} />}>
       <AmbientBackground />
       <div className="relative z-10 h-full">{content}</div>
       {!desktop && chatsOpen && tab === "ask" && (

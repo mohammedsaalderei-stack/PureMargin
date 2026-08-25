@@ -21,7 +21,7 @@ import BrandMark from "./BrandMark.jsx";
    surfacing first inside the drawer. It no longer decides what is reachable. */
 const PRIMARY = ["overview", "costs", "ask", "watch", "advice"];
 
-export default function MobileShell({ tab, go, tabIcons, labelFor, children, liveDot, onOpenChats, onOpenMenu, menuOpen, sheet }) {
+export default function MobileShell({ tab, go, tabIcons, labelFor, children, liveDot, onOpenChats, onOpenMenu, menuOpen, sheet, bell }) {
   const C = useC();
   const { t } = useLang();
 
@@ -35,6 +35,7 @@ export default function MobileShell({ tab, go, tabIcons, labelFor, children, liv
         </div>
         <div className="flex items-center gap-1 shrink-0">
           {liveDot}
+          {bell}
           {tab === "ask" && (
             <button onClick={onOpenChats} className="p-2.5 rounded-lg min-w-[44px] min-h-[44px] flex items-center justify-center" style={{ color: C.slate }} aria-label={t.chats.title}>
               <MessageSquare size={19} />

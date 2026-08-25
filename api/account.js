@@ -1,8 +1,7 @@
 import { requireAuth } from "./_auth.js";
 import {
   getAccount, setPosToken, setBusiness, publicAccount, setEmail, renameAccount,
-  requestDeletion, cancelDeletion, purgeIfDue, deleteNow, FREE_FEATURES,
-} from "./_accounts.js";
+  requestDeletion, cancelDeletion, purgeIfDue, deleteNow, FREE_FEATURES, posOwnership } from "./_accounts.js";
 import { issueToken } from "./_auth.js";
 import { persistent } from "./_store.js";
 import { clearCache, fetchMerchant } from "./_data.js";
@@ -45,6 +44,10 @@ export default async function handler(req, res) {
         account: pub,
         persistent,
         serverToken: Boolean(process.env.POS_ACCESS_TOKEN || process.env.LOYVERSE_ACCESS_TOKEN),
+        /* Whether this person connects the till or reads through the owner's
+           connection. Never the token itself — not even to the owner, who set
+           it and has no use for it back. */
+        pos: await posOwnership(session.username),
       });
     }
 
@@ -52,6 +55,12 @@ export default async function handler(req, res) {
       const { posToken } = req.body || {};
       const account = await getAccount(session.username);
       if (!account) return res.status(404).json({ error: "noaccount" });
+
+      /* Only the owner connects the till. A member who posts one anyway —
+         an old client, a curious tab — is refused rather than quietly given a
+         second connection nobody can see or revoke. */
+      const ownership = await posOwnership(session.username);
+      if (!ownership.canConnect) return res.status(403).json({ error: "notowner" });
 
       const trimmed = String(posToken || "").trim();
       await setPosToken(session.username, trimmed);

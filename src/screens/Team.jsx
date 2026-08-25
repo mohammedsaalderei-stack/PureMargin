@@ -232,7 +232,8 @@ export default function Team({ token }) {
               />
             )}
 
-            <button onClick={save} disabled={busy || !email.includes("@")}
+            <button onClick={save}
+              disabled={busy || !email.includes("@") || (scopedRole(role) && !picked.length)}
               className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-60"
               style={{ background: C.iris, color: C.onPrimary }}>
               <UserPlus size={14} />{t.team.invite}
