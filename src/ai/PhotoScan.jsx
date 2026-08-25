@@ -45,7 +45,9 @@ export default function PhotoScan({ token, kind, onResult, buttonLabel }) {
         setError(json.error === "locked" ? s.locked : s.failed);
         return;
       }
-      onResult(json.result, image);
+      /* The depletion plan rides alongside the result rather than inside it:
+         it is a proposal about stock, not part of what the photo said. */
+      onResult(json.result, image, json.depletion || null);
     } catch {
       setError(s.failed);
     } finally {

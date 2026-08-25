@@ -126,12 +126,18 @@ async function readLedger(orgId, branchId) {
    bookkeeping, but `recordedAt` is always now — the difference between when
    something happened and when somebody typed it is exactly what a variance
    investigation needs. */
-export async function recordMovement(orgId, branchId, input, { policy } = {}) {
+/* `dryRun` runs every check and writes nothing.
+
+   Added for the bill scanner, which commits a whole meal's consumption at
+   once: checking the set first means the common failure — one ingredient
+   short, one unit mismatched — is caught before anything moves, rather than
+   after five entries already have and somebody has to work out which. */
+export async function recordMovement(orgId, branchId, input, { policy, dryRun } = {}) {
   if (!branchId) return { error: "branchId" };
 
   const ingredient = await getIngredient(orgId, String(input.ingredientId || ""));
   const error = validateMovement({ ...input, ingredient });
-  if (error) return { error };
+  if (error) return { error, ingredientId: String(input.ingredientId || "") };
 
   const { allowNegative } = policy || (await getPolicy(orgId));
   const qty = Math.abs(Number(input.qty));
@@ -144,7 +150,13 @@ export async function recordMovement(orgId, branchId, input, { policy } = {}) {
     const ledger = await readLedger(orgId, branchId);
     const onHand = sumBase(ledger, ingredient.id);
     if (onHand + qtyBase < -1e-9) {
-      return { error: "negative", onHand: fromBaseQty(onHand, ingredient), short: fromBaseQty(-(onHand + qtyBase), ingredient) };
+      return {
+        error: "negative",
+        ingredientId: ingredient.id,
+        ingredientName: ingredient.name,
+        onHand: fromBaseQty(onHand, ingredient),
+        short: fromBaseQty(-(onHand + qtyBase), ingredient),
+      };
     }
   }
 
@@ -181,6 +193,10 @@ export async function recordMovement(orgId, branchId, input, { policy } = {}) {
     reverses: null,
     reversedBy: null,
   };
+
+  /* Every check above has passed. A dry run stops here, having proved the
+     entry would be accepted without leaving one behind. */
+  if (dryRun) return { movement, dryRun: true };
 
   const ledger = await readLedger(orgId, branchId);
   await setJSON(MOVES(orgId, branchId), [movement, ...ledger]);

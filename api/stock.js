@@ -131,6 +131,66 @@ export default async function handler(req, res) {
         return res.status(200).json({ movement: out.movement });
       }
 
+      /* A whole bill's consumption, committed together.
+
+         The single-movement route would work in a loop from the browser, but a
+         dropped connection halfway through a twelve-ingredient bill leaves the
+         ledger holding part of a meal — and nothing on the screen or in the log
+         would say which part. So the set is validated first and written only
+         if every line passes.
+
+         This is not a transaction; the store has no such thing. What it buys is
+         that the common failure — one ingredient short, one unit mismatched — is
+         caught before anything moves, rather than after five entries already
+         have. */
+      if (what === "consume") {
+        const branch = permitted(body.branchId);
+        if (!branch.length) return res.status(403).json({ error: "branch" });
+
+        const rows = Array.isArray(body.movements) ? body.movements : [];
+        if (!rows.length) return res.status(400).json({ error: "empty" });
+
+        const prepared = rows.map((row) => ({
+          ingredientId: String(row.ingredientId || ""),
+          qty: Number(row.qty),
+          unit: String(row.unit || ""),
+          type: "consume",
+          note: String(body.note || "").slice(0, 200),
+        }));
+
+        if (prepared.some((r) => !r.ingredientId || !(r.qty > 0) || !r.unit)) {
+          return res.status(400).json({ error: "line" });
+        }
+
+        const dry = await Promise.all(
+          prepared.map((r) => recordMovement(orgId, branch[0], { ...r, actor: session.username, dryRun: true })),
+        );
+        const refused = dry.find((d) => d.error);
+        if (refused) {
+          return res.status(refused.error === "negative" ? 409 : 400).json({
+            error: refused.error,
+            ingredientId: refused.ingredientId || null,
+            onHand: refused.onHand,
+            short: refused.short,
+          });
+        }
+
+        const written = [];
+        for (const r of prepared) {
+          const out = await recordMovement(orgId, branch[0], { ...r, actor: session.username });
+          if (out.error) break;
+          written.push(out.movement);
+        }
+
+        await recordAudit(orgId, {
+          actor: session.username,
+          action: "stock.consume",
+          detail: { branchId: branch[0], lines: written.length, source: "billscan" },
+        });
+
+        return res.status(200).json({ movements: written });
+      }
+
       if (what === "transfer") {
         /* Both ends are checked. A user authorized for one branch cannot push
            stock into — or pull it out of — a branch they can't see. */

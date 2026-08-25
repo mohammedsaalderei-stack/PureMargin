@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { UserPlus, Trash2, ShieldCheck, Clock } from "lucide-react";
 import TeamActivity from "../TeamActivity.jsx";
 import { useC } from "../theme.jsx";
+import ExtraAccess from "../settings/ExtraAccess.jsx";
 import { useLang } from "../i18n.jsx";
 
 /* Organization members, their roles, and the branches each one may see.
@@ -221,6 +222,16 @@ export default function Team({ token }) {
             <p className="text-[11px]" style={{ color: C.slate }}>{t.team.planNote}</p>
           </div>
         </Panel>
+
+        {/* Exceptions to the role model, kept next to the roles themselves so
+            the two are read together rather than one being discovered later. */}
+        <ExtraAccess
+          token={token}
+          members={state?.members || []}
+          roles={state?.roles || []}
+          grantable={state?.grantableTabs || []}
+          initial={state?.grants}
+        />
 
         {/* Read-only history: what the app did with the POS, and what people did
             with permissions. Same owner-only gate as the rest of this screen. */}

@@ -112,6 +112,11 @@ export default async function handler(req, res) {
       invites: (await getJSON(ORG_INVITES_KEY(org.id))) || [],
       roles: ROLE_KEYS.map((key) => ({ key, label: ROLES[key].label, scope: ROLES[key].scope })),
       availableBranches: branchIds,
+      /* The extra-access panel needs both halves: what may be handed out, and
+         what already has been. Sent with the team rather than from a second
+         endpoint, because it is only ever read on this screen. */
+      grantableTabs: grantable(),
+      grants: normaliseGrants(org.tabGrants || {}),
       /* Returned with the team rather than from its own endpoint: the audit log
          is only about these changes, and it's the same owner-only gate. */
       audit: await readAudit(org.id, 30),

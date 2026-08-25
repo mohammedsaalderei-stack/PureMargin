@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Receipt, Sparkles } from "lucide-react";
 import PhotoScan from "../ai/PhotoScan.jsx";
+import DepletionPanel from "../ai/DepletionPanel.jsx";
 import { useC } from "../theme.jsx";
 import { useLang, fill } from "../i18n.jsx";
 import { Money } from "../Dirham.jsx";
@@ -38,6 +39,8 @@ export default function Costs({ token }) {
           price: i.qty > 0 ? Math.round((i.revenue / i.qty) * 100) / 100 : 0,
           cost: overrides[i.name] || i.cost || 0,
         })));
+        const scopeRes = await fetch("/api/scope", { headers: { Authorization: `Bearer ${token}` } });
+        if (scopeRes.ok) setScopeBranches((await scopeRes.json()).branches || []);
       } catch { /* the scanner still works; manual matching just has no list */ }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -58,6 +61,8 @@ export default function Costs({ token }) {
      quantity re-prices locally and instantly. `edits` is keyed by line index
      because two lines of a bill can legitimately read identically. */
   const [edits, setEdits] = useState({});
+  const [depletion, setDepletion] = useState(null);
+  const [scopeBranches, setScopeBranches] = useState([]);
   const editLine = (i, patch) =>
     setEdits((e) => ({ ...e, [i]: { ...(e[i] || {}), ...patch } }));
 
@@ -106,7 +111,9 @@ export default function Costs({ token }) {
 
         <div className="panel p-5 md:p-6">
           <PhotoScan token={token} kind="bill" buttonLabel={s.scan}
-            onResult={(r) => { setResult(r); setManual({}); setEdits({}); }} />
+            onResult={(r, _img, plan) => {
+              setResult(r); setManual({}); setEdits({}); setDepletion(plan);
+            }} />
         </div>
 
         {result && (
@@ -231,6 +238,16 @@ export default function Costs({ token }) {
                 </p>
               )}
             </div>
+
+            {/* Only rendered when the API sent a plan, which it only does for
+                somebody holding manage:inventory. A cashier never sees a button
+                they could not press. */}
+            <DepletionPanel
+              token={token}
+              plan={depletion}
+              branches={scopeBranches}
+              onDone={() => setDepletion(null)}
+            />
           </>
         )}
 
