@@ -17,6 +17,10 @@ export const SCREEN_FEATURE = {
   costs: "billscan",
   // Team administration is gated by role, not by plan.
   team: null,
+  /* The team board is never gated. It is how the people in an organization
+     reach each other, and putting that behind a package would mean an expired
+     plan silently cuts a restaurant's staff off from their own announcements. */
+  messages: null,
   /* The back-of-house suite — inventory, recipes, leakage, alerts and the
      purchase plan — is one package. Role capabilities still decide who inside
      a team sees which of these screens. */

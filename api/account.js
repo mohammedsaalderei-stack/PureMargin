@@ -1,8 +1,9 @@
 import { requireAuth } from "./_auth.js";
 import {
-  getAccount, setPosToken, setBusiness, publicAccount, setEmail,
+  getAccount, setPosToken, setBusiness, publicAccount, setEmail, renameAccount,
   requestDeletion, cancelDeletion, purgeIfDue, deleteNow, FREE_FEATURES,
 } from "./_accounts.js";
+import { issueToken } from "./_auth.js";
 import { persistent } from "./_store.js";
 import { clearCache, fetchMerchant } from "./_data.js";
 import { orgFor, effectivePlanFor } from "./_org.js";
@@ -115,6 +116,40 @@ export default async function handler(req, res) {
       }
 
       return res.status(200).json({ account: publicAccount(out.account) });
+    }
+
+    /* The username. Its own method again, for the same reason PATCH is separate
+       from PUT: this one moves storage records around and reissues the caller's
+       token, and it must not be possible to trigger it by accident while
+       meaning to change something else. */
+    if (req.method === "POST") {
+      const { username, current } = req.body || {};
+      if (!current) return res.status(400).json({ error: "missing" });
+
+      const out = await renameAccount(session.username, current, username);
+      if (out.error) {
+        /* 401 for a wrong password, 409 for a name somebody already holds,
+           400 for one that isn't a usable name at all. */
+        const code = out.error === "wrongcurrent" ? 401 : out.error === "taken" ? 409 : 400;
+        return res.status(code).json({ error: out.error });
+      }
+
+      if (out.unchanged) return res.status(200).json({ account: publicAccount(out.account) });
+
+      await recordAudit(await orgIdFor(out.account), {
+        actor: out.account.username,
+        action: "username.change",
+        target: out.account.username,
+        detail: { from: out.previous, to: out.account.username },
+      });
+
+      /* The rename invalidated every token carrying the old name, this one
+         included. Hand back a fresh one rather than signing the caller out of
+         a change they just made deliberately. */
+      return res.status(200).json({
+        account: publicAccount(out.account),
+        token: issueToken(out.account.username, out.account.tokenVersion || 0),
+      });
     }
 
     if (req.method === "DELETE") {

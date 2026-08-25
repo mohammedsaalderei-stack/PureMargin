@@ -3,6 +3,7 @@ import { ArrowLeft, Eye, EyeOff, Loader2 } from "lucide-react";
 import { useC } from "./theme.jsx";
 import BrandMark from "./BrandMark.jsx";
 import { useLang, fill } from "./i18n.jsx";
+import { Req, RequiredLegend } from "./Required.jsx";
 import LanguagePicker from "./LanguagePicker.jsx";
 
 export default function Login({ onAuthed, onBack, onRegister, onForgot }) {
@@ -87,7 +88,9 @@ export default function Login({ onAuthed, onBack, onRegister, onForgot }) {
           <p className="text-sm mb-8" style={{ color: C.slate }}>{t.login.lead}</p>
 
           <form onSubmit={submit}>
-            <label htmlFor="u" className="block text-sm font-semibold mb-1.5">{t.login.username}</label>
+            <RequiredLegend color={C.slate} />
+
+            <label htmlFor="u" className="block text-sm font-semibold mb-1.5">{t.login.username}<Req /></label>
             <input
               id="u"
               value={username}
@@ -99,7 +102,7 @@ export default function Login({ onAuthed, onBack, onRegister, onForgot }) {
               style={{ background: C.surface, border: `1px solid ${C.hairline}` }}
             />
 
-            <label htmlFor="p" className="block text-sm font-semibold mb-1.5">{t.login.password}</label>
+            <label htmlFor="p" className="block text-sm font-semibold mb-1.5">{t.login.password}<Req /></label>
             {/* Credentials are Latin, so the field is an LTR island — the
                 wrapper carries dir too, or the icon resolves to the physical
                 left in Arabic and sits on top of the text. */}

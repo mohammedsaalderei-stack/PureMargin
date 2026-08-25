@@ -2,8 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   BarChart3, LineChart, MessageSquare, Settings as Cog, UtensilsCrossed, Users,
   Search, Lightbulb, PanelRightClose, PanelRightOpen, LogOut, Lock, Wallet,
-  LayoutDashboard, Download, FileText, Table, ChevronDown, Package, ChefHat, Scale, BellRing, ShoppingCart, Camera,
-} from "lucide-react";
+  LayoutDashboard, Download, FileText, Table, ChevronDown, Package, ChefHat, Scale, BellRing, ShoppingCart, Camera, MessagesSquare,} from "lucide-react";
 import { useC } from "./theme.jsx";
 import BrandMark from "./BrandMark.jsx";
 import { useLang, fill } from "./i18n.jsx";
@@ -23,6 +22,7 @@ import ChatSidebar from "./ChatSidebar.jsx";
 import Forecast from "./screens/Forecast.jsx";
 import Settings from "./screens/Settings.jsx";
 import Team from "./screens/Team.jsx";
+import Messages from "./screens/Messages.jsx";
 import Inventory from "./screens/Inventory.jsx";
 import Recipes from "./screens/Recipes.jsx";
 import Variance from "./screens/Variance.jsx";
@@ -36,7 +36,7 @@ import ThemeToggle from "./ThemeToggle.jsx";
 import Skeleton from "./Skeleton.jsx";
 import { ConnectDialog, EmptyTable } from "./Connect.jsx";
 import LiveDot from "./LiveDot.jsx";
-import MobileShell, { SECONDARY } from "./MobileShell.jsx";
+import MobileShell, { PRIMARY } from "./MobileShell.jsx";
 import Plans, { Locked } from "./screens/Plans.jsx";
 import { entitlements, SCREEN_FEATURE } from "./entitlements.js";
 import Transition from "./Transition.jsx";
@@ -78,6 +78,13 @@ const TAB_META = [
    for everyone. */
 const TEAM_TAB = { id: "team", icon: Users };
 
+/* The team board. A permission in the loosest sense — everybody in an
+   organization gets it, because a board only one role can read is a memo.
+   Appended rather than placed in TAB_META for the same reason as the others:
+   TAB_META drives the numeric shortcuts and swipe order, and those should mean
+   the same thing for every member. */
+const MESSAGES_TAB = { id: "messages", icon: MessagesSquare };
+
 /* Inventory is a permission too, not a plan feature: anyone with
    `view:inventory` gets it, which is every role except the accountant. Appended
    for the same reason as the team tab — TAB_META drives the numeric shortcuts
@@ -101,7 +108,7 @@ const RECIPES_TAB = { id: "recipes", icon: ChefHat };
    recipes, since it is the costing answer they are both building towards. */
 const VARIANCE_TAB = { id: "variance", icon: Scale };
 
-const TAB_ICONS = Object.fromEntries([...TAB_META, INVENTORY_TAB, ALERTS_TAB, PLAN_TAB, RECIPES_TAB, VARIANCE_TAB, TEAM_TAB].map((tb) => [tb.id, tb.icon]));
+const TAB_ICONS = Object.fromEntries([...TAB_META, INVENTORY_TAB, ALERTS_TAB, PLAN_TAB, RECIPES_TAB, VARIANCE_TAB, TEAM_TAB, MESSAGES_TAB].map((tb) => [tb.id, tb.icon]));
 
 function useDesktop() {
   const [big, setBig] = useState(() => typeof window !== "undefined" && window.matchMedia("(min-width: 1024px)").matches);
@@ -342,6 +349,7 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
       token={token} conversationCount={conversations.length} account={account} onConnect={() => setConnectOpen(true)}
       onAccountChange={refreshEverything} onSeePlans={() => go("billing")} onSession={onSession} onLogout={onLogout} />;
   } else if (tab === "team") { body = <Team token={token} />; }
+  else if (tab === "messages") { body = <Messages token={token} />; }
   else if (locked) { body = <Locked feature={needed} onSeePlans={() => go("billing")} />; }
   else if (tab === "costs") { body = <Costs token={token} />; }
   else if (tab === "inventory") { body = <Inventory token={token} />; }
@@ -408,6 +416,7 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
     ...(canSeePlan ? [PLAN_TAB] : []),
     ...(canSeeRecipes ? [RECIPES_TAB, VARIANCE_TAB] : []),
     byId.watch, byId.menu, byId.forecast, byId.advice,
+    MESSAGES_TAB,
     ...(canManageTeam ? [TEAM_TAB] : []),
     byId.billing, byId.settings,
   ];
@@ -524,13 +533,12 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
         <Greeting user={user} business={account?.account?.business} />
         {scopePicker}
         <div className="grid grid-cols-3 gap-2">
-          {[
-            ...SECONDARY,
-            ...(canSeeInventory ? ["inventory", "alerts"] : []),
-            ...(canSeePlan ? ["plan"] : []),
-            ...(canSeeRecipes ? ["recipes", "variance"] : []),
-            ...(canManageTeam ? ["team"] : []),
-          ].map((id) => {
+          {/* Everything the person can reach that isn't already on the bottom
+              bar. Derived from the nav rather than listed again, because the
+              hand-written list had silently dropped Bill scan — a cashier's
+              main screen, unreachable on the device cashiers actually use. A
+              second list is a second thing to forget to update. */}
+          {navTabs.map((tb) => tb.id).filter((id) => !PRIMARY.includes(id)).map((id) => {
             const Icon = TAB_ICONS[id]; const on = tab === id;
             const locked = !entitlements(account).has(SCREEN_FEATURE[id]);
             return (

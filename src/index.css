@@ -296,3 +296,17 @@ button:not(:disabled):active,
   .reading-xl { font-size: 32px; line-height: 1.05; }
   .reading-lg { font-size: 26px; line-height: 1.1; }
 }
+
+/* A block given dir="ltr" so its digits read left to right also inherits the
+   alignment that comes with it. Inside an Arabic card that means the label
+   stays on the right while the number it labels jumps to the left — subtle on
+   a wide desktop card, obvious in a two-column mobile grid, which is where it
+   was reported.
+
+   The right fix at each site is an inline span around the number, leaving the
+   block's own direction alone, and that is what Money and the newer screens
+   already do. This is the safety net for the ones that don't, scoped away from
+   wrappers holding form controls, where left alignment is the whole point. */
+[dir="rtl"] div[dir="ltr"]:not(:has(input)):not(:has(textarea)):not(:has(select)) {
+  text-align: right;
+}

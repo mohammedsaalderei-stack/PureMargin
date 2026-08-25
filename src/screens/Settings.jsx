@@ -9,6 +9,7 @@ import LanguagePicker from "../LanguagePicker.jsx";
 import ThemeToggle from "../ThemeToggle.jsx";
 import DeleteConfirm from "../DeleteConfirm.jsx";
 import EmailSetting from "../settings/EmailSetting.jsx";
+import UsernameSetting from "../settings/UsernameSetting.jsx";
 
 function Panel({ title, children }) {
   const C = useC();
@@ -572,6 +573,13 @@ export default function Settings({ data, user, onRefresh, refreshing, token, con
 
           {/* The address lives with the account details it belongs to, rather
               than in the password panel — it is an identity, not a secret. */}
+          <UsernameSetting
+            token={token}
+            account={account?.account}
+            onAccountChange={onAccountChange}
+            onSession={onSession}
+          />
+
           <EmailSetting
             token={token}
             account={account?.account}

@@ -3,6 +3,7 @@ import { ArrowLeft, Eye, EyeOff, Loader2, AlertTriangle } from "lucide-react";
 import { useC } from "./theme.jsx";
 import BrandMark from "./BrandMark.jsx";
 import { useLang } from "./i18n.jsx";
+import { Req, RequiredLegend } from "./Required.jsx";
 import LanguagePicker from "./LanguagePicker.jsx";
 import ThemeToggle from "./ThemeToggle.jsx";
 
@@ -117,8 +118,10 @@ export default function Register({ onBack, onRegistered, onSignIn, inviteToken =
             </div>
           )}
 
+          <RequiredLegend color={C.slate} />
+
           <form onSubmit={submit}>
-            <label htmlFor="mail" className="block text-sm font-semibold mb-1.5">{t.register.email}</label>
+            <label htmlFor="mail" className="block text-sm font-semibold mb-1.5">{t.register.emailOptional}</label>
             <input
               id="mail"
               type="email"
@@ -129,9 +132,9 @@ export default function Register({ onBack, onRegistered, onSignIn, inviteToken =
               className="w-full rounded-lg px-4 py-3 text-sm outline-none text-start"
               style={field}
             />
-            <p className="text-[11px] mt-1 mb-4" style={{ color: C.slate }}>{t.register.emailHint}</p>
+            <p className="text-[11px] mt-1 mb-4" style={{ color: C.slate }}>{t.register.emailOptionalHint}</p>
 
-            <label htmlFor="user" className="block text-sm font-semibold mb-1.5">{t.register.username}</label>
+            <label htmlFor="user" className="block text-sm font-semibold mb-1.5">{t.register.username}<Req /></label>
             <input
               id="user"
               value={form.username}
@@ -143,7 +146,7 @@ export default function Register({ onBack, onRegistered, onSignIn, inviteToken =
             />
             <p className="text-[11px] mt-1 mb-4" style={{ color: C.slate }}>{t.register.usernameHint}</p>
 
-            <label htmlFor="pw" className="block text-sm font-semibold mb-1.5">{t.register.password}</label>
+            <label htmlFor="pw" className="block text-sm font-semibold mb-1.5">{t.register.password}<Req /></label>
             <div className="relative" dir="ltr">
               <input
                 id="pw"
@@ -166,7 +169,7 @@ export default function Register({ onBack, onRegistered, onSignIn, inviteToken =
             </div>
             <p className="text-[11px] mt-1 mb-4" style={{ color: C.slate }}>{t.register.passwordHint}</p>
 
-            <label htmlFor="pw2" className="block text-sm font-semibold mb-1.5">{t.register.confirm}</label>
+            <label htmlFor="pw2" className="block text-sm font-semibold mb-1.5">{t.register.confirm}<Req /></label>
             <input
               id="pw2"
               type={show ? "text" : "password"}

@@ -133,6 +133,7 @@ export const STRINGS = {
     },
 
     login: {
+      requiredLegend: "* Required",
       tooMany: "Too many attempts. Wait about {mins} minutes and try again.",
       title: "Sign in",
       lead: "Use the credentials for your business account.",
@@ -819,7 +820,46 @@ export const STRINGS = {
       ],
     },
 
+    messages: {
+      tab: "Messages",
+      title: "Team messages",
+      lead: "One board for the whole team. Everyone can read everything here — who a message is addressed to decides who gets told about it, not who is allowed to look.",
+      placeholder: "Write to the team…",
+      send: "Post",
+      sending: "Posting…",
+      empty: "Nothing on the board yet. The first message is usually the one nobody wanted to put in a group chat.",
+      important: "Mark important",
+      importantHint: "Emails the people it is addressed to. Use it for things that can't wait until they next open the app.",
+      audience: "Send to",
+      everyone: "Everyone",
+      branches: "Branches",
+      roles: "Roles",
+      forMe: "For you",
+      notified: "{count} people emailed",
+      notifiedNone: "Posted. Nobody had an address to mail.",
+      you: "You",
+      errEmpty: "Write something first.",
+      errLong: "That's too long for one message.",
+      errServer: "Couldn't post that. Try again.",
+      unread: "{count} new",
+      loading: "Loading the board…",
+      onlyOwner: "Only the owner can mark a message important.",
+      justNow: "just now",
+      branchesAll: "All branches",
+      rolesAll: "All roles",
+    },
     settings: {
+      usernameTitle: "Username",
+      usernameLead: "What you sign in with, and how the team sees you.",
+      usernameNew: "New username",
+      usernameSave: "Change username",
+      usernameSaving: "Changing…",
+      usernameDone: "Username changed.",
+      usernameNote: "Changing this signs out every other device. Your data, team and history all follow the new name.",
+      usernameTaken: "Somebody already has that name.",
+      usernameBad: "Use 3–32 characters: letters, numbers, dot, dash or underscore.",
+      usernameWrongPw: "That password isn't right.",
+      requiredLegend: "* Required",
       tab: "Settings",
       title: "Settings",
       dataSource: "Data source",
@@ -911,7 +951,7 @@ export const STRINGS = {
 
     decision: {
       eyebrow: "Where we stop",
-      title: "You know your kitchen. PureMargin knows the numbers.",
+      title: "You know the front of your business. PureMargin knows the numbers.",
       lead: "We won't tell you what to make. We'll tell you what sold, when it sold, and what that usually means — then we get out of the way.",
       items: [
         { t: "Nothing invented", b: "Every figure traces back to a receipt you could go and find. If the data can't answer, it says so instead of guessing." },
@@ -977,7 +1017,7 @@ export const STRINGS = {
     },
 
     advice: {
-      tab: "Notes", title: "Notes on your table",
+      tab: "Notes", title: "Notes on your margin",
       lead: "Things worth knowing, pulled out of your own service. Each one shows its working so you can disagree with it.",
       fromData: "Read from your own service", lastRun: "Last read",
       refresh: "Read again",
@@ -1072,7 +1112,11 @@ export const STRINGS = {
     },
 
     register: {
-      nav: "Create account", title: "Set your table",
+      emailOptional: "Email (optional)",
+      emailOptionalHint: "Without one there's no way to reset a forgotten password, and no way to be invited to someone else's team. You can add it later in Settings.",
+      required: "Required",
+      requiredLegend: "* Required",
+      nav: "Create account", title: "See your PureMargin",
       noAccount: "No account yet?",
       lead: "One account for your business. You can connect your POS now or later.",
       business: "Business name", businessHint: "What your customers call you",
@@ -1381,7 +1425,7 @@ export const STRINGS = {
           points: ["إجابات بأربع لغات", "أرقام من مبيعاتك أنت", "أسئلة المتابعة تكمل الحوار"],
         },
         {
-          name: "الPureMargin",
+          name: "الجدول",
           line: "الأرقام التي تحدد أسبوعك، في شاشة واحدة.",
           body: "المبيعات والطلبات ومتوسط الفاتورة وأكثر ساعاتك ازدحامًا. الفروع مرتبة أمام بعضها، والأطباق مرتبة حسب ما تجلبه فعلًا.",
           points: ["إجماليات مباشرة مقابل الفترة السابقة", "مقارنة بين الفروع", "منحنى الطلب ساعة بساعة"],
@@ -1415,6 +1459,7 @@ export const STRINGS = {
     },
 
     login: {
+      requiredLegend: "* مطلوب",
       tooMany: "محاولات كثيرة. انتظر نحو {mins} دقيقة ثم حاول مجددًا.",
       title: "تسجيل الدخول",
       lead: "استخدم بيانات حساب نشاطك التجاري.",
@@ -2052,7 +2097,7 @@ export const STRINGS = {
       },
     },
     watch: {
-      tab: "الPureMargin",
+      tab: "الجدول",
       title: "آخر 30 يومًا",
       lead: "مقارنة بالثلاثين يومًا التي سبقتها.",
       sales: "المبيعات",
@@ -2101,7 +2146,46 @@ export const STRINGS = {
       ],
     },
 
+    messages: {
+      tab: "الرسائل",
+      title: "رسائل الفريق",
+      lead: "لوحة واحدة للفريق كله. الجميع يقرأ كل شيء هنا — تحديد المُرسَل إليهم يقرّر من يصله إشعار، لا من يحقّ له الاطلاع.",
+      placeholder: "اكتب إلى الفريق…",
+      send: "نشر",
+      sending: "جارٍ النشر…",
+      empty: "لا شيء على اللوحة بعد. أول رسالة عادةً هي التي لم يرغب أحد بكتابتها في مجموعة دردشة.",
+      important: "وسمها مهمة",
+      importantHint: "ترسل بريدًا إلى المعنيين بها. استخدمها لما لا يحتمل الانتظار حتى يفتحوا التطبيق.",
+      audience: "إرسال إلى",
+      everyone: "الجميع",
+      branches: "الفروع",
+      roles: "الأدوار",
+      forMe: "تخصّك",
+      notified: "أُرسل البريد إلى {count} أشخاص",
+      notifiedNone: "نُشرت. لا أحد لديه بريد لإرساله.",
+      you: "أنت",
+      errEmpty: "اكتب شيئًا أولًا.",
+      errLong: "هذه أطول من أن تكون رسالة واحدة.",
+      errServer: "تعذّر النشر. حاول مجددًا.",
+      unread: "{count} جديدة",
+      loading: "جارٍ تحميل اللوحة…",
+      onlyOwner: "وسم الرسالة كمهمة متاح للمالك وحده.",
+      justNow: "الآن",
+      branchesAll: "كل الفروع",
+      rolesAll: "كل الأدوار",
+    },
     settings: {
+      usernameTitle: "اسم المستخدم",
+      usernameLead: "ما تسجّل الدخول به، وكيف يراك الفريق.",
+      usernameNew: "اسم المستخدم الجديد",
+      usernameSave: "تغيير الاسم",
+      usernameSaving: "جارٍ التغيير…",
+      usernameDone: "تم تغيير اسم المستخدم.",
+      usernameNote: "التغيير يُخرجك من كل جهاز آخر. بياناتك وفريقك وسجلّك تنتقل كلها مع الاسم الجديد.",
+      usernameTaken: "هذا الاسم محجوز لشخص آخر.",
+      usernameBad: "من ٣ إلى ٣٢ محرفًا: حروف وأرقام ونقطة أو شرطة أو شرطة سفلية.",
+      usernameWrongPw: "كلمة المرور غير صحيحة.",
+      requiredLegend: "* مطلوب",
       tab: "الإعدادات",
       title: "الإعدادات",
       dataSource: "مصدر البيانات",
@@ -2193,7 +2277,7 @@ export const STRINGS = {
 
     decision: {
       eyebrow: "أين نتوقف",
-      title: "أنت تعرف مطبخك. وPureMargin تعرف الأرقام.",
+      title: "أنت تعرف واجهة المشروع. وPureMargin تعرف الأرقام.",
       lead: "لن نخبرك بما تصنع. سنخبرك بما بِيع، ومتى بِيع، وماذا يعني ذلك عادةً — ثم نبتعد عن الطريق.",
       items: [
         { t: "لا شيء مُختلق", b: "كل رقم يعود إلى فاتورة يمكنك الذهاب وإيجادها. وإذا عجزت البيانات عن الإجابة، تقول ذلك بدل أن تخمّن." },
@@ -2225,7 +2309,7 @@ export const STRINGS = {
       contact: "تحدث معنا",
       plans: [
         { name: "الربط", body: "نربط PureMargin بالكاشير الذي تستخدمه أصلًا، ونتأكد أن الأرقام تطابق قبل أن تعتمد عليها.", features: ["يقرأ كاشيرك الحالي — بلا أجهزة جديدة", "كل فرع يُربط مرة واحدة", "الأرقام تُطابق مع تقاريرك أنت", "دفعة واحدة، لا بند شهري"] },
-        { name: "الPureMargin", body: "الأسبوع كله مفروش — المبيعات والطلبات والفروع والساعات، وأي الأصناف يحمل القائمة فعلًا.", features: ["اليوم مقابل أمس، والشهر مقابل الذي قبله", "الفروع جنبًا إلى جنب", "الطلب ساعة بساعة", "أرباع القائمة: ما يكسب وما يُباع فقط"] },
+        { name: "الجدول", body: "الأسبوع كله مفروش — المبيعات والطلبات والفروع والساعات، وأي الأصناف يحمل القائمة فعلًا.", features: ["اليوم مقابل أمس، والشهر مقابل الذي قبله", "الفروع جنبًا إلى جنب", "الطلب ساعة بساعة", "أرباع القائمة: ما يكسب وما يُباع فقط"] },
         { name: "المساعد", body: "اسأل بكلماتك واحصل على إجابة من أرقامك أنت، مع عرض الحساب.", features: ["بالعربية والإنجليزية والهندية والفلبينية", "إجابات من خدمتك، لا مُختلَقة أبدًا", "المحادثات محفوظة لتكمل الخيط لاحقًا", "ملاحظات تستحق التنفيذ، ومعها دليلها"] },
         { name: "القادم", body: "نطاق للشهر المقبل، مبني على طريقة تداولك فعلًا — متحفظ ومرجّح وجيد.", features: ["ثلاثة سيناريوهات، لا رقم واحد أبدًا", "يتسع بصدق كلما نظر أبعد", "خطّط للموظفين والطلبيات على النطاق", "يقول بوضوح ما لا يستطيع معرفته"] },
       ],
@@ -2259,7 +2343,7 @@ export const STRINGS = {
     },
 
     advice: {
-      tab: "الملاحظات", title: "ملاحظات على سفرتك",
+      tab: "الملاحظات", title: "ملاحظات على هامشك",
       lead: "أشياء تستحق الانتباه، مأخوذة من خدمتك أنت. كل ملاحظة تعرض حسابها، فيمكنك أن تخالفها.",
       fromData: "مقروء من خدمتك", lastRun: "آخر قراءة",
       refresh: "أعد القراءة",
@@ -2354,7 +2438,11 @@ export const STRINGS = {
     },
 
     register: {
-      nav: "أنشئ حسابًا", title: "افرش سفرتك",
+      emailOptional: "البريد الإلكتروني (اختياري)",
+      emailOptionalHint: "بدونه لا سبيل لاستعادة كلمة مرور منسية، ولا لدعوتك إلى فريق أحد. يمكنك إضافته لاحقًا من الإعدادات.",
+      required: "مطلوب",
+      requiredLegend: "* مطلوب",
+      nav: "أنشئ حسابًا", title: "اعرف هامشك الصافي",
       noAccount: "ليس لديك حساب بعد؟",
       lead: "حساب واحد لنشاطك. تستطيع ربط الكاشير الآن أو لاحقًا.",
       business: "اسم النشاط", businessHint: "الاسم الذي يعرفك به زبائنك",
@@ -2448,7 +2536,7 @@ export const STRINGS = {
       freeTitle: "الPureMargin عندك بالفعل",
       freeLead: "اربط نظام نقاط البيع وتعمل اللوحة دون أن تدفع شيئًا. الباقات أدناه تضيف إليها.",
       features: {
-        table: "الPureMargin", assistant: "المساعد", menu: "دراسة القائمة", forecast: "القادم",
+        table: "الجدول", assistant: "المساعد", menu: "دراسة القائمة", forecast: "القادم",
         tableBody: "المبيعات والطلبات والفروع وأكثر الساعات ازدحامًا وأعلى الأصناف — الأسبوع كله مفروش.",
         assistantBody: "اسأل بكلماتك أنت، والملاحظات التي تخرج من خدمتك.",
         menuBody: "كل صنف موضوع حسب تكرار بيعه مقابل ما يكسبه، لترى ما يحمل القائمة فعلًا.",
@@ -2669,6 +2757,7 @@ export const STRINGS = {
     footer: { rights: "PureMargin — खाद्य कारोबार के लिए बिक्री की समझ।" },
 
     login: {
+      requiredLegend: "* ज़रूरी",
       tooMany: "बहुत बार कोशिश हो गई। लगभग {mins} मिनट रुककर फिर कोशिश करें।",
       title: "साइन इन करें",
       lead: "अपने कारोबारी खाते की जानकारी डालें।",
@@ -3380,7 +3469,46 @@ export const STRINGS = {
       ],
     },
 
+    messages: {
+      tab: "संदेश",
+      title: "टीम के संदेश",
+      lead: "पूरी टीम के लिए एक बोर्ड। यहाँ हर कोई सब पढ़ सकता है — संदेश किसके नाम है यह तय करता है कि सूचना किसे जाए, यह नहीं कि देख कौन सकता है।",
+      placeholder: "टीम को लिखिए…",
+      send: "भेजिए",
+      sending: "भेजा जा रहा है…",
+      empty: "बोर्ड पर अभी कुछ नहीं। पहला संदेश अक्सर वही होता है जो कोई ग्रुप चैट में नहीं डालना चाहता था।",
+      important: "ज़रूरी चिह्नित करें",
+      importantHint: "जिनके नाम है उन्हें ईमेल जाता है। उसी के लिए जो अगली बार ऐप खुलने तक रुक न सके।",
+      audience: "किसे भेजें",
+      everyone: "सबको",
+      branches: "शाखाएँ",
+      roles: "भूमिकाएँ",
+      forMe: "आपके लिए",
+      notified: "{count} लोगों को ईमेल गया",
+      notifiedNone: "पोस्ट हो गया। किसी का पता दर्ज नहीं था।",
+      you: "आप",
+      errEmpty: "पहले कुछ लिखिए।",
+      errLong: "एक संदेश के लिए यह बहुत लंबा है।",
+      errServer: "पोस्ट नहीं हो सका। फिर कोशिश कीजिए।",
+      unread: "{count} नए",
+      loading: "बोर्ड लोड हो रहा है…",
+      onlyOwner: "संदेश को ज़रूरी चिह्नित करना केवल मालिक कर सकता है।",
+      justNow: "अभी",
+      branchesAll: "सभी शाखाएँ",
+      rolesAll: "सभी भूमिकाएँ",
+    },
     settings: {
+      usernameTitle: "यूज़रनेम",
+      usernameLead: "जिससे आप साइन इन करते हैं, और जिस नाम से टीम आपको देखती है।",
+      usernameNew: "नया यूज़रनेम",
+      usernameSave: "यूज़रनेम बदलें",
+      usernameSaving: "बदला जा रहा है…",
+      usernameDone: "यूज़रनेम बदल गया।",
+      usernameNote: "बदलने पर हर दूसरे डिवाइस से साइन आउट हो जाएगा। आपका डेटा, टीम और इतिहास नए नाम के साथ चले आएँगे।",
+      usernameTaken: "यह नाम पहले से किसी का है।",
+      usernameBad: "3–32 अक्षर: अक्षर, अंक, बिंदु, डैश या अंडरस्कोर।",
+      usernameWrongPw: "यह पासवर्ड सही नहीं है।",
+      requiredLegend: "* ज़रूरी",
       tab: "सेटिंग्स",
       title: "सेटिंग्स",
       dataSource: "डेटा स्रोत",
@@ -3464,7 +3592,7 @@ export const STRINGS = {
 
     decision: {
       eyebrow: "हम कहाँ रुकते हैं",
-      title: "रसोई आप जानते हैं। आँकड़े PureMargin जानता है।",
+      title: "अपने कारोबार का चेहरा आप जानते हैं। आँकड़े PureMargin जानता है।",
       lead: "हम नहीं बताएँगे कि क्या बनाइए। हम बताएँगे कि क्या बिका, कब बिका, और आम तौर पर उसका क्या मतलब होता है — फिर रास्ते से हट जाएँगे।",
       items: [
         { t: "कुछ भी गढ़ा नहीं", b: "हर आँकड़ा किसी ऐसी रसीद तक जाता है जिसे आप जाकर देख सकते हैं। जवाब न हो तो अंदाज़ा लगाने के बजाय यह कह देता है।" },
@@ -3530,7 +3658,7 @@ export const STRINGS = {
     },
 
     advice: {
-      tab: "नोट्स", title: "आपकी मेज़ पर नोट्स",
+      tab: "नोट्स", title: "आपके मार्जिन पर नोट्स",
       lead: "जानने लायक़ बातें, आपकी अपनी सेवा से निकाली हुई। हर एक अपना हिसाब दिखाती है, ताकि आप असहमत हो सकें।",
       fromData: "आपकी अपनी सेवा से पढ़ा", lastRun: "आख़िरी बार पढ़ा",
       refresh: "फिर पढ़ें",
@@ -3625,7 +3753,11 @@ export const STRINGS = {
     },
 
     register: {
-      nav: "खाता बनाएँ", title: "अपनी मेज़ लगाइए",
+      emailOptional: "ईमेल (वैकल्पिक)",
+      emailOptionalHint: "इसके बिना भूला हुआ पासवर्ड बदलने का रास्ता नहीं, और न किसी की टीम में निमंत्रण पाने का। बाद में सेटिंग्स से जोड़ सकते हैं।",
+      required: "ज़रूरी",
+      requiredLegend: "* ज़रूरी",
+      nav: "खाता बनाएँ", title: "अपना शुद्ध मार्जिन देखिए",
       noAccount: "अभी खाता नहीं है?",
       lead: "आपके कारोबार के लिए एक खाता। काउंटर अभी जोड़िए या बाद में।",
       business: "कारोबार का नाम", businessHint: "जिस नाम से ग्राहक आपको जानते हैं",
@@ -3917,6 +4049,7 @@ export const STRINGS = {
     footer: { rights: "PureMargin — pag-unawa sa benta para sa negosyong pagkain." },
 
     login: {
+      requiredLegend: "* Kailangan",
       tooMany: "Sobrang dami nang subok. Maghintay ng mga {mins} minuto at subukan ulit.",
       title: "Mag-sign in",
       lead: "Gamitin ang detalye ng account ng negosyo mo.",
@@ -4628,7 +4761,46 @@ export const STRINGS = {
       ],
     },
 
+    messages: {
+      tab: "Mga mensahe",
+      title: "Mga mensahe ng team",
+      lead: "Isang board para sa buong team. Mababasa ng lahat ang lahat dito — ang pinag-uukulan ng mensahe ang nagpapasya kung sino ang aabisuhan, hindi kung sino ang puwedeng tumingin.",
+      placeholder: "Sumulat sa team…",
+      send: "I-post",
+      sending: "Nagpo-post…",
+      empty: "Wala pa sa board. Ang unang mensahe ay kadalasang iyong ayaw ilagay ninuman sa group chat.",
+      important: "Markahang mahalaga",
+      importantHint: "Ine-email ang mga pinag-uukulan nito. Para sa hindi makakapaghintay hanggang sa susunod nilang pagbukas ng app.",
+      audience: "Ipadala kay",
+      everyone: "Lahat",
+      branches: "Mga sangay",
+      roles: "Mga tungkulin",
+      forMe: "Para sa iyo",
+      notified: "{count} tao ang na-email",
+      notifiedNone: "Nai-post. Walang may address na mapadalhan.",
+      you: "Ikaw",
+      errEmpty: "Sumulat muna.",
+      errLong: "Masyadong mahaba para sa isang mensahe.",
+      errServer: "Hindi na-post. Subukan ulit.",
+      unread: "{count} bago",
+      loading: "Kinukuha ang board…",
+      onlyOwner: "Ang may-ari lang ang makakamarka ng mahalaga.",
+      justNow: "ngayon lang",
+      branchesAll: "Lahat ng sangay",
+      rolesAll: "Lahat ng tungkulin",
+    },
     settings: {
+      usernameTitle: "Username",
+      usernameLead: "Ang ginagamit mo sa pag-sign in, at kung paano ka nakikita ng team.",
+      usernameNew: "Bagong username",
+      usernameSave: "Palitan ang username",
+      usernameSaving: "Pinapalitan…",
+      usernameDone: "Napalitan ang username.",
+      usernameNote: "Magsa-sign out ito sa lahat ng ibang device. Susunod sa bagong pangalan ang data, team at kasaysayan mo.",
+      usernameTaken: "May nakauna na sa pangalang iyan.",
+      usernameBad: "3–32 karakter: letra, numero, tuldok, gitling o underscore.",
+      usernameWrongPw: "Mali ang password na iyan.",
+      requiredLegend: "* Kailangan",
       tab: "Setting",
       title: "Mga setting",
       dataSource: "Pinagkukunan ng datos",
@@ -4712,7 +4884,7 @@ export const STRINGS = {
 
     decision: {
       eyebrow: "Saan kami humihinto",
-      title: "Kilala mo ang kusina mo. Kilala ng PureMargin ang mga numero.",
+      title: "Kilala mo ang harapan ng negosyo mo. Kilala ng PureMargin ang mga numero.",
       lead: "Hindi namin sasabihin kung ano ang gagawin. Sasabihin namin kung ano ang nabenta, kailan nabenta, at ano ang karaniwang ibig sabihin niyon — pagkatapos ay uurong kami sa gilid.",
       items: [
         { t: "Walang inimbento", b: "Bawat numero ay may resibong mahahanap mo. Kung hindi kayang sagutin ng datos, sinasabi nito imbes na manghula." },
@@ -4778,7 +4950,7 @@ export const STRINGS = {
     },
 
     advice: {
-      tab: "Tala", title: "Mga tala sa mesa mo",
+      tab: "Tala", title: "Mga tala sa margin mo",
       lead: "Mga bagay na sulit malaman, hango sa sarili mong serbisyo. Ipinapakita ng bawat isa ang basehan nito, para makatutol ka.",
       fromData: "Binasa mula sa serbisyo mo", lastRun: "Huling binasa",
       refresh: "Basahin ulit",
@@ -4873,7 +5045,11 @@ export const STRINGS = {
     },
 
     register: {
-      nav: "Gumawa ng account", title: "Ihanda ang mesa mo",
+      emailOptional: "Email (opsyonal)",
+      emailOptionalHint: "Kung wala, walang paraan para mabago ang nakalimutang password, at hindi ka rin maiimbitahan sa team ng iba. Maidaragdag mo sa Settings.",
+      required: "Kailangan",
+      requiredLegend: "* Kailangan",
+      nav: "Gumawa ng account", title: "Tingnan ang tunay mong margin",
       noAccount: "Wala pang account?",
       lead: "Isang account para sa negosyo mo. Puwedeng ikonekta ang POS ngayon o mamaya.",
       business: "Pangalan ng negosyo", businessHint: "Ang tawag sa iyo ng mga customer",

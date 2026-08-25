@@ -9,7 +9,16 @@ export default async function handler(req, res) {
   const { username, password, email } = req.body || {};
 
   if (!validUsername(username)) return res.status(400).json({ error: "username" });
-  if (!validEmail(email)) return res.status(400).json({ error: "email" });
+  /* An address is optional. Somebody signing up on a shared phone in a kitchen
+     may not have one, and demanding it turned that person away at the door.
+     What it costs them is spelled out on the form: without an address there is
+     no password reset and no way to be invited to someone else's team, because
+     both of those work by mailing the address on the account.
+
+     Given one, it still has to be a real shape — a typo'd address is worse
+     than none, since it looks like a working recovery route and isn't. */
+  const address = String(email || "").trim();
+  if (address && !validEmail(address)) return res.status(400).json({ error: "email" });
   const weak = passwordProblem(password);
   if (weak) return res.status(400).json({ error: weak });
 
@@ -17,7 +26,7 @@ export default async function handler(req, res) {
      connects one, which is a name they've already typed once. */
 
   try {
-    const { account, error } = await createAccount({ username, password, email });
+    const { account, error } = await createAccount({ username, password, email: address });
     if (error) return res.status(409).json({ error });
 
     /* An invitation claims the account for the inviting organization before
@@ -27,7 +36,8 @@ export default async function handler(req, res) {
     const { setMember } = await import("./_org.js");
     const { getJSON, setJSON } = await import("./_store.js");
     const invite =
-      (await inviteForToken(req.body?.inviteToken)) || (await inviteForEmail(account.email));
+      (await inviteForToken(req.body?.inviteToken)) ||
+      (account.email ? await inviteForEmail(account.email) : null);
     if (invite) {
       const { error: joinError } = await setMember(invite.orgId, account.username, {
         role: invite.role,

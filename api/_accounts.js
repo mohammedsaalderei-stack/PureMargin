@@ -88,13 +88,17 @@ export async function getAccount(username) {
 
 export async function createAccount({ username, password, email, business = "" }) {
   const id = normalise(username);
+  const address = String(email || "").trim().toLowerCase();
   if (await getAccount(id)) return { error: "taken" };
-  if (await getAccountByEmail(email)) return { error: "emailtaken" };
+  /* An address is optional. Only look for a clash when one was actually
+     given — getAccountByEmail("") would otherwise read the key `email:` and
+     hand back whatever happens to live there. */
+  if (address && (await getAccountByEmail(address))) return { error: "emailtaken" };
 
   const salt = crypto.randomBytes(16).toString("hex");
   const account = {
     username: id,
-    email: String(email || "").trim().toLowerCase(),
+    email: address,
     business: String(business || "").trim().slice(0, 80),
     salt,
     hash: hash(password, salt),
@@ -386,6 +390,73 @@ export async function noteQuestion(username) {
 }
 
 /* Never send hashes or tokens to the browser. */
+/* Change the username on an account.
+
+   The username is not just a label: it is the tail of the account's own
+   storage key and of several others, and it is the key under which the
+   organization records membership. A rename therefore moves records rather
+   than editing a field, and the order below is chosen so that an interruption
+   leaves something recoverable rather than something ambiguous.
+
+   Written last, deleted first. If this dies halfway, the worst case is a
+   duplicate of a record under the old name, which a later rename overwrites.
+   The alternative order can leave two names resolving to one account, which
+   is a sign-in ambiguity nobody can see or fix from the outside.
+
+   Audit history is deliberately not rewritten. What an old name did is a fact
+   about the past, and quietly restating it under the new name would make the
+   log a worse record than it was. The rename itself is written to the log by
+   the caller. */
+const RENAMED_KEYS = [
+  (u) => `chats:${u}`,
+  (u) => `costs:${u}`,
+  (u) => `invite:${normalise(u)}`,
+];
+
+export async function renameAccount(username, currentPassword, nextUsername) {
+  const account = await verifyPassword(username, currentPassword);
+  if (!account) return { error: "wrongcurrent" };
+
+  const next = normalise(nextUsername);
+  const previous = account.username;
+  if (next === previous) return { account, unchanged: true };
+  if (!validUsername(next)) return { error: "username" };
+  if (await getAccount(next)) return { error: "taken" };
+
+  const moved = { ...account, username: next, usernameChangedAt: Date.now() };
+  /* Every session token carries the old name, so they all have to stop
+     working — including this caller's, which is reissued by the endpoint. */
+  moved.tokenVersion = (account.tokenVersion || 0) + 1;
+  await setJSON(KEY(next), moved);
+
+  for (const keyOf of RENAMED_KEYS) {
+    const carried = await getJSON(keyOf(previous));
+    if (carried !== null && carried !== undefined) {
+      await setJSON(keyOf(next), carried);
+      await del(keyOf(previous));
+    }
+  }
+
+  if (moved.email) await setJSON(EMAIL_KEY(moved.email), next);
+
+  /* Membership is keyed by username, and the owner is named twice — once as
+     the key and once on the organization itself. */
+  if (moved.orgId) {
+    const org = await getJSON(`org:${moved.orgId}`);
+    if (org) {
+      if (org.members && org.members[previous]) {
+        org.members[next] = org.members[previous];
+        delete org.members[previous];
+      }
+      if (org.ownerUsername === previous) org.ownerUsername = next;
+      await setJSON(`org:${moved.orgId}`, org);
+    }
+  }
+
+  await del(KEY(previous));
+  return { account: moved, previous };
+}
+
 export function publicAccount(account) {
   if (!account) return null;
   return {
@@ -401,6 +472,7 @@ export function publicAccount(account) {
     lastLoginAt: account.lastLoginAt || null,
     passwordChangedAt: account.passwordChangedAt || null,
     emailChangedAt: account.emailChangedAt || null,
+    usernameChangedAt: account.usernameChangedAt || null,
     tokenVersion: account.tokenVersion || 0,
     plan: {
       items: activeItems(account),

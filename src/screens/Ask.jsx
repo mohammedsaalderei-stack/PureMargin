@@ -54,7 +54,7 @@ function Snapshot({ data, onAsk, noticedLine }) {
 
         <div className="panel p-4">
           <div className="text-xs font-semibold mb-1.5" style={{ color: C.slate }}>{t.snapshot.receiptsToday}</div>
-          <div className="display text-2xl font-extrabold leading-none" dir="ltr">{today.receipts}</div>
+          <div className="display text-2xl font-extrabold leading-none"><span dir="ltr">{today.receipts}</span></div>
         </div>
 
         <div className="panel p-4">
