@@ -120,7 +120,12 @@ export default function Messages({ token }) {
   const mayFlag = Boolean(state?.mayFlag);
 
   return (
-    <div className="max-w-3xl mx-auto w-full flex flex-col gap-4">
+    /* Its own scroll container, like every other screen — the shell's <main>
+       is overflow-hidden. The composer stays pinned to the bottom of the
+       scrolling area rather than the viewport, so a long board scrolls under
+       it instead of pushing it off the screen. */
+    <div className="h-full overflow-y-auto">
+    <div className="max-w-3xl mx-auto w-full flex flex-col gap-4 p-4 md:p-6">
       <header>
         <h1 className="display text-2xl font-extrabold">{s.title}</h1>
         <p className="text-sm mt-1" style={{ color: C.slate }}>{s.lead}</p>
@@ -298,6 +303,7 @@ export default function Messages({ token }) {
           {busy ? s.sending : s.send}
         </button>
       </div>
+    </div>
     </div>
   );
 }

@@ -86,128 +86,135 @@ export default function Variance({ token, branches = [] }) {
     : { border: `1px solid ${C.hairline}`, color: C.slate };
 
   return (
-    <div className="p-4 md:p-6 space-y-4 max-w-4xl mx-auto w-full">
-      <div>
-        <h2 className="display font-bold text-xl">{s.title}</h2>
-        <p className="text-sm mt-1" style={{ color: C.slate }}>{s.lead}</p>
-      </div>
-
-      {/* Period and cost basis: both change the answer, so both are visible. */}
-      <div className="panel p-4 flex flex-wrap gap-4">
+    <div className="h-full overflow-y-auto">
+      {/* The shell's <main> is overflow-hidden, so every screen owns its own
+          scroll container. Five did not, which was survivable while their
+          content happened to fit and stopped being survivable the moment a
+          scanner added a result panel below the fold — the page simply ended
+          and there was no way to reach the save button. */}
+      <div className="p-4 md:p-6 space-y-4 max-w-4xl mx-auto w-full">
         <div>
-          <div className="text-xs font-semibold mb-2" style={{ color: C.slate }}>{s.period}</div>
-          <div className="flex gap-2">
-            {Object.keys(PERIODS).map((id) => (
-              <button key={id} onClick={() => { setPeriod(id); load(id, method); }}
-                className="px-3 py-1.5 rounded-lg text-xs font-semibold" style={chip(period === id)}>
-                {s.periods[id]}
-              </button>
-            ))}
-          </div>
+          <h2 className="display font-bold text-xl">{s.title}</h2>
+          <p className="text-sm mt-1" style={{ color: C.slate }}>{s.lead}</p>
         </div>
-        <div>
-          <div className="text-xs font-semibold mb-2" style={{ color: C.slate }}>{s.basis}</div>
-          <div className="flex gap-2">
-            {["wavg", "last"].map((id) => (
-              <button key={id} onClick={() => { setMethod(id); load(period, id); }}
-                className="px-3 py-1.5 rounded-lg text-xs font-semibold" style={chip(method === id)}>
-                {t.recipes.methods[id]}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
 
-      {/* The headline: what the difference is worth, and what already explains it. */}
-      <div className="panel p-5 md:p-6">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-          {[
-            [s.theoretical, data.totals.theoretical, null],
-            [s.actual, data.totals.actual, null],
-            [s.wasteTotal, data.totals.waste, null],
-            [s.unexplained, data.totals.unexplained, data.totals.unexplained > 0 ? C.rose : null],
-          ].map(([label, value, tone]) => (
-            <div key={label} className="p-3 rounded-lg" style={{ background: "var(--chip-bg)" }}>
-              <div className="text-[10px] uppercase tracking-wide" style={{ color: C.slate }}>{label}</div>
-              <div className="text-sm font-bold mt-0.5">{money(value, tone)}</div>
+        {/* Period and cost basis: both change the answer, so both are visible. */}
+        <div className="panel p-4 flex flex-wrap gap-4">
+          <div>
+            <div className="text-xs font-semibold mb-2" style={{ color: C.slate }}>{s.period}</div>
+            <div className="flex gap-2">
+              {Object.keys(PERIODS).map((id) => (
+                <button key={id} onClick={() => { setPeriod(id); load(id, method); }}
+                  className="px-3 py-1.5 rounded-lg text-xs font-semibold" style={chip(period === id)}>
+                  {s.periods[id]}
+                </button>
+              ))}
             </div>
-          ))}
+          </div>
+          <div>
+            <div className="text-xs font-semibold mb-2" style={{ color: C.slate }}>{s.basis}</div>
+            <div className="flex gap-2">
+              {["wavg", "last"].map((id) => (
+                <button key={id} onClick={() => { setMethod(id); load(period, id); }}
+                  className="px-3 py-1.5 rounded-lg text-xs font-semibold" style={chip(method === id)}>
+                  {t.recipes.methods[id]}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
 
-        {data.totals.theoreticalCostPct !== null && (
-          <p className="text-[11px] mt-3" style={{ color: C.slate }}>
-            {s.costPct}: {fill(s.costPctNote, {
-              th: data.totals.theoreticalCostPct,
-              ac: data.totals.actualCostPct,
-              revenue: Math.round(data.totals.revenue).toLocaleString(),
-            })}
-          </p>
-        )}
-      </div>
-
-      {/* Data quality before detail: it decides whether the detail means anything. */}
-      <div className="panel p-5 md:p-6">
-        <div className="text-xs font-semibold mb-2" style={{ color: C.slate }}>{s.qualityTitle}</div>
-        <p className="text-[11px]" style={{ color: coveragePct < 100 ? C.rose : C.slate }}>
-          {fill(s.coverage, { pct: coveragePct })}
-          {coveragePct < 100 && ` ${s.coverageLow}`}
-        </p>
-
-        {q.unmatched.length > 0 && (
-          <div className="mt-3">
-            <div className="text-[11px] font-semibold" style={{ color: C.ink }}>{s.unmatchedTitle}</div>
-            <p className="text-[11px] mt-0.5" style={{ color: C.slate }}>
-              {s.unmatchedNote} {q.unmatched.map((u) => u.name).join(", ")}
-            </p>
-          </div>
-        )}
-
-        {q.unpricedCount > 0 && (
-          <div className="mt-3">
-            <div className="text-[11px] font-semibold" style={{ color: C.ink }}>{s.unpricedTitle}</div>
-            <p className="text-[11px] mt-0.5" style={{ color: C.slate }}>
-              {fill(s.unpricedNote, { n: q.unpricedCount })} {q.unpriced.map((u) => u.name).join(", ")}
-            </p>
-          </div>
-        )}
-
-        {(data.sales?.error || data.sales?.limitedHistory) && (
-          <div className="flex gap-2.5 mt-3 p-3 rounded-lg" style={{ border: `1px solid ${C.rose}` }}>
-            <AlertTriangle size={15} className="shrink-0 mt-0.5" style={{ color: C.rose }} />
-            <p className="text-[11px]" style={{ color: C.slate }}>
-              {data.sales.error === "notconnected" ? s.salesNotConnected
-                : data.sales.error ? s.salesMissing
-                : s.salesLimited}
-            </p>
-          </div>
-        )}
-
-        {data.sales?.at && (
-          <p className="text-[11px] mt-3" style={{ color: C.slate }}>
-            {fill(s.syncedAt, { when: new Date(data.sales.at).toLocaleString() })}
-          </p>
-        )}
-      </div>
-
-      <div className="panel p-5 md:p-6">
-        <h3 className="display font-bold text-base">{s.itemsTitle}</h3>
-        <p className="text-xs mt-1 mb-4" style={{ color: C.slate }}>{s.itemsNote}</p>
-
-        {data.items.length === 0 ? (
-          <div className="text-center py-8">
-            <Scale size={28} className="mx-auto mb-3" style={{ color: C.slate, opacity: 0.5 }} />
-            <p className="text-sm" style={{ color: C.slate }}>{loading ? "" : s.empty}</p>
-          </div>
-        ) : (
-          <div className="space-y-1.5">
-            {data.items.map((row) => (
-              <VarianceRow key={row.ingredientId} row={row}
-                open={openId === row.ingredientId}
-                onToggle={() => setOpenId(openId === row.ingredientId ? null : row.ingredientId)}
-                branchNames={data.branchNames || {}} />
+        {/* The headline: what the difference is worth, and what already explains it. */}
+        <div className="panel p-5 md:p-6">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+            {[
+              [s.theoretical, data.totals.theoretical, null],
+              [s.actual, data.totals.actual, null],
+              [s.wasteTotal, data.totals.waste, null],
+              [s.unexplained, data.totals.unexplained, data.totals.unexplained > 0 ? C.rose : null],
+            ].map(([label, value, tone]) => (
+              <div key={label} className="p-3 rounded-lg" style={{ background: "var(--chip-bg)" }}>
+                <div className="text-[10px] uppercase tracking-wide" style={{ color: C.slate }}>{label}</div>
+                <div className="text-sm font-bold mt-0.5">{money(value, tone)}</div>
+              </div>
             ))}
           </div>
-        )}
+
+          {data.totals.theoreticalCostPct !== null && (
+            <p className="text-[11px] mt-3" style={{ color: C.slate }}>
+              {s.costPct}: {fill(s.costPctNote, {
+                th: data.totals.theoreticalCostPct,
+                ac: data.totals.actualCostPct,
+                revenue: Math.round(data.totals.revenue).toLocaleString(),
+              })}
+            </p>
+          )}
+        </div>
+
+        {/* Data quality before detail: it decides whether the detail means anything. */}
+        <div className="panel p-5 md:p-6">
+          <div className="text-xs font-semibold mb-2" style={{ color: C.slate }}>{s.qualityTitle}</div>
+          <p className="text-[11px]" style={{ color: coveragePct < 100 ? C.rose : C.slate }}>
+            {fill(s.coverage, { pct: coveragePct })}
+            {coveragePct < 100 && ` ${s.coverageLow}`}
+          </p>
+
+          {q.unmatched.length > 0 && (
+            <div className="mt-3">
+              <div className="text-[11px] font-semibold" style={{ color: C.ink }}>{s.unmatchedTitle}</div>
+              <p className="text-[11px] mt-0.5" style={{ color: C.slate }}>
+                {s.unmatchedNote} {q.unmatched.map((u) => u.name).join(", ")}
+              </p>
+            </div>
+          )}
+
+          {q.unpricedCount > 0 && (
+            <div className="mt-3">
+              <div className="text-[11px] font-semibold" style={{ color: C.ink }}>{s.unpricedTitle}</div>
+              <p className="text-[11px] mt-0.5" style={{ color: C.slate }}>
+                {fill(s.unpricedNote, { n: q.unpricedCount })} {q.unpriced.map((u) => u.name).join(", ")}
+              </p>
+            </div>
+          )}
+
+          {(data.sales?.error || data.sales?.limitedHistory) && (
+            <div className="flex gap-2.5 mt-3 p-3 rounded-lg" style={{ border: `1px solid ${C.rose}` }}>
+              <AlertTriangle size={15} className="shrink-0 mt-0.5" style={{ color: C.rose }} />
+              <p className="text-[11px]" style={{ color: C.slate }}>
+                {data.sales.error === "notconnected" ? s.salesNotConnected
+                  : data.sales.error ? s.salesMissing
+                  : s.salesLimited}
+              </p>
+            </div>
+          )}
+
+          {data.sales?.at && (
+            <p className="text-[11px] mt-3" style={{ color: C.slate }}>
+              {fill(s.syncedAt, { when: new Date(data.sales.at).toLocaleString() })}
+            </p>
+          )}
+        </div>
+
+        <div className="panel p-5 md:p-6">
+          <h3 className="display font-bold text-base">{s.itemsTitle}</h3>
+          <p className="text-xs mt-1 mb-4" style={{ color: C.slate }}>{s.itemsNote}</p>
+
+          {data.items.length === 0 ? (
+            <div className="text-center py-8">
+              <Scale size={28} className="mx-auto mb-3" style={{ color: C.slate, opacity: 0.5 }} />
+              <p className="text-sm" style={{ color: C.slate }}>{loading ? "" : s.empty}</p>
+            </div>
+          ) : (
+            <div className="space-y-1.5">
+              {data.items.map((row) => (
+                <VarianceRow key={row.ingredientId} row={row}
+                  open={openId === row.ingredientId}
+                  onToggle={() => setOpenId(openId === row.ingredientId ? null : row.ingredientId)}
+                  branchNames={data.branchNames || {}} />
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

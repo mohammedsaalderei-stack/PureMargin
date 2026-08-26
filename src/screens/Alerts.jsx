@@ -46,44 +46,51 @@ export default function Alerts({ token, branches = [] }) {
   const thin = (data.quality?.recipeCoverage || 0) === 0;
 
   return (
-    <div className="p-4 md:p-6 space-y-4 max-w-4xl mx-auto w-full">
-      <div>
-        <h2 className="display font-bold text-xl">{s.title}</h2>
-        <p className="text-sm mt-1" style={{ color: C.slate }}>{s.lead}</p>
-      </div>
-
-      {data.sales?.error && (
-        <div className="panel p-4 flex gap-2.5">
-          <AlertTriangle size={15} className="shrink-0 mt-0.5" style={{ color: C.rose }} />
-          <p className="text-xs" style={{ color: C.slate }}>
-            {data.sales.error === "notconnected" ? s.salesNotConnected : s.salesMissing}
-          </p>
-        </div>
-      )}
-
-      <div className="panel p-5 md:p-6">
-        <div className="flex flex-wrap gap-2 mb-4">
-          {["critical", "warning", "info"].map((level) => (
-            <span key={level} className="text-[11px] px-2.5 py-1 rounded-lg font-semibold"
-              style={{ background: "var(--chip-bg)", color: C.slate }}>
-              {s.severity[level]}: {data.counts[level]}
-            </span>
-          ))}
+    <div className="h-full overflow-y-auto">
+      {/* The shell's <main> is overflow-hidden, so every screen owns its own
+          scroll container. Five did not, which was survivable while their
+          content happened to fit and stopped being survivable the moment a
+          scanner added a result panel below the fold — the page simply ended
+          and there was no way to reach the save button. */}
+      <div className="p-4 md:p-6 space-y-4 max-w-4xl mx-auto w-full">
+        <div>
+          <h2 className="display font-bold text-xl">{s.title}</h2>
+          <p className="text-sm mt-1" style={{ color: C.slate }}>{s.lead}</p>
         </div>
 
-        {data.alerts.length === 0 ? (
-          <div className="text-center py-8">
-            <BellRing size={28} className="mx-auto mb-3" style={{ color: C.slate, opacity: 0.5 }} />
-            <p className="text-sm" style={{ color: C.slate }}>{thin ? s.emptyThin : s.empty}</p>
-          </div>
-        ) : (
-          <div className="space-y-2.5">
-            {data.alerts.map((alert) => <AlertCard key={alert.id} alert={alert} />)}
+        {data.sales?.error && (
+          <div className="panel p-4 flex gap-2.5">
+            <AlertTriangle size={15} className="shrink-0 mt-0.5" style={{ color: C.rose }} />
+            <p className="text-xs" style={{ color: C.slate }}>
+              {data.sales.error === "notconnected" ? s.salesNotConnected : s.salesMissing}
+            </p>
           </div>
         )}
-      </div>
 
-      <TargetsForm targets={data.targets} canEdit={data.canEditTargets} onSave={saveTargets} />
+        <div className="panel p-5 md:p-6">
+          <div className="flex flex-wrap gap-2 mb-4">
+            {["critical", "warning", "info"].map((level) => (
+              <span key={level} className="text-[11px] px-2.5 py-1 rounded-lg font-semibold"
+                style={{ background: "var(--chip-bg)", color: C.slate }}>
+                {s.severity[level]}: {data.counts[level]}
+              </span>
+            ))}
+          </div>
+
+          {data.alerts.length === 0 ? (
+            <div className="text-center py-8">
+              <BellRing size={28} className="mx-auto mb-3" style={{ color: C.slate, opacity: 0.5 }} />
+              <p className="text-sm" style={{ color: C.slate }}>{thin ? s.emptyThin : s.empty}</p>
+            </div>
+          ) : (
+            <div className="space-y-2.5">
+              {data.alerts.map((alert) => <AlertCard key={alert.id} alert={alert} />)}
+            </div>
+          )}
+        </div>
+
+        <TargetsForm targets={data.targets} canEdit={data.canEditTargets} onSave={saveTargets} />
+      </div>
     </div>
   );
 }
