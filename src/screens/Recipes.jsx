@@ -4,6 +4,7 @@ import RecipeForm from "../recipes/RecipeForm.jsx";
 import RecipeSheet from "../recipes/RecipeSheet.jsx";
 import { useC } from "../theme.jsx";
 import { useLang, fill } from "../i18n.jsx";
+import RecipeScan from "../ai/RecipeScan.jsx";
 import { DirhamMark } from "../Dirham.jsx";
 
 /* Recipes and what they cost — stage 4, phase 5.
@@ -106,6 +107,11 @@ export default function Recipes({ token }) {
         <h2 className="display font-bold text-xl">{s.title}</h2>
         <p className="text-sm mt-1" style={{ color: C.slate }}>{s.lead}</p>
       </div>
+
+      {/* Photographing a card is the fastest route from nothing to a costed
+          menu, so it sits above the list rather than behind it — on a new
+          account the list is empty and this is the only thing worth doing. */}
+      <RecipeScan token={token} onSaved={load} />
 
       {/* The basis every figure below was produced with. */}
       <div className="panel p-4">

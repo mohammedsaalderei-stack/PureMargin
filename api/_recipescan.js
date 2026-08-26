@@ -1,0 +1,97 @@
+import { listIngredients } from "./_inventory.js";
+import { bestMatch } from "./_purchase.js";
+
+/* A recipe card, read off a photograph.
+
+   Recipes in a real kitchen live on a laminated card by the pass, in a
+   notebook, or in the head of whoever wrote them. Typing one into a form is
+   the single largest piece of setup work this product asks for, and it is the
+   work that stops people finishing setup — a business with no recipes gets no
+   costs, no leakage and no depletion, which is most of what they paid for.
+
+   Same division of labour as the other scanners. The model transcribes what is
+   written: a dish name, how many portions it makes, and a list of quantities.
+   Matching those against the ingredient master, converting nothing, and
+   building the version is done here, because a model asked to name an
+   ingredient id invents a plausible one and an invented id silently attaches a
+   recipe to the wrong shelf.
+
+   Nothing is saved from this file. It produces a draft, a person confirms it,
+   and the existing saveVersion writes it — so a misread quantity is caught on
+   a screen rather than in a cost report three weeks later. */
+
+const num = (v) => {
+  const n = Number(v);
+  return Number.isFinite(n) && n > 0 ? n : null;
+};
+
+/* Fractions are how recipe cards are actually written. "1/2 kg" and "1½ tsp"
+   both appear on the same card, and reading either as null throws away a line
+   the photograph got perfectly right. */
+export function parseQty(raw) {
+  if (typeof raw === "number") return num(raw);
+  const text = String(raw ?? "").trim();
+  if (!text) return null;
+
+  const VULGAR = { "½": 0.5, "⅓": 1 / 3, "⅔": 2 / 3, "¼": 0.25, "¾": 0.75, "⅛": 0.125 };
+  for (const [glyph, value] of Object.entries(VULGAR)) {
+    if (text.includes(glyph)) {
+      const whole = Number(text.replace(glyph, "").trim());
+      return num((Number.isFinite(whole) ? whole : 0) + value);
+    }
+  }
+
+  const mixed = text.match(/^(\d+)\s+(\d+)\s*\/\s*(\d+)$/);
+  if (mixed) return num(Number(mixed[1]) + Number(mixed[2]) / Number(mixed[3]));
+
+  const fraction = text.match(/^(\d+)\s*\/\s*(\d+)$/);
+  if (fraction) return num(Number(fraction[1]) / Number(fraction[2]));
+
+  return num(parseFloat(text));
+}
+
+export function buildRecipe(parsed, ingredients) {
+  const lines = (Array.isArray(parsed?.lines) ? parsed.lines : []).map((line) => {
+    const text = String(line.text || line.name || "").trim();
+    const qty = parseQty(line.qty);
+    const unit = String(line.unit || "").trim();
+    const hit = bestMatch(text, ingredients);
+
+    return {
+      text,
+      qty,
+      unit,
+      ingredientId: hit?.ingredient?.id || null,
+      ingredientName: hit?.ingredient?.name || null,
+      confidence: hit?.confidence ?? 0,
+      /* Carried so the screen can flag a card written in cups against a shelf
+         counted in kilos, which is a conversion nobody should be guessing. */
+      stockUnit: hit?.ingredient?.stockUnit || null,
+    };
+  });
+
+  const matched = lines.filter((l) => l.ingredientId);
+
+  return {
+    menuItem: String(parsed?.menuItem || parsed?.title || "").trim(),
+    /* A card that does not say how many it serves is the common case, and one
+       is the honest default: it makes the quantities per-portion, which is
+       what a card without a yield line usually means. A person can correct it,
+       and the screen says so rather than hiding the assumption. */
+    portions: num(parsed?.portions) || 1,
+    portionsStated: num(parsed?.portions) !== null,
+    /* Never guessed. Yield is trim and cooking loss, which is not written on
+       a card and cannot be seen in a photograph; 100 means "as written". */
+    yieldPct: 100,
+    note: String(parsed?.note || "").trim(),
+    lines,
+    unmatched: lines.filter((l) => !l.ingredientId).map((l) => l.text).filter(Boolean),
+    matchedCount: matched.length,
+    complete: lines.length > 0 && matched.length === lines.length,
+  };
+}
+
+export async function matchRecipe(orgId, parsed) {
+  const ingredients = orgId ? await listIngredients(orgId) : [];
+  return buildRecipe(parsed, ingredients);
+}

@@ -24,6 +24,7 @@ import { orgFor, membership, can } from "./_org.js";
 import { depletionFor } from "./_depletion.js";
 import { claimScan, refundScan, scanUsage } from "./_scanquota.js";
 import { matchPurchase } from "./_purchase.js";
+import { matchRecipe } from "./_recipescan.js";
 
 /* Overridable without a deploy, so a model rename doesn't take the scanner
    down until somebody ships a commit. */
@@ -160,6 +161,32 @@ Respond with ONLY this JSON, nothing else:
 ${langNote}`;
 }
 
+function recipePrompt(langNote) {
+  return `You read photographs of recipe cards, handwritten recipes and printed
+recipe sheets from restaurant kitchens.
+
+Transcribe the dish name, how many portions it says it makes, and every
+ingredient quantity written on it. Copy the quantities exactly as written —
+"1/2", "1½" and "0.5" are all fine, and so is a quantity with no unit.
+
+Report only what is on the card. Do not identify which stock ingredient a line
+refers to, do not convert between units, and do not invent a portion count the
+card does not state — those are settled afterwards against the business's own
+records, and a guess here would be written into a recipe that every cost report
+afterwards is built on.
+
+Ignore the method and the cooking steps. Only the ingredient list matters.
+
+Respond with ONLY this JSON, nothing else:
+{
+  "menuItem": "<dish name, or null>",
+  "portions": <number of portions the card states, or null>,
+  "note": "<anything short worth keeping, or null>",
+  "lines": [{ "text": "<ingredient as written>", "qty": "<quantity as written, or null>", "unit": "<g, kg, ml, l, tsp, tbsp, cup, pcs… as written, or null>" }]
+}
+${langNote}`;
+}
+
 function inventoryPrompt(langNote) {
   return `You read photos of restaurant stock — shelves, fridges, deliveries, crates.
 
@@ -196,7 +223,7 @@ export default async function handler(req, res) {
   const { kind, image, lang } = req.body || {};
   const img = parseDataUrl(image);
   if (!img) return res.status(400).json({ error: "image" });
-  if (!["bill", "inventory", "supplier"].includes(kind)) return res.status(400).json({ error: "kind" });
+  if (!["bill", "inventory", "supplier", "recipe"].includes(kind)) return res.status(400).json({ error: "kind" });
 
   try {
     const account = await getAccount(session.username);
@@ -241,6 +268,8 @@ export default async function handler(req, res) {
       prompt = billPrompt(menu, langNote);
     } else if (kind === "supplier") {
       prompt = supplierPrompt(langNote);
+    } else if (kind === "recipe") {
+      prompt = recipePrompt(langNote);
     } else {
       prompt = inventoryPrompt(langNote);
     }
@@ -289,6 +318,7 @@ export default async function handler(req, res) {
     let result = parsed;
     if (kind === "bill") result = priceBill(parsed, menuForPricing);
     else if (kind === "supplier") result = await matchPurchase(org?.id, parsed);
+    else if (kind === "recipe") result = await matchRecipe(org?.id, parsed);
 
     /* What this bill took out of the store, offered rather than applied.
 
