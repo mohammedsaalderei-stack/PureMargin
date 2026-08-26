@@ -421,7 +421,28 @@ export default function Ask({
               <Send size={16} className="flip-rtl" />
             </button>
           </div>
-          <span className="text-xs block mt-2" style={{ color: C.slate }}>{t.ask.hint}</span>
+          <div className="flex items-center justify-between gap-3 mt-2 flex-wrap">
+            <span className="text-xs" style={{ color: C.slate }}>{t.ask.hint}</span>
+            {/* Always reachable, not only against a particular answer.
+
+                The thumbs-down beside each reply only catches somebody who got
+                a bad answer and noticed. The complaints worth most — it never
+                understood the question, it answered in the wrong language, it
+                is useless for what I need — have no single answer to attach to,
+                so there was nowhere to put them and they went unsaid. */}
+            <button
+              type="button"
+              onClick={() => setReporting({
+                index: -1,
+                question: messages.filter((m) => m.role === "user").at(-1)?.content || "",
+                answer: messages.filter((m) => m.role === "assistant").at(-1)?.content || "",
+              })}
+              className="inline-flex items-center gap-1.5 text-xs font-medium"
+              style={{ color: C.slate }}
+            >
+              <ThumbsDown size={12} /> {t.feedback.unhelpful}
+            </button>
+          </div>
         </div>
       </div>
 

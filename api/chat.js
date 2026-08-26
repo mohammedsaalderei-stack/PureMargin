@@ -19,7 +19,7 @@ const LANG_NOTE = {
    which contains nothing outside the user's authorized branches. The prompt is the
    boundary: a scope it never receives cannot be talked about. */
 function buildSystem(metrics, lang, grounding) {
-  return `You are Sufra, an analyst for a food business in the UAE — restaurants, cafés, and cloud kitchens.
+  return `You are PureMargin, an analyst for a food business in the UAE — restaurants, cafés, and cloud kitchens.
 
 How to answer:
 - ${LANG_NOTE[lang] || LANG_NOTE.en}

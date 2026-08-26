@@ -100,6 +100,99 @@ export async function sendMail({ to, subject, html, text }) {
 /* The reset code mail.
    Deliberately plain: a code, how long it lasts, and what to do if it wasn't
    asked for. Anything more decorative reads like a phishing attempt. */
+/* One layout for every message the product sends.
+
+   The reset code had a designed email — a card, the wordmark, a readable
+   hierarchy — and everything else went out as a bare paragraph of unstyled
+   HTML. A team invitation is the first thing a new member ever sees from this
+   product, and it looked like a mail-merge accident next to the one email that
+   had been thought about.
+
+   Table-based, with inline styles and no external stylesheet, because that is
+   what mail clients render predictably. Outlook ignores flexbox, Gmail strips
+   <style> blocks, and a layout that depends on either arrives broken to the
+   half of a restaurant team reading it on a phone.
+
+   Everything interpolated into an email must be escaped. A supplier name or a
+   message body is somebody else's text, and unescaped it is an injection into
+   an inbox. */
+
+const INK = "#1A1530";
+const MUTED = "#6B6580";
+const IRIS = "#8B5CF6";
+const WASH = "#F7F6FB";
+
+export function esc(text) {
+  return String(text ?? "").replace(/[&<>"']/g, (c) => (
+    { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]
+  ));
+}
+
+/* A button that survives Outlook, which ignores padding on an anchor. */
+function button(href, label) {
+  return `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:24px 0">
+    <tr><td style="border-radius:10px;background:${IRIS}">
+      <a href="${esc(href)}" style="display:inline-block;padding:12px 22px;font-size:14px;font-weight:700;color:#ffffff;text-decoration:none;border-radius:10px">${esc(label)}</a>
+    </td></tr>
+  </table>`;
+}
+
+/* `blocks` is already-safe HTML built by the helpers below; `title` and
+   `intro` are plain text and are escaped here. */
+/* Whether this message reads right to left.
+
+   Detected from the text rather than taken as a parameter, because the server
+   does not know what language a recipient reads in — the preference lives in
+   their browser. A caller that does know can override it. Without this an
+   Arabic invitation arrives set flush left, which is legible and wrong in the
+   way that tells somebody the product was not built for them. */
+function looksRTL(...parts) {
+  return /[\u0590-\u05FF\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF]/.test(parts.join(" "));
+}
+
+export function shell({ title, intro = "", blocks = [], footer = "", dir }) {
+  const direction = dir || (looksRTL(title, intro, footer) ? "rtl" : "ltr");
+  /* The charset declaration is not optional here. Without it a client that
+     guesses latin-1 turns every curly quote into "â€™" and every Arabic letter
+     into nonsense — and this product sends mail in four languages, three of
+     them non-Latin. The viewport line keeps a phone from zooming out to fit a
+     desktop-width table. */
+  return `<!DOCTYPE html><html dir="${direction}"><head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="color-scheme" content="light">
+    <title>${esc(title)}</title>
+  </head><body dir="${direction}" style="margin:0;padding:32px;background:${WASH};font-family:system-ui,-apple-system,'Segoe UI',sans-serif;color:${INK};text-align:${direction === "rtl" ? "right" : "left"}">
+    <div style="max-width:520px;margin:0 auto;background:#fff;border:1px solid rgba(139,92,246,.15);border-radius:14px;padding:32px">
+      <div style="font-size:18px;font-weight:800;color:${IRIS};margin-bottom:24px">PureMargin</div>
+      <div style="font-size:16px;font-weight:700;margin-bottom:8px">${esc(title)}</div>
+      ${intro ? `<p style="font-size:14px;line-height:1.6;color:${MUTED};margin:0 0 20px">${esc(intro)}</p>` : ""}
+      ${blocks.join("\n")}
+      ${footer ? `<p style="font-size:12px;line-height:1.6;color:${MUTED};margin:24px 0 0;padding-top:16px;border-top:1px solid rgba(139,92,246,.12)">${esc(footer)}</p>` : ""}
+    </div>
+  </body></html>`;
+}
+
+/* A labelled row, for the facts an email is actually carrying. */
+export function row(label, value) {
+  return `<div style="margin:0 0 14px">
+    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:${MUTED};margin-bottom:3px">${esc(label)}</div>
+    <div style="font-size:14px;line-height:1.6;white-space:pre-wrap">${esc(value)}</div>
+  </div>`;
+}
+
+/* Somebody else's words, set apart so they read as a quotation rather than as
+   the product talking. */
+export function quote(text) {
+  return `<blockquote style="margin:0 0 20px;padding:12px 16px;border-inline-start:3px solid ${IRIS};background:${WASH};border-radius:0 10px 10px 0;font-size:14px;line-height:1.6;white-space:pre-wrap">${esc(text)}</blockquote>`;
+}
+
+export function bigCode(code) {
+  return `<div style="font-size:30px;font-weight:800;letter-spacing:.18em;text-align:center;padding:18px;border-radius:12px;background:${WASH};font-variant-numeric:tabular-nums">${esc(code)}</div>`;
+}
+
+export { button };
+
 export function resetCodeMail({ code, minutes }) {
   const subject = `${code} is your PureMargin reset code`;
 
@@ -112,20 +205,12 @@ export function resetCodeMail({ code, minutes }) {
     `nothing has changed on your account.`,
   ].join("\n");
 
-  const html = `<!DOCTYPE html><html><body style="margin:0;padding:32px;background:#F7F6FB;font-family:system-ui,-apple-system,'Segoe UI',sans-serif;color:#1A1530">
-    <div style="max-width:440px;margin:0 auto;background:#fff;border:1px solid rgba(139,92,246,.15);border-radius:14px;padding:32px">
-      <div style="font-size:18px;font-weight:800;color:#8B5CF6;margin-bottom:24px">PureMargin</div>
-      <div style="font-size:16px;font-weight:700;margin-bottom:8px">Reset your password</div>
-      <p style="font-size:14px;line-height:1.6;color:#6B6580;margin:0 0 24px">
-        Enter this code on the reset screen. It works for ${minutes} minutes.
-      </p>
-      <div style="font-size:30px;font-weight:800;letter-spacing:.18em;text-align:center;padding:18px;border-radius:12px;background:#F7F6FB;font-variant-numeric:tabular-nums">${code}</div>
-      <p style="font-size:12px;line-height:1.6;color:#6B6580;margin:24px 0 0">
-        If you didn't ask to reset your password, ignore this message — nothing
-        on your account has changed.
-      </p>
-    </div>
-  </body></html>`;
+  const html = shell({
+    title: "Reset your password",
+    intro: `Enter this code on the reset screen. It works for ${minutes} minutes.`,
+    blocks: [bigCode(code)],
+    footer: "If you didn't ask to reset your password, ignore this message — nothing on your account has changed.",
+  });
 
   return { subject, html, text };
 }

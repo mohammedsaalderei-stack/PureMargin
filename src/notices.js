@@ -46,8 +46,12 @@ export function buildNotices(data, prefs = {}, opts = {}) {
   const margin = Number(totals.marginPct ?? 0);
   const swing = Number(totals.salesDelta ?? 0);
 
-  const add = (id, key, tone, title, body) =>
-    out.push({ id, key, tone, title, body, at: now });
+  /* `ask` is the question this notice would prompt, phrased as somebody would
+     actually type it. A notice that says margin is slipping and offers no way
+     to find out why is a nudge to go hunting; carrying the question across
+     means the answer is one press away. */
+  const add = (id, key, tone, title, body, ask) =>
+    out.push({ id, key, tone, title, body, ask, at: now });
 
   if (pref(prefs, "alertFirst") && Number(today.receipts) > 0) {
     add("first", "alertFirst", "info", t.notices.firstTitle,
@@ -57,39 +61,46 @@ export function buildNotices(data, prefs = {}, opts = {}) {
   if (pref(prefs, "alertSwing") && Math.abs(swing) >= SWING_PCT) {
     add("swing", "alertSwing", swing > 0 ? "good" : "warn",
       swing > 0 ? t.notices.swingUpTitle : t.notices.swingDownTitle,
-      opts.fill(t.notices.swingBody, { pct: Math.abs(Math.round(swing)) }));
+      opts.fill(t.notices.swingBody, { pct: Math.abs(Math.round(swing)) }),
+      t.notices.swingAsk);
   }
 
   if (pref(prefs, "alertMargin") && margin > 0 && margin < MARGIN_FLOOR) {
     add("margin", "alertMargin", "warn", t.notices.marginTitle,
-      opts.fill(t.notices.marginBody, { pct: Math.round(margin) }));
+      opts.fill(t.notices.marginBody, { pct: Math.round(margin) }),
+      t.notices.marginAsk);
   }
 
   if (target > 0 && sales > 0) {
     if (pref(prefs, "alertGoal") && sales >= target) {
       add("goal", "alertGoal", "good", t.notices.goalTitle,
-        opts.fill(t.notices.goalBody, { pct: Math.round((sales / target) * 100) }));
+        opts.fill(t.notices.goalBody, { pct: Math.round((sales / target) * 100) }),
+        t.notices.goalAsk);
     } else if (pref(prefs, "alertTarget") && sales >= target * 0.8) {
       /* Only one of the two fires. Being told you are four fifths of the way
          there and then that you arrived, within the same glance, is two
          notices for one fact. */
       add("target", "alertTarget", "info", t.notices.targetTitle,
-        opts.fill(t.notices.targetBody, { pct: Math.round((sales / target) * 100) }));
+        opts.fill(t.notices.targetBody, { pct: Math.round((sales / target) * 100) }),
+        t.notices.targetAsk);
     }
   }
 
   if (pref(prefs, "alertPeak") && totals.peakHour) {
     add("peak", "alertPeak", "info", t.notices.peakTitle,
-      opts.fill(t.notices.peakBody, { hour: totals.peakHour }));
+      opts.fill(t.notices.peakBody, { hour: totals.peakHour }),
+      t.notices.peakAsk);
   }
 
   if (pref(prefs, "alertEod") && opts.pastEod) {
     add("eod", "alertEod", "info", t.notices.eodTitle,
-      opts.fill(t.notices.eodBody, { orders: Number(today.receipts || 0) }));
+      opts.fill(t.notices.eodBody, { orders: Number(today.receipts || 0) }),
+      t.notices.eodAsk);
   }
 
   if (pref(prefs, "alertWeekly") && opts.isWeekEnd) {
-    add("weekly", "alertWeekly", "info", t.notices.weeklyTitle, t.notices.weeklyBody);
+    add("weekly", "alertWeekly", "info", t.notices.weeklyTitle, t.notices.weeklyBody,
+      t.notices.weeklyAsk);
   }
 
   /* "Every single order" is off unless somebody deliberately asked for it, and

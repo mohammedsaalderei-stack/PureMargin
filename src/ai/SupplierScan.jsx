@@ -3,6 +3,7 @@ import { Truck, Loader2, Check, AlertTriangle, Trash2 } from "lucide-react";
 import { useC } from "../theme.jsx";
 import { useLang, fill } from "../i18n.jsx";
 import PhotoScan from "./PhotoScan.jsx";
+import NewIngredients from "./NewIngredients.jsx";
 
 /* A delivery note, turned into stock.
 
@@ -190,6 +191,24 @@ export default function SupplierScan({ token, onReceived }) {
           </div>
 
           <p className="text-[11px] mt-2" style={{ color: C.slate }}>{s.editHint}</p>
+
+          {/* The lines nothing matched. Rather than sending somebody to a form,
+              the master can be filled from the same photograph that revealed
+              the gap. Created ingredients are re-matched into the open scan so
+              the delivery can be received in one pass. */}
+          <NewIngredients
+            token={token}
+            seeds={lines.filter((l) => !l.ingredientId)}
+            onCreated={(made) => {
+              setStock((prev) => [...prev, ...made]);
+              setLines((list) => list.map((l) => {
+                if (l.ingredientId) return l;
+                const hit = made.find((m) => m.name.toLowerCase() === (l.matchedName || "").toLowerCase())
+                  || made.find((m) => (l.text || "").toLowerCase().includes(m.name.toLowerCase().split(" ")[0]));
+                return hit ? { ...l, ingredientId: hit.id, stockUnit: hit.stockUnit } : l;
+              }));
+            }}
+          />
 
           {note && (
             <p className="text-xs mt-3 flex items-center gap-1" style={{ color: failed ? C.rose : C.cyan }}>

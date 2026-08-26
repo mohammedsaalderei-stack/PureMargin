@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Sparkles, ChevronDown, Trash2 } from "lucide-react";
 import PhotoScan from "./PhotoScan.jsx";
+import NewIngredients from "./NewIngredients.jsx";
 import { useC } from "../theme.jsx";
 import { useLang } from "../i18n.jsx";
 
@@ -86,6 +87,11 @@ export default function InventoryScan({ token }) {
                 ))}
               </div>
               <p className="text-[11px] mt-2" style={{ color: C.slate }}>{s.editHint}</p>
+
+              {/* A shelf photographed before the master exists is the normal
+                  first use, not an edge case. Everything read here can become
+                  an ingredient without leaving the screen. */}
+              <NewIngredients token={token} seeds={items} />
               <p className="text-[11px] mt-3" style={{ color: C.slate }}>{s.caveat}</p>
             </div>
           )}

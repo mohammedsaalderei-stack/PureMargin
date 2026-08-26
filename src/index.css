@@ -321,3 +321,10 @@ button:not(:disabled):active,
 .drawer-in { animation: drawer-in-ltr .22s cubic-bezier(.32,.72,0,1) both; }
 [dir="rtl"] .drawer-in { animation-name: drawer-in-rtl; }
 @media (prefers-reduced-motion: reduce) { .drawer-in { animation: none; } }
+
+/* The notifications sheet: a bottom sheet on a phone, a centred dialog on a
+   desktop. One component either way — a dropdown hanging off a sidebar button
+   had nowhere to go on a narrow screen. */
+@keyframes sheet-up { from { transform: translateY(12%); opacity: 0; } to { transform: none; opacity: 1; } }
+.sheet-in { animation: sheet-up .18s cubic-bezier(.32,.72,0,1) both; }
+@media (prefers-reduced-motion: reduce) { .sheet-in { animation: none; } }

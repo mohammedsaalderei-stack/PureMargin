@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from "react";
-import { Bell, Check } from "lucide-react";
+import { Bell, Check, X, MessageCircleQuestion } from "lucide-react";
 import { useC } from "./theme.jsx";
 import { useLang, fill } from "./i18n.jsx";
 import { buildNotices, pastEod, isWeekEnd } from "./notices.js";
@@ -20,7 +20,7 @@ import { buildNotices, pastEod, isWeekEnd } from "./notices.js";
 const SEEN_KEY = "puremargin_notices_seen";
 const TONE = { good: "cyan", warn: "rose", info: "iris" };
 
-export default function NotificationBell({ data }) {
+export default function NotificationBell({ data, onAsk }) {
   const C = useC();
   const { t } = useLang();
   const [open, setOpen] = useState(false);
@@ -98,43 +98,76 @@ export default function NotificationBell({ data }) {
       </button>
 
       {open && (
+        /* A dialog rather than a dropdown.
+
+           A panel hanging off a button in a sidebar had nowhere to go on a
+           phone: it either ran off the edge or was squeezed to a column too
+           narrow to read a sentence in. A centred sheet is the same component
+           at both sizes, and it gives each notice room for the one thing that
+           makes it useful — a way to go and ask about it. */
         <div
-          className="absolute z-50 mt-1 w-[19rem] max-w-[85vw] rounded-2xl overflow-hidden shadow-xl"
-          style={{
-            insetInlineEnd: 0,
-            background: "var(--panel-solid)",
-            border: `1px solid ${C.hairline}`,
-            backdropFilter: "blur(20px)",
-          }}
-          role="region"
-          aria-label={t.notices.title}
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-6"
+          style={{ background: C.scrim }}
+          onClick={() => setOpen(false)}
+          role="presentation"
         >
-          <div className="px-4 py-3" style={{ borderBottom: `1px solid ${C.hairline}` }}>
-            <div className="text-sm font-bold">{t.notices.title}</div>
-            <div className="text-[11px]" style={{ color: C.slate }}>{t.notices.lead}</div>
-          </div>
-
-          <div className="max-h-[60vh] overflow-y-auto">
-            {notices.length === 0 && (
-              <p className="px-4 py-8 text-sm text-center" style={{ color: C.slate }}>
-                {t.notices.empty}
-              </p>
-            )}
-            {notices.map((n) => (
-              <div key={n.id} className="px-4 py-3 flex gap-3"
-                style={{ borderBottom: `1px solid ${C.hairline}` }}>
-                <span className="mt-1.5 shrink-0 rounded-full"
-                  style={{ width: 7, height: 7, background: C[TONE[n.tone]] || C.iris }} />
-                <div className="min-w-0">
-                  <div className="text-sm font-semibold">{n.title}</div>
-                  <div className="text-xs mt-0.5" style={{ color: C.slate }}>{n.body}</div>
-                </div>
+          <div
+            className="w-full sm:max-w-md max-h-[85vh] flex flex-col rounded-t-2xl sm:rounded-2xl overflow-hidden sheet-in"
+            style={{ background: "var(--panel-solid)", border: `1px solid ${C.hairline}` }}
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-label={t.notices.title}
+          >
+            <div className="px-5 py-4 flex items-start justify-between gap-3"
+              style={{ borderBottom: `1px solid ${C.hairline}` }}>
+              <div>
+                <div className="text-base font-bold">{t.notices.title}</div>
+                <div className="text-xs mt-0.5" style={{ color: C.slate }}>{t.notices.lead}</div>
               </div>
-            ))}
-          </div>
+              <button type="button" onClick={() => setOpen(false)} aria-label={t.common.close}
+                className="p-2 -m-2 rounded-lg shrink-0" style={{ color: C.slate }}>
+                <X size={18} />
+              </button>
+            </div>
 
-          <div className="px-4 py-2.5 flex items-center gap-1.5 text-[11px]" style={{ color: C.slate }}>
-            <Check size={12} /> {t.notices.settingsHint}
+            <div className="flex-1 overflow-y-auto">
+              {notices.length === 0 && (
+                <p className="px-5 py-12 text-sm text-center" style={{ color: C.slate }}>
+                  {t.notices.empty}
+                </p>
+              )}
+              {notices.map((n) => (
+                <div key={n.id} className="px-5 py-4"
+                  style={{ borderBottom: `1px solid ${C.hairline}` }}>
+                  <div className="flex gap-3">
+                    <span className="mt-1.5 shrink-0 rounded-full"
+                      style={{ width: 8, height: 8, background: C[TONE[n.tone]] || C.iris }} />
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm font-semibold">{n.title}</div>
+                      <div className="text-xs mt-1" style={{ color: C.slate }}>{n.body}</div>
+
+                      {onAsk && (
+                        <button
+                          type="button"
+                          onClick={() => { setOpen(false); onAsk(n.ask || `${n.title}. ${n.body}`); }}
+                          className="mt-2.5 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[12px] font-semibold"
+                          style={{ background: C.irisWash, color: C.iris }}
+                        >
+                          <MessageCircleQuestion size={13} />
+                          {t.notices.ask}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="px-5 py-3 flex items-center gap-1.5 text-[11px] shrink-0"
+              style={{ color: C.slate, borderTop: `1px solid ${C.hairline}` }}>
+              <Check size={12} /> {t.notices.settingsHint}
+            </div>
           </div>
         </div>
       )}

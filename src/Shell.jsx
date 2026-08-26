@@ -528,7 +528,7 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
 
             <div className="flex items-center gap-2">
               <LanguagePicker /><ThemeToggle compact />
-              <NotificationBell data={data} />
+              <NotificationBell data={data} onAsk={(q) => { startNewChat(); setPending(q); go("ask"); }} />
             </div>
             <div className="flex items-center justify-between gap-2 pt-3" style={{ borderTop: `1px solid ${C.hairline}` }}>
               <span className="text-xs truncate" style={{ color: C.slate }}>
@@ -617,7 +617,7 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
   return (
     <MobileShell tab={tab} go={go} tabIcons={TAB_ICONS} labelFor={labelFor} liveDot={liveDot}
       onOpenChats={() => setChatsOpen(true)} onOpenMenu={() => setMobileMenu((v) => !v)} menuOpen={mobileMenu} sheet={mobileSheet}
-      bell={<NotificationBell data={data} />}>
+      bell={<NotificationBell data={data} onAsk={(q) => { startNewChat(); setPending(q); go("ask"); }} />}>
       <AmbientBackground />
       <div className="relative z-10 h-full">{content}</div>
       {!desktop && chatsOpen && tab === "ask" && (

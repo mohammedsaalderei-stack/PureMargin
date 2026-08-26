@@ -21,7 +21,7 @@ import { recordAudit } from "./_audit.js";
 import {
   listIngredients, saveIngredient, archiveIngredient, restoreIngredient,
   listSuppliers, saveSupplier, removeSupplier,
-  getMeta, saveMeta,
+  getMeta, saveMeta, validateIngredient, slug,
 } from "./_inventory.js";
 import { unitsByDimension } from "./_units.js";
 
@@ -78,6 +78,60 @@ export default async function handler(req, res) {
           detail: { name: ingredient.name, stockUnit: ingredient.stockUnit },
         });
         return res.status(200).json({ ingredient });
+      }
+
+      /* Several ingredients at once, from a scan.
+
+         The scanners could only ever match against a master somebody had
+         already typed, which is backwards: the reason to photograph a delivery
+         note is that you have not typed it. A first-time user scanned an
+         invoice, matched nothing, and was sent to fill in a form by hand — the
+         work the feature exists to remove.
+
+         Created as a set, and validated as one first, so a single bad unit
+         does not leave half a delivery's ingredients in the master and half
+         not, with nothing on screen to say which. Names already in use are
+         reported back rather than silently overwritten: a scan reading
+         "TOMATO" when the shelf says "Tomatoes" must not quietly redefine the
+         ingredient every recipe already points at. */
+      if (what === "ingredients") {
+        const rows = Array.isArray(body.ingredients) ? body.ingredients : [];
+        if (!rows.length) return res.status(400).json({ error: "empty" });
+
+        const existing = await listIngredients(orgId, { includeArchived: true });
+        const taken = new Map(existing.map((i) => [i.id, i.name]));
+
+        const prepared = [];
+        for (const row of rows) {
+          const draft = {
+            name: String(row.name || "").trim(),
+            stockUnit: String(row.stockUnit || "").trim(),
+            purchaseUnit: row.purchaseUnit ? String(row.purchaseUnit).trim() : undefined,
+            packSize: row.packSize,
+            category: row.category ? String(row.category).trim() : undefined,
+          };
+          const problem = validateIngredient(draft);
+          if (problem) return res.status(400).json({ error: problem, name: draft.name });
+          if (taken.has(slug(draft.name))) {
+            return res.status(409).json({ error: "exists", name: taken.get(slug(draft.name)) });
+          }
+          prepared.push(draft);
+        }
+
+        const made = [];
+        for (const draft of prepared) {
+          const { ingredient, error } = await saveIngredient(orgId, draft);
+          if (error) break;
+          made.push(ingredient);
+        }
+
+        await recordAudit(orgId, {
+          actor: session.username,
+          action: "ingredient.addMany",
+          detail: { count: made.length, source: body.source || "scan" },
+        });
+
+        return res.status(200).json({ ingredients: made });
       }
 
       if (what === "supplier") {
