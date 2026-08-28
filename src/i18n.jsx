@@ -399,6 +399,7 @@ export const STRINGS = {
       salesNotConnected: "No POS is connected, so there are no food-cost or usage alerts yet.",
     },
     variance: {
+      autoDepleteNote: "Stock is deducted automatically as it sells, so usage here is derived from your sales rather than recorded separately. That makes the unexplained column read low by design — count the shelf to find the real gap.",
       tab: "Leakage",
       title: "Theoretical vs actual",
       lead: "What your sales say you should have used, against what actually left the store. The gap is money — waste, over-portioning, or theft — and this screen exists to put a number on it rather than a suspicion.",
@@ -519,6 +520,10 @@ export const STRINGS = {
       },
     },
     inventory: {
+      autoDeplete: "Take stock out as it sells",
+      autoDepleteHint: "Every sale deducts its recipe's ingredients automatically, so the balance stays live without anyone recording issues.",
+      autoDepleteOn: "On. Leakage is measured by counting the shelf, since usage is now derived from sales.",
+      autoDepleteOff: "Off. Someone records what the kitchen takes, and leakage compares that against what sales should have used.",
       leadTimeHint: "From placing the order to it arriving. The plan uses this to decide when to order, not just how much.",
       categoryHint: "Used for grouping a stock count — dry store, chiller, bar.",
       parLevelHint: "What a comfortable shelf looks like. The purchasing plan orders back up to it.",
@@ -1959,6 +1964,7 @@ export const STRINGS = {
       salesNotConnected: "نظام نقاط البيع غير مربوط، لذا التنبيهات المرتبطة بالمبيعات معطّلة.",
     },
     variance: {
+      autoDepleteNote: "يُخصم المخزون تلقائيًا عند البيع، لذا الاستهلاك هنا مشتق من مبيعاتك لا مسجّل بشكل منفصل. هذا يجعل عمود غير المفسَّر منخفضًا بطبيعته. اجرد المخزن لمعرفة الفرق الحقيقي.",
       tab: "الهدر",
       title: "النظري مقابل الفعلي",
       lead: "مقارنة بين الاستهلاك المتوقّع من المبيعات والاستهلاك الفعلي من المخزن. الفرق يمثّل خسارة مالية: هدرًا أو زيادة في الحصص أو فقدًا.",
@@ -2079,6 +2085,10 @@ export const STRINGS = {
       },
     },
     inventory: {
+      autoDeplete: "خصم المخزون تلقائيًا عند البيع",
+      autoDepleteHint: "تُخصم مكوّنات الوصفة تلقائيًا مع كل عملية بيع، فيبقى الرصيد محدّثًا دون تسجيل يدوي.",
+      autoDepleteOn: "مفعّل. يُقاس الهدر عبر جرد المخزن، لأن الاستهلاك يُشتق الآن من المبيعات.",
+      autoDepleteOff: "معطّل. يسجّل الموظفون الكميات الخارجة، ويقارن الهدر بينها وبين ما كان يجب أن تستهلكه المبيعات.",
       leadTimeHint: "المدة من إرسال الطلب حتى الاستلام. تعتمد عليها خطة الشراء في تحديد موعد الطلب.",
       categoryHint: "يُستخدم لتصنيف الجرد: مخزن جاف، مبرّد، بار.",
       parLevelHint: "الرصيد المستهدف للمخزن. تعتمد خطة الشراء عليه في تحديد الكميات.",
@@ -3492,6 +3502,7 @@ export const STRINGS = {
       salesNotConnected: "कोई POS जुड़ा नहीं, इसलिए फ़ूड कॉस्ट या खपत अलर्ट अभी नहीं।",
     },
     variance: {
+      autoDepleteNote: "बिक्री के साथ स्टॉक अपने आप घटता है, इसलिए यहाँ खपत आपकी बिक्री से निकाली गई है, अलग से दर्ज नहीं। इसीलिए अस्पष्ट कॉलम स्वभाव से कम रहता है — असली अंतर जानने के लिए शेल्फ़ गिनिए।",
       tab: "रिसाव",
       title: "सैद्धांतिक बनाम वास्तविक",
       lead: "आपकी बिक्री कहती है कि कितना लगना चाहिए था, और स्टोर से असल में कितना निकला। फ़र्क पैसा है — हानि, ज़्यादा परोसना, या चोरी — और यह पन्ना उस पर शक के बजाय आँकड़ा रखने के लिए है।",
@@ -3612,6 +3623,10 @@ export const STRINGS = {
       },
     },
     inventory: {
+      autoDeplete: "बिक्री के साथ स्टॉक अपने आप घटाएँ",
+      autoDepleteHint: "हर बिक्री पर रेसिपी की सामग्री अपने आप घट जाती है, इसलिए बिना कुछ दर्ज किए बैलेंस अद्यतन रहता है।",
+      autoDepleteOn: "चालू। हानि अब शेल्फ़ गिनकर मापी जाती है, क्योंकि खपत बिक्री से निकाली जा रही है।",
+      autoDepleteOff: "बंद। रसोई जो लेती है वह दर्ज होता है, और हानि उसकी तुलना अपेक्षित खपत से करती है।",
       leadTimeHint: "ऑर्डर देने से पहुँचने तक। योजना इससे तय करती है कि कब ऑर्डर करना है, सिर्फ़ कितना नहीं।",
       categoryHint: "स्टॉक गिनती को समूहों में बाँटने के लिए — सूखा स्टोर, चिलर, बार।",
       parLevelHint: "आरामदेह शेल्फ़ कैसा दिखता है। खरीद योजना इसी तक वापस भरने का ऑर्डर देती है।",
@@ -4668,6 +4683,10 @@ export const STRINGS = {
      machine-translating a thousand lines of advisory prose nobody has read. */
   ur: {
     inventory: {
+      autoDeplete: "فروخت کے ساتھ اسٹاک خودکار طور پر گھٹائیں",
+      autoDepleteHint: "ہر فروخت پر ریسیپی کے اجزا خود بخود گھٹ جاتے ہیں، اس لیے بغیر کچھ درج کیے بیلنس تازہ رہتا ہے۔",
+      autoDepleteOn: "فعال۔ ضیاع اب شیلف گن کر ماپا جاتا ہے، کیونکہ استعمال فروخت سے نکالا جا رہا ہے۔",
+      autoDepleteOff: "بند۔ رسوئی جو لیتی ہے وہ درج ہوتا ہے، اور ضیاع اس کا موازنہ متوقع استعمال سے کرتا ہے۔",
       leadTimeHint: "آرڈر دینے سے پہنچنے تک۔ منصوبہ اسی سے طے کرتا ہے کہ کب آرڈر کرنا ہے، صرف کتنا نہیں۔",
       categoryHint: "گنتی کو گروہوں میں بانٹنے کے لیے — خشک اسٹور، چلر، بار۔",
       parLevelHint: "آرام دہ شیلف کیسا لگتا ہے۔ خریداری کا منصوبہ اسی تک واپس بھرنے کا آرڈر دیتا ہے۔",
@@ -5884,6 +5903,7 @@ export const STRINGS = {
       noSales: "کوئی کاؤنٹر منسلک نہیں، اس لیے برانچوں کی ترتیب کے پاس کام کرنے کو فروخت نہیں۔ خریداری کا منصوبہ پھر بھی لیجر سے چلتا ہے۔",
     },
     variance: {
+      autoDepleteNote: "فروخت کے ساتھ اسٹاک خود بخود گھٹتا ہے، اس لیے یہاں استعمال آپ کی فروخت سے نکالا گیا ہے، الگ سے درج نہیں۔ اسی لیے غیر واضح کالم فطری طور پر کم رہتا ہے — اصل فرق جاننے کے لیے شیلف گنیے۔",
       period: "عرصہ",
       unexplained: "غیر واضح",
       coverage: "احاطہ",
@@ -6749,6 +6769,7 @@ export const STRINGS = {
       salesNotConnected: "Walang POS na nakakonekta, kaya wala pang food-cost o konsumo na alerto.",
     },
     variance: {
+      autoDepleteNote: "Awtomatikong nababawas ang stock kapag nabenta, kaya ang paggamit dito ay galing sa benta mo at hindi hiwalay na naitala. Kaya mababa ang kolum ng hindi maipaliwanag — bilangin ang istante para makita ang tunay na agwat.",
       tab: "Tagas",
       title: "Teoretikal kaysa aktwal",
       lead: "Ang sabi ng benta mo kung magkano ang dapat nagamit, laban sa tunay na lumabas sa imbakan. Pera ang agwat — sayang, sobrang serving, o pagnanakaw — at ito ang paglalagay ng numero rito sa halip na hinala.",
@@ -6869,6 +6890,10 @@ export const STRINGS = {
       },
     },
     inventory: {
+      autoDeplete: "Awtomatikong ibawas ang stock kapag nabenta",
+      autoDepleteHint: "Awtomatikong binabawas ng bawat benta ang sangkap ng recipe nito, kaya laging updated ang balanse nang walang itinatalang paglabas.",
+      autoDepleteOn: "Naka-on. Sinusukat ang leakage sa pamamagitan ng pagbilang sa istante, dahil galing na sa benta ang paggamit.",
+      autoDepleteOff: "Naka-off. May nagtatala ng kinukuha ng kusina, at inihahambing ng leakage iyon sa dapat nagamit.",
       leadTimeHint: "Mula sa pag-order hanggang sa pagdating. Dito nakabatay kung kailan mag-o-order, hindi lang kung magkano.",
       categoryHint: "Para pagpangkatin ang stock count — dry store, chiller, bar.",
       parLevelHint: "Ang hitsura ng sapat na istante. Dito ibabalik ng purchasing plan ang order.",

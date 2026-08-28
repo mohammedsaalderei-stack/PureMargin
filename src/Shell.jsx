@@ -38,6 +38,7 @@ import { ConnectDialog, EmptyTable } from "./Connect.jsx";
 import LiveDot from "./LiveDot.jsx";
 import MobileShell from "./MobileShell.jsx";
 import NotificationBell from "./NotificationBell.jsx";
+import { depleteFromSales } from "./depletion.js";
 import Plans, { Locked } from "./screens/Plans.jsx";
 import { entitlements, SCREEN_FEATURE } from "./entitlements.js";
 import Transition from "./Transition.jsx";
@@ -278,6 +279,16 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
       if (res.status === 502) { if (!quiet) setError(json.detail || t.connect.failed); return; }
       if (!res.ok) throw new Error(json.error || t.watch.failedTitle);
       setNeedsPos(false); setData(json); setFetchedAt(Date.now());
+
+      /* Bring the ledger up to date with the sales just read.
+
+         Fired here rather than on a timer, so it runs while somebody is
+         looking at the numbers and never in the background against an account
+         nobody is using. Idempotent by receipt id, so a refresh a minute later
+         does nothing the second time. Deliberately not awaited — the dashboard
+         should not wait on the ledger, and a failure here must not blank a
+         screen that has already loaded. */
+      depleteFromSales(token, scope?.branches);
     } catch (err) { if (!quiet) setError(err.message || t.watch.failedTitle); }
     finally { setRefreshing(false); }
   }

@@ -13,6 +13,7 @@
 */
 
 import { requireAuth } from "./_auth.js";
+import { getMeta } from "./_inventory.js";
 import { scopeFor, effectiveBranches, parseBranchParam } from "./_org.js";
 import { posTokenFor } from "./_accounts.js";
 import { branchList, salesLines, NotConnected, PosUnreachable } from "./_data.js";
@@ -70,6 +71,10 @@ export default async function handler(req, res) {
 
     res.setHeader("Cache-Control", "no-store");
     return res.status(200).json({
+      /* So the screen can explain why the unexplained column is quiet: with
+         automatic depletion on, usage is derived from sales and the gap is
+         found by counting instead. Without this the number reads as good news. */
+      autoDepleteFromSales: (await getMeta(orgId)).autoDepleteFromSales,
       ...report,
       branchNames: Object.fromEntries(roster.map((b) => [b.id, b.name])),
       /* Provenance for the sales half: when it was fetched, how far back it

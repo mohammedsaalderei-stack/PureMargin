@@ -96,6 +96,14 @@ export default function Variance({ token, branches = [] }) {
         <div>
           <h2 className="display font-bold text-xl">{s.title}</h2>
           <p className="text-sm mt-1" style={{ color: C.slate }}>{s.lead}</p>
+          {/* Stated where the number is, not filed away in settings. A column
+              of zeros reads as good news unless something says otherwise. */}
+          {data?.autoDepleteFromSales && (
+            <p className="text-xs mt-2 rounded-lg px-3 py-2"
+              style={{ background: C.irisWash, color: C.slate }}>
+              {s.autoDepleteNote}
+            </p>
+          )}
         </div>
 
         {/* Period and cost basis: both change the answer, so both are visible. */}

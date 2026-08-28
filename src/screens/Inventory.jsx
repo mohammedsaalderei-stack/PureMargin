@@ -6,6 +6,7 @@ import StockPanel from "../inventory/StockPanel.jsx";
 import CountsPanel from "../inventory/CountsPanel.jsx";
 import PurchasingPanel from "../purchasing/PurchasingPanel.jsx";
 import SupplierScan from "../ai/SupplierScan.jsx";
+import IngredientIcon from "../inventory/IngredientIcon.jsx";
 import { useC } from "../theme.jsx";
 import { useLang, fill } from "../i18n.jsx";
 
@@ -67,6 +68,20 @@ export default function Inventory({ token, pendingDoc, onDocUsed }) {
       setError(t.inventory.failed);
     }
   }
+
+  /* Saved straight through rather than staged behind a Save button: it is one
+     switch, and a switch that needs confirming is a switch people leave alone. */
+  async function saveAuto(on) {
+    try {
+      await fetch("/api/inventory?what=meta", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ autoDepleteFromSales: on }),
+      });
+      await load();
+    } catch { /* the next load will show what actually stuck */ }
+  }
+
 
   useEffect(() => { load(); // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showArchived]);
@@ -152,6 +167,30 @@ export default function Inventory({ token, pendingDoc, onDocUsed }) {
             with. A PDF invoice from a supplier is a perfect record of what was
             bought and what it cost — better than any photograph of the shelf
             it ended up on. */}
+        {/* The one setting on this screen that changes what another screen
+            means, so the consequence is stated rather than linked to. */}
+        <section className="rounded-2xl border p-5" style={{ borderColor: C.hairline }}>
+          <label className="flex items-start gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              className="mt-1 shrink-0"
+              checked={state?.meta?.autoDepleteFromSales !== false}
+              onChange={(e) => saveAuto(e.target.checked)}
+            />
+            <span>
+              <span className="text-sm font-bold">{t.inventory.autoDeplete}</span>
+              <span className="block text-xs mt-1" style={{ color: C.slate }}>
+                {t.inventory.autoDepleteHint}
+              </span>
+              <span className="block text-xs mt-2" style={{ color: C.slate }}>
+                {state?.meta?.autoDepleteFromSales === false
+                  ? t.inventory.autoDepleteOff
+                  : t.inventory.autoDepleteOn}
+              </span>
+            </span>
+          </label>
+        </section>
+
         <SupplierScan
           token={token}
           initial={pendingDoc?.scanner === "supplier" ? pendingDoc.data : null}
@@ -195,6 +234,10 @@ export default function Inventory({ token, pendingDoc, onDocUsed }) {
               {ingredients.map((ing) => (
                 <div key={ing.id} className="flex items-center gap-3 p-3 rounded-lg"
                   style={{ background: "var(--chip-bg)", opacity: ing.archived ? 0.55 : 1 }}>
+                  {/* Something for the eye to catch on. Forty names in a column
+                      are a wall of text; a picture per row makes scanning for
+                      the tomatoes a glance rather than a read. */}
+                  <IngredientIcon name={ing.name} />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-semibold truncate-safe">{ing.name}</span>

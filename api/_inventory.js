@@ -188,8 +188,15 @@ export async function getMeta(orgId) {
 
        On, the balance is live and leakage moves to the count sheet. Off,
        leakage works as designed and somebody records what the kitchen takes.
-       Both are defensible; silently choosing one is not. */
-    autoDepleteFromSales: Boolean(meta.autoDepleteFromSales),
+
+       On is the default. Most kitchens do not record issues, and for them the
+       alternative is not a sharper leakage figure — it is a stock balance
+       frozen at the last count, which is no figure at all. The trade-off is
+       stated on the switch and again on the leakage screen when it is on, so
+       nobody discovers it by wondering why that number never moves. */
+    autoDepleteFromSales: meta.autoDepleteFromSales === undefined
+      ? true
+      : Boolean(meta.autoDepleteFromSales),
   };
 }
 
