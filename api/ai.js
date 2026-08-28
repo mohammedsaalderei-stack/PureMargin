@@ -31,11 +31,41 @@ import { matchRecipe } from "./_recipescan.js";
 const MODEL = process.env.ANTHROPIC_MODEL || "claude-sonnet-4-5";
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 
-function parseDataUrl(url) {
-  const m = /^data:(image\/(?:jpeg|png|webp|gif));base64,(.+)$/.exec(String(url || ""));
+/* What can be scanned.
+
+   Photographs were the only accepted input, which assumed every bill and every
+   delivery note starts life on paper. Plenty do not: suppliers email a PDF
+   invoice, a POS exports a PDF sales report, and a recipe often lives in a
+   document somebody typed years ago. Telling that person to print it and
+   photograph it is asking them to degrade a perfect copy to use the feature.
+
+   PDFs go to the model as documents rather than images, which is both cheaper
+   and more accurate — the text layer is read directly instead of being
+   recognised out of pixels, so a multi-page invoice arrives intact rather than
+   as one photograph of its first page. */
+const IMAGE_TYPES = /^image\/(?:jpeg|png|webp|gif)$/;
+const PDF_TYPE = "application/pdf";
+
+export function parseDataUrl(url) {
+  const m = /^data:([a-z]+\/[a-z0-9.+-]+);base64,(.+)$/i.exec(String(url || ""));
   if (!m) return null;
-  if (Buffer.byteLength(m[2], "base64") > MAX_IMAGE_BYTES) return null;
-  return { mediaType: m[1], data: m[2] };
+
+  const mediaType = m[1].toLowerCase();
+  const data = m[2];
+  if (Buffer.byteLength(data, "base64") > MAX_IMAGE_BYTES) return null;
+
+  if (IMAGE_TYPES.test(mediaType)) return { kind: "image", mediaType, data };
+  if (mediaType === PDF_TYPE) return { kind: "document", mediaType, data };
+  return null;
+}
+
+/* The content block this file becomes in the request. A document and an image
+   are different block types to the API, and sending a PDF as an image is
+   rejected outright rather than degraded. */
+export function contentBlock(file) {
+  return file.kind === "document"
+    ? { type: "document", source: { type: "base64", media_type: file.mediaType, data: file.data } }
+    : { type: "image", source: { type: "base64", media_type: file.mediaType, data: file.data } };
 }
 
 function extractJSON(text) {
@@ -221,8 +251,8 @@ export default async function handler(req, res) {
   if (!apiKey) return res.status(500).json({ error: "noai" });
 
   const { kind, image, lang } = req.body || {};
-  const img = parseDataUrl(image);
-  if (!img) return res.status(400).json({ error: "image" });
+  const file = parseDataUrl(image);
+  if (!file) return res.status(400).json({ error: "image" });
   if (!["bill", "inventory", "supplier", "recipe"].includes(kind)) return res.status(400).json({ error: "kind" });
 
   try {
@@ -291,7 +321,7 @@ export default async function handler(req, res) {
         messages: [{
           role: "user",
           content: [
-            { type: "image", source: { type: "base64", media_type: img.mediaType, data: img.data } },
+            contentBlock(file),
             { type: "text", text: prompt },
           ],
         }],

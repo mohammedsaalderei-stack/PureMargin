@@ -1,4 +1,5 @@
 import { listIngredients } from "./_inventory.js";
+import { normaliseUnit, isPackaging, toStockUnit } from "./_unitwords.js";
 import { bestMatch } from "./_purchase.js";
 
 /* A recipe card, read off a photograph.
@@ -54,19 +55,29 @@ export function buildRecipe(parsed, ingredients) {
   const lines = (Array.isArray(parsed?.lines) ? parsed.lines : []).map((line) => {
     const text = String(line.text || line.name || "").trim();
     const qty = parseQty(line.qty);
-    const unit = String(line.unit || "").trim();
+    const printed = String(line.unit || "").trim();
+    const unit = normaliseUnit(printed);
     const hit = bestMatch(text, ingredients);
+    const stockUnit = hit?.ingredient?.stockUnit || null;
+    const inStock = unit && stockUnit ? toStockUnit(qty, unit, stockUnit) : null;
 
     return {
       text,
       qty,
-      unit,
+      /* A card written in cups or in ملعقة كبيرة names a unit the ledger keeps;
+         one written in "handful" does not, and says so rather than silently
+         becoming something. */
+      unit: unit || printed,
+      printedUnit: printed,
+      packaging: !unit && isPackaging(printed),
+      stockQty: inStock ? inStock.qty : null,
+      converted: Boolean(inStock?.converted),
       ingredientId: hit?.ingredient?.id || null,
       ingredientName: hit?.ingredient?.name || null,
       confidence: hit?.confidence ?? 0,
       /* Carried so the screen can flag a card written in cups against a shelf
          counted in kilos, which is a conversion nobody should be guessing. */
-      stockUnit: hit?.ingredient?.stockUnit || null,
+      stockUnit,
     };
   });
 

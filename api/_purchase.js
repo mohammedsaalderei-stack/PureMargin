@@ -1,4 +1,5 @@
 import { listIngredients } from "./_inventory.js";
+import { normaliseUnit, isPackaging, toStockUnit } from "./_unitwords.js";
 import { slug } from "./_inventory.js";
 
 /* A supplier invoice, turned into something the store can receive.
@@ -80,10 +81,25 @@ export function buildPurchase(parsed, ingredients) {
        actually paid. */
     const unitCost = qty && total ? Math.round((total / qty) * 10000) / 10000 : null;
 
+    /* The unit as printed, plus what it actually is. An invoice saying كجم or
+       LBS names a unit this ledger keeps; one saying "sack" names a package,
+       which is a different problem and gets said differently on screen. */
+    const printed = String(line.unit || "").trim();
+    const unit = normaliseUnit(printed);
+    const stockUnit = hit?.ingredient?.stockUnit || null;
+    const inStock = unit && stockUnit ? toStockUnit(qty, unit, stockUnit) : null;
+
     return {
       text,
       qty,
-      unit: String(line.unit || "").trim(),
+      unit: unit || printed,
+      printedUnit: printed,
+      packaging: !unit && isPackaging(printed),
+      /* The same quantity in the unit the shelf is kept in, when the two can be
+         reconciled. Null when they cannot — a count is not a mass, and a pack
+         size is something a person supplies rather than something to guess. */
+      stockQty: inStock ? inStock.qty : null,
+      converted: Boolean(inStock?.converted),
       amount: total,
       unitCost,
       ingredientId: hit?.ingredient?.id || null,
@@ -91,7 +107,7 @@ export function buildPurchase(parsed, ingredients) {
       confidence: hit?.confidence ?? 0,
       /* The unit the store keeps this in, so the screen can warn when the
          invoice speaks in cases and the shelf counts kilos. */
-      stockUnit: hit?.ingredient?.stockUnit || null,
+      stockUnit,
     };
   });
 

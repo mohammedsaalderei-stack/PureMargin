@@ -139,9 +139,11 @@ export const FREE_FEATURES = ["table"];
    or a package would be sellable with nothing behind it — and anything missing
    here can't be granted at all, which is how the operations suite and the bill
    scanner were unsellable. */
-export const FEATURES = [
-  "assistant", "menu", "forecast", "operations", "billscan", "pos_hardware",
-];
+/* The packages that can be bought, in the order the pricing page lists them.
+   It has to be the same list in the same order, or the Packages screen after
+   sign-in shows items the pricing page never offered — which is what happened
+   when menu and forecast were retired from pricing and left here. */
+export const FEATURES = ["assistant", "operations", "billscan", "pos_hardware"];
 
 /* How many bill scans a month buys, whatever package it came with.
 

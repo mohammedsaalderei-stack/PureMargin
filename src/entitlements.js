@@ -11,8 +11,13 @@ export const SCREEN_FEATURE = {
   ask: "assistant",
   advice: "assistant",
   watch: "table",
-  menu: "menu",
-  forecast: "forecast",
+  /* Menu engineering and the forecast were sold as packages of their own, and
+     the pricing page no longer offers them — somebody who signed up saw two
+     items on their Packages screen that they could not have bought and could
+     not find a price for. Both are readings of trading performance against
+     cost, which is what the Costs package is, so that is where they belong. */
+  menu: "billscan",
+  forecast: "billscan",
   // The AI bill scanner is its own package.
   costs: "billscan",
   // Team administration is gated by role, not by plan.

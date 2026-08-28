@@ -1,5 +1,5 @@
 import { useRef, useState, useEffect } from "react";
-import { Camera, Loader2, RotateCcw } from "lucide-react";
+import { Camera, Loader2, RotateCcw, FileText } from "lucide-react";
 import { useC } from "../theme.jsx";
 import { useLang, fill } from "../i18n.jsx";
 
@@ -10,7 +10,23 @@ import { useLang, fill } from "../i18n.jsx";
    renders the result. Images are downscaled client-side so a 12MP photo
    doesn't ride the request. */
 
+/* A PDF is read straight through.
+
+   Downscaling only makes sense for a photograph. `createImageBitmap` throws on
+   a PDF, so routing everything through it was what limited this to camera
+   input — and a PDF invoice sent by a supplier is a perfect copy that should
+   not be photographed to be read. */
+function readAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error("read"));
+    reader.readAsDataURL(file);
+  });
+}
+
 async function toDataUrl(file, maxDim = 1600) {
+  if (file.type === "application/pdf") return readAsDataUrl(file);
   const bitmap = await createImageBitmap(file);
   const scale = Math.min(1, maxDim / Math.max(bitmap.width, bitmap.height));
   const canvas = document.createElement("canvas");
@@ -26,6 +42,7 @@ export default function PhotoScan({ token, kind, onResult, buttonLabel }) {
   const s = t.aiscan;
   const inputRef = useRef(null);
   const [preview, setPreview] = useState("");
+  const [fileName, setFileName] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   /* Read on open, which costs nothing: GET reports the allowance without
@@ -46,6 +63,7 @@ export default function PhotoScan({ token, kind, onResult, buttonLabel }) {
     try {
       const image = await toDataUrl(file);
       setPreview(image);
+      setFileName(file?.name || "");
       const res = await fetch("/api/ai", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
@@ -77,7 +95,7 @@ export default function PhotoScan({ token, kind, onResult, buttonLabel }) {
       <input
         ref={inputRef}
         type="file"
-        accept="image/*"
+        accept="image/*,application/pdf"
         capture="environment"
         className="hidden"
         onChange={(e) => {
@@ -89,7 +107,17 @@ export default function PhotoScan({ token, kind, onResult, buttonLabel }) {
 
       {preview && (
         <div className="mb-3 relative rounded-xl overflow-hidden" style={{ border: `1px solid ${C.hairline}` }}>
-          <img src={preview} alt="" className="w-full max-h-56 object-cover" style={{ opacity: busy ? 0.5 : 1 }} />
+          {/* A PDF has nothing to show in an <img>, and a broken image icon
+              reads as the upload having failed. Name the file instead. */}
+          {preview.startsWith("data:application/pdf")
+            ? (
+              <div className="flex items-center gap-2 px-3 py-4 text-sm"
+                style={{ opacity: busy ? 0.5 : 1, color: C.slate }}>
+                <FileText size={18} style={{ color: C.iris }} />
+                <span className="truncate">{fileName || s.pdfReady}</span>
+              </div>
+            )
+            : <img src={preview} alt="" className="w-full max-h-56 object-cover" style={{ opacity: busy ? 0.5 : 1 }} />}
           {busy && (
             <div className="absolute inset-0 flex items-center justify-center gap-2 text-sm font-semibold"
               style={{ background: "rgba(0,0,0,0.35)", color: "#fff" }}>

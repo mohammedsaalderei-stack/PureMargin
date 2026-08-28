@@ -21,7 +21,7 @@
 */
 
 import { requireAuth } from "./_auth.js";
-import { scopeFor, effectiveBranches, parseBranchParam } from "./_org.js";
+import { scopeFor, effectiveBranches, parseBranchParam, can } from "./_org.js";
 import { posTokenFor } from "./_accounts.js";
 import { branchList } from "./_data.js";
 import { recordAudit } from "./_audit.js";
@@ -273,6 +273,22 @@ export default async function handler(req, res) {
       }
 
       if (what === "reverse") {
+        /* Undoing a movement is not the same permission as making one.
+
+           Anyone who can post a count can post a wrong one, and that is fine —
+           it leaves a trail, and the trail is the whole point of a ledger. What
+           should not be the same permission is erasing the effect of a
+           movement, because somebody who can both create and cancel entries can
+           make a discrepancy disappear, and the leakage screen would show
+           nothing wrong.
+
+           The reversal still writes a compensating entry rather than deleting
+           anything, so this is a restriction on who may cancel, not a change to
+           how. Held with manage:users, which in practice means the owner: the
+           person answerable for the numbers is the person who can unwind
+           them. */
+        if (!can(scope.role, "manage:users")) return res.status(403).json({ error: "notowner" });
+
         const branch = permitted(body.branchId);
         if (!branch.length) return res.status(403).json({ error: "branch" });
 

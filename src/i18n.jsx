@@ -1348,6 +1348,7 @@ export const STRINGS = {
     },
 
     aiscan: {
+      pdfReady: "Document ready to read",
       quotaLeft: "{n} scans left this month",
       quotaOut: "You've used all 100 scans this month. The allowance resets on the 1st.",
       locked: "That needs a package this account doesn't have yet.",
@@ -2874,6 +2875,7 @@ export const STRINGS = {
     },
 
     aiscan: {
+      pdfReady: "المستند جاهز للقراءة",
       quotaLeft: "بقيت {n} عمليات مسح هذا الشهر",
       quotaOut: "استُهلكت المئة عملية مسح لهذا الشهر. تتجدّد في الأول من الشهر.",
       locked: "هذا يحتاج باقة لا يملكها هذا الحساب بعد.",
@@ -4390,6 +4392,7 @@ export const STRINGS = {
     },
 
     aiscan: {
+      pdfReady: "दस्तावेज़ पढ़ने के लिए तैयार",
       quotaLeft: "इस महीने {n} स्कैन बचे हैं",
       quotaOut: "इस महीने के सभी 100 स्कैन हो चुके। अगली पहली तारीख को नए मिलेंगे।",
       locked: "इसके लिए वह पैकेज चाहिए जो इस खाते के पास अभी नहीं है।",
@@ -5883,6 +5886,7 @@ export const STRINGS = {
     },
 
     aiscan: {
+      pdfReady: "Handa nang basahin ang dokumento",
       quotaLeft: "{n} scan na lang ngayong buwan",
       quotaOut: "Naubos na ang 100 scan ngayong buwan. Magre-reset sa ika-1.",
       locked: "Kailangan nito ng pakete na wala pa sa account na ito.",
