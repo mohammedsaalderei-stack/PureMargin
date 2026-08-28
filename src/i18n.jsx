@@ -964,6 +964,7 @@ export const STRINGS = {
       ordersBody: "{n} so far.",
     },
     newingredients: {
+      skipped: "{count} were already on file and left alone.",
       title: "Add these to your inventory",
       lead: "Nothing on file matched these. Create them here and the scan picks them up straight away.",
       name: "Name",
@@ -2523,6 +2524,7 @@ export const STRINGS = {
       ordersBody: "{n} حتى الآن.",
     },
     newingredients: {
+      skipped: "{count} منها مسجّل مسبقًا ولم يُضَف.",
       title: "أضف هذه إلى مخزونك",
       lead: "لم تُطابَق هذه الأصناف مع المخزون. أضفها هنا ليعتمدها المسح مباشرة.",
       name: "الاسم",
@@ -4081,6 +4083,7 @@ export const STRINGS = {
       ordersBody: "अब तक {n}।",
     },
     newingredients: {
+      skipped: "{count} पहले से दर्ज थीं, इसलिए छोड़ दी गईं।",
       title: "इन्हें अपने भंडार में जोड़िए",
       lead: "इनसे कुछ मेल नहीं खाया। यहीं बना लीजिए, स्कैन इन्हें तुरंत उठा लेगा।",
       name: "नाम",
@@ -5686,6 +5689,7 @@ export const STRINGS = {
       errServer: "محفوظ نہیں ہو سکا۔ کچھ نہیں لکھا گیا۔",
     },
     newingredients: {
+      skipped: "{count} پہلے سے درج تھیں، اس لیے چھوڑ دی گئیں۔",
       title: "انہیں اپنے اسٹاک میں شامل کیجیے",
       lead: "ان سے کوئی درج شدہ جزو نہیں ملا۔ یہیں بنا لیجیے، اسکین انہیں فوراً اٹھا لے گا۔",
       name: "نام",
@@ -7336,6 +7340,7 @@ export const STRINGS = {
       ordersBody: "{n} na.",
     },
     newingredients: {
+      skipped: "{count} ang nakatala na, kaya hindi na inulit.",
       title: "Idagdag ang mga ito sa imbentaryo",
       lead: "Walang naitalang tumugma sa mga ito. Gawin dito at agad itong makukuha ng scan.",
       name: "Pangalan",

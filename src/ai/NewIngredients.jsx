@@ -43,6 +43,10 @@ export function guessUnit(invoiceUnit) {
    5KG BOX" names a delivery; the shelf wants "Tomatoes red". Strip the
    packaging and the sizes, keep the first few words, and let somebody fix it —
    a shorter wrong name is easier to correct than a long one. */
+/* Matched the way the server matches, so the screen and the endpoint agree on
+   what counts as the same name. */
+export const norm = (s) => String(s || "").trim().toLowerCase().replace(/\s+/g, " ");
+
 export function cleanName(text) {
   const words = String(text || "")
     .replace(/\d+\s*(kg|g|l|ml|ea|pcs|x)\b/gi, " ")
@@ -56,17 +60,36 @@ export function cleanName(text) {
   return joined.charAt(0).toUpperCase() + joined.slice(1);
 }
 
-export default function NewIngredients({ token, seeds = [], units = COMMON, onCreated }) {
+export default function NewIngredients({ token, seeds = [], existing = [], units = COMMON, onCreated }) {
   const C = useC();
   const { t } = useLang();
   const s = t.newingredients;
 
-  const [rows, setRows] = useState(() =>
-    seeds.map((seed) => ({
-      name: cleanName(seed.text || seed.name || ""),
-      stockUnit: guessUnit(seed.unit),
-      from: seed.text || seed.name || "",
-    })).filter((r) => r.name));
+  /* Anything already on file is dropped before it is ever offered.
+
+     Offering it and then failing on save was the old behaviour, and it put the
+     work back on the person: they had to read an error, find the offending
+     row, delete it, and save again — for a name the software already knew it
+     had. A scan reading names off a delivery note will always turn up some
+     that exist; that is the normal case, not a mistake to report. */
+  const [rows, setRows] = useState(() => {
+    const have = new Set(existing.map((i) => norm(i.name)));
+    const seen = new Set();
+    return seeds
+      .map((seed) => ({
+        name: cleanName(seed.text || seed.name || ""),
+        stockUnit: guessUnit(seed.unit),
+        from: seed.text || seed.name || "",
+      }))
+      .filter((r) => {
+        if (!r.name) return false;
+        const key = norm(r.name);
+        /* Two lines of one invoice often name the same thing. */
+        if (have.has(key) || seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+  });
 
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState("");
@@ -94,16 +117,18 @@ export default function NewIngredients({ token, seeds = [], units = COMMON, onCr
       const json = await res.json();
       if (!res.ok) {
         setFailed(true);
-        /* "You already have one called X" is the refusal worth naming — it
-           tells somebody exactly which row to delete. */
-        setNote(json.error === "exists"
-          ? fill(s.errExists, { name: json.name || "" })
-          : json.error === "stockUnit" ? s.errUnit : s.errServer);
+        setNote(json.error === "stockUnit" ? s.errUnit : s.errServer);
         return;
       }
       setFailed(false);
       setDone(true);
-      setNote(fill(s.done, { count: json.ingredients?.length || 0 }));
+      /* A skip is worth mentioning but is not a failure: it means the
+         ingredient was already there, which is the outcome somebody wanted. */
+      const made = json.ingredients?.length || 0;
+      const skipped = json.skipped?.length || 0;
+      setNote(skipped
+        ? `${fill(s.done, { count: made })} ${fill(s.skipped, { count: skipped })}`
+        : fill(s.done, { count: made }));
       onCreated?.(json.ingredients || []);
     } catch {
       setFailed(true);

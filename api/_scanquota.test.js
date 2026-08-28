@@ -181,5 +181,48 @@ await test("the header fields survive", () => {
   assert.equal(out.total, 145);
 });
 
+
+await test("a name the model picked from the list wins over token matching", () => {
+  const out = buildPurchase({
+    lines: [{ text: "TOM RED GRD A 5KG BX", qty: 5, unit: "kg", amount: 45,
+              ingredient: "Tomatoes" }],
+  }, STOCK);
+  assert.equal(out.lines[0].ingredientId, "tomatoes",
+    "the model sees the whole line in context; token overlap cannot");
+  assert.equal(out.lines[0].confidence, 1);
+});
+
+await test("a name the model invented is discarded, not trusted", () => {
+  const out = buildPurchase({
+    lines: [{ text: "BLUE WIDGETS", qty: 1, unit: "ea", amount: 10,
+              ingredient: "Wagyu Platter" }],
+  }, STOCK);
+  assert.equal(out.lines[0].ingredientId, null,
+    "only a name really on the list may be used");
+});
+
+await test("a near-miss name from the model still falls back to tokens", () => {
+  const out = buildPurchase({
+    lines: [{ text: "TOMATOES RED", qty: 1, unit: "kg", amount: 9,
+              ingredient: "tomatoe" }],
+  }, STOCK);
+  assert.equal(out.lines[0].ingredientId, "tomatoes",
+    "the model's spelling was off, so token matching caught it");
+});
+
+await test("the model declining leaves token matching to try", () => {
+  const out = buildPurchase({
+    lines: [{ text: "OLIVE OIL 5L", qty: 1, unit: "l", amount: 68, ingredient: null }],
+  }, STOCK);
+  assert.equal(out.lines[0].ingredientId, "olive-oil");
+});
+
+await test("matching is case-insensitive on the model's answer", () => {
+  const out = buildPurchase({
+    lines: [{ text: "X", qty: 1, unit: "kg", amount: 5, ingredient: "  TOMATOES  " }],
+  }, STOCK);
+  assert.equal(out.lines[0].ingredientId, "tomatoes");
+});
+
 console.log(failures ? `\n${failures} failed` : "\nall passed");
 process.exit(failures ? 1 : 0);

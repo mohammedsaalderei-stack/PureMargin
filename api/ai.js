@@ -24,6 +24,7 @@ import { orgFor, membership, can, scopeFor } from "./_org.js";
 import { depletionFor } from "./_depletion.js";
 import { claimScan, refundScan, scanUsage } from "./_scanquota.js";
 import { matchPurchase } from "./_purchase.js";
+import { listIngredients } from "./_inventory.js";
 import { matchRecipe } from "./_recipescan.js";
 import { classifyPrompt, normaliseVerdict, routeFor } from "./_docroute.js";
 
@@ -167,15 +168,26 @@ export function priceBill(parsed, menu) {
   };
 }
 
-function supplierPrompt(langNote) {
+function supplierPrompt(langNote, stock = []) {
   return `You read photos of supplier invoices and delivery notes for a
 restaurant, and of grocery receipts where a restaurant has bought supplies.
 
-Transcribe every purchased line exactly as printed. Report only what is on the
-paper. Do not identify which ingredient a line refers to, do not convert
-units, and do not calculate a unit price — those are done afterwards against
-the business's own records, and a guess here would be written into a stock
-balance as though it were measured.
+INGREDIENTS ALREADY ON FILE (one name per line):
+${stock.map((i) => i.name).join("\n") || "(none on file yet)"}
+
+Transcribe every purchased line exactly as printed, and match each to the
+closest name on that list. Abbreviations, misspellings, another language and a
+supplier's packaging words are all fine to see through: "TOMATO RED 5KG BOX" is
+the tomatoes on the list. Use null when nothing on the list is a plausible
+match — a wrong match writes a delivery against the wrong shelf, and nothing
+downstream will contradict it.
+
+Only ever answer with a name copied exactly from that list, or null. Do not
+invent a name, and do not adjust the spelling of one you found.
+
+Do not convert units and do not calculate a unit price — those are worked out
+afterwards from the business's own records, and a guess would be written into a
+stock balance as though it were measured.
 
 If a quantity, a unit or an amount cannot be read, use null. A null is a
 question somebody answers in two seconds; a wrong number is a discrepancy
@@ -186,23 +198,27 @@ Respond with ONLY this JSON, nothing else:
   "supplier": "<supplier or shop name, or null>",
   "invoiceNo": "<invoice or receipt number, or null>",
   "date": "<date as printed, or null>",
-  "lines": [{ "text": "<line as printed>", "qty": <number, or null>, "unit": "<kg, g, l, ml, box, pcs… as printed, or null>", "amount": <line total, or null> }],
+  "lines": [{ "text": "<line as printed>", "qty": <number, or null>, "unit": "<kg, g, l, ml, box, pcs… as printed, or null>", "amount": <line total, or null>, "ingredient": "<exact name from the list, or null>" }],
   "total": <invoice total as printed, or null>
 }
 ${langNote}`;
 }
 
-function recipePrompt(langNote) {
+function recipePrompt(langNote, stock = []) {
   return `You read photographs of recipe cards, handwritten recipes and printed
 recipe sheets from restaurant kitchens.
 
+INGREDIENTS ALREADY ON FILE (one name per line):
+${stock.map((i) => i.name).join("\n") || "(none on file yet)"}
+
 Transcribe the dish name, how many portions it says it makes, and every
 ingredient quantity written on it. Copy the quantities exactly as written —
-"1/2", "1½" and "0.5" are all fine, and so is a quantity with no unit.
+"1/2", "1½" and "0.5" are all fine, and so is a quantity with no unit. Match
+each line to the closest name on that list, copied exactly, or null when
+nothing on it is a plausible match.
 
-Report only what is on the card. Do not identify which stock ingredient a line
-refers to, do not convert between units, and do not invent a portion count the
-card does not state — those are settled afterwards against the business's own
+Report only what is on the card. Do not convert between units, and do not
+invent a portion count the card does not state — those are settled afterwards against the business's own
 records, and a guess here would be written into a recipe that every cost report
 afterwards is built on.
 
@@ -213,7 +229,7 @@ Respond with ONLY this JSON, nothing else:
   "menuItem": "<dish name, or null>",
   "portions": <number of portions the card states, or null>,
   "note": "<anything short worth keeping, or null>",
-  "lines": [{ "text": "<ingredient as written>", "qty": "<quantity as written, or null>", "unit": "<g, kg, ml, l, tsp, tbsp, cup, pcs… as written, or null>" }]
+  "lines": [{ "text": "<ingredient as written>", "qty": "<quantity as written, or null>", "unit": "<g, kg, ml, l, tsp, tbsp, cup, pcs… as written, or null>", "ingredient": "<exact name from the list, or null>" }]
 }
 ${langNote}`;
 }
@@ -301,8 +317,19 @@ export default async function handler(req, res) {
       menuForPricing = menu;
       if (kind === "bill") prompt = billPrompt(menu, langNote);
     }
-    if (kind === "supplier") prompt = supplierPrompt(langNote);
-    else if (kind === "recipe") prompt = recipePrompt(langNote);
+    /* The scanners that match against stock need the list in hand before the
+       call, the same way the bill scanner needs the menu. The model picks a
+       name from it; the server then checks that name is really on the list, so
+       an invented one is discarded rather than trusted. */
+    let stockForMatching = [];
+    if (kind === "supplier" || kind === "recipe" || kind === "auto") {
+      try {
+        stockForMatching = org?.id ? await listIngredients(org.id) : [];
+      } catch { /* the scan still works, it just matches nothing */ }
+    }
+
+    if (kind === "supplier") prompt = supplierPrompt(langNote, stockForMatching);
+    else if (kind === "recipe") prompt = recipePrompt(langNote, stockForMatching);
     else if (kind === "classify") prompt = classifyPrompt(langNote);
     else if (kind === "inventory") prompt = inventoryPrompt(langNote);
 
@@ -359,8 +386,10 @@ export default async function handler(req, res) {
       }
 
       const prompts = {
-        supplier: supplierPrompt, recipe: recipePrompt,
-        bill: (note) => billPrompt(menuForPricing, note), inventory: inventoryPrompt,
+        supplier: (note) => supplierPrompt(note, stockForMatching),
+        recipe: (note) => recipePrompt(note, stockForMatching),
+        bill: (note) => billPrompt(menuForPricing, note),
+        inventory: inventoryPrompt,
       };
       const raw = await askModel(prompts[verdict.kind](langNote));
       if (!raw) { await refundScan(spend); return res.status(502).json({ error: "parse" }); }

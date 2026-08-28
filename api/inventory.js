@@ -102,6 +102,7 @@ export default async function handler(req, res) {
         const taken = new Map(existing.map((i) => [i.id, i.name]));
 
         const prepared = [];
+        const skipped = [];
         for (const row of rows) {
           const draft = {
             name: String(row.name || "").trim(),
@@ -112,8 +113,21 @@ export default async function handler(req, res) {
           };
           const problem = validateIngredient(draft);
           if (problem) return res.status(400).json({ error: problem, name: draft.name });
+          /* Already on file: skip it rather than refuse the batch.
+
+             Refusing was the wrong call. A scan proposes names read off a
+             delivery note, and some of them will already exist — that is the
+             normal case, not an error. Rejecting the whole batch for one
+             collision meant a person had to find and delete the offending row
+             before any of the others could be created, which is work the
+             software should have done.
+
+             Skipping is also the correct outcome on its own terms: the
+             ingredient exists, so there is nothing to create, and the scan
+             line will match it on the next pass. */
           if (taken.has(slug(draft.name))) {
-            return res.status(409).json({ error: "exists", name: taken.get(slug(draft.name)) });
+            skipped.push(taken.get(slug(draft.name)));
+            continue;
           }
           prepared.push(draft);
         }
@@ -128,10 +142,13 @@ export default async function handler(req, res) {
         await recordAudit(orgId, {
           actor: session.username,
           action: "ingredient.addMany",
-          detail: { count: made.length, source: body.source || "scan" },
+          detail: { count: made.length, skipped: skipped.length, source: body.source || "scan" },
         });
 
-        return res.status(200).json({ ingredients: made });
+        /* The names already on file are reported back so the screen can say
+           which lines it left alone, rather than silently creating fewer than
+           it was asked for. */
+        return res.status(200).json({ ingredients: made, skipped });
       }
 
       if (what === "supplier") {

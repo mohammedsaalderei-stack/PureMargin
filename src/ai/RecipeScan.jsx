@@ -206,6 +206,7 @@ export default function RecipeScan({ token, onSaved, initial, onInitialUsed }) {
           <NewIngredients
             token={token}
             seeds={lines.filter((l) => !l.ingredientId)}
+            existing={stock}
             onCreated={(made) => {
               setStock((prev) => [...prev, ...made]);
               setLines((list) => list.map((l) => {

@@ -57,7 +57,22 @@ export function buildRecipe(parsed, ingredients) {
     const qty = parseQty(line.qty);
     const printed = String(line.unit || "").trim();
     const unit = normaliseUnit(printed);
-    const hit = bestMatch(text, ingredients);
+    /* The model was given the real list and asked to pick from it. Trust that
+       pick only after checking the name is actually on the list — a model asked
+       to choose from a list will occasionally return something adjacent to it —
+       and fall back to token matching when it declined or invented.
+
+       This order matters. The model sees the whole line in context and can tell
+       that "TOMATO RED 5KG BOX" is the tomatoes; token overlap cannot see
+       through a supplier's abbreviations nearly as well. Doing it the other way
+       round was what left lines unmatched and sent people to a dropdown. */
+    const named = String(line.ingredient || "").trim().toLowerCase();
+    const chosen = named
+      ? ingredients.find((i) => i.name.trim().toLowerCase() === named)
+      : null;
+    const hit = chosen
+      ? { ingredient: chosen, confidence: 1 }
+      : bestMatch(text, ingredients);
     const stockUnit = hit?.ingredient?.stockUnit || null;
     const inStock = unit && stockUnit ? toStockUnit(qty, unit, stockUnit) : null;
 

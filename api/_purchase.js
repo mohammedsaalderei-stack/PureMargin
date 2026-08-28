@@ -73,7 +73,22 @@ export function buildPurchase(parsed, ingredients) {
     const text = String(line.text || line.description || "").trim();
     const qty = num(line.qty);
     const total = num(line.amount);
-    const hit = bestMatch(text, ingredients);
+    /* The model was given the real list and asked to pick from it. Trust that
+       pick only after checking the name is actually on the list — a model asked
+       to choose from a list will occasionally return something adjacent to it —
+       and fall back to token matching when it declined or invented.
+
+       This order matters. The model sees the whole line in context and can tell
+       that "TOMATO RED 5KG BOX" is the tomatoes; token overlap cannot see
+       through a supplier's abbreviations nearly as well. Doing it the other way
+       round was what left lines unmatched and sent people to a dropdown. */
+    const named = String(line.ingredient || "").trim().toLowerCase();
+    const chosen = named
+      ? ingredients.find((i) => i.name.trim().toLowerCase() === named)
+      : null;
+    const hit = chosen
+      ? { ingredient: chosen, confidence: 1 }
+      : bestMatch(text, ingredients);
 
     /* Unit cost is derived, never read. An invoice usually prints a line total
        and a quantity; the per-unit figure it sometimes also prints is rounded
