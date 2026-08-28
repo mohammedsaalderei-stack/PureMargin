@@ -24,7 +24,7 @@ import NewIngredients from "./NewIngredients.jsx";
    a photograph, so it stays at 100 — as written — and somebody who knows the
    dish sets it afterwards. */
 
-export default function RecipeScan({ token, onSaved }) {
+export default function RecipeScan({ token, onSaved, initial, onInitialUsed }) {
   const C = useC();
   const { t } = useLang();
   const s = t.recipescan;
@@ -39,6 +39,15 @@ export default function RecipeScan({ token, onSaved }) {
   const [note, setNote] = useState("");
   const [failed, setFailed] = useState(false);
   const [done, setDone] = useState(false);
+
+  /* Arrives already read when the card was dropped into Ask rather than
+     photographed here. */
+  useEffect(() => {
+    if (!initial) return;
+    receive(initial);
+    onInitialUsed?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initial]);
 
   useEffect(() => {
     fetch("/api/inventory", { headers: { Authorization: `Bearer ${token}` } })

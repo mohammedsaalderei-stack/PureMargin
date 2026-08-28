@@ -21,7 +21,7 @@ import NewIngredients from "./NewIngredients.jsx";
    and the one thing worse than leaving a line unmatched is matching it to the
    wrong ingredient and calling that done. */
 
-export default function SupplierScan({ token, onReceived }) {
+export default function SupplierScan({ token, onReceived, initial, onInitialUsed }) {
   const C = useC();
   const { t } = useLang();
   const s = t.supplierscan;
@@ -43,6 +43,16 @@ export default function SupplierScan({ token, onReceived }) {
   useEffect(() => {
     if (!branch && branches.length) setBranch(branches[0].id);
   }, [branches, branch]);
+
+  /* A document read elsewhere — dropped into Ask and sorted here — arrives
+     already extracted. Consumed once, so navigating away and back does not
+     re-open a delivery somebody already received. */
+  useEffect(() => {
+    if (!initial) return;
+    receive(initial);
+    onInitialUsed?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initial]);
 
   useEffect(() => {
     fetch("/api/inventory", { headers: { Authorization: `Bearer ${token}` } })

@@ -96,7 +96,7 @@ export default function IngredientForm({ editing, units, suppliers, meta, busy, 
           placeholder={t.inventory.namePlaceholder} />
       </Field>
 
-      <Field label={t.inventory.category}>
+      <Field label={t.inventory.category} hint={t.inventory.categoryHint}>
         <input {...input} value={form.category} onChange={set("category")} list="pm-categories" />
         <datalist id="pm-categories">
           {(meta?.categories || []).map((c) => <option key={c} value={c} />)}
@@ -114,10 +114,10 @@ export default function IngredientForm({ editing, units, suppliers, meta, busy, 
       </Field>
 
       <div className="grid grid-cols-[1fr_auto] gap-2 items-end">
-        <Field label={t.inventory.packSize} hint={packLine}>
+        <Field label={t.inventory.packSize} hint={packLine || t.inventory.packSizeHint}>
           <input {...input} type="number" min="0" step="any" value={form.packSize} onChange={set("packSize")} dir="ltr" />
         </Field>
-        <Field label={t.inventory.purchaseUnit}>
+        <Field label={t.inventory.purchaseUnit} hint={t.inventory.purchaseUnitHint}>
           <select {...input} value={form.purchaseUnit} onChange={set("purchaseUnit")}>
             {sameDim.map((u) => <option key={u.key} value={u.key}>{u.label}</option>)}
           </select>
@@ -144,7 +144,7 @@ export default function IngredientForm({ editing, units, suppliers, meta, busy, 
       <Field label={t.inventory.reorderPoint} hint={t.inventory.reorderHint}>
         <input {...input} type="number" min="0" step="any" value={form.reorderPoint ?? ""} onChange={set("reorderPoint")} dir="ltr" />
       </Field>
-      <Field label={t.inventory.parLevel}>
+      <Field label={t.inventory.parLevel} hint={t.inventory.parLevelHint}>
         <input {...input} type="number" min="0" step="any" value={form.parLevel ?? ""} onChange={set("parLevel")} dir="ltr" />
       </Field>
 

@@ -4,6 +4,7 @@ import { useC } from "../theme.jsx";
 import { useLang } from "../i18n.jsx";
 import { Money } from "../Dirham.jsx";
 import FeedbackDialog from "../FeedbackDialog.jsx";
+import DocumentDrop from "../ai/DocumentDrop.jsx";
 import { useCountUp, prefersReducedMotion } from "../hooks.js";
 
 function greeting(t) {
@@ -161,7 +162,7 @@ const Message = memo(function Message({ m, index, C, t, reported, onReport, prev
   );
 });
 
-export default function Ask({
+export default function Ask({ onRouteDoc,
   token, wide, pending, onPendingUsed,
   messages, onMessagesChange, data, noticedLine, branches = [],
 }) {
@@ -421,6 +422,12 @@ export default function Ask({
               <Send size={16} className="flip-rtl" />
             </button>
           </div>
+          {/* Offered on the composer rather than buried in a menu: a person
+              holding a PDF is looking at the box they would have typed into. */}
+          <div className="mt-3">
+            <DocumentDrop token={token} onRoute={onRouteDoc} />
+          </div>
+
           <div className="flex items-center justify-between gap-3 mt-2 flex-wrap">
             <span className="text-xs" style={{ color: C.slate }}>{t.ask.hint}</span>
             {/* Always reachable, not only against a particular answer.

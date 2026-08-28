@@ -14,7 +14,7 @@ import { Money } from "../Dirham.jsx";
    match is handed back: the cashier picks the menu item and enters the
    amount, and the maths is done the same way. */
 
-export default function Costs({ token }) {
+export default function Costs({ token, pendingDoc, onDocUsed }) {
   const C = useC();
   const { t } = useLang();
   const s = t.costs;
@@ -62,6 +62,15 @@ export default function Costs({ token }) {
      because two lines of a bill can legitimately read identically. */
   const [edits, setEdits] = useState({});
   const [depletion, setDepletion] = useState(null);
+
+  /* A bill dropped into Ask arrives already priced. Consumed once, so coming
+     back to this tab does not re-open a bill that was already dealt with. */
+  useEffect(() => {
+    if (pendingDoc?.scanner !== "bill" || !pendingDoc.data) return;
+    setResult(pendingDoc.data); setManual({}); setEdits({}); setDepletion(null);
+    onDocUsed?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingDoc]);
   const [scopeBranches, setScopeBranches] = useState([]);
   const editLine = (i, patch) =>
     setEdits((e) => ({ ...e, [i]: { ...(e[i] || {}), ...patch } }));

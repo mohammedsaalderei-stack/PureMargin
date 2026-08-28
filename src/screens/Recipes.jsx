@@ -18,7 +18,7 @@ import { DirhamMark } from "../Dirham.jsx";
    questions, so the screen makes the choice visible and says what each one is
    for — a single unlabelled "cost" column is how a food-cost argument starts. */
 
-export default function Recipes({ token }) {
+export default function Recipes({ token, pendingDoc, onDocUsed }) {
   const C = useC();
   const { t } = useLang();
   const s = t.recipes;
@@ -117,7 +117,9 @@ export default function Recipes({ token }) {
         {/* Photographing a card is the fastest route from nothing to a costed
             menu, so it sits above the list rather than behind it — on a new
             account the list is empty and this is the only thing worth doing. */}
-        <RecipeScan token={token} onSaved={load} />
+        <RecipeScan token={token} onSaved={load}
+        initial={pendingDoc?.scanner === "recipe" ? pendingDoc.data : null}
+        onInitialUsed={onDocUsed} />
 
         {/* The basis every figure below was produced with. */}
         <div className="panel p-4">

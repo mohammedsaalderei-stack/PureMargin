@@ -20,11 +20,12 @@ import { getAccount, posTokenFor } from "./_accounts.js";
 import { effectivePlanFor } from "./_org.js";
 import { getMetrics } from "./_data.js";
 import { getJSON } from "./_store.js";
-import { orgFor, membership, can } from "./_org.js";
+import { orgFor, membership, can, scopeFor } from "./_org.js";
 import { depletionFor } from "./_depletion.js";
 import { claimScan, refundScan, scanUsage } from "./_scanquota.js";
 import { matchPurchase } from "./_purchase.js";
 import { matchRecipe } from "./_recipescan.js";
+import { classifyPrompt, normaliseVerdict, routeFor } from "./_docroute.js";
 
 /* Overridable without a deploy, so a model rename doesn't take the scanner
    down until somebody ships a commit. */
@@ -253,7 +254,7 @@ export default async function handler(req, res) {
   const { kind, image, lang } = req.body || {};
   const file = parseDataUrl(image);
   if (!file) return res.status(400).json({ error: "image" });
-  if (!["bill", "inventory", "supplier", "recipe"].includes(kind)) return res.status(400).json({ error: "kind" });
+  if (!["bill", "inventory", "supplier", "recipe", "classify", "auto"].includes(kind)) return res.status(400).json({ error: "kind" });
 
   try {
     const account = await getAccount(session.username);
@@ -280,7 +281,10 @@ export default async function handler(req, res) {
     const langNote = LANG_NOTE[lang] || LANG_NOTE.en;
     let prompt;
     let menuForPricing = [];
-    if (kind === "bill") {
+    /* Loaded for `auto` as well, because auto may turn out to be a bill and
+       the menu has to be in hand before the second call rather than fetched
+       after the model has already answered. */
+    if (kind === "bill" || kind === "auto") {
       /* The menu with the owner's costs, so profit is computable. */
       let menu = [];
       try {
@@ -295,13 +299,82 @@ export default async function handler(req, res) {
         /* No POS — the scan still reads the bill, just without matching. */
       }
       menuForPricing = menu;
-      prompt = billPrompt(menu, langNote);
-    } else if (kind === "supplier") {
-      prompt = supplierPrompt(langNote);
-    } else if (kind === "recipe") {
-      prompt = recipePrompt(langNote);
-    } else {
-      prompt = inventoryPrompt(langNote);
+      if (kind === "bill") prompt = billPrompt(menu, langNote);
+    }
+    if (kind === "supplier") prompt = supplierPrompt(langNote);
+    else if (kind === "recipe") prompt = recipePrompt(langNote);
+    else if (kind === "classify") prompt = classifyPrompt(langNote);
+    else if (kind === "inventory") prompt = inventoryPrompt(langNote);
+
+    /* One request to the model, so the two-stage `auto` path below can ask
+       twice without a second copy of the request shape drifting from this one. */
+    async function askModel(text) {
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "x-api-key": apiKey,
+          "anthropic-version": "2023-06-01",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: MODEL,
+          max_tokens: 2000,
+          temperature: 0,
+          messages: [{ role: "user", content: [contentBlock(file), { type: "text", text }] }],
+        }),
+      });
+      if (!res.ok) {
+        console.error("AI call failed:", res.status, (await res.text().catch(() => "")).slice(0, 300));
+        return null;
+      }
+      const body = await res.json();
+      return extractJSON((body.content || []).map((c) => c.text || "").join("\n"));
+    }
+
+    /* Drop a document in and have it land where it belongs.
+
+       Somebody holding a PDF does not think in tabs. Two calls: one to decide
+       what the document is, one to read it with the prompt that suits it. Both
+       against the same file, and it costs one scan rather than two — it is one
+       document, and charging twice for the app's own filing step would be a
+       tax on the convenience.
+
+       If the sorting step cannot place it, the reading step is skipped
+       entirely rather than guessed at with a default prompt. A delivery note
+       read as a customer bill produces a confident page of wrong numbers. */
+    if (kind === "auto") {
+      const sorted = await askModel(classifyPrompt(langNote));
+      if (!sorted) { await refundScan(spend); return res.status(502).json({ error: "ai" }); }
+
+      const verdict = normaliseVerdict(sorted);
+      const scope = account ? await scopeFor(account, []) : null;
+      const route = routeFor(verdict.kind, scope?.capabilities || []);
+
+      if (verdict.kind === "unknown" || !route.allowed) {
+        return res.status(200).json({
+          kind: "auto",
+          result: { ...verdict, route, extracted: null },
+          scans: { used: claim.used, limit: claim.limit, left: claim.left, resetsAt: claim.resetsAt },
+        });
+      }
+
+      const prompts = {
+        supplier: supplierPrompt, recipe: recipePrompt,
+        bill: (note) => billPrompt(menuForPricing, note), inventory: inventoryPrompt,
+      };
+      const raw = await askModel(prompts[verdict.kind](langNote));
+      if (!raw) { await refundScan(spend); return res.status(502).json({ error: "parse" }); }
+
+      let extracted = raw;
+      if (verdict.kind === "bill") extracted = priceBill(raw, menuForPricing);
+      else if (verdict.kind === "supplier") extracted = await matchPurchase(org?.id, raw);
+      else if (verdict.kind === "recipe") extracted = await matchRecipe(org?.id, raw);
+
+      return res.status(200).json({
+        kind: "auto",
+        result: { ...verdict, route, extracted },
+        scans: { used: claim.used, limit: claim.limit, left: claim.left, resetsAt: claim.resetsAt },
+      });
     }
 
     const upstream = await fetch("https://api.anthropic.com/v1/messages", {
@@ -349,6 +422,15 @@ export default async function handler(req, res) {
     if (kind === "bill") result = priceBill(parsed, menuForPricing);
     else if (kind === "supplier") result = await matchPurchase(org?.id, parsed);
     else if (kind === "recipe") result = await matchRecipe(org?.id, parsed);
+    else if (kind === "classify") {
+      /* Sorting a document is one model call and no data, so it costs a scan
+         like any other read. Routing is decided here from a fixed table rather
+         than asked of the model, and the caller's own capabilities decide
+         whether the destination is open to them. */
+      const verdict = normaliseVerdict(parsed);
+      const scope = account ? await scopeFor(account, []) : null;
+      result = { ...verdict, route: routeFor(verdict.kind, scope?.capabilities || []) };
+    }
 
     /* What this bill took out of the store, offered rather than applied.
 

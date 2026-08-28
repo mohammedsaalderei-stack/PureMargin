@@ -5,7 +5,6 @@ import SupplierList from "../inventory/SupplierList.jsx";
 import StockPanel from "../inventory/StockPanel.jsx";
 import CountsPanel from "../inventory/CountsPanel.jsx";
 import PurchasingPanel from "../purchasing/PurchasingPanel.jsx";
-import InventoryScan from "../ai/InventoryScan.jsx";
 import SupplierScan from "../ai/SupplierScan.jsx";
 import { useC } from "../theme.jsx";
 import { useLang, fill } from "../i18n.jsx";
@@ -43,7 +42,7 @@ function Panel({ title, note, action, children }) {
   );
 }
 
-export default function Inventory({ token }) {
+export default function Inventory({ token, pendingDoc, onDocUsed }) {
   const C = useC();
   const { t } = useLang();
   const [state, setState] = useState(null);
@@ -143,11 +142,21 @@ export default function Inventory({ token }) {
         </div>
 
         {/* AI stock reading — photo in, suggested list out. */}
-        {/* Counting a shelf and receiving a delivery are the two ways stock
-            arrives at a number, so both scanners sit together rather than one
-            being discovered later somewhere else. */}
-        <InventoryScan token={token} />
-        <SupplierScan token={token} />
+        {/* The shelf scanner used to sit here beside this one, and it was the
+            wrong offer in the wrong place: photographing a shelf produces
+            estimates, and estimates do not belong in a master that every
+            recipe cost is built on. Counting a shelf is what the count sheet
+            is for, where two people sign off on the number.
+
+            What belongs here is the paperwork a delivery actually arrives
+            with. A PDF invoice from a supplier is a perfect record of what was
+            bought and what it cost — better than any photograph of the shelf
+            it ended up on. */}
+        <SupplierScan
+          token={token}
+          initial={pendingDoc?.scanner === "supplier" ? pendingDoc.data : null}
+          onInitialUsed={onDocUsed}
+        />
 
         {(adding || editing) && (
           <Panel title={editing ? t.inventory.editTitle : t.inventory.addTitle}

@@ -170,6 +170,7 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
   const setTab = (next) => { setTabState(next); navigate(`app/${next}`); };
   const [palette, setPalette] = useState(false);
   const [pending, setPending] = useState("");
+  const [pendingDoc, setPendingDoc] = useState(null);
   const [direction, setDirection] = useState(1);
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
@@ -393,14 +394,21 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
   } else if (tab === "team") { body = <Team token={token} />; }
   else if (tab === "messages") { body = <Messages token={token} />; }
   else if (locked) { body = <Locked feature={needed} onSeePlans={() => go("billing")} />; }
-  else if (tab === "costs") { body = <Costs token={token} />; }
-  else if (tab === "inventory") { body = <Inventory token={token} />; }
-  else if (tab === "recipes") { body = <Recipes token={token} />; }
+  else if (tab === "costs") { body = <Costs token={token} pendingDoc={pendingDoc} onDocUsed={() => setPendingDoc(null)} />; }
+  else if (tab === "inventory") { body = <Inventory token={token} pendingDoc={pendingDoc} onDocUsed={() => setPendingDoc(null)} />; }
+  else if (tab === "recipes") { body = <Recipes token={token} pendingDoc={pendingDoc} onDocUsed={() => setPendingDoc(null)} />; }
   else if (tab === "variance") { body = <Variance token={token} branches={branches} />; }
   else if (tab === "alerts") { body = <Alerts token={token} branches={branches} />; }
   else if (tab === "plan") { body = <Plan token={token} branches={branches} />; }
   else if (tab === "ask") {
     body = <Ask token={token} wide={desktop && !chatsOpen} pending={pending} onPendingUsed={() => setPending("")}
+      onRouteDoc={(route, extracted) => {
+        /* The document has already been read by the time this fires. Hand the
+           result across so the destination opens filled in rather than asking
+           for the same file a second time. */
+        setPendingDoc({ scanner: route.scanner, data: extracted, at: Date.now() });
+        go(route.tab);
+      }}
       messages={messages} onMessagesChange={updateMessages} data={unconnectedAccount ? null : data}
       noticedLine={unconnectedAccount ? "" : noticedLine} branches={branches} />;
   } else if (unconnectedAccount) { body = <EmptyTable onConnect={() => setConnectOpen(true)} />; }
