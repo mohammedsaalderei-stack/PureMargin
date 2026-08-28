@@ -189,6 +189,10 @@ export async function recordMovement(orgId, branchId, input, { policy, dryRun } 
     actor: String(input.actor || "").trim(),
     at: Number(input.at) > 0 ? Number(input.at) : Date.now(),
     recordedAt: Date.now(),
+    /* Written by the system from a sale rather than entered by a person.
+       Variance ignores these: consumption derived from sales cannot also serve
+       as evidence about sales without the arithmetic becoming circular. */
+    auto: Boolean(input.auto),
     transferId: input.transferId || null,
     reverses: null,
     reversedBy: null,

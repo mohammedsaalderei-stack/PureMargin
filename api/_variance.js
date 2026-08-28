@@ -49,6 +49,15 @@ const round = (n, places = 4) => (Number.isFinite(n) ? Number(n.toFixed(places))
    reason. */
 const CONSUMING = { consume: "consumed", issue: "issued", waste: "waste" };
 
+/* Movements the system wrote itself from sales are excluded from actual usage.
+
+   They are theoretical usage by construction — sold quantity times the recipe
+   — so counting them as evidence of what actually left the store would compare
+   a number with itself and report a variance of zero however much was being
+   wasted. With automatic depletion switched on, leakage is found by counting
+   the shelf instead, and the count adjustment is what this screen reads. */
+const isAuto = (m) => Boolean(m.auto);
+
 /* An index of recipes by what the POS calls the thing, so a sale can find its
    recipe. Matching is on the item name, case- and space-insensitive, with the
    variant preferred when a recipe declares one — a large latte and a regular one
@@ -146,6 +155,8 @@ export async function actualUsage(orgId, branchIds, { from, to }) {
          is what makes a corrected mistake leave no trace in the totals. */
       if (m.reversedBy || m.reverses) continue;
 
+      /* Auto-written consumption is skipped entirely: see isAuto above. */
+      if (isAuto(m) && CONSUMING[m.type]) continue;
       const kind = CONSUMING[m.type] ? m.type : (m.type === "adjust" ? "adjust" : null);
       if (!kind) continue;
 

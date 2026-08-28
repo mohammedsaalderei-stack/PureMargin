@@ -176,15 +176,32 @@ export async function removeSupplier(orgId, id) {
    "Dairy", "dairy" and "Diary" end up in the same report. */
 export async function getMeta(orgId) {
   const meta = (await getJSON(META(orgId))) || {};
-  return { categories: meta.categories || [], locations: meta.locations || [] };
+  return {
+    categories: meta.categories || [],
+    locations: meta.locations || [],
+    /* Whether a sale should take its ingredients out of stock by itself.
+
+       Off by default, and deliberately so. Leakage compares what the ledger
+       says left the store against what the sales say should have left; writing
+       consumption derived from those sales into the ledger makes both sides
+       the same number and leakage reads zero however much is being wasted.
+
+       On, the balance is live and leakage moves to the count sheet. Off,
+       leakage works as designed and somebody records what the kitchen takes.
+       Both are defensible; silently choosing one is not. */
+    autoDepleteFromSales: Boolean(meta.autoDepleteFromSales),
+  };
 }
 
-export async function saveMeta(orgId, { categories, locations }) {
+export async function saveMeta(orgId, { categories, locations, autoDepleteFromSales }) {
   const clean = (list) =>
     [...new Set((list || []).map((v) => String(v).trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
   const meta = {
     categories: clean(categories ?? (await getMeta(orgId)).categories),
     locations: clean(locations ?? (await getMeta(orgId)).locations),
+    autoDepleteFromSales: autoDepleteFromSales === undefined
+      ? (await getMeta(orgId)).autoDepleteFromSales
+      : Boolean(autoDepleteFromSales),
   };
   await setJSON(META(orgId), meta);
   return meta;

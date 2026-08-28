@@ -270,6 +270,31 @@ export async function widestHistoryDays(token, now = Date.now(), ladder = HISTOR
   return ladder[ladder.length - 1];
 }
 
+/* Receipts for one branch, normalised and with an id, for the ledger.
+
+   The metrics path aggregates receipts into totals and throws the individual
+   ones away, which is right for a dashboard and useless for posting stock: a
+   sale has to be identifiable so it is not posted twice. This returns them one
+   by one, in the adapter's neutral shape, so the depletion never sees a
+   vendor's spelling. */
+export async function receiptsFor(token, branchId, { days = 7, now = Date.now() } = {}) {
+  const pos = provider();
+  const since = new Date(now - days * DAY).toISOString();
+  const raw = await allReceipts(token, since);
+
+  return raw
+    .map((r) => {
+      const receipt = pos.receipt(r);
+      return {
+        id: String(r.receipt_number || r.id || r.receipt_id || `${receipt.branchId}-${receipt.at}`),
+        branchId: receipt.branchId,
+        at: receipt.at,
+        lines: receipt.lines,
+      };
+    })
+    .filter((r) => !branchId || r.branchId === String(branchId));
+}
+
 async function fetchReceipts(token, now) {
   const days = await widestHistoryDays(token, now);
   const since = new Date(now - days * DAY).toISOString();

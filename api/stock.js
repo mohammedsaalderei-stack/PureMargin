@@ -22,7 +22,10 @@
 
 import { requireAuth } from "./_auth.js";
 import { scopeFor, effectiveBranches, parseBranchParam, can } from "./_org.js";
+import { getMeta } from "./_inventory.js";
 import { posTokenFor } from "./_accounts.js";
+import { receiptsFor } from "./_data.js";
+import { depleteFromSales } from "./_salesdepletion.js";
 import { branchList } from "./_data.js";
 import { recordAudit } from "./_audit.js";
 import { listIngredients } from "./_inventory.js";
@@ -141,6 +144,41 @@ export default async function handler(req, res) {
          rather than counting the boxes — the price actually paid this week is
          what makes every recipe cost downstream true, and re-typing it from
          the same piece of paper is where it stops being true. */
+      /* Bring the ledger up to date with sales.
+
+         Called after a metrics refresh rather than on a timer, so it runs when
+         somebody is looking at the numbers and never in the background against
+         an account nobody is using. Idempotent by receipt id, so calling it
+         twice in a minute does nothing the second time.
+
+         Refuses when the setting is off rather than silently doing nothing, so
+         a client that has not noticed gets told. */
+      if (what === "deplete-sales") {
+        const meta = await getMeta(orgId);
+        if (!meta.autoDepleteFromSales) return res.status(409).json({ error: "disabled" });
+
+        const branch = permitted(body.branchId);
+        if (!branch.length) return res.status(403).json({ error: "branch" });
+
+        let receipts = [];
+        try {
+          receipts = await receiptsFor(await posTokenFor(session.username), branch[0]);
+        } catch (err) {
+          console.error("sales depletion could not read the till:", err?.message || err);
+          return res.status(502).json({ error: "pos" });
+        }
+
+        const out = await depleteFromSales(orgId, branch[0], receipts, { actor: session.username });
+        if (out.movements) {
+          await recordAudit(orgId, {
+            actor: session.username,
+            action: "stock.autoDeplete",
+            detail: { branchId: branch[0], receipts: out.posted, lines: out.movements },
+          });
+        }
+        return res.status(200).json(out);
+      }
+
       if (what === "receive-batch") {
         const branch = permitted(body.branchId);
         if (!branch.length) return res.status(403).json({ error: "branch" });
