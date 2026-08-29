@@ -36,6 +36,7 @@ export default function IngredientForm({ editing, units, suppliers, meta, busy, 
   const C = useC();
   const { t } = useLang();
   const [form, setForm] = useState(EMPTY);
+  const [showAll, setShowAll] = useState(Boolean(editing));
 
   useEffect(() => {
     setForm(editing ? { ...EMPTY, ...editing } : EMPTY);
@@ -96,6 +97,29 @@ export default function IngredientForm({ editing, units, suppliers, meta, busy, 
           placeholder={t.inventory.namePlaceholder} />
       </Field>
 
+      {/* Two fields to add something, not eleven.
+
+          A name and the unit it is counted in are the only two facts anything
+          downstream needs. The other nine are useful and none of them is
+          urgent — a supplier, a reorder point, a barcode are things somebody
+          fills in when they know them, and putting all eleven on screen at
+          once made adding one ingredient look like a form to be dreaded.
+
+          Behind one toggle, closed. Opened automatically when editing, because
+          somebody who came here to change a pack size should not have to find
+          it first. */}
+      {!showAll && (
+        <button
+          type="button"
+          onClick={() => setShowAll(true)}
+          className="text-xs font-semibold col-span-full text-start"
+          style={{ color: C.iris }}
+        >
+          {t.inventory.moreFields}
+        </button>
+      )}
+
+      {showAll && (<>
       <Field label={t.inventory.category} hint={t.inventory.categoryHint}>
         <input {...input} value={form.category} onChange={set("category")} list="pm-categories" />
         <datalist id="pm-categories">
@@ -147,6 +171,7 @@ export default function IngredientForm({ editing, units, suppliers, meta, busy, 
       <Field label={t.inventory.parLevel} hint={t.inventory.parLevelHint}>
         <input {...input} type="number" min="0" step="any" value={form.parLevel ?? ""} onChange={set("parLevel")} dir="ltr" />
       </Field>
+      </>)}
 
       {error && (
         <p className="md:col-span-2 text-sm" style={{ color: C.rose }}>{error}</p>

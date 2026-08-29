@@ -3,7 +3,6 @@ import { ChefHat, Loader2, Check, AlertTriangle, Trash2 } from "lucide-react";
 import { useC } from "../theme.jsx";
 import { useLang, fill } from "../i18n.jsx";
 import PhotoScan from "./PhotoScan.jsx";
-import NewIngredients from "./NewIngredients.jsx";
 
 /* A recipe card, photographed.
 
@@ -70,11 +69,48 @@ export default function RecipeScan({ token, onSaved, initial, onInitialUsed }) {
   const drop = (i) => setLines((l) => l.filter((_, n) => n !== i));
 
   const ready = lines.filter((l) => l.ingredientId && l.qty > 0 && l.unit);
+  /* Lines the store has nothing for. On a new account that is every one of
+     them, which is exactly when being sent to a form is most discouraging, so
+     they are created by the same press that saves the recipe. */
+  const toCreate = lines.filter((l) => !l.ingredientId && l.newItem && l.qty > 0);
 
   const save = async () => {
     if (!name.trim()) { setFailed(true); setNote(s.errName); return; }
     setBusy(true); setNote("");
     try {
+      let live = lines;
+
+      if (toCreate.length) {
+        const made = await fetch("/api/inventory?what=ingredients", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({
+            source: "recipe-scan",
+            ingredients: toCreate.map((l) => ({
+              name: l.newItem.name,
+              stockUnit: l.newItem.stockUnit,
+              purchaseUnit: l.newItem.purchaseUnit,
+              packSize: l.newItem.packSize,
+              category: l.newItem.category || undefined,
+            })),
+          }),
+        }).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+
+        if (made?.ingredients?.length) {
+          setStock((prev) => [...prev, ...made.ingredients]);
+          live = lines.map((l) => {
+            if (l.ingredientId || !l.newItem) return l;
+            const hit = made.ingredients.find(
+              (m) => m.name.toLowerCase() === l.newItem.name.toLowerCase());
+            return hit ? { ...l, ingredientId: hit.id, stockUnit: hit.stockUnit } : l;
+          });
+          setLines(live);
+        }
+      }
+
+      const saving = live.filter((l) => l.ingredientId && l.qty > 0 && l.unit);
+      if (!saving.length) { setFailed(true); setNote(s.errLines); return; }
+
       const res = await fetch("/api/recipes?what=save", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
@@ -83,7 +119,7 @@ export default function RecipeScan({ token, onSaved, initial, onInitialUsed }) {
           portions: Number(portions) || 1,
           yieldPct: Number(yieldPct) || 100,
           note: result?.note || s.source,
-          lines: ready.map((l) => ({ ingredientId: l.ingredientId, qty: Number(l.qty), unit: l.unit })),
+          lines: saving.map((l) => ({ ingredientId: l.ingredientId, qty: Number(l.qty), unit: l.unit })),
         }),
       });
       const json = await res.json();
@@ -94,7 +130,7 @@ export default function RecipeScan({ token, onSaved, initial, onInitialUsed }) {
       }
       setFailed(false);
       setDone(true);
-      setNote(fill(s.done, { name: name.trim(), count: ready.length }));
+      setNote(fill(s.done, { name: name.trim(), count: saving.length }));
       onSaved?.(json.recipe);
     } catch {
       setFailed(true);
@@ -200,24 +236,6 @@ export default function RecipeScan({ token, onSaved, initial, onInitialUsed }) {
 
           <p className="text-[11px] mt-2" style={{ color: C.slate }}>{s.editHint}</p>
 
-          {/* The card names ingredients the master may not have yet, which on a
-              new account is every one of them. They can be created here without
-              leaving the screen, and drop straight into the lines above. */}
-          <NewIngredients
-            token={token}
-            seeds={lines.filter((l) => !l.ingredientId)}
-            existing={stock}
-            onCreated={(made) => {
-              setStock((prev) => [...prev, ...made]);
-              setLines((list) => list.map((l) => {
-                if (l.ingredientId) return l;
-                const first = (l.text || "").toLowerCase().split(/\s+/)[0];
-                const hit = made.find((m) => m.name.toLowerCase().includes(first));
-                return hit ? { ...l, ingredientId: hit.id, stockUnit: hit.stockUnit } : l;
-              }));
-            }}
-          />
-
           {note && (
             <p className="text-xs mt-3 flex items-center gap-1" style={{ color: failed ? C.rose : C.cyan }}>
               {!failed && <Check size={13} />} {note}
@@ -229,7 +247,7 @@ export default function RecipeScan({ token, onSaved, initial, onInitialUsed }) {
               className="mt-3 inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold disabled:opacity-50"
               style={{ background: C.iris, color: C.onPrimary }}>
               {busy ? <Loader2 size={14} className="animate-spin" /> : <ChefHat size={14} />}
-              {busy ? s.saving : fill(s.save, { count: ready.length })}
+              {busy ? s.saving : fill(s.save, { count: ready.length + toCreate.length })}
             </button>
           )}
         </div>

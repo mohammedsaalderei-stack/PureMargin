@@ -185,6 +185,24 @@ downstream will contradict it.
 Only ever answer with a name copied exactly from that list, or null. Do not
 invent a name, and do not adjust the spelling of one you found.
 
+When nothing on the list matches, describe the ingredient the business should
+create for it. You can see what a kitchen buys: "OLIVE OIL EXTRA VIRGIN 5L TIN"
+is olive oil, kept in litres, bought by the tin, five litres to a tin. Fill in
+newItem for those lines and leave it null for the ones that matched.
+
+  name         what a kitchen would call it, two or three words, not the
+               supplier's description. "TOMATOES RED GRADE A 5KG BOX" is
+               "Tomatoes red".
+  stockUnit    what the shelf counts in, one of: kg, g, l, ml, ea
+  purchaseUnit how the supplier sells it, if that differs — a case, sack, tin,
+               tub, bag, tray. Use the same as stockUnit when they are the same.
+  packSize     how many stockUnits are in one purchaseUnit. A 5L tin is 5. A
+               10kg sack is 10. Use 1 when they are the same unit.
+  category     one of: produce, meat, dairy, dry, oil, drink, packaging
+
+Getting the unit right matters more than the name: a name is corrected in a
+second, and a wrong unit silently distorts every recipe cost built on it.
+
 Do not convert units and do not calculate a unit price — those are worked out
 afterwards from the business's own records, and a guess would be written into a
 stock balance as though it were measured.
@@ -198,7 +216,7 @@ Respond with ONLY this JSON, nothing else:
   "supplier": "<supplier or shop name, or null>",
   "invoiceNo": "<invoice or receipt number, or null>",
   "date": "<date as printed, or null>",
-  "lines": [{ "text": "<line as printed>", "qty": <number, or null>, "unit": "<kg, g, l, ml, box, pcs… as printed, or null>", "amount": <line total, or null>, "ingredient": "<exact name from the list, or null>" }],
+  "lines": [{ "text": "<line as printed>", "qty": <number, or null>, "unit": "<kg, g, l, ml, box, pcs… as printed, or null>", "amount": <line total, or null>, "ingredient": "<exact name from the list, or null>", "newItem": { "name": "<short kitchen name>", "stockUnit": "<kg|g|l|ml|ea>", "purchaseUnit": "<how it is sold>", "packSize": <number>, "category": "<produce|meat|dairy|dry|oil|drink|packaging>" } }],
   "total": <invoice total as printed, or null>
 }
 ${langNote}`;
@@ -217,6 +235,18 @@ ingredient quantity written on it. Copy the quantities exactly as written —
 each line to the closest name on that list, copied exactly, or null when
 nothing on it is a plausible match.
 
+When nothing matches, describe the ingredient the business should create, in
+newItem. A recipe card names things a kitchen keeps, so this is usually
+straightforward: "olive oil" is kept in litres, "flour" in kilos, "eggs" each.
+
+  name         two or three words, as a kitchen would say it
+  stockUnit    what the shelf counts in, one of: kg, g, l, ml, ea
+  purchaseUnit the same as stockUnit unless you can tell otherwise
+  packSize     1 unless you can tell otherwise
+  category     one of: produce, meat, dairy, dry, oil, drink, packaging
+
+Leave newItem null on the lines that matched.
+
 Report only what is on the card. Do not convert between units, and do not
 invent a portion count the card does not state — those are settled afterwards against the business's own
 records, and a guess here would be written into a recipe that every cost report
@@ -229,7 +259,7 @@ Respond with ONLY this JSON, nothing else:
   "menuItem": "<dish name, or null>",
   "portions": <number of portions the card states, or null>,
   "note": "<anything short worth keeping, or null>",
-  "lines": [{ "text": "<ingredient as written>", "qty": "<quantity as written, or null>", "unit": "<g, kg, ml, l, tsp, tbsp, cup, pcs… as written, or null>", "ingredient": "<exact name from the list, or null>" }]
+  "lines": [{ "text": "<ingredient as written>", "qty": "<quantity as written, or null>", "unit": "<g, kg, ml, l, tsp, tbsp, cup, pcs… as written, or null>", "ingredient": "<exact name from the list, or null>", "newItem": { "name": "<short kitchen name>", "stockUnit": "<kg|g|l|ml|ea>", "purchaseUnit": "<how it is sold>", "packSize": <number>, "category": "<produce|meat|dairy|dry|oil|drink|packaging>" } }]
 }
 ${langNote}`;
 }

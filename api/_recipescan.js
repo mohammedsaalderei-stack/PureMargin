@@ -1,6 +1,6 @@
 import { listIngredients } from "./_inventory.js";
 import { normaliseUnit, isPackaging, toStockUnit } from "./_unitwords.js";
-import { bestMatch } from "./_purchase.js";
+import { bestMatch, proposeItem } from "./_purchase.js";
 
 /* A recipe card, read off a photograph.
 
@@ -93,6 +93,10 @@ export function buildRecipe(parsed, ingredients) {
       /* Carried so the screen can flag a card written in cups against a shelf
          counted in kilos, which is a conversion nobody should be guessing. */
       stockUnit,
+      /* What to create when the card names something the store does not have.
+         On a new account that is every line, which is exactly when being sent
+         to a form is most discouraging. */
+      newItem: hit ? null : proposeItem(line, text, printed),
     };
   });
 

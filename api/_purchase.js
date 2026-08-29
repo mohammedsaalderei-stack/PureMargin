@@ -68,6 +68,40 @@ const num = (v) => {
   return Number.isFinite(n) && n > 0 ? n : null;
 };
 
+const UNITS_OK = new Set(["kg", "g", "l", "ml", "ea"]);
+const CATEGORIES_OK = new Set(["produce", "meat", "dairy", "dry", "oil", "drink", "packaging"]);
+
+/* The ingredient to create for a line that matched nothing.
+
+   The model saw the whole line and knows a 5L tin is five litres; everything
+   here is either its answer or a fallback for when it declined to give one.
+   There is always a fallback, because a line without a usable proposal must
+   still be creatable — the entire point is that nobody is sent to a form.
+
+   What is never taken on trust is the unit. A name is corrected in a second; a
+   unit outside the set the ledger keeps silently rescales every recipe cost
+   built on the ingredient, so anything unrecognised falls back to the unit
+   read off the supplier's own word. */
+export function proposeItem(line, text, printedUnit) {
+  const raw = line.newItem || {};
+  const name = String(raw.name || "").trim();
+  const fromPaper = normaliseUnit(printedUnit);
+
+  const stockUnit = UNITS_OK.has(String(raw.stockUnit).toLowerCase())
+    ? String(raw.stockUnit).toLowerCase()
+    : (fromPaper && UNITS_OK.has(fromPaper) ? fromPaper : "kg");
+
+  return {
+    name: name || String(text || "").slice(0, 40),
+    stockUnit,
+    purchaseUnit: String(raw.purchaseUnit || printedUnit || stockUnit).trim() || stockUnit,
+    packSize: Number(raw.packSize) > 0 ? Number(raw.packSize) : 1,
+    category: CATEGORIES_OK.has(String(raw.category).toLowerCase())
+      ? String(raw.category).toLowerCase()
+      : null,
+  };
+}
+
 export function buildPurchase(parsed, ingredients) {
   const lines = (Array.isArray(parsed?.lines) ? parsed.lines : []).map((line) => {
     const text = String(line.text || line.description || "").trim();
@@ -123,6 +157,9 @@ export function buildPurchase(parsed, ingredients) {
       /* The unit the store keeps this in, so the screen can warn when the
          invoice speaks in cases and the shelf counts kilos. */
       stockUnit,
+      /* What to create when nothing matched, so the delivery can be received
+         in one press rather than sending somebody to fill in a form first. */
+      newItem: hit ? null : proposeItem(line, text, printed),
     };
   });
 

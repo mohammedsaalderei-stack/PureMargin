@@ -3,7 +3,6 @@ import { Truck, Loader2, Check, AlertTriangle, Trash2 } from "lucide-react";
 import { useC } from "../theme.jsx";
 import { useLang, fill } from "../i18n.jsx";
 import PhotoScan from "./PhotoScan.jsx";
-import NewIngredients from "./NewIngredients.jsx";
 
 /* A delivery note, turned into stock.
 
@@ -39,6 +38,10 @@ export default function SupplierScan({ token, onReceived, initial, onInitialUsed
   const [note, setNote] = useState("");
   const [failed, setFailed] = useState(false);
   const [done, setDone] = useState(false);
+  /* Closed by default. The rows are almost always right, and opening a list of
+     twelve editable lines to confirm that is work the feature exists to
+     remove. It is one press away for the times it is wrong. */
+  const [review, setReview] = useState(false);
 
   useEffect(() => {
     if (!branch && branches.length) setBranch(branches[0].id);
@@ -78,11 +81,62 @@ export default function SupplierScan({ token, onReceived, initial, onInitialUsed
   const drop = (i) => setLines((list) => list.filter((_, n) => n !== i));
 
   const ready = lines.filter((l) => l.ingredientId && l.qty > 0);
+  /* Lines with nothing to match. The model has already described what each one
+     should become, so these are things to create rather than questions to ask. */
+  const toCreate = lines.filter((l) => !l.ingredientId && l.newItem && l.qty > 0);
 
+  /* One action for the whole delivery.
+
+     This used to be three: correct the rows, press a button to create the
+     ingredients that did not match, then press another to receive. Every one
+     of those steps was the software asking somebody to finish a job it already
+     had the information to do — and the whole reason to photograph a delivery
+     note is not typing it in.
+
+     Now: create whatever is missing, then receive everything, in that order,
+     from one press. The review list is still there for anybody who wants it,
+     closed by default, because most of the time the answer is right and
+     opening it is work too. */
   const commit = async () => {
     if (!branch) { setFailed(true); setNote(s.pickBranch); return; }
     setBusy(true); setNote("");
     try {
+      let live = lines;
+
+      if (toCreate.length) {
+        const res = await fetch("/api/inventory?what=ingredients", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({
+            source: "supplier-scan",
+            ingredients: toCreate.map((l) => ({
+              name: l.newItem.name,
+              stockUnit: l.newItem.stockUnit,
+              purchaseUnit: l.newItem.purchaseUnit,
+              packSize: l.newItem.packSize,
+              category: l.newItem.category || undefined,
+            })),
+          }),
+        });
+        const json = await res.json().catch(() => ({}));
+        if (res.ok) {
+          const made = json.ingredients || [];
+          setStock((prev) => [...prev, ...made]);
+          /* Attach what was just created back onto the lines that asked for
+             it, so the receive below covers the whole delivery rather than
+             the part that happened to already exist. */
+          live = lines.map((l) => {
+            if (l.ingredientId || !l.newItem) return l;
+            const hit = made.find((m) => m.name.toLowerCase() === l.newItem.name.toLowerCase());
+            return hit ? { ...l, ingredientId: hit.id, stockUnit: hit.stockUnit } : l;
+          });
+          setLines(live);
+        }
+      }
+
+      const receiving = live.filter((l) => l.ingredientId && l.qty > 0);
+      if (!receiving.length) { setFailed(true); setNote(s.errNothing); return; }
+
       const res = await fetch("/api/stock?what=receive-batch", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
@@ -105,7 +159,9 @@ export default function SupplierScan({ token, onReceived, initial, onInitialUsed
       }
       setFailed(false);
       setDone(true);
-      setNote(fill(s.done, { count: json.movements?.length || 0 }));
+      setNote(toCreate.length
+        ? `${fill(s.created, { count: toCreate.length })} ${fill(s.done, { count: json.movements?.length || 0 })}`
+        : fill(s.done, { count: json.movements?.length || 0 }));
       onReceived?.(json.movements || []);
     } catch {
       setFailed(true);
@@ -147,6 +203,24 @@ export default function SupplierScan({ token, onReceived, initial, onInitialUsed
             </div>
           )}
 
+          {/* A sentence instead of a table: what was read, what will be
+              created, what will be received. Enough to decide whether to
+              look closer. */}
+          <p className="text-sm mb-2">
+            {fill(s.summary, { received: ready.length, created: toCreate.length })}
+          </p>
+
+          <button
+            type="button"
+            onClick={() => setReview((v) => !v)}
+            className="text-xs font-semibold mb-3"
+            style={{ color: C.iris }}
+          >
+            {review ? s.hideLines : fill(s.reviewLines, { n: lines.length })}
+          </button>
+
+          {review && (
+          <>
           <div className="space-y-1.5">
             {lines.map((l, i) => {
               const mismatch = l.ingredientId && l.stockUnit && l.unit
@@ -201,25 +275,8 @@ export default function SupplierScan({ token, onReceived, initial, onInitialUsed
           </div>
 
           <p className="text-[11px] mt-2" style={{ color: C.slate }}>{s.editHint}</p>
-
-          {/* The lines nothing matched. Rather than sending somebody to a form,
-              the master can be filled from the same photograph that revealed
-              the gap. Created ingredients are re-matched into the open scan so
-              the delivery can be received in one pass. */}
-          <NewIngredients
-            token={token}
-            seeds={lines.filter((l) => !l.ingredientId)}
-            existing={stock}
-            onCreated={(made) => {
-              setStock((prev) => [...prev, ...made]);
-              setLines((list) => list.map((l) => {
-                if (l.ingredientId) return l;
-                const hit = made.find((m) => m.name.toLowerCase() === (l.matchedName || "").toLowerCase())
-                  || made.find((m) => (l.text || "").toLowerCase().includes(m.name.toLowerCase().split(" ")[0]));
-                return hit ? { ...l, ingredientId: hit.id, stockUnit: hit.stockUnit } : l;
-              }));
-            }}
-          />
+          </>
+          )}
 
           {note && (
             <p className="text-xs mt-3 flex items-center gap-1" style={{ color: failed ? C.rose : C.cyan }}>
@@ -232,7 +289,7 @@ export default function SupplierScan({ token, onReceived, initial, onInitialUsed
               className="mt-3 inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold disabled:opacity-50"
               style={{ background: C.iris, color: C.onPrimary }}>
               {busy ? <Loader2 size={14} className="animate-spin" /> : <Truck size={14} />}
-              {busy ? s.saving : fill(s.commit, { count: ready.length })}
+              {busy ? s.saving : fill(s.commit, { count: ready.length + toCreate.length })}
             </button>
           )}
         </div>
