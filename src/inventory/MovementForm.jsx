@@ -47,6 +47,7 @@ export default function MovementForm({
     date: now(),
     transfer: false,
   });
+  const [showAll, setShowAll] = useState(false);
 
   const set = (key) => (e) =>
     setForm((f) => ({ ...f, [key]: e.target.type === "checkbox" ? e.target.checked : e.target.value }));
@@ -97,20 +98,20 @@ export default function MovementForm({
 
   return (
     <form onSubmit={submit} className="grid gap-4 md:grid-cols-2">
-      <Field label={s.ingredient}>
+      <Field label={s.ingredient} hint={s.ingredientHint}>
         <select {...input} value={form.ingredientId} onChange={set("ingredientId")} required>
           {ingredients.map((i) => <option key={i.id} value={i.id}>{i.name}</option>)}
         </select>
       </Field>
 
       {form.transfer ? (
-        <Field label={s.from}>
+        <Field label={s.from} hint={s.fromHint}>
           <select {...input} value={form.branchId} onChange={set("branchId")}>
             {branches.map((b) => <option key={b} value={b}>{branchNames[b] || b}</option>)}
           </select>
         </Field>
       ) : (
-        <Field label={s.branch}>
+        <Field label={s.branch} hint={s.branchHint}>
           <select {...input} value={form.branchId} onChange={set("branchId")}>
             {branches.map((b) => <option key={b} value={b}>{branchNames[b] || b}</option>)}
           </select>
@@ -118,13 +119,13 @@ export default function MovementForm({
       )}
 
       {form.transfer ? (
-        <Field label={s.to}>
+        <Field label={s.to} hint={s.toHint}>
           <select {...input} value={form.toBranchId} onChange={set("toBranchId")}>
             {branches.map((b) => <option key={b} value={b}>{branchNames[b] || b}</option>)}
           </select>
         </Field>
       ) : (
-        <Field label={s.type}>
+        <Field label={s.type} hint={s.typeHint}>
           <select {...input} value={form.type} onChange={set("type")}>
             {selectable.map((k) => <option key={k} value={k}>{s.types[k] || k}</option>)}
           </select>
@@ -132,20 +133,32 @@ export default function MovementForm({
       )}
 
       <div className="grid grid-cols-[1fr_auto] gap-2 items-end">
-        <Field label={s.qty}>
+        <Field label={s.qty} hint={s.qtyHint}>
           <input {...input} type="number" step="any" value={form.qty} onChange={set("qty")} required dir="ltr"
             /* Only an adjustment may be negative; every other type takes its
                direction from the type, so the sign is not the user's problem. */
             min={form.type === "adjust" && !form.transfer ? undefined : "0"} />
         </Field>
-        <Field label={s.unit}>
+        <Field label={s.unit} hint={s.unitHint}>
           <select {...input} value={form.unit} onChange={set("unit")}>
             {sameDim.map((u) => <option key={u.key} value={u.key}>{u.label}</option>)}
           </select>
         </Field>
       </div>
 
-      <Field label={s.date}>
+      {/* A movement needs an ingredient, a quantity and a type. The date, the
+          reference, the unit cost and the reason are things somebody supplies
+          when they have them — and eleven boxes at once makes recording one
+          delivery look like filing a return. */}
+      {!showAll && (
+        <button type="button" onClick={() => setShowAll(true)}
+          className="text-xs font-semibold md:col-span-2 text-start" style={{ color: C.iris }}>
+          {s.moreFields}
+        </button>
+      )}
+
+      {showAll && (<>
+      <Field label={s.date} hint={s.dateHint}>
         <input {...input} type="date" value={form.date} onChange={set("date")} dir="ltr" />
       </Field>
 
@@ -157,7 +170,7 @@ export default function MovementForm({
         <input {...input} value={form.ref} onChange={set("ref")} />
       </Field>
 
-      <Field label={s.reason}>
+      <Field label={s.reason} hint={s.reasonHint}>
         <input {...input} value={form.reason} onChange={set("reason")} />
       </Field>
 
@@ -167,6 +180,8 @@ export default function MovementForm({
           {s.isTransfer}
         </label>
       )}
+
+      </>)}
 
       {error && <p className="md:col-span-2 text-sm" style={{ color: C.rose }}>{error}</p>}
 

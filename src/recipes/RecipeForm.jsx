@@ -43,7 +43,20 @@ export default function RecipeForm({ meta, recipe, busy, error, onSave, onCancel
     className: "w-full px-2.5 py-2 rounded-lg text-sm",
     style: { background: C.bone, border: `1px solid ${C.hairline}`, color: C.ink },
   };
-  const label = (text) => <span className="text-xs font-medium" style={{ color: C.slate }}>{text}</span>;
+  /* A label, and under it what the field is for. Not what it is called — the
+     label does that — and not how to fill it in. The test each hint has to
+     pass: would somebody who has never costed a recipe know why this box
+     exists and what it costs them to get it wrong? */
+  const label = (text, hint) => (
+    <>
+      <span className="text-xs font-medium block" style={{ color: C.slate }}>{text}</span>
+      {hint && (
+        <span className="text-[11px] block mt-0.5 mb-1" style={{ color: C.slate, opacity: 0.85 }}>
+          {hint}
+        </span>
+      )}
+    </>
+  );
 
   /* One editor for both lists — food and packaging differ in how they are costed,
      not in how they are typed. */
@@ -119,22 +132,22 @@ export default function RecipeForm({ meta, recipe, busy, error, onSave, onCancel
             onChange={(e) => setHead({ ...head, variant: e.target.value })} />
         </label>
         <label className="block">
-          {label(s.category)}
+          {label(s.category, s.categoryHint)}
           <input {...field} className={`${field.className} mt-1`} value={head.category}
             onChange={(e) => setHead({ ...head, category: e.target.value })} />
         </label>
         <label className="block">
-          {label(s.sellPrice)}
+          {label(s.sellPrice, s.sellPriceHint)}
           <input {...field} className={`${field.className} mt-1`} type="number" min="0" step="any" dir="ltr"
             value={head.sellPrice} onChange={(e) => setHead({ ...head, sellPrice: e.target.value })} />
         </label>
         <label className="block">
-          {label(s.portions)}
+          {label(s.portions, s.portionsHint)}
           <input {...field} className={`${field.className} mt-1`} type="number" min="1" step="any" dir="ltr"
             value={head.portions} onChange={(e) => setHead({ ...head, portions: e.target.value })} />
         </label>
         <label className="block">
-          {label(s.yieldPct)}
+          {label(s.yieldPct, s.yieldHint)}
           <input {...field} className={`${field.className} mt-1`} type="number" min="1" max="100" step="any" dir="ltr"
             value={head.yieldPct} onChange={(e) => setHead({ ...head, yieldPct: e.target.value })} />
         </label>
@@ -147,7 +160,8 @@ export default function RecipeForm({ meta, recipe, busy, error, onSave, onCancel
       </div>
 
       <div className="mt-5">
-        <div className="text-xs font-semibold mb-1" style={{ color: C.slate }}>{s.packaging}</div>
+        <div className="text-xs font-semibold" style={{ color: C.slate }}>{s.packaging}</div>
+        <div className="text-[11px] mb-2" style={{ color: C.slate, opacity: 0.85 }}>{s.packagingHint}</div>
         <p className="text-[11px] mb-2" style={{ color: C.slate }}>{s.packagingHint}</p>
         <LineRows rows={packaging} setRows={setPackaging} addLabel={s.addPackaging} />
       </div>

@@ -52,8 +52,17 @@ export default function OrderForm({ meta, busy, error, onSave, onCancel }) {
     className: "w-full px-2.5 py-2 rounded-lg text-sm",
     style: { background: C.bone, border: `1px solid ${C.hairline}`, color: C.ink },
   };
-  const label = (text) => (
-    <span className="text-xs font-medium" style={{ color: C.slate }}>{text}</span>
+  /* Label plus the reason the field exists. Same rule as everywhere else: say
+     what it is for and what a wrong answer costs, not what it is called. */
+  const label = (text, hint) => (
+    <>
+      <span className="text-xs font-medium block" style={{ color: C.slate }}>{text}</span>
+      {hint && (
+        <span className="text-[11px] block mt-0.5 mb-1" style={{ color: C.slate, opacity: 0.85 }}>
+          {hint}
+        </span>
+      )}
+    </>
   );
 
   const submit = (e) => {
@@ -85,7 +94,7 @@ export default function OrderForm({ meta, busy, error, onSave, onCancel }) {
         </label>
 
         <label className="block">
-          {label(s.supplier)}
+          {label(s.supplier, s.supplierHint)}
           <select {...field} className={`${field.className} mt-1`} value={head.supplierId}
             onChange={(e) => setHead({ ...head, supplierId: e.target.value })}>
             <option value="">{s.noSupplier}</option>
@@ -96,7 +105,7 @@ export default function OrderForm({ meta, busy, error, onSave, onCancel }) {
         </label>
 
         <label className="block">
-          {label(s.reference)}
+          {label(s.reference, s.referenceHint)}
           <input {...field} className={`${field.className} mt-1`} value={head.reference}
             placeholder={s.referencePlaceholder}
             onChange={(e) => setHead({ ...head, reference: e.target.value })} />
