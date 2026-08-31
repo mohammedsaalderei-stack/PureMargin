@@ -524,6 +524,9 @@ export const STRINGS = {
       },
     },
     inventory: {
+      remove: "Remove",
+      removeConfirm: "Remove {name}? If it has stock movements behind it, it will be archived instead so those records still make sense.",
+      resetHint: "Scanned a few invoices to see what would happen?",
       resetAll: "Clear everything and start again",
       resetPrompt: "This removes every ingredient, supplier and stock movement, and cannot be undone. Type ERASE to confirm.",
       resetWord: "ERASE",
@@ -2141,6 +2144,9 @@ export const STRINGS = {
       },
     },
     inventory: {
+      remove: "إزالة",
+      removeConfirm: "إزالة {name}؟ إن كانت عليه حركات مخزون فسيُؤرشَف بدلًا من حذفه، حتى تبقى تلك القيود مفهومة.",
+      resetHint: "جرّبت مسح بضع فواتير لترى النتيجة؟",
       resetAll: "امسح كل شيء وابدأ من جديد",
       resetPrompt: "سيحذف هذا كل صنف ومورّد وحركة مخزون، ولا يمكن التراجع عنه. اكتب امسح للتأكيد.",
       resetWord: "امسح",
@@ -3731,6 +3737,9 @@ export const STRINGS = {
       },
     },
     inventory: {
+      remove: "हटाइए",
+      removeConfirm: "{name} हटाएँ? अगर इसके पीछे स्टॉक प्रविष्टियाँ हैं तो इसे संग्रहित किया जाएगा, ताकि वे रिकॉर्ड समझ में आते रहें।",
+      resetHint: "कुछ बिल स्कैन करके देख रहे थे कि क्या होता है?",
       resetAll: "सब कुछ मिटाकर नए सिरे से शुरू कीजिए",
       resetPrompt: "यह हर सामग्री, आपूर्तिकर्ता और स्टॉक प्रविष्टि हटा देगा, और वापस नहीं आएगा। पुष्टि के लिए MITAO लिखिए।",
       resetWord: "MITAO",
@@ -4839,6 +4848,9 @@ export const STRINGS = {
      machine-translating a thousand lines of advisory prose nobody has read. */
   ur: {
     inventory: {
+      remove: "ہٹائیے",
+      removeConfirm: "{name} ہٹائیں؟ اگر اس کے پیچھے اسٹاک حرکات ہیں تو اسے محفوظ خانے میں ڈالا جائے گا، تاکہ وہ ریکارڈ بامعنی رہیں۔",
+      resetHint: "چند بل اسکین کر کے دیکھ رہے تھے کہ کیا ہوتا ہے؟",
       resetAll: "سب کچھ مٹا کر نئے سرے سے شروع کیجیے",
       resetPrompt: "یہ ہر جزو، سپلائر اور اسٹاک حرکت مٹا دے گا، اور واپس نہیں آئے گا۔ تصدیق کے لیے MITAO لکھیے۔",
       resetWord: "MITAO",
@@ -7102,6 +7114,9 @@ export const STRINGS = {
       },
     },
     inventory: {
+      remove: "Alisin",
+      removeConfirm: "Alisin ang {name}? Kung may galaw ng stock sa likod nito, iaarkibo na lang para may saysay pa rin ang mga talaang iyon.",
+      resetHint: "Nag-scan ng ilang invoice para lang makita ang mangyayari?",
       resetAll: "Burahin lahat at magsimulang muli",
       resetPrompt: "Aalisin nito ang bawat sangkap, supplier at galaw ng stock, at hindi na maibabalik. I-type ang BURAHIN para kumpirmahin.",
       resetWord: "BURAHIN",

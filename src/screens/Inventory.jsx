@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Plus, Archive, RotateCcw, Package, Truck, Pencil } from "lucide-react";
+import { Plus, Trash2, RotateCcw, Package, Truck, Pencil } from "lucide-react";
 import IngredientForm from "../inventory/IngredientForm.jsx";
 import SupplierList from "../inventory/SupplierList.jsx";
 import StockPanel from "../inventory/StockPanel.jsx";
@@ -126,6 +126,18 @@ export default function Inventory({ token, pendingDoc, onDocUsed }) {
     } catch { setFormError(t.inventory.failed); }
   }
 
+  /* Removing one row.
+
+     Confirmed by name rather than a bare "are you sure", because the rows are
+     small and adjacent and the wrong one is easy to hit. The server decides
+     between removing and archiving — it can see the ledger and this screen
+     cannot — and says which it did, so the message afterwards is the truth
+     rather than a guess. */
+  async function remove(id, name) {
+    if (!window.confirm(fill(t.inventory.removeConfirm, { name }))) return;
+    return archive(id);
+  }
+
   async function archive(id) {
     setBusy(true);
     try {
@@ -187,17 +199,6 @@ export default function Inventory({ token, pendingDoc, onDocUsed }) {
             with. A PDF invoice from a supplier is a perfect record of what was
             bought and what it cost — better than any photograph of the shelf
             it ended up on. */}
-        {canManage && (state?.ingredients || []).length > 0 && (
-          <button
-            type="button"
-            onClick={resetAll}
-            className="text-xs font-semibold self-start"
-            style={{ color: C.rose }}
-          >
-            {t.inventory.resetAll}
-          </button>
-        )}
-
         {/* The one setting on this screen that changes what another screen
             means, so the consequence is stated rather than linked to. */}
         <section className="rounded-2xl border p-5" style={{ borderColor: C.hairline }}>
@@ -307,9 +308,16 @@ export default function Inventory({ token, pendingDoc, onDocUsed }) {
                           <RotateCcw size={14} />
                         </button>
                       ) : (
-                        <button onClick={() => archive(ing.id)} disabled={busy} title={t.inventory.archive}
-                          className="p-2 rounded-lg hover-soft" style={{ color: C.slate }}>
-                          <Archive size={14} />
+                        /* A bin, not an archive box. The endpoint removes the
+                           ingredient outright when nothing points at it and
+                           only falls back to archiving when the ledger does —
+                           but the button said "archive" either way, so
+                           somebody looking for a way to delete a mis-scanned
+                           row found nothing that admitted to deleting. */
+                        <button onClick={() => remove(ing.id, ing.name)} disabled={busy}
+                          title={t.inventory.remove}
+                          className="p-2 rounded-lg hover-soft" style={{ color: C.rose }}>
+                          <Trash2 size={14} />
                         </button>
                       )}
                     </div>
@@ -324,6 +332,23 @@ export default function Inventory({ token, pendingDoc, onDocUsed }) {
               style={{ accentColor: C.iris }} />
             {t.inventory.showArchived}
           </label>
+
+          {canManage && ingredients.length > 0 && (
+            <div className="mt-4 pt-3 flex items-center justify-between gap-3 flex-wrap"
+              style={{ borderTop: `1px solid ${C.hairline}` }}>
+              <span className="text-[11px]" style={{ color: C.slate }}>
+                {t.inventory.resetHint}
+              </span>
+              <button
+                type="button"
+                onClick={resetAll}
+                className="text-xs font-semibold shrink-0"
+                style={{ color: C.rose }}
+              >
+                {t.inventory.resetAll}
+              </button>
+            </div>
+          )}
         </Panel>
 
         <StockPanel key={`stock-${stockKey}`} token={token} ingredients={ingredients} />
