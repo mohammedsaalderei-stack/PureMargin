@@ -439,6 +439,7 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
   else if (tab === "plan") { body = <Plan token={token} branches={branches} />; }
   else if (tab === "ask") {
     body = <Ask token={token} wide={desktop && !chatsOpen} pending={pending} onPendingUsed={() => setPending("")}
+      capabilities={scope?.capabilities}
       onRouteDoc={(route, extracted) => {
         /* The document has already been read by the time this fires. Hand the
            result across so the destination opens filled in rather than asking
@@ -645,8 +646,14 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
             );
           })}
         </div>
-        {/* Export on mobile */}
-        {data && !unconnectedAccount && (
+        {/* Export on mobile.
+
+            A second copy of the same control, and the reason gating the
+            sidebar was not enough: the desktop button was hidden and these two
+            were not, so a cashier on a phone could still take the dashboard
+            away. Two buttons doing one job in two places is how half a fix
+            ships and looks whole. */}
+        {data && !unconnectedAccount && can("export") && (
           <div className="flex gap-2">
             <button onClick={() => { exportPDF(tab, data, dateRange, account?.account?.business); setMobileMenu(false); }}
               className="flex-1 gpill gpill-primary py-2.5 text-sm font-semibold flex items-center justify-center gap-2">

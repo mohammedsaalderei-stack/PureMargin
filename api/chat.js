@@ -1,9 +1,10 @@
 import { requireAuth } from "./_auth.js";
 import { getMetrics, toContext, branchList, salesLines } from "./_data.js";
+import { redactContext, redactionNote } from "./_askscope.js";
 import { posTokenFor, noteQuestion, getAccount, activeItems } from "./_accounts.js";
 import { getJSON } from "./_store.js";
 import { groundingFor, ANSWER_CONTRACT } from "./_grounding.js";
-import { parseBranchParam } from "./_org.js";
+import { parseBranchParam, scopeFor } from "./_org.js";
 
 const MODEL = "claude-sonnet-4-5";
 
@@ -18,7 +19,7 @@ const LANG_NOTE = {
    only path by which inventory, cost and forecast figures reach the model — and
    which contains nothing outside the user's authorized branches. The prompt is the
    boundary: a scope it never receives cannot be talked about. */
-function buildSystem(metrics, lang, grounding) {
+function buildSystem(metrics, lang, grounding, capabilities) {
   return `You are PureMargin, an analyst for a food business in the UAE — restaurants, cafés, and cloud kitchens.
 
 How to answer:
@@ -28,7 +29,7 @@ How to answer:
 - When something looks worth acting on, say so plainly, but the decision stays theirs.
 - Use ONLY the figures below. If the answer isn't in them, say what's missing and what would need connecting. Never estimate a number that isn't there.
 
-${toContext(metrics)}${grounding ? `
+${toContext(redactContext(metrics, capabilities))}${redactionNote(capabilities)}${grounding ? `
 
 ${ANSWER_CONTRACT}
 
@@ -74,6 +75,13 @@ export default async function handler(req, res) {
       }
     }
 
+    /* The asker's own capabilities, so the context can be cut to them before
+       the model sees it. Read from the same place every data route reads it,
+       so the assistant cannot end up with a more generous view than the
+       screens. */
+    const askerScope = await scopeFor(session.account, []).catch(() => null);
+    const capabilities = askerScope?.capabilities || [];
+
     const overrides = (await getJSON(`costs:${session.username}`)) || {};
     const posToken = await posTokenFor(session.username);
     const metrics = await getMetrics(posToken, { overrides });
@@ -106,7 +114,7 @@ export default async function handler(req, res) {
     const payload = {
       model: MODEL,
       max_tokens: 1200,
-      system: buildSystem(metrics, lang, grounding),
+      system: buildSystem(metrics, lang, grounding, capabilities),
       messages: clean,
       stream: Boolean(stream),
     };
