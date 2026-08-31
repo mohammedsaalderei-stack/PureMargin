@@ -18,7 +18,7 @@
    per branch. Duplicating the item is what makes group-wide reporting
    impossible later. */
 
-import { getJSON, setJSON } from "./_store.js";
+import { getJSON, setJSON, del } from "./_store.js";
 import { isUnit, dimensionOf, UNITS } from "./_units.js";
 
 const ING = (orgId) => `inv:${orgId}:ingredients`;
@@ -119,6 +119,46 @@ export async function archiveIngredient(orgId, id) {
   map[id] = { ...map[id], archived: true, updatedAt: Date.now() };
   await setJSON(ING(orgId), map);
   return { ingredient: map[id] };
+}
+
+/* Remove an ingredient outright.
+
+   Archiving was the only way out, and it is the right default: an ingredient
+   with movements behind it cannot vanish without leaving the ledger describing
+   quantities of nothing. But a scan that read a line wrong creates something
+   that never should have existed, and telling somebody their mistake can only
+   be hidden rather than removed is the software defending its own bookkeeping
+   at their expense.
+
+   So: gone if nothing depends on it, archived if something does, and the
+   caller is told which happened rather than left to guess. */
+export async function deleteIngredient(orgId, id, { hasHistory }) {
+  const map = (await getJSON(ING(orgId))) || {};
+  if (!map[id]) return { error: "notfound" };
+
+  if (hasHistory) {
+    map[id] = { ...map[id], archived: true, updatedAt: Date.now() };
+    await setJSON(ING(orgId), map);
+    return { ingredient: map[id], archived: true };
+  }
+
+  delete map[id];
+  await setJSON(ING(orgId), map);
+  return { deleted: true };
+}
+
+/* Empty the store and start again.
+
+   For the case the scanners made likely: somebody points the camera at three
+   invoices to see what happens, ends up with forty half-right ingredients, and
+   wants the shelf clear rather than forty confirmations. Deliberately total —
+   ingredients, suppliers and every movement — because a reset that leaves the
+   ledger behind leaves balances for things that no longer exist, which is a
+   worse state than either full or empty. */
+export async function resetInventory(orgId) {
+  await del(ING(orgId));
+  await del(SUP(orgId));
+  return { reset: true };
 }
 
 export async function restoreIngredient(orgId, id) {

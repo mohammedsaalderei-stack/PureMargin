@@ -112,10 +112,30 @@ export default function Inventory({ token, pendingDoc, onDocUsed }) {
     }
   }
 
+  /* Clear the whole store.
+
+     The scanners made this necessary. Somebody points a camera at three
+     invoices to see what happens, ends up with forty half-right ingredients,
+     and wants the shelf clear — not forty confirmations. Guarded by typing,
+     because it takes the ledger with it and there is no undo. */
+  async function resetAll() {
+    if (window.prompt(t.inventory.resetPrompt) !== t.inventory.resetWord) return;
+    try {
+      await fetch("/api/inventory?what=all", { method: "DELETE", headers: auth });
+      await load();
+    } catch { setFormError(t.inventory.failed); }
+  }
+
   async function archive(id) {
     setBusy(true);
     try {
-      await fetch(`/api/inventory?what=ingredient&id=${encodeURIComponent(id)}`, { method: "DELETE", headers: auth });
+      const res = await fetch(`/api/inventory?what=ingredient&id=${encodeURIComponent(id)}`,
+        { method: "DELETE", headers: auth });
+      const json = await res.json().catch(() => ({}));
+      /* Removed outright when nothing pointed at it, archived when the ledger
+         did. Saying which avoids the "I deleted it and it is still there"
+         confusion that archiving alone produces. */
+      if (json.archived) setFormError(t.inventory.archivedInstead);
       await load();
     } finally { setBusy(false); }
   }
@@ -167,6 +187,17 @@ export default function Inventory({ token, pendingDoc, onDocUsed }) {
             with. A PDF invoice from a supplier is a perfect record of what was
             bought and what it cost — better than any photograph of the shelf
             it ended up on. */}
+        {canManage && (state?.ingredients || []).length > 0 && (
+          <button
+            type="button"
+            onClick={resetAll}
+            className="text-xs font-semibold self-start"
+            style={{ color: C.rose }}
+          >
+            {t.inventory.resetAll}
+          </button>
+        )}
+
         {/* The one setting on this screen that changes what another screen
             means, so the consequence is stated rather than linked to. */}
         <section className="rounded-2xl border p-5" style={{ borderColor: C.hairline }}>

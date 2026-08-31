@@ -20,10 +20,33 @@ import { scopeFor } from "./_org.js";
 import { recordAudit } from "./_audit.js";
 import {
   listIngredients, saveIngredient, archiveIngredient, restoreIngredient,
+  deleteIngredient, resetInventory,
   listSuppliers, saveSupplier, removeSupplier,
   getMeta, saveMeta, validateIngredient, slug,
 } from "./_inventory.js";
 import { unitsByDimension } from "./_units.js";
+
+/* Whether anything in the ledger refers to this ingredient. A movement, a
+   count line or a recipe line all count: removing something they point at
+   would leave those records describing a quantity of nothing. */
+async function ingredientHasHistory(orgId, id, branchIds = []) {
+  try {
+    const { listMovements } = await import("./_movements.js");
+    /* The ledger is kept per branch, so a single lookup with no branch reads
+       an empty list and would report "no history" for something with plenty.
+       Every branch the caller can see is checked, and one hit is enough. */
+    for (const branchId of branchIds) {
+      const moves = await listMovements(orgId, branchId, { limit: 1, ingredientId: id });
+      if (moves?.length) return true;
+    }
+    return false;
+  } catch {
+    /* If the ledger cannot be read, assume there is history. Archiving
+       something that could have been deleted is recoverable; the reverse is
+       not. */
+    return true;
+  }
+}
 
 export default async function handler(req, res) {
   const session = await requireAuth(req, res);
@@ -151,6 +174,19 @@ export default async function handler(req, res) {
         return res.status(200).json({ ingredients: made, skipped });
       }
 
+      /* Clear the whole store. Owner only: it is not recoverable, and it
+         takes the ledger with it. */
+      if (what === "all") {
+        if (!scope.capabilities.includes("manage:users")) {
+          return res.status(403).json({ error: "notowner" });
+        }
+        await resetInventory(orgId);
+        await recordAudit(orgId, {
+          actor: session.username, action: "inventory.reset", detail: {},
+        });
+        return res.status(200).json({ reset: true });
+      }
+
       if (what === "supplier") {
         const { supplier, created, error } = await saveSupplier(orgId, body);
         if (error) return res.status(400).json({ error });
@@ -186,13 +222,22 @@ export default async function handler(req, res) {
       if (!id) return res.status(400).json({ error: "id" });
 
       if (what === "ingredient") {
-        const { ingredient, error } = await archiveIngredient(orgId, id);
+        /* Whether anything points at it decides between removing and
+           archiving. Checked here rather than in the store, because only this
+           layer can see the ledger. */
+        const ledger = await ingredientHasHistory(orgId, id, scope.authorized || []);
+        const out = await deleteIngredient(orgId, id, { hasHistory: ledger });
+        const { ingredient, error, deleted, archived } = out;
         if (error) return res.status(404).json({ error });
         await recordAudit(orgId, {
-          actor: session.username, action: "ingredient.archive", target: id,
-          detail: { name: ingredient.name },
+          actor: session.username,
+          action: deleted ? "ingredient.delete" : "ingredient.archive",
+          target: id,
+          detail: { name: ingredient?.name || id },
         });
-        return res.status(200).json({ ingredient });
+        /* The caller is told which happened, so the screen can say "removed"
+           or "archived because it has movements" rather than guessing. */
+        return res.status(200).json({ ingredient: ingredient || null, deleted: Boolean(deleted), archived: Boolean(archived) });
       }
 
       if (what === "supplier") {

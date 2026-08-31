@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   BarChart3, LineChart, MessageSquare, Settings as Cog, UtensilsCrossed, Users,
   Search, Lightbulb, PanelRightClose, PanelRightOpen, LogOut, Lock, Wallet,
@@ -8,6 +8,7 @@ import BrandMark from "./BrandMark.jsx";
 import { useLang, fill } from "./i18n.jsx";
 import { useSwipe } from "./hooks-nav.js";
 import { useRoute, navigate } from "./router.js";
+import useBackToClose from "./useBackToClose.js";
 import {
   listConversations, saveConversation, deleteConversation, newId, getConversation,
   fetchRemote, pushRemote, deleteRemote, merge,
@@ -169,6 +170,7 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
 
 
   const setTab = (next) => { setTabState(next); navigate(`app/${next}`); };
+
   const [palette, setPalette] = useState(false);
   const [pending, setPending] = useState("");
   const [pendingDoc, setPendingDoc] = useState(null);
@@ -228,6 +230,12 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
     try { return localStorage.getItem(`sufra_pos_skipped_${user}`) === "1"; } catch { return false; }
   });
   const [chatsOpen, setChatsOpen] = useState(() => typeof window !== "undefined" && window.matchMedia("(min-width: 1024px)").matches);
+  /* Back closes what is open before it moves between tabs. On a phone this is
+     the difference between the gesture closing a menu and the gesture leaving
+     the app from inside one. */
+  useBackToClose(mobileMenu, useCallback(() => setMobileMenu(false), []));
+  useBackToClose(chatsOpen, useCallback(() => setChatsOpen(false), []));
+  useBackToClose(palette, useCallback(() => setPalette(false), []));
   const activeIdRef = useRef(null);
 
   const updateMessages = (next, { streaming = false } = {}) => {

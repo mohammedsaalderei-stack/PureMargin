@@ -524,6 +524,10 @@ export const STRINGS = {
       },
     },
     inventory: {
+      resetAll: "Clear everything and start again",
+      resetPrompt: "This removes every ingredient, supplier and stock movement, and cannot be undone. Type ERASE to confirm.",
+      resetWord: "ERASE",
+      archivedInstead: "Archived rather than removed — it has stock movements behind it, and deleting it would leave those describing a quantity of nothing.",
       moreFields: "More details",
       autoDeplete: "Take stock out as it sells",
       autoDepleteHint: "Every sale deducts its recipe's ingredients automatically, so the balance stays live without anyone recording issues.",
@@ -2116,6 +2120,10 @@ export const STRINGS = {
       },
     },
     inventory: {
+      resetAll: "امسح كل شيء وابدأ من جديد",
+      resetPrompt: "سيحذف هذا كل صنف ومورّد وحركة مخزون، ولا يمكن التراجع عنه. اكتب امسح للتأكيد.",
+      resetWord: "امسح",
+      archivedInstead: "أُرشِف بدل أن يُحذف — عليه حركات مخزون، وحذفه يترك تلك القيود تصف كمية لشيء غير موجود.",
       moreFields: "تفاصيل إضافية",
       autoDeplete: "خصم المخزون تلقائيًا عند البيع",
       autoDepleteHint: "تُخصم مكوّنات الوصفة تلقائيًا مع كل عملية بيع، فيبقى الرصيد محدّثًا دون تسجيل يدوي.",
@@ -3681,6 +3689,10 @@ export const STRINGS = {
       },
     },
     inventory: {
+      resetAll: "सब कुछ मिटाकर नए सिरे से शुरू कीजिए",
+      resetPrompt: "यह हर सामग्री, आपूर्तिकर्ता और स्टॉक प्रविष्टि हटा देगा, और वापस नहीं आएगा। पुष्टि के लिए MITAO लिखिए।",
+      resetWord: "MITAO",
+      archivedInstead: "हटाने के बजाय संग्रहित किया गया — इसके पीछे स्टॉक प्रविष्टियाँ हैं, और हटाने पर वे किसी न होने वाली मात्रा का वर्णन करतीं।",
       moreFields: "और विवरण",
       autoDeplete: "बिक्री के साथ स्टॉक अपने आप घटाएँ",
       autoDepleteHint: "हर बिक्री पर रेसिपी की सामग्री अपने आप घट जाती है, इसलिए बिना कुछ दर्ज किए बैलेंस अद्यतन रहता है।",
@@ -4764,6 +4776,10 @@ export const STRINGS = {
      machine-translating a thousand lines of advisory prose nobody has read. */
   ur: {
     inventory: {
+      resetAll: "سب کچھ مٹا کر نئے سرے سے شروع کیجیے",
+      resetPrompt: "یہ ہر جزو، سپلائر اور اسٹاک حرکت مٹا دے گا، اور واپس نہیں آئے گا۔ تصدیق کے لیے MITAO لکھیے۔",
+      resetWord: "MITAO",
+      archivedInstead: "حذف کرنے کے بجائے محفوظ خانے میں ڈالا گیا — اس کے پیچھے اسٹاک حرکات ہیں، اور حذف کرنے پر وہ ایسی مقدار بیان کرتیں جو موجود نہیں۔",
       moreFields: "مزید تفصیلات",
       autoDeplete: "فروخت کے ساتھ اسٹاک خودکار طور پر گھٹائیں",
       autoDepleteHint: "ہر فروخت پر ریسیپی کے اجزا خود بخود گھٹ جاتے ہیں، اس لیے بغیر کچھ درج کیے بیلنس تازہ رہتا ہے۔",
@@ -7002,6 +7018,10 @@ export const STRINGS = {
       },
     },
     inventory: {
+      resetAll: "Burahin lahat at magsimulang muli",
+      resetPrompt: "Aalisin nito ang bawat sangkap, supplier at galaw ng stock, at hindi na maibabalik. I-type ang BURAHIN para kumpirmahin.",
+      resetWord: "BURAHIN",
+      archivedInstead: "Inarkibo sa halip na alisin — may mga galaw ng stock sa likod nito, at ang pagbura ay mag-iiwan sa mga iyon na naglalarawan ng dami ng walang bagay.",
       moreFields: "Iba pang detalye",
       autoDeplete: "Awtomatikong ibawas ang stock kapag nabenta",
       autoDepleteHint: "Awtomatikong binabawas ng bawat benta ang sangkap ng recipe nito, kaya laging updated ang balanse nang walang itinatalang paglabas.",
