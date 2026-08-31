@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Receipt, Sparkles } from "lucide-react";
 import PhotoScan from "../ai/PhotoScan.jsx";
 import DepletionPanel from "../ai/DepletionPanel.jsx";
+import FixedCosts from "../costs/FixedCosts.jsx";
 import { useC } from "../theme.jsx";
 import { useLang, fill } from "../i18n.jsx";
 import { Money } from "../Dirham.jsx";
@@ -63,6 +64,18 @@ export default function Costs({ token, pendingDoc, onDocUsed }) {
   const [edits, setEdits] = useState({});
   const [depletion, setDepletion] = useState(null);
 
+  /* This screen has no period picker of its own, and the constant costs need a
+     window to be apportioned across. The calendar month is the right default:
+     rent and salaries are quoted monthly and paid monthly, so "what does this
+     month cost to run" is the question somebody arrives with. */
+  const [from, to] = useMemo(() => {
+    const now = new Date();
+    return [
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1),
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1),
+    ];
+  }, []);
+
   /* A bill dropped into Ask arrives already priced. Consumed once, so coming
      back to this tab does not re-open a bill that was already dealt with. */
   useEffect(() => {
@@ -119,6 +132,8 @@ export default function Costs({ token, pendingDoc, onDocUsed }) {
         </div>
 
         <div className="panel p-5 md:p-6">
+          <h3 className="display font-bold text-base mb-1">{s.changingTitle}</h3>
+          <p className="text-xs mb-3" style={{ color: C.slate }}>{s.changingLead}</p>
           <PhotoScan token={token} kind="bill" buttonLabel={s.scan}
             onResult={(r, _img, plan) => {
               setResult(r); setManual({}); setEdits({}); setDepletion(plan);
@@ -259,6 +274,11 @@ export default function Costs({ token, pendingDoc, onDocUsed }) {
             />
           </>
         )}
+
+        {/* The two halves of what a month costs, on one screen. Splitting them
+            across tabs is how somebody ends up believing one of them is the
+            whole picture. */}
+        <FixedCosts token={token} from={from} to={to} />
 
         {!result && (
           <div className="text-center py-10">

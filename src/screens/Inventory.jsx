@@ -247,13 +247,14 @@ export default function Inventory({ token, pendingDoc, onDocUsed }) {
         <Panel
           title={t.inventory.itemsTitle}
           note={fill(t.inventory.itemsNote, { n: ingredients.length })}
-          action={canManage && !adding && !editing && (
-            <button onClick={() => { setAdding(true); setEditing(null); }}
-              className="px-3 py-2 rounded-lg text-xs font-semibold inline-flex items-center gap-1.5 shrink-0"
-              style={{ background: C.iris, color: C.onPrimary }}>
-              <Plus size={14} /> {t.inventory.addIngredient}
-            </button>
-          )}
+          /* No "add by hand" button any more. The way into this list is a
+             photograph or a PDF: the scanner reads a delivery note, decides
+             the name, the unit and the pack size, and creates everything in
+             one press. A blank form beside that is a slower path to a worse
+             answer, and offering both invited people down the slow one.
+
+             Editing an existing row is untouched — the scanner is how things
+             arrive, not the only way they can ever be corrected. */
         >
           {ingredients.length === 0 ? (
             <div className="text-center py-8">
