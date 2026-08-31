@@ -119,11 +119,35 @@ export default function Inventory({ token, pendingDoc, onDocUsed }) {
      and wants the shelf clear — not forty confirmations. Guarded by typing,
      because it takes the ledger with it and there is no undo. */
   async function resetAll() {
-    if (window.prompt(t.inventory.resetPrompt) !== t.inventory.resetWord) return;
+    /* Matched loosely on purpose. The word is translated, so somebody reading
+       Arabic is asked for an Arabic word, and demanding exact case on top of
+       that turns a confirmation into a spelling test. Trimmed and folded — the
+       point of the prompt is that it cannot happen by accident, not that it is
+       hard. */
+    const typed = window.prompt(t.inventory.resetPrompt);
+    if (typed === null) return;
+    if (typed.trim().toLowerCase() !== t.inventory.resetWord.trim().toLowerCase()) {
+      setFormError(t.inventory.resetMismatch);
+      return;
+    }
+
+    setBusy(true);
+    setFormError("");
     try {
-      await fetch("/api/inventory?what=all", { method: "DELETE", headers: auth });
+      const res = await fetch("/api/inventory?what=all", { method: "DELETE", headers: auth });
+      /* Checked, because it was not before: a refusal came back as a quiet 403
+         and the screen carried on as though the store had been cleared. */
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        setFormError(json.error === "notowner" ? t.inventory.resetOwnerOnly : t.inventory.failed);
+        return;
+      }
       await load();
-    } catch { setFormError(t.inventory.failed); }
+    } catch {
+      setFormError(t.inventory.failed);
+    } finally {
+      setBusy(false);
+    }
   }
 
   /* Removing one row.

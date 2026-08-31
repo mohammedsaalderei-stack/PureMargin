@@ -174,19 +174,6 @@ export default async function handler(req, res) {
         return res.status(200).json({ ingredients: made, skipped });
       }
 
-      /* Clear the whole store. Owner only: it is not recoverable, and it
-         takes the ledger with it. */
-      if (what === "all") {
-        if (!scope.capabilities.includes("manage:users")) {
-          return res.status(403).json({ error: "notowner" });
-        }
-        await resetInventory(orgId);
-        await recordAudit(orgId, {
-          actor: session.username, action: "inventory.reset", detail: {},
-        });
-        return res.status(200).json({ reset: true });
-      }
-
       if (what === "supplier") {
         const { supplier, created, error } = await saveSupplier(orgId, body);
         if (error) return res.status(400).json({ error });
@@ -218,6 +205,22 @@ export default async function handler(req, res) {
 
     if (req.method === "DELETE") {
       if (!may("manage:inventory")) return res.status(403).json({ error: "forbidden" });
+
+      /* Clearing the store takes no id, and the guard below used to demand one
+         before this branch was ever reached — so the button returned 400 and
+         the screen showed nothing at all. The id check moved down to the
+         routes that actually need one. */
+      if (what === "all") {
+        if (!scope.capabilities.includes("manage:users")) {
+          return res.status(403).json({ error: "notowner" });
+        }
+        await resetInventory(orgId, scope.authorized || []);
+        await recordAudit(orgId, {
+          actor: session.username, action: "inventory.reset", detail: {},
+        });
+        return res.status(200).json({ reset: true });
+      }
+
       const id = String(req.query?.id || "");
       if (!id) return res.status(400).json({ error: "id" });
 

@@ -524,6 +524,8 @@ export const STRINGS = {
       },
     },
     inventory: {
+      resetMismatch: "That didn't match, so nothing was cleared.",
+      resetOwnerOnly: "Only the account owner can clear the store.",
       remove: "Remove",
       removeConfirm: "Remove {name}? If it has stock movements behind it, it will be archived instead so those records still make sense.",
       resetHint: "Scanned a few invoices to see what would happen?",
@@ -2144,6 +2146,8 @@ export const STRINGS = {
       },
     },
     inventory: {
+      resetMismatch: "لم تتطابق الكلمة، فلم يُمسح شيء.",
+      resetOwnerOnly: "مسح المخزون متاح لمالك الحساب فقط.",
       remove: "إزالة",
       removeConfirm: "إزالة {name}؟ إن كانت عليه حركات مخزون فسيُؤرشَف بدلًا من حذفه، حتى تبقى تلك القيود مفهومة.",
       resetHint: "جرّبت مسح بضع فواتير لترى النتيجة؟",
@@ -3737,6 +3741,8 @@ export const STRINGS = {
       },
     },
     inventory: {
+      resetMismatch: "शब्द मेल नहीं खाया, इसलिए कुछ नहीं मिटा।",
+      resetOwnerOnly: "भंडार केवल खाते का मालिक मिटा सकता है।",
       remove: "हटाइए",
       removeConfirm: "{name} हटाएँ? अगर इसके पीछे स्टॉक प्रविष्टियाँ हैं तो इसे संग्रहित किया जाएगा, ताकि वे रिकॉर्ड समझ में आते रहें।",
       resetHint: "कुछ बिल स्कैन करके देख रहे थे कि क्या होता है?",
@@ -4848,6 +4854,8 @@ export const STRINGS = {
      machine-translating a thousand lines of advisory prose nobody has read. */
   ur: {
     inventory: {
+      resetMismatch: "لفظ نہیں ملا، اس لیے کچھ نہیں مٹا۔",
+      resetOwnerOnly: "اسٹاک صرف اکاؤنٹ کا مالک مٹا سکتا ہے۔",
       remove: "ہٹائیے",
       removeConfirm: "{name} ہٹائیں؟ اگر اس کے پیچھے اسٹاک حرکات ہیں تو اسے محفوظ خانے میں ڈالا جائے گا، تاکہ وہ ریکارڈ بامعنی رہیں۔",
       resetHint: "چند بل اسکین کر کے دیکھ رہے تھے کہ کیا ہوتا ہے؟",
@@ -7114,6 +7122,8 @@ export const STRINGS = {
       },
     },
     inventory: {
+      resetMismatch: "Hindi tugma, kaya walang nabura.",
+      resetOwnerOnly: "Ang may-ari lang ng account ang makakabura ng stock.",
       remove: "Alisin",
       removeConfirm: "Alisin ang {name}? Kung may galaw ng stock sa likod nito, iaarkibo na lang para may saysay pa rin ang mga talaang iyon.",
       resetHint: "Nag-scan ng ilang invoice para lang makita ang mangyayari?",

@@ -155,9 +155,26 @@ export async function deleteIngredient(orgId, id, { hasHistory }) {
    ingredients, suppliers and every movement — because a reset that leaves the
    ledger behind leaves balances for things that no longer exist, which is a
    worse state than either full or empty. */
-export async function resetInventory(orgId) {
+export async function resetInventory(orgId, branchIds = []) {
   await del(ING(orgId));
   await del(SUP(orgId));
+
+  /* The ledger goes too, and it has to.
+
+     Clearing only the ingredient list was the first version, and it left
+     balances and movements pointing at things that no longer existed — a
+     worse state than either full or empty, and one nothing else in the app is
+     built to survive. The movement ledger is kept per branch, so every branch
+     is named rather than assuming one.
+
+     Counts and purchase orders go with them for the same reason: a count sheet
+     listing ingredients that are gone is not a record, it is a puzzle. */
+  for (const branchId of branchIds) {
+    await del(`inv:${orgId}:moves:${branchId}`);
+  }
+  await del(`inv:${orgId}:counts`);
+  await del(`inv:${orgId}:purchases`);
+
   return { reset: true };
 }
 
