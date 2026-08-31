@@ -157,5 +157,27 @@ test("the no-capability fallback does not include the dashboard", () => {
   assert.deepEqual(open.sort(), ["ask", "messages", "settings"]);
 });
 
+
+/* Export is a capability rather than a tab, and it went unchecked for a long
+   time: a cashier could take the whole dashboard away as a PDF — every figure
+   their role is barred from seeing on screen, in a file, off the premises. */
+test("only the roles that should may export", () => {
+  const may = (role) => ROLES[role].can.includes("export");
+  for (const role of ["owner", "ops", "branch_manager", "accountant"]) {
+    assert.ok(may(role), `${role} should be able to export`);
+  }
+  for (const role of ["cashier", "chef"]) {
+    assert.ok(!may(role), `${role} must not be able to export`);
+  }
+});
+
+test("nobody gains export by being granted a tab", () => {
+  const o = org({ roles: { cashier: ["watch"] } });
+  const caps = capabilitiesFor(o, "till", "cashier");
+  assert.ok(caps.includes("view:profitability"), "the tab's own capability comes with it");
+  assert.ok(!caps.includes("export"),
+    "seeing a screen and being able to take it away are different permissions");
+});
+
 console.log(failures ? `\n${failures} failed` : "\nall passed");
 process.exit(failures ? 1 : 0);

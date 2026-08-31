@@ -210,6 +210,11 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
   const allowedIds = scope?.tabs || OPEN_TABS;
   const allowed = (id) => allowedIds.includes(id);
 
+  /* Capabilities, for the controls that are not tabs. Export is the only one
+     so far, and it needed to exist: `allowed()` answers "may they open this
+     screen", which is a different question from "may they take it away". */
+  const can = (capability) => (scope?.capabilities || []).includes(capability);
+
   const canManageTeam = allowed("team");
 
   /* Importance order: today's numbers, the bill scanner, the assistant, then
@@ -552,13 +557,24 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
 
             {scopePicker}
 
-            {/* Export button */}
-            {data && !unconnectedAccount && (
+            {/* Export.
+
+                The `export` capability has existed since the roles were
+                written and nothing ever checked it. A cashier could take the
+                whole dashboard away as a PDF — every figure their role is
+                barred from seeing on screen, in a file, off the premises. The
+                nav gating was doing real work and this button quietly went
+                round it.
+
+                Gated on the capability rather than on a role list, so it
+                follows the same rule as everything else and an owner granting
+                a tab does not accidentally grant the ability to export it. */}
+            {data && !unconnectedAccount && can("export") && (
               <div className="relative">
                 <button onClick={() => setExportOpen((v) => !v)}
                   className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold"
                   style={{ background: "linear-gradient(135deg, rgba(139,92,246,0.12), rgba(6,182,212,0.06))", border: "1px solid rgba(139,92,246,0.2)", color: C.ink }}>
-                  <Download size={14} /><span className="flex-1 text-start">Export</span>
+                  <Download size={14} /><span className="flex-1 text-start">{t.export.title}</span>
                   <ChevronDown size={12} style={{ color: C.slate }} />
                 </button>
                 {exportOpen && <ExportMenu data={data} screen={tab} dateRange={dateRange}
