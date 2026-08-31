@@ -92,6 +92,28 @@ const loyverse = {
      a short list, which is why the ladder in _data.js probes rather than asks. */
   historyRefused: (status, message) =>
     status === 402 || /\b402\b|PAYMENT_REQUIRED|31 days/i.test(message || ""),
+
+  /* Whether this till keeps stock of its own, and what it does not keep.
+
+     Some tills track inventory and some do not, and the ones that do track a
+     different thing from what a kitchen needs: a count against a catalogue
+     item, not an ingredient with a unit, a pack size and a supplier. Offering
+     "use my till's stock instead" without saying what is lost would be selling
+     a downgrade as a convenience.
+
+     `limits` are keys the interface translates, so the list is written once
+     here by whoever knows the till and read in five languages. */
+  inventory: {
+    supported: true,
+    path: () => "/inventory?limit=250",
+    listOf: (page) => page?.inventory_levels || [],
+    level: (row) => ({
+      itemId: String(row.variant_id || row.item_id || ""),
+      branchId: String(row.store_id || ""),
+      qty: Number(row.in_stock),
+    }),
+    limits: ["noUnits", "noPackSize", "noSuppliers", "perVariant", "noCostHistory"],
+  },
 };
 
 /* ── A till described entirely by environment ─────────────── */
@@ -165,6 +187,22 @@ const custom = {
   }),
 
   historyRefused: (status) => status === 402,
+
+  /* Off unless somebody describes their till's stock endpoint. Claiming
+     support and then returning nothing would look like an outage. */
+  inventory: {
+    supported: env("POS_PATH_INVENTORY", "") !== "",
+    path: () => env("POS_PATH_INVENTORY", "/inventory?limit=250"),
+    listOf: (page) => path(page, env("POS_FIELD_INVENTORY", "inventory_levels")) || [],
+    level: (row) => ({
+      itemId: String(path(row, env("POS_FIELD_LEVEL_ITEM", "variant_id")) || ""),
+      branchId: String(path(row, env("POS_FIELD_LEVEL_BRANCH", "store_id")) || ""),
+      qty: Number(path(row, env("POS_FIELD_LEVEL_QTY", "in_stock"))),
+    }),
+    /* Unknown till, so the caveats that apply to every till of this shape are
+       stated and nothing is claimed beyond them. */
+    limits: ["noUnits", "noPackSize", "noSuppliers", "unverified"],
+  },
 };
 
 const PROVIDERS = { loyverse, custom };

@@ -159,7 +159,7 @@ export default function Watch({ data, dateRange = "monthly", onDateRangeChange }
           </p>
           {onDateRangeChange && (
             <div className="mt-3">
-              <FilterBar dateRange={dateRange} onDateChange={onDateRangeChange} />
+              <FilterBar dateRange={dateRange} onDateChange={onDateRangeChange} data={data} />
             </div>
           )}
         </div>

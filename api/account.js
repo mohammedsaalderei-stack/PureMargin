@@ -7,7 +7,7 @@ import { persistent } from "./_store.js";
 import { clearCache, fetchMerchant } from "./_data.js";
 import { orgFor, effectivePlanFor } from "./_org.js";
 import { recordAudit } from "./_audit.js";
-import { sendMail } from "./_mail.js";
+import { sendMail, shell, row } from "./_mail.js";
 
 /* Accounts predating organizations have no orgId on the record; orgFor
    backfills one. Without this an older account's changes would go unlogged. */
@@ -89,7 +89,15 @@ export default async function handler(req, res) {
           to: process.env.ADMIN_EMAIL,
           subject: `PureMargin: ${session.username} connected their POS API`,
           text: `${session.username} (${updated?.email || "no email"})${updated?.business ? ` — ${updated.business}` : ""} just connected their POS API.`,
-          html: `<p><strong>${session.username}</strong> (${updated?.email || "no email"})${updated?.business ? ` — ${updated.business}` : ""} just connected their POS API.</p>`,
+          html: shell({
+            title: "A POS connection was made",
+            intro: "Somebody linked their till, so their figures are now live.",
+            blocks: [
+              row("Account", session.username),
+              row("Email", updated?.email || "none on file"),
+              row("Business", updated?.business || "not named yet"),
+            ],
+          }),
         }).catch(() => {});
       }
 

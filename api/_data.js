@@ -277,6 +277,38 @@ export async function widestHistoryDays(token, now = Date.now(), ladder = HISTOR
    sale has to be identifiable so it is not posted twice. This returns them one
    by one, in the adapter's neutral shape, so the depletion never sees a
    vendor's spelling. */
+/* Stock levels as the till keeps them.
+
+   Only meaningful for a till whose adapter says it keeps stock at all, and the
+   caller checks that before asking — an unsupported till would otherwise
+   return an empty list that reads like an empty store.
+
+   Deliberately thin. This returns what the till has: an item, a branch and a
+   number. It does not invent a unit, a pack size or a supplier, because the
+   till does not have them and filling the gap with a guess is how a stock
+   figure ends up meaning something different from what anybody thinks. */
+export async function posInventory(token, branchId = null) {
+  const pos = provider();
+  if (!pos.inventory?.supported) return { supported: false, levels: [] };
+
+  const data = await call(pos.inventory.path(), token);
+  const levels = pos.inventory.listOf(data)
+    .map((row) => pos.inventory.level(row))
+    .filter((l) => l.itemId && Number.isFinite(l.qty))
+    .filter((l) => !branchId || l.branchId === String(branchId));
+
+  return { supported: true, levels, limits: pos.inventory.limits || [] };
+}
+
+export function posInventorySupport() {
+  const pos = provider();
+  return {
+    supported: Boolean(pos.inventory?.supported),
+    limits: pos.inventory?.limits || [],
+    label: pos.label,
+  };
+}
+
 export async function receiptsFor(token, branchId, { days = 7, now = Date.now() } = {}) {
   const pos = provider();
   const since = new Date(now - days * DAY).toISOString();

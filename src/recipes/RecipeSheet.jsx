@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { X, AlertTriangle, FlaskConical, Pencil, Archive } from "lucide-react";
+import { X, AlertTriangle, FlaskConical, Pencil, Archive, Trash2 } from "lucide-react";
 import CostSimulator from "./CostSimulator.jsx";
 import { useC } from "../theme.jsx";
 import { useLang, fill } from "../i18n.jsx";
@@ -13,7 +13,7 @@ import { DirhamMark } from "../Dirham.jsx";
    rather than shown as zero, and the panel says plainly that the total is a lower
    bound when any line is missing. */
 
-export default function RecipeSheet({ token, recipe, method, canManage, onClose, onEdit, onArchive }) {
+export default function RecipeSheet({ token, recipe, method, canManage, onClose, onEdit, onArchive, onDelete }) {
   const C = useC();
   const { t } = useLang();
   const s = t.recipes;
@@ -159,6 +159,18 @@ export default function RecipeSheet({ token, recipe, method, canManage, onClose,
               className="px-4 py-2 rounded-lg text-sm font-semibold inline-flex items-center gap-1.5"
               style={{ border: `1px solid ${C.hairline}`, color: C.slate }}>
               <Archive size={14} /> {recipe.archived ? s.restore : s.archive}
+            </button>
+          )}
+          {/* Archiving keeps a dish that might come back; deleting is for the
+              one that should never have existed — a duplicate, a mis-scanned
+              card. Both are offered because they answer different questions,
+              and offering only the first meant a wrong recipe could be hidden
+              but never removed. */}
+          {canManage && onDelete && (
+            <button onClick={onDelete}
+              className="px-4 py-2 rounded-lg text-sm font-semibold inline-flex items-center gap-1.5"
+              style={{ border: `1px solid ${C.hairline}`, color: C.rose }}>
+              <Trash2 size={14} /> {s.delete}
             </button>
           )}
         </div>

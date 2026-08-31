@@ -198,7 +198,15 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
 
      Until scope arrives, nothing but the tabs that need no permission — a
      brief empty nav is better than one that offers a tab and withdraws it. */
-  const OPEN_TABS = ["ask", "messages", "settings", "overview"];
+  /* Tabs that need no permission at all — the assistant answers within
+     whatever scope a person already has, the board is how the team reaches
+     each other, and settings is their own account.
+
+     Overview used to be on this list and is not a free tab: it leads with net
+     margin. While scope was loading, and permanently if scope failed to load,
+     a cashier saw it. A fallback has to be the safe answer rather than the
+     convenient one. */
+  const OPEN_TABS = ["ask", "messages", "settings"];
   const allowedIds = scope?.tabs || OPEN_TABS;
   const allowed = (id) => allowedIds.includes(id);
 
@@ -216,7 +224,12 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
     byId.billing, byId.settings,
   ].filter((tb) => tb && allowed(tb.id));
 
-  const tab = allowed(rawTab) ? rawTab : "overview";
+  /* Falling back to a fixed "overview" assumed everybody has it. Now that the
+     dashboard is a profitability screen, a cashier's fallback has to be the
+     first tab they actually hold — otherwise a stale bookmark lands them on a
+     blank screen with no way to tell why. */
+  const firstAllowed = navTabs[0]?.id || "settings";
+  const tab = allowed(rawTab) ? rawTab : firstAllowed;
 
   const [branches, setBranches] = useState([]);
   const mainRef = useRef(null);
@@ -555,7 +568,7 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
 
             <div className="flex items-center gap-2">
               <LanguagePicker /><ThemeToggle compact />
-              <NotificationBell data={data} onAsk={(q) => { startNewChat(); setPending(q); go("ask"); }} />
+              <NotificationBell data={data} capabilities={scope?.capabilities} onAsk={(q) => { startNewChat(); setPending(q); go("ask"); }} />
             </div>
             <div className="flex items-center justify-between gap-2 pt-3" style={{ borderTop: `1px solid ${C.hairline}` }}>
               <span className="text-xs truncate" style={{ color: C.slate }}>
@@ -644,7 +657,12 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
   return (
     <MobileShell tab={tab} go={go} tabIcons={TAB_ICONS} labelFor={labelFor} liveDot={liveDot}
       onOpenChats={() => setChatsOpen(true)} onOpenMenu={() => setMobileMenu((v) => !v)} menuOpen={mobileMenu} sheet={mobileSheet}
-      bell={<NotificationBell data={data} onAsk={(q) => { startNewChat(); setPending(q); go("ask"); }} />}>
+      bell={<NotificationBell data={data} capabilities={scope?.capabilities} onAsk={(q) => { startNewChat(); setPending(q); go("ask"); }} />}
+      /* Shown once there is somewhere to go back to. The landing tab is
+         whatever this person's role opens on, so back from there would leave
+         the app — which is the browser's job, not a button in our header. */
+      canGoBack={tab !== firstAllowed}
+      onBack={() => window.history.back()}>
       <AmbientBackground />
       <div className="relative z-10 h-full">{content}</div>
       {!desktop && chatsOpen && tab === "ask" && (

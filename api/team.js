@@ -18,7 +18,7 @@ import { normaliseGrants, grantable, grantedTabs } from "./_tabs.js";
 import { recordAudit, readAudit } from "./_audit.js";
 import { readSyncs } from "./_sync.js";
 import { getJSON, setJSON, del } from "./_store.js";
-import { sendMail } from "./_mail.js";
+import { sendMail, shell, row, button } from "./_mail.js";
 
 /* The address invitation links point at.
 
@@ -201,7 +201,16 @@ export default async function handler(req, res) {
           to: address,
           subject: `You've been invited to ${orgName} on PureMargin`,
           text: `${session.username} invited you to join ${orgName} on PureMargin as ${ROLES[role]?.label || role}.\n\nCreate your account here: ${link}\n\nAny packages the team owns apply to you automatically.`,
-          html: `<p><strong>${session.username}</strong> invited you to join <strong>${orgName}</strong> on PureMargin as <strong>${ROLES[role]?.label || role}</strong>.</p><p><a href="${link}">Create your account</a> to accept. Any packages the team owns apply to you automatically.</p>`,
+          html: shell({
+            title: `Join ${orgName} on PureMargin`,
+            intro: `${session.username} has invited you. Create your account and you'll land straight in their team.`,
+            blocks: [
+              row("Business", orgName),
+              row("Your role", ROLES[role]?.label || role),
+              button(link, "Create your account"),
+            ],
+            footer: "Any packages the team owns apply to you automatically — there is nothing for you to buy. If you weren't expecting this, you can ignore it.",
+          }),
         });
         mailed = true;
       } catch (err) {

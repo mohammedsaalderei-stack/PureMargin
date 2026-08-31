@@ -16,6 +16,47 @@
    that accumulates history becomes an inbox somebody has to clear, and this is
    meant to be glanced at and forgotten. */
 
+/* What a notice is about, and therefore who it is for.
+
+   Not everybody wants telling. A cashier does not need to hear that the margin
+   slipped — it is not their number, they cannot act on it, and a bell that
+   only ever carries somebody else's business becomes a bell they stop reading.
+   The same goes for a chef and the day's takings.
+
+   Gated by what each notice contains rather than by a list of roles, so the
+   rule survives a new role being added and matches what the rest of the app
+   already enforces: if a person cannot open the screen a notice is about, they
+   do not get the notice. Somebody with none of these capabilities has no bell
+   at all, rather than a bell that is permanently empty. */
+export const NOTICE_NEEDS = {
+  alertMargin: "view:profitability",
+  alertWeekly: "view:profitability",
+  alertGoal: "view:profitability",
+  alertTarget: "view:profitability",
+  /* Sales figures for the day, which a branch manager and above act on. */
+  alertEod: "view:reports",
+  alertSwing: "view:reports",
+  alertPeak: "view:reports",
+  /* These two are about the shift rather than the business, and they were the
+     tempting exception — a cashier can see the day's takings, so why not tell
+     them the first order landed?
+
+     Because it is not their job to be told. They are at the till when it
+     happens. The notice adds nothing they do not already know, and one
+     pointless notice is enough to teach somebody that the bell is not worth
+     opening — which costs them the one that matters later. Held at
+     view:reports with the rest, so a cashier and a chef have no bell at all
+     rather than a bell that cries wolf. */
+  alertFirst: "view:reports",
+  alertOrder: "view:reports",
+};
+
+/* Whether this person can receive anything at all. Used to decide if the bell
+   exists, which is different from whether it is empty today. */
+export function noticesApply(capabilities = []) {
+  return Object.values(NOTICE_NEEDS).some((need) => capabilities.includes(need));
+}
+
 export const ALERT_KEYS = [
   "alertEod", "alertSwing", "alertMargin", "alertOrder",
   "alertTarget", "alertFirst", "alertPeak", "alertWeekly", "alertGoal",
@@ -35,6 +76,9 @@ function pref(prefs, key) {
 
 export function buildNotices(data, prefs = {}, opts = {}) {
   if (!data) return [];
+  /* Absent means unrestricted, so a caller that does not know about
+     capabilities — a test, a preview — still gets everything. */
+  const caps = opts.capabilities;
   const t = opts.t;
   const target = Number(opts.dailyTarget) || 0;
   const now = opts.now ?? Date.now();
@@ -50,8 +94,11 @@ export function buildNotices(data, prefs = {}, opts = {}) {
      actually type it. A notice that says margin is slipping and offers no way
      to find out why is a nudge to go hunting; carrying the question across
      means the answer is one press away. */
-  const add = (id, key, tone, title, body, ask) =>
+  const add = (id, key, tone, title, body, ask) => {
+    const need = NOTICE_NEEDS[key];
+    if (caps && need && !caps.includes(need)) return;
     out.push({ id, key, tone, title, body, ask, at: now });
+  };
 
   if (pref(prefs, "alertFirst") && Number(today.receipts) > 0) {
     add("first", "alertFirst", "info", t.notices.firstTitle,

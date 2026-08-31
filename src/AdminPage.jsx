@@ -15,13 +15,17 @@ import LanguagePicker from "./LanguagePicker.jsx";
    session open still can't reach this screen. Everything it can do lives in
    /api/admin. */
 
-const FEATURE_LABELS = {
-  assistant: "Assistant",
-  menu: "Menu engineering",
-  forecast: "Forecast",
-  operations: "Operations suite",
-  billscan: "AI bill scanner",
-};
+/* A third copy of the package names lived here, in English only, and had
+   already drifted from the other two — "Assistant" against "The assistant" on
+   the packages page and "Smart assistant" on the pricing page, for the same
+   line on the same invoice. An operator granting a package and an owner
+   reading what they hold have to be looking at the same word.
+
+   Read from the dictionary now, falling back to the raw id so a package added
+   to FEATURES on the server is still grantable before anybody writes a label
+   for it — an operator who cannot grant a package that exists is a worse
+   failure than an untranslated name. */
+const featureLabel = (t, id) => t?.billing?.features?.[id] || id;
 
 async function call(adminToken, body) {
   const res = await fetch("/api/admin", {
@@ -109,7 +113,7 @@ function GrantForm({ features, months, onGrant, onClose, busy }) {
             <button key={f} onClick={() => setPicked(on ? picked.filter((x) => x !== f) : [...picked, f])}
               className="px-2.5 py-1 rounded-lg text-xs font-medium"
               style={{ border: `1px solid ${on ? C.iris : C.hairline}`, background: on ? C.irisWash : "transparent", color: on ? C.ink : C.slate }}>
-              {FEATURE_LABELS[f] || f}
+              {featureLabel(t, f)}
             </button>
           );
         })}
@@ -258,7 +262,7 @@ export default function AdminPage() {
                           {a.plan.items.map((f) => (
                             <span key={f} className="text-[11px] font-semibold px-2 py-0.5 rounded-full"
                               style={{ background: "var(--chip-bg)", color: a.plan.expired ? C.rose : C.ink }}>
-                              {FEATURE_LABELS[f] || f}
+                              {featureLabel(t, f)}
                             </span>
                           ))}
                           <span className="text-[11px]" style={{ color: a.plan.expired ? C.rose : C.slate }}>
