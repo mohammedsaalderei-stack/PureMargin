@@ -267,14 +267,21 @@ export default async function handler(req, res) {
           return hit ? { ...row, ingredientId: hit.id, unit: row.unit || hit.stockUnit } : row;
         });
 
-        const receivable = resolved.filter((r) => r.ingredientId && Number(r.qty) > 0 && r.unit);
+        /* `receiveQty`/`receiveUnit` where the parser worked out the shelf's
+           own unit, the printed pair otherwise. Never the printed quantity
+           beside a restated cost — see the note in `_purchase.js`. */
+        const qtyOf = (r) => Number(r.receiveQty ?? r.qty);
+        const unitOf = (r) => String(r.receiveUnit || r.unit || "");
+
+        const receivable = resolved.filter((r) =>
+          r.ingredientId && qtyOf(r) > 0 && unitOf(r));
         if (!receivable.length) return res.status(400).json({ error: "line" });
 
         const note = [body.supplier, body.invoiceNo].filter(Boolean).join(" · ").slice(0, 200);
         const prepared = receivable.map((r) => ({
           ingredientId: String(r.ingredientId),
-          qty: Number(r.qty),
-          unit: String(r.unit),
+          qty: qtyOf(r),
+          unit: unitOf(r),
           unitCost: Number(r.unitCost) > 0 ? Number(r.unitCost) : undefined,
           type: "receive",
           ref: String(body.invoiceNo || "").slice(0, 60),

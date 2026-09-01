@@ -105,8 +105,18 @@ export default function SupplierScan({ token, onReceived, initial, onInitialUsed
     setReview(false);
   };
 
+  /* Editing a quantity or a unit by hand drops the parser's converted pair.
+
+     `receiveQty`/`receiveUnit` are the parser's restatement of the line into
+     the shelf's unit, and they are only consistent with `unitCost` as long as
+     nobody has touched the figures they were derived from. Somebody typing a
+     corrected quantity means the printed pair, so the converted one has to go
+     rather than silently overriding what they just typed. */
   const edit = (i, patch) =>
-    setLines((list) => list.map((l, n) => (n === i ? { ...l, ...patch } : l)));
+    setLines((list) => list.map((l, n) => (n === i
+      ? { ...l, ...patch, ...("qty" in patch || "unit" in patch
+          ? { receiveQty: undefined, receiveUnit: undefined } : {}) }
+      : l)));
   const drop = (i) => setLines((list) => list.filter((_, n) => n !== i));
 
   /* Everything the delivery will do: lines that already match, plus lines the

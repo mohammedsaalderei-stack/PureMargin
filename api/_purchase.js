@@ -242,10 +242,33 @@ export function buildPurchase(parsed, ingredients, aliases = new Map()) {
        LBS names a unit this ledger keeps; one saying "sack" names a package,
        which is a different problem and gets said differently on screen. */
 
+    /* The quantity-and-unit pair that goes to the ledger, guaranteed to be the
+       same unit `unitCost` is stated in.
+
+       This pairing used to be left to the caller, and the caller got it wrong.
+       `unitCost` is restated into the shelf's unit just above — 114 for 5 kg of
+       something kept in grams is 0.0228 a gram — while `qty` and `unit` stayed
+       as the invoice printed them, 5 and "kg". A caller passing the printed
+       pair with the restated cost had `recordMovement` divide by the conversion
+       a second time, and the ledger recorded chicken at 0.0228 a kilo instead
+       of 22.80. Out by a thousand, in the direction that makes food cost look
+       wonderful, and invisible in every screen downstream.
+
+       It only showed when the invoice's unit differed from the shelf's, which
+       is why it survived: most lines are bought and kept in the same unit, and
+       the ones that are not are exactly the ones nobody checks by hand.
+
+       So the pair is emitted here, next to the cost it belongs with, and there
+       is no longer a combination a caller can choose that disagrees. */
+    const receiveUnit = asStockUnit.converted ? stockUnit : (unit || printed);
+    const receiveQty = asStockUnit.converted ? asStockUnit.qty : qty;
+
     return {
       text,
       qty,
       unit: unit || printed,
+      receiveQty,
+      receiveUnit,
       printedUnit: printed,
       packaging: !unit && isPackaging(printed),
       /* The same quantity in the unit the shelf is kept in, when the two can be
