@@ -38,13 +38,28 @@ they override the defaults).
 - Vite logs show live esbuild of `src/*.jsx` (serves source, not a build).
 
 ## Tests
-- `npm test` → `api/_org.test.js` (stage 1 authorization + stage 2 aggregation)
-  then `api/_journal.test.js` (stage 3 journal, audit, sync, provenance), then
-  `api/_inventory.test.js` (stage 4 units, conversions, item master). 58 tests. It writes fixture accounts through `api/_store.js`, so it refuses
-  to run unless the store backend is `memory` — the npm script blanks
-  `REDIS_URL`/`KV_URL`/`KV_REST_API_URL` to force that. Never run the file
-  directly inside the `api` container with Redis attached; it will bail out
-  rather than pollute real records.
+- `npm test` → `npm run check` (imports, cycles, scroll containers,
+  translations) then `node scripts/test.mjs`, which **discovers** every
+  `api/*.test.js` and `src/*.test.mjs` and runs them in turn. 28 files.
+- The list used to be written out by hand in the npm script. A merge kept both
+  copies of that line and the older one won, so three test files existed,
+  passed, and were never run while two deleted ones were still named.
+  Discovering them removes the class of mistake; a new `*.test.js` is picked up
+  by existing. `node scripts/test.mjs units` narrows to matching filenames.
+- The runner **unsets `REDIS_URL`, `KV_URL`, `KV_REST_API_URL` and
+  `KV_REST_API_TOKEN` in the child environment**, which is load-bearing rather
+  than convenience: the tests write fixture accounts through `api/_store.js` and
+  against a real Redis would write into live records. Each file also refuses to
+  start unless `backend === "memory"`. Never run one directly inside the `api`
+  container with Redis attached.
+- This is also why the env vars are not set POSIX-style in the npm script any
+  more. `REDIS_URL= node …` is shell syntax, npm runs scripts through `cmd.exe`
+  on Windows, and the suite could not be run there at all.
+- `api/_flow.test.js` is the only end-to-end one: a recipe written before
+  anything is bought, an invoice that stocks it, a sale that draws it down. Its
+  arithmetic is deliberately checkable on paper (5 kg at 114.00 → 22.80/kg; one
+  150 g wrap leaves 4.85 kg), because the faults that reach people live between
+  modules rather than inside them.
 
 ## Multi-branch authorization (stage 1 of the product direction)
 - `api/_org.js` — organizations, roles, membership, scope resolution. Every
@@ -181,31 +196,78 @@ they override the defaults).
   time). `lastCostPerBase(orgId, branchIds, ingredientId)` reads the newest
   incoming, non-reversed entry — this is the "last cost" counts value variance at.
 
-## Stock counts (stage 4, phase 3)
-- `api/_counts.js`, key `inv:<orgId>:counts`. Statuses: draft → review →
-  approved, plus `cancelled`. Cancelled counts are kept, never deleted.
-- **Expected quantities are snapshotted when the count opens**, not read at
-  approval. Otherwise trading between printing the sheet and signing it off shows
-  up as variance nobody caused.
-- **`countedQty: null` means "not counted" and is never treated as zero.** Zero is
-  a real statement (the shelf is empty); a blank must not write off stock.
-- Approval is the only step that touches stock: one `adjust` movement per line
-  with a real variance, `ref: count:<id>`, ids stored on `count.movementIds`. It
-  **bypasses the negative-stock policy on purpose** — a physical count is the
-  authoritative statement, so refusing it would leave the ledger contradicting
-  the shelf.
-- Totals keep `shrinkValue` and `gainValue` apart (netting them hides a shelf
-  short on meat and long on flour), plus `coverage` and `unpriced` as the
-  data-quality status. The valuation is frozen onto the record at approval.
-- Capability `approve:counts` — owner, ops, branch manager. **Chef deliberately
-  does not have it**: they record a count, somebody else approves it.
-- Audit: `count.open`, `count.submit`, `count.reopen`, `count.approve`,
-  `count.cancel`.
-- Front end: `src/inventory/CountsPanel.jsx` (list + open form) and
-  `src/inventory/CountSheet.jsx` (the sheet, variance, workflow buttons). A
-  reason selector only appears on lines that actually differ. i18n block
-  `inventory.counts.*`.
-- Tests: `api/_counts.test.js` (26), wired into `npm test`.
+## Stock counts — removed
+There was a full stocktake workflow here: `api/_counts.js`, draft → review →
+approved, expected quantities snapshotted at open, one `adjust` movement per
+line at approval, `approve:counts` withheld from the chef so that whoever
+counted was not whoever signed it off. It is gone, and the reasoning is worth
+keeping so it is not rebuilt by someone who only sees the gap.
+
+It was a faithful implementation of how stock control is done on paper, and it
+asked a kitchen to do the most tedious job in the building on a schedule, for a
+number the system can already derive: **stock = deliveries in − what the sales
+consumed**. Both sides of that now exist and are trustworthy — invoices arrive
+by camera or PDF and are committed in one press, and `_salesdepletion.js` posts
+consumption per receipt, idempotently.
+
+What actually goes with it:
+- `approve:counts` is gone from every role. The separation it enforced now
+  lives on reversal, which `api/stock.js` holds behind `manage:users` — somebody
+  who can both create and cancel entries can make a discrepancy disappear.
+- The five `count.*` audit keys are gone from `AUDIT_ACTIONS`. Rows already
+  written keep rendering: `AuditLog` shows `actions[e.action] || e.action`.
+- Leakage. With automatic depletion on, `actual` and `theoretical` are derived
+  from the same sales and variance reads zero — the count sheet used to be
+  where you got a real answer. That trade-off is stated on the switch and is
+  unchanged by this; the honest position is that leakage needs somebody
+  recording issues, not a periodic recount.
+
+## Supplier vocabulary (`api/_aliases.js`)
+- Key `inv:<orgId>:aliases`: normalised invoice description → `{ ingredientId,
+  hits, learnedAt, replaced }`. Capped at 5000, trimmed by least-used.
+- **Learned on commit, never on parse.** A parse is a proposal; committing is a
+  person saying the proposal was right. Learning from a parse would make a
+  wrong guess permanent on the strength of nothing.
+- Read first in `buildPurchase`'s match chain, ahead of the model's named pick
+  and token overlap, because an alias is a decision and the others are guesses.
+  Lines resolved this way carry `viaAlias: true`.
+- **An alias whose ingredient no longer exists resolves to nothing.** Checked on
+  read against the live id set rather than by deleting, since the ingredient may
+  be archived rather than gone; `pruneAliases` is the write path.
+- `resetInventory` clears the table — every alias would otherwise point at
+  something that no longer exists.
+- Tests: `api/_aliases.test.js` (12).
+
+## Scanned invoices → stock (`api/_purchase.js`, `POST /api/stock?what=invoice`)
+- Camera or PDF in, a committed delivery out, in one press. `api/ai.js` reads
+  the document; `buildPurchase` matches each line and derives the figures;
+  `?what=invoice` creates missing ingredients, receives every line and learns
+  the supplier's wording, in that order.
+- The browser used to do those three as separate calls — create, re-attach the
+  new ids, then receive — each able to fail alone, with no way to finish from
+  the state a failure left. The set is validated (`dryRun`) before the ledger
+  moves.
+- **`receiveQty`/`receiveUnit` are the pair that goes to the ledger, and they
+  exist because getting this wrong is silent.** `unitCost` is restated into the
+  unit the *shelf* keeps (114 for 5 kg of something held in grams is 0.0228 a
+  gram) while `qty`/`unit` stay as the invoice printed them. Passing the printed
+  pair with the restated cost makes `recordMovement` divide by the conversion a
+  second time — chicken recorded at 0.0228 a kilo instead of 22.80, a thousandth
+  of the truth, in the direction that makes food cost look wonderful. Never mix
+  them. Editing a quantity or unit by hand must clear both.
+- Unit cost is always **derived** (line total ÷ quantity), never read off the
+  invoice: the per-unit figure a supplier prints is rounded for display.
+- `totalsOf` takes subtotal/tax/total as printed and derives only what is
+  missing — the two known ones always give the third. **A total on its own is
+  never split by an assumed VAT rate**; 5% is the UAE rule, not everyone's, and
+  a number that looks read off the paper but was assumed never gets questioned.
+  `totalsAgree` is false when the three do not reconcile, which the card shows
+  as a caveat rather than a refusal.
+- The screen (`src/ai/SupplierScan.jsx`) asks nothing it can work out: no
+  ingredient dropdown, no unit box, no cost field. It states the invoice header
+  and offers Save and Cancel. Cancel touches nothing — the draft only ever
+  existed in component state. The editable line list is one press away, closed
+  by default.
 
 ## Purchasing and receiving (stage 4, phase 4)
 - `api/_purchasing.js`, key `inv:<orgId>:purchases`. Statuses: draft → open →
@@ -249,8 +311,24 @@ they override the defaults).
     inherited cost and would double-count the delivery.
   - **No cost is `null`, never 0.** Zero is the one default that flatters margin
     exactly where data is worst; callers must report the gap.
+  - An ingredient no delivery has priced falls back to
+    `ingredient.estimatedCostPerBase`, flagged `estimated: true` through
+    `evidenceFor` and out to the screen. **Fallback only** — one real invoice
+    beats any estimate, so it stops applying the moment a receipt exists,
+    without anyone clearing it out. An ingredient with neither is still `null`.
 - `api/_recipes.js`, key `inv:<orgId>:recipes`. Recipes are org-level master data;
   **cost is local**, from the authorized branches' ledgers.
+- **A recipe line may name an ingredient that does not exist yet.** `buildLines`
+  used to refuse with `{ error: "ingredientId" }`, which the screen showed as
+  "item not found in inventory" — so a recipe could not be written until the
+  inventory had been done, which is backwards from how a menu is planned. An
+  unresolved name now goes to `ensureIngredient(orgId, …)`, which matches on the
+  same slug ids use (so "Olive oil" and "OLIVE OIL" are one), revives an
+  archived match rather than duplicating it, and otherwise creates the item from
+  the line's own unit and `estimatedCost`. `saveVersion` returns
+  `newIngredients[]` so the screen and the audit log can say what was created.
+  Still refused: no name at all, a non-positive quantity, a unit of the wrong
+  dimension, the same ingredient twice.
 - **Versions are dated and append-only** (`effectiveFrom`, sorted, never edited).
   `effectiveVersion(recipe, at)` = newest already in force, so a March sale keeps
   March's recipe. Back-dating slots into history. No DELETE anywhere; archive only.
