@@ -149,5 +149,31 @@ test("the env-driven adapter can use a non-bearer header", () => {
   assert.deepEqual(custom.auth("k1"), { "X-Api-Key": "k1" });
 });
 
+
+test("every provider declares whether it keeps stock", () => {
+  for (const p of [loyverse, custom]) {
+    assert.ok(p.inventory, `${p.id} must say something about inventory`);
+    assert.equal(typeof p.inventory.supported, "boolean");
+    assert.ok(Array.isArray(p.inventory.limits), "and what it cannot do");
+  }
+});
+
+test("a till that keeps stock names what it cannot track", () => {
+  assert.equal(loyverse.inventory.supported, true);
+  assert.ok(loyverse.inventory.limits.length >= 3,
+    "offering the till's stock without naming the trade sells a downgrade as a convenience");
+});
+
+test("an undescribed till does not claim to keep stock", () => {
+  delete process.env.POS_PATH_INVENTORY;
+  assert.equal(custom.inventory.supported, false,
+    "claiming support and returning nothing would look like an outage");
+});
+
+test("loyverse reads a stock level", () => {
+  const out = loyverse.inventory.level({ variant_id: "v1", store_id: 7, in_stock: 12.5 });
+  assert.deepEqual(out, { itemId: "v1", branchId: "7", qty: 12.5 });
+});
+
 console.log(failures ? `\n${failures} failed` : "\nall passed");
 process.exit(failures ? 1 : 0);

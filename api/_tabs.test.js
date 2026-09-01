@@ -48,12 +48,13 @@ test("the owner sees everything", () => {
 
 test("a cashier sees only the till and the open tabs", () => {
   assert.deepEqual(tabsFor("cashier").sort(),
-    ["ask", "costs", "messages", "overview", "settings"]);
+    ["ask", "costs", "messages", "settings"],
+    "the dashboard leads with net margin — that is not a till view");
 });
 
 test("a cashier is kept out of margin data and billing", () => {
   const tabs = tabsFor("cashier");
-  for (const shut of ["watch", "menu", "advice", "forecast", "variance", "billing", "team"]) {
+  for (const shut of ["overview", "watch", "menu", "advice", "forecast", "billing", "team"]) {
     assert.ok(!tabs.includes(shut), `${shut} must not be open to a cashier`);
   }
 });
@@ -61,7 +62,7 @@ test("a cashier is kept out of margin data and billing", () => {
 test("a chef gets the kitchen, not the money", () => {
   const tabs = tabsFor("chef");
   assert.ok(tabs.includes("recipes") && tabs.includes("inventory"));
-  assert.ok(!tabs.includes("watch") && !tabs.includes("variance"));
+  assert.ok(!tabs.includes("watch") && !tabs.includes("menu"));
 });
 
 test("only the owner gets Team and Packages", () => {
@@ -82,9 +83,9 @@ test("everybody gets the assistant, the board and their own settings", () => {
 });
 
 test("a grant to a role opens the tab for that role", () => {
-  const o = org({ roles: { chef: ["variance"] } });
-  assert.ok(tabsFor("chef", o).includes("variance"));
-  assert.ok(!tabsFor("cashier", o).includes("variance"), "and nobody else");
+  const o = org({ roles: { chef: ["watch"] } });
+  assert.ok(tabsFor("chef", o).includes("watch"));
+  assert.ok(!tabsFor("cashier", o).includes("watch"), "and nobody else");
 });
 
 test("a grant to a person opens it for that person only", () => {
@@ -101,9 +102,9 @@ test("a grant carries the capability behind the screen", () => {
 });
 
 test("role and personal grants add rather than replace", () => {
-  const o = org({ roles: { chef: ["variance"] }, users: { chef: ["watch"] } });
+  const o = org({ roles: { chef: ["watch"] }, users: { chef: ["watch"] } });
   const tabs = tabsFor("chef", o, "chef");
-  assert.ok(tabs.includes("variance") && tabs.includes("watch"));
+  assert.ok(tabs.includes("watch") && tabs.includes("menu"));
 });
 
 test("Team and Packages can never be granted", () => {
@@ -146,6 +147,36 @@ test("no grants means base capabilities, unchanged", () => {
 
 test("someone with no capabilities still gets the open tabs", () => {
   assert.deepEqual(allowedTabs([]).sort(), ["ask", "messages", "settings"]);
+});
+
+
+test("the no-capability fallback does not include the dashboard", () => {
+  const open = allowedTabs([]);
+  assert.ok(!open.includes("overview"),
+    "the dashboard leads with net margin; a fallback has to be the safe answer");
+  assert.deepEqual(open.sort(), ["ask", "messages", "settings"]);
+});
+
+
+/* Export is a capability rather than a tab, and it went unchecked for a long
+   time: a cashier could take the whole dashboard away as a PDF — every figure
+   their role is barred from seeing on screen, in a file, off the premises. */
+test("only the roles that should may export", () => {
+  const may = (role) => ROLES[role].can.includes("export");
+  for (const role of ["owner", "ops", "branch_manager", "accountant"]) {
+    assert.ok(may(role), `${role} should be able to export`);
+  }
+  for (const role of ["cashier", "chef"]) {
+    assert.ok(!may(role), `${role} must not be able to export`);
+  }
+});
+
+test("nobody gains export by being granted a tab", () => {
+  const o = org({ roles: { cashier: ["watch"] } });
+  const caps = capabilitiesFor(o, "till", "cashier");
+  assert.ok(caps.includes("view:profitability"), "the tab's own capability comes with it");
+  assert.ok(!caps.includes("export"),
+    "seeing a screen and being able to take it away are different permissions");
 });
 
 console.log(failures ? `\n${failures} failed` : "\nall passed");

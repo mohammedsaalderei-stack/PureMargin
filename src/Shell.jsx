@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   BarChart3, LineChart, MessageSquare, Settings as Cog, UtensilsCrossed, Users,
   Search, Lightbulb, PanelRightClose, PanelRightOpen, LogOut, Lock, Wallet,
-  LayoutDashboard, Download, FileText, Table, ChevronDown, Package, ChefHat, Scale, BellRing, ShoppingCart, Camera, MessagesSquare,} from "lucide-react";
+  LayoutDashboard, Download, FileText, Table, ChevronDown, Package, ChefHat, Scale, BellRing, ShoppingCart, Calculator, Receipt, MessagesSquare,} from "lucide-react";
 import { useC } from "./theme.jsx";
 import BrandMark from "./BrandMark.jsx";
 import { useLang, fill } from "./i18n.jsx";
@@ -30,6 +30,7 @@ import Variance from "./screens/Variance.jsx";
 import Alerts from "./screens/Alerts.jsx";
 import Plan from "./screens/Plan.jsx";
 import Costs from "./screens/Costs.jsx";
+import Sales from "./screens/Sales.jsx";
 import BranchScope from "./BranchScope.jsx";
 import CommandPalette from "./CommandPalette.jsx";
 import LanguagePicker from "./LanguagePicker.jsx";
@@ -61,11 +62,11 @@ const EMPTY_METRICS = {
 
 const POLL_MS = 30 * 1000;
 
-/* Ordered by importance: the numbers you check first, the AI bill scanner a
-   cashier lives in, then analysis, with account plumbing last. */
+/* Ordered by importance: the numbers you check first, the cost ledger, the
+   assistant, then analysis, with account plumbing last. */
 const TAB_META = [
   { id: "overview", icon: LayoutDashboard },
-  { id: "costs", icon: Camera },
+  { id: "costs", icon: Calculator },
   { id: "ask", icon: MessageSquare },
   { id: "watch", icon: BarChart3 },
   { id: "menu", icon: UtensilsCrossed },
@@ -111,7 +112,13 @@ const RECIPES_TAB = { id: "recipes", icon: ChefHat };
    recipes, since it is the costing answer they are both building towards. */
 const VARIANCE_TAB = { id: "variance", icon: Scale };
 
-const TAB_ICONS = Object.fromEntries([...TAB_META, INVENTORY_TAB, ALERTS_TAB, PLAN_TAB, RECIPES_TAB, VARIANCE_TAB, TEAM_TAB, MESSAGES_TAB].map((tb) => [tb.id, tb.icon]));
+/* Sales as the till reported them, and the corrections made to them. Gated on
+   `view:dashboard` rather than on `adjust:sales`: reading the day's takings is
+   what everybody with a dashboard already does, and the screen shows no edit
+   controls to somebody who cannot use them. */
+const SALES_TAB = { id: "sales", icon: Receipt };
+
+const TAB_ICONS = Object.fromEntries([...TAB_META, SALES_TAB, INVENTORY_TAB, ALERTS_TAB, PLAN_TAB, RECIPES_TAB, VARIANCE_TAB, TEAM_TAB, MESSAGES_TAB].map((tb) => [tb.id, tb.icon]));
 
 function useDesktop() {
   const [big, setBig] = useState(() => typeof window !== "undefined" && window.matchMedia("(min-width: 1024px)").matches);
@@ -198,25 +205,43 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
 
      Until scope arrives, nothing but the tabs that need no permission — a
      brief empty nav is better than one that offers a tab and withdraws it. */
-  const OPEN_TABS = ["ask", "messages", "settings", "overview"];
+  /* Tabs that need no permission at all — the assistant answers within
+     whatever scope a person already has, the board is how the team reaches
+     each other, and settings is their own account.
+
+     Overview used to be on this list and is not a free tab: it leads with net
+     margin. While scope was loading, and permanently if scope failed to load,
+     a cashier saw it. A fallback has to be the safe answer rather than the
+     convenient one. */
+  const OPEN_TABS = ["ask", "messages", "settings"];
   const allowedIds = scope?.tabs || OPEN_TABS;
   const allowed = (id) => allowedIds.includes(id);
 
+  /* Capabilities, for the controls that are not tabs. Export is the only one
+     so far, and it needed to exist: `allowed()` answers "may they open this
+     screen", which is a different question from "may they take it away". */
+  const can = (capability) => (scope?.capabilities || []).includes(capability);
+
   const canManageTeam = allowed("team");
 
-  /* Importance order: today's numbers, the bill scanner, the assistant, then
+  /* Importance order: today's numbers, the cost ledger, the assistant, then
      operations, then the analysis screens, then the team, with billing and
      settings last. */
   const byId = Object.fromEntries(TAB_META.map((tb) => [tb.id, tb]));
   const navTabs = [
-    byId.overview, byId.costs, byId.ask,
+    byId.overview, SALES_TAB, byId.costs, byId.ask,
     INVENTORY_TAB, ALERTS_TAB, PLAN_TAB, RECIPES_TAB, VARIANCE_TAB,
     byId.watch, byId.menu, byId.forecast, byId.advice,
     MESSAGES_TAB, TEAM_TAB,
     byId.billing, byId.settings,
   ].filter((tb) => tb && allowed(tb.id));
 
-  const tab = allowed(rawTab) ? rawTab : "overview";
+  /* Falling back to a fixed "overview" assumed everybody has it. Now that the
+     dashboard is a profitability screen, a cashier's fallback has to be the
+     first tab they actually hold — otherwise a stale bookmark lands them on a
+     blank screen with no way to tell why. */
+  const firstAllowed = navTabs[0]?.id || "settings";
+  const tab = allowed(rawTab) ? rawTab : firstAllowed;
 
   const [branches, setBranches] = useState([]);
   const mainRef = useRef(null);
@@ -413,7 +438,10 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
   } else if (tab === "team") { body = <Team token={token} />; }
   else if (tab === "messages") { body = <Messages token={token} />; }
   else if (locked) { body = <Locked feature={needed} onSeePlans={() => go("billing")} />; }
-  else if (tab === "costs") { body = <Costs token={token} pendingDoc={pendingDoc} onDocUsed={() => setPendingDoc(null)} />; }
+  /* No `pendingDoc` here any more. The cost screen is a typed ledger and has
+     no scanner to hand a document to; documents route to Inventory or Recipes. */
+  else if (tab === "costs") { body = <Costs token={token} />; }
+  else if (tab === "sales") { body = <Sales token={token} branches={branches} />; }
   else if (tab === "inventory") { body = <Inventory token={token} pendingDoc={pendingDoc} onDocUsed={() => setPendingDoc(null)} />; }
   else if (tab === "recipes") { body = <Recipes token={token} pendingDoc={pendingDoc} onDocUsed={() => setPendingDoc(null)} />; }
   else if (tab === "variance") { body = <Variance token={token} branches={branches} />; }
@@ -421,6 +449,7 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
   else if (tab === "plan") { body = <Plan token={token} branches={branches} />; }
   else if (tab === "ask") {
     body = <Ask token={token} wide={desktop && !chatsOpen} pending={pending} onPendingUsed={() => setPending("")}
+      capabilities={scope?.capabilities}
       onRouteDoc={(route, extracted) => {
         /* The document has already been read by the time this fires. Hand the
            result across so the destination opens filled in rather than asking
@@ -539,13 +568,24 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
 
             {scopePicker}
 
-            {/* Export button */}
-            {data && !unconnectedAccount && (
+            {/* Export.
+
+                The `export` capability has existed since the roles were
+                written and nothing ever checked it. A cashier could take the
+                whole dashboard away as a PDF — every figure their role is
+                barred from seeing on screen, in a file, off the premises. The
+                nav gating was doing real work and this button quietly went
+                round it.
+
+                Gated on the capability rather than on a role list, so it
+                follows the same rule as everything else and an owner granting
+                a tab does not accidentally grant the ability to export it. */}
+            {data && !unconnectedAccount && can("export") && (
               <div className="relative">
                 <button onClick={() => setExportOpen((v) => !v)}
                   className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold"
                   style={{ background: "linear-gradient(135deg, rgba(139,92,246,0.12), rgba(6,182,212,0.06))", border: "1px solid rgba(139,92,246,0.2)", color: C.ink }}>
-                  <Download size={14} /><span className="flex-1 text-start">Export</span>
+                  <Download size={14} /><span className="flex-1 text-start">{t.export.title}</span>
                   <ChevronDown size={12} style={{ color: C.slate }} />
                 </button>
                 {exportOpen && <ExportMenu data={data} screen={tab} dateRange={dateRange}
@@ -555,7 +595,7 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
 
             <div className="flex items-center gap-2">
               <LanguagePicker /><ThemeToggle compact />
-              <NotificationBell data={data} onAsk={(q) => { startNewChat(); setPending(q); go("ask"); }} />
+              <NotificationBell data={data} capabilities={scope?.capabilities} onAsk={(q) => { startNewChat(); setPending(q); go("ask"); }} />
             </div>
             <div className="flex items-center justify-between gap-2 pt-3" style={{ borderTop: `1px solid ${C.hairline}` }}>
               <span className="text-xs truncate" style={{ color: C.slate }}>
@@ -616,8 +656,14 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
             );
           })}
         </div>
-        {/* Export on mobile */}
-        {data && !unconnectedAccount && (
+        {/* Export on mobile.
+
+            A second copy of the same control, and the reason gating the
+            sidebar was not enough: the desktop button was hidden and these two
+            were not, so a cashier on a phone could still take the dashboard
+            away. Two buttons doing one job in two places is how half a fix
+            ships and looks whole. */}
+        {data && !unconnectedAccount && can("export") && (
           <div className="flex gap-2">
             <button onClick={() => { exportPDF(tab, data, dateRange, account?.account?.business); setMobileMenu(false); }}
               className="flex-1 gpill gpill-primary py-2.5 text-sm font-semibold flex items-center justify-center gap-2">
@@ -644,7 +690,12 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
   return (
     <MobileShell tab={tab} go={go} tabIcons={TAB_ICONS} labelFor={labelFor} liveDot={liveDot}
       onOpenChats={() => setChatsOpen(true)} onOpenMenu={() => setMobileMenu((v) => !v)} menuOpen={mobileMenu} sheet={mobileSheet}
-      bell={<NotificationBell data={data} onAsk={(q) => { startNewChat(); setPending(q); go("ask"); }} />}>
+      bell={<NotificationBell data={data} capabilities={scope?.capabilities} onAsk={(q) => { startNewChat(); setPending(q); go("ask"); }} />}
+      /* Shown once there is somewhere to go back to. The landing tab is
+         whatever this person's role opens on, so back from there would leave
+         the app — which is the browser's job, not a button in our header. */
+      canGoBack={tab !== firstAllowed}
+      onBack={() => window.history.back()}>
       <AmbientBackground />
       <div className="relative z-10 h-full">{content}</div>
       {!desktop && chatsOpen && tab === "ask" && (

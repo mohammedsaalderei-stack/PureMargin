@@ -26,7 +26,17 @@
 
    A document it cannot place is reported as unplaced rather than pushed into
    the nearest match. "I don't know what this is" is a useful answer; a
-   purchase order filed as a recipe is not. */
+   purchase order filed as a recipe is not.
+
+   ── Why a customer bill has no destination ───────────────────────────────
+
+   It used to route to the cost screen, which scanned it, matched its lines to
+   the menu and priced them. That destination is gone: sales belong to the
+   till, and reading them off a printout created a second copy of a
+   transaction the POS already held, with nothing to reconcile the two. A
+   diner's bill now classifies as `unknown` and is handed back to the person,
+   which is the honest answer — the app has nowhere to put it. Correcting a
+   sale the till got wrong is `api/sales.js`, working on the real receipt. */
 
 export const KINDS = {
   supplier: {
@@ -40,12 +50,6 @@ export const KINDS = {
     tab: "recipes",
     scanner: "recipe",
     needs: "manage:recipes",
-  },
-  bill: {
-    /* A customer bill or a sales receipt from the till. */
-    tab: "costs",
-    scanner: "bill",
-    needs: "view:dashboard",
   },
   inventory: {
     /* A stock take, a shelf count, an opening balance sheet. */
@@ -64,18 +68,20 @@ Decide which ONE of these it is:
 
   supplier   — a delivery note, supplier invoice, or grocery receipt for goods
                bought BY the restaurant
-  bill       — a customer's bill or sales receipt, for food sold BY the
-               restaurant TO a diner
   recipe     — a recipe card, spec sheet or prep list with ingredient
                quantities
   inventory  — a stock take, shelf count or opening balance sheet
   unknown    — anything else, or a document that is genuinely two of these
 
-The distinction that matters most is supplier against bill: both are lists of
-lines with prices. A supplier document is money the restaurant PAID, usually
-with a supplier's name, a delivery or invoice number, and quantities in kilos,
-litres or cases. A bill is money a diner paid, usually with dish names from a
-menu, a table or order number, and quantities in whole covers.
+A customer's bill or sales receipt — food the restaurant SOLD to a diner — is
+"unknown" here. Sales come from the till, not from a photograph of a printout,
+so there is no screen to send one to. Say unknown and let a person decide.
+
+The distinction that matters most is supplier against a customer bill: both are
+lists of lines with prices. A supplier document is money the restaurant PAID,
+usually with a supplier's name, a delivery or invoice number, and quantities in
+kilos, litres or cases. A diner's bill has dish names from a menu, a table or
+order number, and quantities in whole covers — that one is unknown.
 
 Answer "unknown" when you are not sure. A document filed as the wrong kind is
 worse than one that is left for a person to place, because the wrong screen
@@ -83,7 +89,7 @@ will accept it and nobody will know where the numbers came from.
 
 Respond with ONLY this JSON:
 {
-  "kind": "supplier" | "bill" | "recipe" | "inventory" | "unknown",
+  "kind": "supplier" | "recipe" | "inventory" | "unknown",
   "confidence": "high" | "medium" | "low",
   "why": "<one short sentence naming what you saw that decided it>",
   "pages": <number of distinct documents you can see, or 1>

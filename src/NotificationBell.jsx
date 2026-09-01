@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { Bell, Check, X, MessageCircleQuestion } from "lucide-react";
 import { useC } from "./theme.jsx";
 import { useLang, fill } from "./i18n.jsx";
-import { buildNotices, pastEod, isWeekEnd } from "./notices.js";
+import { buildNotices, pastEod, isWeekEnd, noticesApply } from "./notices.js";
 
 /* The bell.
 
@@ -20,7 +21,7 @@ import { buildNotices, pastEod, isWeekEnd } from "./notices.js";
 const SEEN_KEY = "puremargin_notices_seen";
 const TONE = { good: "cyan", warn: "rose", info: "iris" };
 
-export default function NotificationBell({ data, onAsk }) {
+export default function NotificationBell({ data, onAsk, capabilities }) {
   const C = useC();
   const { t } = useLang();
   const [open, setOpen] = useState(false);
@@ -47,12 +48,20 @@ export default function NotificationBell({ data, onAsk }) {
   }, [open, data]);
 
   const notices = useMemo(() => buildNotices(data, prefs, {
-    t, fill, dailyTarget,
+    t, fill, dailyTarget, capabilities,
     pastEod: pastEod(eodTime),
     isWeekEnd: isWeekEnd(),
-  }), [data, prefs, dailyTarget, eodTime, t]);
+  }), [data, prefs, dailyTarget, eodTime, t, capabilities]);
 
   const unseen = notices.filter((n) => n.at > seen).length;
+
+  /* No bell at all for somebody none of these notices are for.
+
+     Different from an empty bell: an empty one says "nothing right now" and
+     invites checking again, which is the wrong promise to make to a chef who
+     will never receive anything. Hooks run above this so their order stays
+     fixed whichever way it goes. */
+  const applies = capabilities === undefined || noticesApply(capabilities);
 
   useEffect(() => {
     if (!open) return;
@@ -71,6 +80,8 @@ export default function NotificationBell({ data, onAsk }) {
     setSeen(now);
     try { localStorage.setItem(SEEN_KEY, String(now)); } catch { /* private mode */ }
   };
+
+  if (!applies) return null;
 
   return (
     <div className="relative" ref={box}>
@@ -97,7 +108,18 @@ export default function NotificationBell({ data, onAsk }) {
         )}
       </button>
 
-      {open && (
+      {/* Rendered into the body rather than here.
+
+          `position: fixed` is relative to the viewport only while no ancestor
+          creates a containing block — and `backdrop-filter` on the header does
+          exactly that. So the sheet was being laid out inside a fifty-six
+          pixel tall header and clipped to nothing, which is why it never
+          appeared as a popup. Nothing about the sheet was wrong; it was in the
+          wrong place in the tree.
+
+          A portal also frees it from the header's stacking context, so it
+          covers the screen instead of fighting the drawer for z-index. */}
+      {open && createPortal((
         /* A dialog rather than a dropdown.
 
            A panel hanging off a button in a sidebar had nowhere to go on a
@@ -170,7 +192,7 @@ export default function NotificationBell({ data, onAsk }) {
             </div>
           </div>
         </div>
-      )}
+      ), document.body)}
     </div>
   );
 }

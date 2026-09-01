@@ -162,12 +162,20 @@ const Message = memo(function Message({ m, index, C, t, reported, onReport, prev
   );
 });
 
-export default function Ask({ onRouteDoc,
+export default function Ask({ onRouteDoc, capabilities,
   token, wide, pending, onPendingUsed,
   messages, onMessagesChange, data, noticedLine, branches = [],
 }) {
   const C = useC();
   const { t, lang } = useLang();
+
+  /* A document is worth uploading only if at least one screen it could be
+     sorted into is open to this person. For a cashier every destination is
+     shut, so the control could only read the file and then refuse — better not
+     to ask for it. */
+  const canUpload = !capabilities || ["manage:inventory", "manage:recipes"]
+    .some((c) => capabilities.includes(c));
+
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [reporting, setReporting] = useState(null);
@@ -423,10 +431,18 @@ export default function Ask({ onRouteDoc,
             </button>
           </div>
           {/* Offered on the composer rather than buried in a menu: a person
-              holding a PDF is looking at the box they would have typed into. */}
-          <div className="mt-3">
-            <DocumentDrop token={token} onRoute={onRouteDoc} />
-          </div>
+              holding a PDF is looking at the box they would have typed into.
+
+              Not offered to somebody who could not act on any of it. Every
+              destination a document can be sorted into — stock, recipes, cost
+              calculation — needs a capability, so for a cashier the control
+              could only ever read a document and then say they may not open
+              the screen it belongs on. Better not to ask for the file. */}
+          {canUpload && (
+            <div className="mt-3">
+              <DocumentDrop token={token} onRoute={onRouteDoc} />
+            </div>
+          )}
 
           <div className="flex items-center justify-between gap-3 mt-2 flex-wrap">
             <span className="text-xs" style={{ color: C.slate }}>{t.ask.hint}</span>

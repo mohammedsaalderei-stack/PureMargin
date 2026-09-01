@@ -161,6 +161,29 @@ export async function saveVersion(orgId, input = {}) {
 
 /* Archived, never deleted: past sales were costed with these versions, and the
    figures they produced have to stay reproducible. */
+/* Remove a recipe outright.
+
+   Archiving was the only way out, on the reasoning that past sales were costed
+   with these versions and have to stay reproducible. That was right when
+   consumption was recomputed from recipes on demand. It is no longer: a sale
+   now writes actual movements into the ledger at the time it happens, so the
+   history lives in the ledger rather than in the recipe, and deleting one
+   changes what future sales consume rather than rewriting the past.
+
+   Archiving stays for a dish that is off the menu but might come back — its
+   versions and their dates are worth keeping. Deleting is for the recipe that
+   should never have existed: a duplicate, a mis-scanned card, a test. Telling
+   somebody their mistake can only be hidden is the software protecting its own
+   bookkeeping at their expense. */
+export async function deleteRecipe(orgId, id) {
+  const map = (await getJSON(RECIPES(orgId))) || {};
+  if (!map[id]) return { error: "notfound" };
+  const { menuItem } = map[id];
+  delete map[id];
+  await setJSON(RECIPES(orgId), map);
+  return { deleted: true, menuItem };
+}
+
 export async function archiveRecipe(orgId, id, { archived = true } = {}) {
   const map = await readAll(orgId);
   if (!map[id]) return { error: "notfound" };

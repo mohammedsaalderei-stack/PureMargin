@@ -1,4 +1,4 @@
-import { Menu as MenuIcon, MessageSquare } from "lucide-react";
+import { Menu as MenuIcon, MessageSquare, ChevronLeft } from "lucide-react";
 import { useC } from "./theme.jsx";
 import { useLang } from "./i18n.jsx";
 import BrandMark from "./BrandMark.jsx";
@@ -21,7 +21,7 @@ import BrandMark from "./BrandMark.jsx";
    surfacing first inside the drawer. It no longer decides what is reachable. */
 const PRIMARY = ["overview", "costs", "ask", "watch", "advice"];
 
-export default function MobileShell({ tab, go, tabIcons, labelFor, children, liveDot, onOpenChats, onOpenMenu, menuOpen, sheet, bell }) {
+export default function MobileShell({ tab, go, tabIcons, labelFor, children, liveDot, onOpenChats, onOpenMenu, menuOpen, sheet, bell, canGoBack, onBack }) {
   const C = useC();
   const { t } = useLang();
 
@@ -30,8 +30,31 @@ export default function MobileShell({ tab, go, tabIcons, labelFor, children, liv
       <header className="h-14 shrink-0 flex items-center justify-between px-3 gap-2 z-20"
         style={{ background: "var(--panel-glass)", backdropFilter: "blur(20px)", borderBottom: `1px solid ${C.hairline}` }}>
         <div className="flex items-center gap-2 min-w-0">
-          <BrandMark size={30} />
-          <span className="display font-bold text-base truncate-safe grad-text">{t.name}</span>
+          {/* A back control you can see.
+
+              The history integration already worked — the hardware gesture and
+              the browser's own button both moved between tabs. But on an
+              installed web app there is no browser chrome, and on iOS there is
+              no hardware button either, so for a large share of people the
+              back navigation existed and was unreachable. A gesture nobody can
+              find is not a feature. */}
+          {canGoBack ? (
+            <button
+              onClick={onBack}
+              className="p-2 -ms-1 rounded-lg min-w-[40px] min-h-[40px] flex items-center justify-center"
+              style={{ color: C.ink }}
+              aria-label={t.nav.back}
+            >
+              <ChevronLeft size={22} className="flip-rtl" />
+            </button>
+          ) : (
+            <BrandMark size={30} />
+          )}
+          {/* The screen's own name once you are inside one, so back has
+              somewhere obvious to go back from. */}
+          <span className="display font-bold text-base truncate-safe grad-text">
+            {canGoBack ? labelFor(tab) : t.name}
+          </span>
         </div>
         <div className="flex items-center gap-1 shrink-0">
           {liveDot}

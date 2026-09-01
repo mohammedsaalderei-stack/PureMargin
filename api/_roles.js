@@ -26,7 +26,7 @@ export const ROLES = {
       "view:costs", "view:reports", "export",
       "manage:recipes", "manage:inventory", "manage:costs",
       "manage:users", "manage:integrations", "manage:billing",
-      "approve:counts", "manage:purchasing",
+      "approve:counts", "manage:purchasing", "adjust:sales",
     ],
   },
   ops: {
@@ -38,6 +38,7 @@ export const ROLES = {
       "view:dashboard", "view:profitability", "view:forecast", "view:inventory",
       "view:costs", "view:reports", "export",
       "manage:recipes", "manage:inventory", "approve:counts", "manage:purchasing",
+      "adjust:sales",
     ],
   },
   branch_manager: {
@@ -46,6 +47,10 @@ export const ROLES = {
     can: [
       "view:dashboard", "view:profitability", "view:inventory", "view:reports",
       "export", "manage:inventory", "approve:counts", "manage:purchasing",
+      /* A till mistake is found at the branch, usually on the day. Sending
+         every wrong-price correction to the owner means most are never made,
+         and the figures stay wrong in a way everyone on site can see. */
+      "adjust:sales",
     ],
   },
   chef: {
@@ -60,9 +65,13 @@ export const ROLES = {
   cashier: {
     label: "Cashier",
     scope: "assigned",
-    /* The till. A cashier scans bills through the costs screen and reads the
-       day's table; nothing back-of-house, nothing financial beyond their own
-       shift's view. */
+    /* The till. A cashier reads the day's table; nothing back-of-house, and
+       nothing financial beyond their own shift's view.
+
+       Deliberately no `adjust:sales`. The person who rang a sale up wrong is
+       usually the person who would be correcting it, and a till where the
+       operator can quietly remove their own transactions is the oldest hole
+       in retail. Corrections belong to whoever the shift reports to. */
     can: ["view:dashboard"],
   },
   accountant: {
@@ -76,7 +85,7 @@ export const ROLES = {
        integrations. */
     can: [
       "view:costs", "view:reports", "view:profitability", "export", "manage:costs",
-      "view:inventory", "manage:purchasing",
+      "view:inventory", "manage:purchasing", "adjust:sales",
     ],
   },
 };

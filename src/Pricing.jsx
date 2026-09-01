@@ -9,19 +9,29 @@ import { DirhamMark } from "./Dirham.jsx";
 import LanguagePicker from "./LanguagePicker.jsx";
 import ThemeToggle from "./ThemeToggle.jsx";
 
-/* Six modules, priced separately. The third carries a launch discount, so
-   it's the only one that shows a struck-through price — a badge on every
-   card would make the discount meaningless. Prices are per month; the
-   duration selector shows what a 1, 3, 6 or 12 month term comes to. */
-/* Aligned index-for-index with `pricing.plans` followed by `pricing.extraPlans`
-   in the dictionary. `null` is not free — it means the card shows "on request"
-   instead of a monthly figure, which is right for hardware quoted per order and
-   for a branch surcharge that is a percentage of a total this page cannot know.
+/* Three packages, priced per month per business. Aligned index-for-index with
+   `pricing.plans` in the dictionary.
 
-   No launch discount at the moment, so no card carries a struck-through price;
-   a badge on every card would make the discount mean nothing. */
-const PRICES = [250, 150, 200, null, null];
-const WAS = [null, null, null, null, null];
+   ── What is not a card ───────────────────────────────────────────────────
+
+   Two of the five cards here were not packages. "An extra branch" had no
+   feature id behind it, so it could be chosen and would grant nothing; it is a
+   percentage of whatever the monthly total already is, which is a modifier and
+   not a thing to buy. "Till hardware" is a physical machine quoted per order —
+   the software cannot switch it on, and pricing it beside three subscriptions
+   invited somebody to add it to a basket that does not exist.
+
+   Both are still on the page, below the cards, stated as what they are.
+
+   `WAS` carries a struck-through price when a package is discounted. Empty at
+   the moment: a badge on every card would make the discount mean nothing. */
+const PRICES = [250, 150, 200];
+const WAS = [null, null, null];
+
+/* Kept in step with `BRANCH_SURCHARGE_PCT` in `api/billing.js`. Stated in one
+   sentence rather than computed, because the page cannot know a total it has
+   not been told. */
+const BRANCH_SURCHARGE_PCT = 50;
 
 const TERMS = [1, 3, 6, 12];
 
@@ -110,8 +120,6 @@ export default function Pricing({ onBack, onSignIn }) {
   const { t } = useLang();
   const [months, setMonths] = useState(1);
 
-  const allPlans = [...t.pricing.plans, ...(t.pricing.extraPlans || [])];
-
   return (
     <div className="min-h-full" style={{ background: C.bone }}>
       <header
@@ -168,10 +176,29 @@ export default function Pricing({ onBack, onSignIn }) {
           ))}
         </div>
 
-        <div className="max-w-6xl mx-auto grid md:grid-cols-2 gap-5">
-          {allPlans.map((plan, i) => (
+        <div className="max-w-6xl mx-auto grid md:grid-cols-2 lg:grid-cols-3 gap-5">
+          {t.pricing.plans.map((plan, i) => (
             <Plan key={plan.name} index={i} plan={plan} price={PRICES[i]} was={WAS[i]} months={months} />
           ))}
+        </div>
+
+        {/* The two things that are priced but are not packages. Below the
+            cards and visibly different from them, because putting a quote and
+            a percentage in the same row as three monthly prices is what made
+            people try to buy them. */}
+        <div className="max-w-6xl mx-auto mt-8 grid md:grid-cols-2 gap-4">
+          <div className="rounded-2xl p-5" style={{ border: `1px solid ${C.hairline}` }}>
+            <div className="display font-extrabold text-base mb-1.5">{t.pricing.extras.branches.name}</div>
+            <p className="text-sm leading-relaxed" style={{ color: C.slate }}>
+              {t.pricing.extras.branches.body.replace("{pct}", String(BRANCH_SURCHARGE_PCT))}
+            </p>
+          </div>
+          <div className="rounded-2xl p-5" style={{ border: `1px solid ${C.hairline}` }}>
+            <div className="display font-extrabold text-base mb-1.5">{t.pricing.extras.hardware.name}</div>
+            <p className="text-sm leading-relaxed" style={{ color: C.slate }}>
+              {t.pricing.extras.hardware.body}
+            </p>
+          </div>
         </div>
 
         <p className="max-w-6xl mx-auto text-xs leading-relaxed mt-6" style={{ color: C.slate }}>

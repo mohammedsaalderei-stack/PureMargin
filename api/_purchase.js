@@ -1,5 +1,6 @@
 import { listIngredients } from "./_inventory.js";
 import { normaliseUnit, isPackaging, toStockUnit } from "./_unitwords.js";
+import { sameDimension } from "./_units.js";
 import { slug } from "./_inventory.js";
 
 /* A supplier invoice, turned into something the store can receive.
@@ -107,6 +108,9 @@ export function buildPurchase(parsed, ingredients) {
     const text = String(line.text || line.description || "").trim();
     const qty = num(line.qty);
     const total = num(line.amount);
+
+    const printed = String(line.unit || "").trim();
+    const unit = normaliseUnit(printed);
     /* The model was given the real list and asked to pick from it. Trust that
        pick only after checking the name is actually on the list — a model asked
        to choose from a list will occasionally return something adjacent to it —
@@ -128,15 +132,53 @@ export function buildPurchase(parsed, ingredients) {
        and a quantity; the per-unit figure it sometimes also prints is rounded
        for display, and using it would make the stock value drift from what was
        actually paid. */
-    const unitCost = qty && total ? Math.round((total / qty) * 10000) / 10000 : null;
+    /* Cost per unit of whatever the invoice counted in — per tin, per sack,
+       per kilo. Correct as far as it goes, and not yet what the ledger wants. */
+    const stockUnit = hit?.ingredient?.stockUnit || null;
+    const inStock = unit && stockUnit ? toStockUnit(qty, unit, stockUnit) : null;
+
+    const perInvoiceUnit = qty && total ? total / qty : null;
+
+    /* Restated into the unit the shelf is kept in.
+
+       A supplier sells four tins at 68 each; the shelf counts litres and a tin
+       holds five. Without this the ledger is told "68 per tin" and either
+       refuses the line — a tin is not a unit it knows — or records a litre
+       costing 68, which is out by a factor of five and silently wrong in every
+       recipe built on it.
+
+       Three routes, in order of how much is actually known. A unit the ledger
+       already keeps converts directly. A packaging word with a pack size on
+       the ingredient divides by it. Anything else leaves the figure alone and
+       flags the line, because a guessed conversion is worse than an obvious
+       gap. */
+    const asStockUnit = (() => {
+      if (perInvoiceUnit === null || !stockUnit) return { unitCost: perInvoiceUnit, qty };
+
+      if (unit && sameDimension(unit, stockUnit)) {
+        const inStock = toStockUnit(qty, unit, stockUnit);
+        if (inStock && inStock.qty > 0) {
+          return { unitCost: (total || 0) / inStock.qty, qty: inStock.qty, converted: true };
+        }
+      }
+
+      const pack = Number(hit?.ingredient?.packSize);
+      const buys = hit?.ingredient?.purchaseUnit;
+      if (pack > 0 && buys && printed && buys.toLowerCase() === printed.toLowerCase()) {
+        const stockQty = qty * pack;
+        return { unitCost: (total || 0) / stockQty, qty: stockQty, converted: true, viaPack: true };
+      }
+
+      return { unitCost: perInvoiceUnit, qty, unknown: true };
+    })();
+
+    const unitCost = asStockUnit.unitCost === null
+      ? null
+      : Math.round(asStockUnit.unitCost * 10000) / 10000;
 
     /* The unit as printed, plus what it actually is. An invoice saying كجم or
        LBS names a unit this ledger keeps; one saying "sack" names a package,
        which is a different problem and gets said differently on screen. */
-    const printed = String(line.unit || "").trim();
-    const unit = normaliseUnit(printed);
-    const stockUnit = hit?.ingredient?.stockUnit || null;
-    const inStock = unit && stockUnit ? toStockUnit(qty, unit, stockUnit) : null;
 
     return {
       text,
@@ -147,7 +189,10 @@ export function buildPurchase(parsed, ingredients) {
       /* The same quantity in the unit the shelf is kept in, when the two can be
          reconciled. Null when they cannot — a count is not a mass, and a pack
          size is something a person supplies rather than something to guess. */
-      stockQty: inStock ? inStock.qty : null,
+      /* The quantity in the shelf's own unit, and the cost of one of those —
+         which is the pair the ledger actually stores. */
+      stockQty: asStockUnit.qty ?? (inStock ? inStock.qty : null),
+      costUnknown: Boolean(asStockUnit.unknown),
       converted: Boolean(inStock?.converted),
       amount: total,
       unitCost,

@@ -6,6 +6,7 @@
 import { buildAdvice } from "./_advice.js";
 import { marginLayer } from "./_margin.js";
 import { aggregate } from "./_aggregate.js";
+import { applyEdits, receiptIdOf } from "./_saleedits.js";
 import { provider } from "./_pos.js";
 
 /* Everything vendor-specific — base URL, auth, endpoint names, field names,
@@ -277,6 +278,38 @@ export async function widestHistoryDays(token, now = Date.now(), ladder = HISTOR
    sale has to be identifiable so it is not posted twice. This returns them one
    by one, in the adapter's neutral shape, so the depletion never sees a
    vendor's spelling. */
+/* Stock levels as the till keeps them.
+
+   Only meaningful for a till whose adapter says it keeps stock at all, and the
+   caller checks that before asking — an unsupported till would otherwise
+   return an empty list that reads like an empty store.
+
+   Deliberately thin. This returns what the till has: an item, a branch and a
+   number. It does not invent a unit, a pack size or a supplier, because the
+   till does not have them and filling the gap with a guess is how a stock
+   figure ends up meaning something different from what anybody thinks. */
+export async function posInventory(token, branchId = null) {
+  const pos = provider();
+  if (!pos.inventory?.supported) return { supported: false, levels: [] };
+
+  const data = await call(pos.inventory.path(), token);
+  const levels = pos.inventory.listOf(data)
+    .map((row) => pos.inventory.level(row))
+    .filter((l) => l.itemId && Number.isFinite(l.qty))
+    .filter((l) => !branchId || l.branchId === String(branchId));
+
+  return { supported: true, levels, limits: pos.inventory.limits || [] };
+}
+
+export function posInventorySupport() {
+  const pos = provider();
+  return {
+    supported: Boolean(pos.inventory?.supported),
+    limits: pos.inventory?.limits || [],
+    label: pos.label,
+  };
+}
+
 export async function receiptsFor(token, branchId, { days = 7, now = Date.now() } = {}) {
   const pos = provider();
   const since = new Date(now - days * DAY).toISOString();
@@ -286,7 +319,7 @@ export async function receiptsFor(token, branchId, { days = 7, now = Date.now() 
     .map((r) => {
       const receipt = pos.receipt(r);
       return {
-        id: String(r.receipt_number || r.id || r.receipt_id || `${receipt.branchId}-${receipt.at}`),
+        id: receiptIdOf(r) || `${receipt.branchId}-${receipt.at}`,
         branchId: receipt.branchId,
         at: receipt.at,
         lines: receipt.lines,
@@ -464,7 +497,43 @@ export async function branchList(posToken) {
   });
 }
 
-export async function getMetrics(posToken, { maxAge = CACHE_MS, overrides = {}, branches = null } = {}) {
+/* The cached upstream read, shared by everything that needs receipts.
+
+   `getMetrics` and `salesLines` had this same block twice already; the sale
+   list would have made three. Three copies of a cache lookup is three places
+   for the eviction rule to differ. */
+async function cachedRaw(token, maxAge = CACHE_MS) {
+  const key = token.slice(0, 24);
+  const hit = cache.get(key);
+  if (hit && Date.now() - hit.at < maxAge) return { raw: hit.raw, fetched: false };
+
+  let raw;
+  try {
+    raw = await fetchRaw(token);
+  } catch (err) {
+    console.error("POS fetch failed:", err.message);
+    throw new PosUnreachable(err.message);
+  }
+  cache.set(key, { at: Date.now(), raw });
+  return { raw, fetched: true };
+}
+
+/* Receipts as the till returned them, newest window first, with no
+   aggregation and no corrections applied.
+
+   The sale list needs the untouched record — it shows what the till said
+   beside what it was changed to, so it must not be handed something already
+   corrected. Applying the overlay is the caller's job. */
+export async function rawReceipts(posToken, { days = 7, maxAge = CACHE_MS } = {}) {
+  const token = posToken || process.env.POS_ACCESS_TOKEN || process.env.LOYVERSE_ACCESS_TOKEN || "";
+  if (!token) throw new NotConnected();
+
+  const { raw } = await cachedRaw(token, maxAge);
+  const since = Date.now() - days * DAY;
+  return raw.receipts.filter((r) => new Date(r.receipt_date).getTime() >= since);
+}
+
+export async function getMetrics(posToken, { maxAge = CACHE_MS, overrides = {}, branches = null, edits = {} } = {}) {
   const token = posToken || process.env.POS_ACCESS_TOKEN || process.env.LOYVERSE_ACCESS_TOKEN || "";
   /* No POS linked yet: refuse to invent figures. The interface turns this
      into the connect-your-POS state rather than presenting sample numbers as
@@ -478,24 +547,10 @@ export async function getMetrics(posToken, { maxAge = CACHE_MS, overrides = {}, 
      longer belong in the key for the same reason: they're applied during
      aggregation, so entering a cost is reflected immediately without a
      refetch. */
-  const key = token.slice(0, 24);
-  const hit = cache.get(key);
-
-  let raw = hit && Date.now() - hit.at < maxAge ? hit.raw : null;
-  /* Whether this call went upstream. The sync log records real fetches only —
-     the dashboard polls every thirty seconds and almost all of those are cache
-     hits, which are not events worth logging. */
-  let fetched = false;
-  if (!raw) {
-    try {
-      raw = await fetchRaw(token);
-    } catch (err) {
-      console.error("POS fetch failed:", err.message);
-      throw new PosUnreachable(err.message);
-    }
-    fetched = true;
-    cache.set(key, { at: Date.now(), raw });
-  }
+  /* `fetched` says whether this call went upstream. The sync log records real
+     fetches only — the dashboard polls every thirty seconds and almost all of
+     those are cache hits, which are not events worth logging. */
+  const { raw, fetched } = await cachedRaw(token, maxAge);
 
   /* `branches` is already authorized and intersected by the caller. null means
      the whole organization. */
@@ -505,7 +560,14 @@ export async function getMetrics(posToken, { maxAge = CACHE_MS, overrides = {}, 
       ? null
       : branches;
 
-  const shaped = finish(aggregate(raw, { overrides, branches: scoped }));
+  /* Corrections are applied to the receipts before anything is counted, for
+     the same reason the branch filter is: a figure derived from an uncorrected
+     receipt and then adjusted afterwards can only ever be the headline total —
+     the item, daily and hourly series would still carry the sale the owner
+     said never happened. Applied here, one void reaches every number. */
+  const corrected = { ...raw, receipts: applyEdits(raw.receipts, edits) };
+
+  const shaped = finish(aggregate(corrected, { overrides, branches: scoped }));
   return {
     ...shaped,
     allBranches: raw.allBranches,
@@ -519,6 +581,9 @@ export async function getMetrics(posToken, { maxAge = CACHE_MS, overrides = {}, 
       historyDays: raw.historyDays,
       wentUpstream: fetched,
       branchNames: raw.storeNames,
+      /* How many receipts the owner has corrected, so provenance can say the
+         figures are not purely the till's. */
+      editCount: Object.keys(edits || {}).length,
       // How many item costs came from the owner rather than the POS.
       overrideCount: Object.keys(overrides).length,
     },
@@ -537,32 +602,27 @@ export async function getMetrics(posToken, { maxAge = CACHE_MS, overrides = {}, 
    `branches` is the already-authorized, already-intersected list — a filter over
    receipts, exactly as in `aggregate`, and never a list straight from a request.
    Refunds and cancelled receipts are excluded: a refunded sale consumed no
-   ingredients.
+   ingredients. Owner corrections are applied for the same reason — a voided
+   sale consumed nothing either.
 
    The provenance of the read travels with it, because a variance figure resting
    on a stale or truncated sales history is a different claim from one that isn't. */
-export async function salesLines(posToken, { from, to = Date.now(), branches = null, maxAge = CACHE_MS } = {}) {
+export async function salesLines(posToken, { from, to = Date.now(), branches = null, maxAge = CACHE_MS, edits = {} } = {}) {
   const token = posToken || process.env.POS_ACCESS_TOKEN || process.env.LOYVERSE_ACCESS_TOKEN || "";
   if (!token) throw new NotConnected();
 
-  const key = token.slice(0, 24);
-  const hit = cache.get(key);
-  let raw = hit && Date.now() - hit.at < maxAge ? hit.raw : null;
-  if (!raw) {
-    try {
-      raw = await fetchRaw(token);
-    } catch (err) {
-      console.error("Loyverse fetch failed:", err.message);
-      throw new PosUnreachable(err.message);
-    }
-    cache.set(key, { at: Date.now(), raw });
-  }
+  const { raw } = await cachedRaw(token, maxAge);
 
   const allowed = branches === null ? null : new Set(branches.map(String));
   const pos = provider();
   const rows = new Map();
 
-  for (const r of raw.receipts) {
+  /* The same corrections the dashboard reads. Leaving them out here would let
+     a voided sale keep drawing theoretical stock: the leakage screen would
+     expect ingredients to have left the shelf for a meal the owner has already
+     said was never served, and report the difference as unexplained — which is
+     precisely the reading that sends somebody looking for a thief. */
+  for (const r of applyEdits(raw.receipts, edits)) {
     if (r.receipt_type === "REFUND" || r.cancelled_at) continue;
     const receipt = pos.receipt(r);
     const branchId = receipt.branchId;

@@ -7,6 +7,7 @@ import CountsPanel from "../inventory/CountsPanel.jsx";
 import PurchasingPanel from "../purchasing/PurchasingPanel.jsx";
 import SupplierScan from "../ai/SupplierScan.jsx";
 import IngredientIcon from "../inventory/IngredientIcon.jsx";
+import StockSource from "../inventory/StockSource.jsx";
 import { useC } from "../theme.jsx";
 import { useLang, fill } from "../i18n.jsx";
 
@@ -223,8 +224,13 @@ export default function Inventory({ token, pendingDoc, onDocUsed }) {
             with. A PDF invoice from a supplier is a perfect record of what was
             bought and what it cost — better than any photograph of the shelf
             it ended up on. */}
+        {/* Which side keeps the stock. Above the depletion switch because it
+            decides whether that switch applies at all. */}
+        {canManage && <StockSource token={token} meta={state?.meta} onChanged={load} />}
+
         {/* The one setting on this screen that changes what another screen
             means, so the consequence is stated rather than linked to. */}
+        {state?.meta?.stockSource !== "pos" && (
         <section className="rounded-2xl border p-5" style={{ borderColor: C.hairline }}>
           <label className="flex items-start gap-3 cursor-pointer">
             <input
@@ -246,6 +252,7 @@ export default function Inventory({ token, pendingDoc, onDocUsed }) {
             </span>
           </label>
         </section>
+        )}
 
         <SupplierScan
           token={token}

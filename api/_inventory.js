@@ -19,7 +19,7 @@
    impossible later. */
 
 import { getJSON, setJSON, del } from "./_store.js";
-import { isUnit, dimensionOf, UNITS } from "./_units.js";
+import { isUnit, dimensionOf, UNITS, convert as convertUnits } from "./_units.js";
 
 const ING = (orgId) => `inv:${orgId}:ingredients`;
 const SUP = (orgId) => `inv:${orgId}:suppliers`;
@@ -68,6 +68,25 @@ export function validateIngredient({ name, stockUnit, purchaseUnit, packSize }) 
   return null;
 }
 
+/* Restate the figures a person typed in the old unit.
+
+   Only these two: everything else about an ingredient is either a label or is
+   stored in base units and needs no touching. */
+function convertTypedFigures(record, fromUnit, toUnit) {
+  if (!fromUnit || fromUnit === toUnit) return record;
+  if (dimensionOf(fromUnit) !== dimensionOf(toUnit)) return record;
+
+  const move = (v) => (Number.isFinite(Number(v)) && v !== null
+    ? Math.round(convertUnits(Number(v), fromUnit, toUnit) * 1e6) / 1e6
+    : v);
+
+  return {
+    ...record,
+    reorderPoint: move(record.reorderPoint),
+    parLevel: move(record.parLevel),
+  };
+}
+
 export async function saveIngredient(orgId, input) {
   const error = validateIngredient(input);
   if (error) return { error };
@@ -81,9 +100,23 @@ export async function saveIngredient(orgId, input) {
     id,
     name: String(input.name).trim(),
     category: String(input.category || "").trim(),
-    /* The unit stock is held and recipes are written in. Changing it on an
-       ingredient that already has history would restate that history, so the
-       caller is told rather than silently allowed. */
+    /* The unit stock is held and recipes are written in.
+
+       Changing it used to reinterpret every stored number: an ingredient
+       switched from kilos to grams kept a balance of 12 and became twelve
+       grams of tomatoes. The comment here claimed the caller was told, and
+       nothing implemented that.
+
+       Now the change is a conversion. Quantities are stored against a base
+       unit — grams, millilitres, pieces — so the balances and the ledger are
+       already independent of what the shelf is labelled in, and switching the
+       label leaves them untouched and correct. What has to move with it are
+       the figures written in the old unit and stored as typed: the reorder
+       point and the par level. Those are converted below.
+
+       A change between dimensions is still refused, because there is no
+       conversion from litres to kilograms that does not require a density
+       nobody supplied. */
     stockUnit: input.stockUnit,
     dimension: dimensionOf(input.stockUnit),
     purchaseUnit: input.purchaseUnit || input.stockUnit,
@@ -105,9 +138,16 @@ export async function saveIngredient(orgId, input) {
     updatedAt: now,
   };
 
-  map[id] = record;
+  /* An existing ingredient whose unit just changed: restate the figures that
+     were typed in the old one, so a reorder point of 5 kg does not silently
+     become 5 g. */
+  map[id] = existing && existing.stockUnit !== record.stockUnit
+    ? convertTypedFigures(record, existing.stockUnit, record.stockUnit)
+    : record;
   await setJSON(ING(orgId), map);
-  return { ingredient: record, created: !existing };
+  /* map[id], not record — the conversion above writes to the map, and
+     returning the pre-conversion object would send the caller a stale unit. */
+  return { ingredient: map[id], created: !existing };
 }
 
 /* Archive, never delete. The document is explicit that the ledger is corrected
@@ -254,18 +294,41 @@ export async function getMeta(orgId) {
     autoDepleteFromSales: meta.autoDepleteFromSales === undefined
       ? true
       : Boolean(meta.autoDepleteFromSales),
+
+    /* Which side keeps the stock: this app, or the till.
+
+       "puremargin" is the default and the fuller answer — ingredients with
+       units, pack sizes, suppliers and a cost per unit taken from what was
+       actually paid. "pos" reads levels straight from the till instead, which
+       is less work and less information, and the till's own adapter says what
+       is lost.
+
+       They are alternatives rather than settings that combine. Both sides
+       deducting the same sale would double it, so choosing the till turns
+       automatic depletion off and the switch says so rather than leaving
+       somebody to find a balance falling twice as fast as it should. */
+    stockSource: meta.stockSource === "pos" ? "pos" : "puremargin",
   };
 }
 
-export async function saveMeta(orgId, { categories, locations, autoDepleteFromSales }) {
+export async function saveMeta(orgId, { categories, locations, autoDepleteFromSales, stockSource }) {
   const clean = (list) =>
     [...new Set((list || []).map((v) => String(v).trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
   const meta = {
     categories: clean(categories ?? (await getMeta(orgId)).categories),
     locations: clean(locations ?? (await getMeta(orgId)).locations),
-    autoDepleteFromSales: autoDepleteFromSales === undefined
-      ? (await getMeta(orgId)).autoDepleteFromSales
-      : Boolean(autoDepleteFromSales),
+    stockSource: stockSource === undefined
+      ? (await getMeta(orgId)).stockSource
+      : (stockSource === "pos" ? "pos" : "puremargin"),
+
+    /* Forced off when the till keeps the stock. Leaving it on would deduct
+       every sale twice — once here and once there — and the balance would fall
+       at double the rate with nothing on screen explaining why. */
+    autoDepleteFromSales: (stockSource ?? (await getMeta(orgId)).stockSource) === "pos"
+      ? false
+      : (autoDepleteFromSales === undefined
+        ? (await getMeta(orgId)).autoDepleteFromSales
+        : Boolean(autoDepleteFromSales)),
   };
   await setJSON(META(orgId), meta);
   return meta;

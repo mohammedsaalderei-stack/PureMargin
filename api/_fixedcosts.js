@@ -48,6 +48,34 @@ function daysInMonthOf(ms) {
   return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate();
 }
 
+/* One constant cost expressed as what it comes to in a month.
+
+   The simplified cost screen states a single figure — "constant costs, 8,450 a
+   month" — and a yearly licence has to be comparable with monthly rent before
+   they can be added together. A year is twelve months by definition, so /12 is
+   exact rather than a convention.
+
+   Weekly is legacy: the screen no longer offers it, but entries made before it
+   was dropped are still real money and must not read as zero. 52/12 is the
+   average month, which is the only honest conversion when weeks don't divide
+   into months.
+
+   This is a *display* normalisation and nothing else. `apportion` below is
+   still what costs a date range, and it stays per-day — a month with 28 days
+   and a month with 31 do not cost the same, and rounding that away here would
+   put a number on screen that no report agrees with. */
+export function monthlyEquivalent(cost) {
+  const amount = Number(cost?.amount);
+  if (!Number.isFinite(amount) || amount <= 0) return 0;
+  if (cost.period === "yearly") return Math.round((amount / 12) * 100) / 100;
+  if (cost.period === "weekly") return Math.round(((amount * 52) / 12) * 100) / 100;
+  return Math.round(amount * 100) / 100;
+}
+
+export function monthlyTotal(costs = []) {
+  return Math.round(costs.reduce((n, c) => n + monthlyEquivalent(c), 0) * 100) / 100;
+}
+
 export function validateCost({ name, amount, period, startedAt }) {
   if (!String(name || "").trim()) return "name";
   if (!(Number(amount) > 0)) return "amount";

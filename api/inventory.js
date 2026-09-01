@@ -18,6 +18,8 @@
 import { requireAuth } from "./_auth.js";
 import { scopeFor } from "./_org.js";
 import { recordAudit } from "./_audit.js";
+import { posInventory, posInventorySupport } from "./_data.js";
+import { posTokenFor } from "./_accounts.js";
 import {
   listIngredients, saveIngredient, archiveIngredient, restoreIngredient,
   deleteIngredient, resetInventory,
@@ -60,6 +62,29 @@ export default async function handler(req, res) {
   const what = String(req.query?.what || "all");
 
   try {
+    /* What the till can offer, so the switch can describe the trade rather
+       than presenting two unlabelled options. Cheap: no network, just what the
+       adapter declares. */
+    if (req.method === "GET" && what === "possupport") {
+      return res.status(200).json(posInventorySupport());
+    }
+
+    /* Levels straight from the till, for an org that has chosen it as the
+       source. Asked for explicitly rather than folded into the main GET,
+       because it is a network call to somebody else's service and the
+       inventory screen should still load when that service is down. */
+    if (req.method === "GET" && what === "poslevels") {
+      const support = posInventorySupport();
+      if (!support.supported) return res.status(409).json({ error: "unsupported", ...support });
+      try {
+        const out = await posInventory(await posTokenFor(session.username), req.query?.branchId || null);
+        return res.status(200).json(out);
+      } catch (err) {
+        console.error("POS inventory read failed:", err?.message || err);
+        return res.status(502).json({ error: "pos" });
+      }
+    }
+
     if (req.method === "GET") {
       if (!may("view:inventory")) return res.status(403).json({ error: "forbidden" });
 

@@ -23,8 +23,7 @@ import { branchList } from "./_data.js";
 import { recordAudit } from "./_audit.js";
 import { COST_METHODS, DEFAULT_COST_METHOD } from "./_costing.js";
 import {
-  saveVersion, archiveRecipe, costedRecipe, costedList, simulate, recipeMeta, getRecipe,
-} from "./_recipes.js";
+  saveVersion, archiveRecipe, costedRecipe, costedList, simulate, recipeMeta, getRecipe, deleteRecipe } from "./_recipes.js";
 
 async function branchesFor(session) {
   try {
@@ -146,9 +145,26 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "what" });
     }
 
-    /* No DELETE: past sales were costed with these versions and have to stay
-       reproducible. Archiving is the way out. */
-    return res.status(405).json({ error: "Use GET or POST." });
+    /* DELETE removes it. Consumption is written into the ledger as sales
+       happen, so the history no longer depends on the recipe still existing —
+       deleting changes what future sales consume, not what past ones did.
+       Archiving remains for a dish that may come back. */
+    if (req.method === "DELETE") {
+      if (!may("manage:recipes")) return res.status(403).json({ error: "forbidden" });
+      const id = String(req.query?.id || "");
+      if (!id) return res.status(400).json({ error: "id" });
+
+      const out = await deleteRecipe(orgId, id);
+      if (out.error) return res.status(404).json({ error: out.error });
+
+      await recordAudit(orgId, {
+        actor: session.username, action: "recipe.delete", target: id,
+        detail: { menuItem: out.menuItem },
+      });
+      return res.status(200).json(out);
+    }
+
+    return res.status(405).json({ error: "Use GET, POST or DELETE." });
   } catch (err) {
     console.error("recipes endpoint failed:", err);
     return res.status(500).json({ error: "server" });

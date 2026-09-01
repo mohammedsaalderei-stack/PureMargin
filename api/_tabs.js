@@ -12,14 +12,34 @@ import { ROLES, ROLE_KEYS } from "./_roles.js";
    caller already has, the board is how the team reaches each other, and
    settings is a person's own account. Everything else is earned. */
 export const TAB_ACCESS = {
-  overview: "view:dashboard",
+  /* The dashboard leads with net margin, carries food cost and a profitability
+     score, and is the one screen where the money is largest on the page. That
+     is not a till view. A cashier holding `view:dashboard` was being shown the
+     business's margin because the tab happened to be named "overview" — the
+     capability was right and the tab was mapped to the wrong one.
+
+     Their landing screen is Cost calculation instead, which is the work they
+     actually do: scan a bill, see it priced. */
+  overview: "view:profitability",
   costs: "view:dashboard",
   ask: null,
   inventory: "view:inventory",
   alerts: "view:inventory",
   plan: "manage:purchasing",
   recipes: "manage:recipes",
-  variance: "view:costs",
+  /* Leakage is shelved rather than deleted.
+
+     It compares what the ledger says left the store against what sales say
+     should have — and with automatic depletion on by default, consumption is
+     now written from those same sales, so both sides are the same number and
+     the screen reads zero however much is being wasted. Showing a screen that
+     is structurally incapable of finding anything is worse than not showing
+     it: a column of zeros looks like good news.
+
+     The endpoint, the calculation and its tests all stay. Restoring it is
+     putting this line back, which is what it should be if counting the shelf
+     ever becomes the primary way leakage is found. */
+  // variance: "view:costs",
   watch: "view:profitability",
   menu: "view:profitability",
   forecast: "view:forecast",

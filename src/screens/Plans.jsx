@@ -1,6 +1,7 @@
-import { BarChart3, Camera, Check, LineChart, Lock, MessageSquare, Package, UtensilsCrossed } from "lucide-react";
+import { BarChart3, Check, Lock, MessageSquare, Package, Wallet } from "lucide-react";
 import { useC } from "../theme.jsx";
 import { useLang, fill, formatDate } from "../i18n.jsx";
+import { normaliseFeatures } from "../entitlements.js";
 
 /* What the account has — read-only.
 
@@ -9,19 +10,23 @@ import { useLang, fill, formatDate } from "../i18n.jsx";
    states what's live, until when, and how to get more. A member of a team
    sees the owner's packages here, because they apply to the whole team. */
 
+/* The three packages, in the order the pricing page lists them. Five cards
+   used to be drawn here, two of which named ids the server could not grant —
+   so an owner could see "Menu engineering" on their own account screen, never
+   own it, and find no price for it anywhere. */
 const CATALOGUE = [
   { id: "assistant", icon: MessageSquare },
-  { id: "menu", icon: UtensilsCrossed },
-  { id: "forecast", icon: LineChart },
   { id: "operations", icon: Package },
-  { id: "billscan", icon: Camera },
+  { id: "costs", icon: Wallet },
 ];
 
 export default function Plans({ account }) {
   const C = useC();
   const { t, lang } = useLang();
   const plan = account?.account?.plan || {};
-  const owned = (plan.items || []).filter((i) => i !== "table");
+  /* Retired ids translated forward, so an account that bought `billscan`
+     shows the costs package as owned rather than showing nothing at all. */
+  const owned = normaliseFeatures(plan.items || []).filter((i) => i !== "table");
   const expired = plan.expired;
 
   return (

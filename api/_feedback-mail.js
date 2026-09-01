@@ -1,3 +1,4 @@
+import { shell, row } from "./_mail.js";
 /* The "unhelpful answer" report, as mail.
 
    Kept apart from _mail.js so the transport stays a transport: this file only
@@ -16,12 +17,6 @@ const REASONS = {
 const escape = (s) =>
   String(s).replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
 
-const block = (label, body) => `
-  <div style="margin:0 0 16px">
-    <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#6B6580;margin-bottom:4px">${label}</div>
-    <div style="font-size:14px;line-height:1.6;white-space:pre-wrap">${escape(body) || "—"}</div>
-  </div>`;
-
 export function feedbackMail(report) {
   const reason = REASONS[report.reason] || REASONS.other;
   const subject = `PureMargin feedback: ${reason} — ${report.user}`;
@@ -39,16 +34,18 @@ export function feedbackMail(report) {
     report.answer || "—",
   ].join("\n");
 
-  const html = `<!DOCTYPE html><html><body style="margin:0;padding:32px;background:#F7F6FB;font-family:system-ui,-apple-system,'Segoe UI',sans-serif;color:#1A1530">
-    <div style="max-width:560px;margin:0 auto;background:#fff;border:1px solid rgba(139,92,246,.15);border-radius:14px;padding:32px">
-      <div style="font-size:18px;font-weight:800;color:#8B5CF6;margin-bottom:24px">PureMargin</div>
-      <div style="font-size:16px;font-weight:700;margin-bottom:20px">Unhelpful answer reported</div>
-      ${block("Reason", report.detail ? `${reason} — ${report.detail}` : reason)}
-      ${block("User", `${report.user} · ${report.lang || "unknown"} · ${report.at}`)}
-      ${block("Question", report.question)}
-      ${block("Answer", report.answer)}
-    </div>
-  </body></html>`;
+  /* Same layout as every other message the product sends. It used to build
+     its own card, which drifted from the others the moment either changed. */
+  const html = shell({
+    title: "Unhelpful answer reported",
+    intro: "Somebody pressed thumbs-down and told us why.",
+    blocks: [
+      row("Reason", `${reason}${report.detail ? ` — ${report.detail}` : ""}`),
+      row("User", `${report.user || "unknown"} · ${report.lang || "unknown"} · ${report.at || ""}`),
+      row("Question", report.question || "—"),
+      row("Answer", report.answer || "—"),
+    ],
+  });
 
   return { subject, html, text };
 }

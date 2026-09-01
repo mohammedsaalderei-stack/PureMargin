@@ -201,6 +201,15 @@ export default function Recipes({ token, pendingDoc, onDocUsed }) {
           <RecipeSheet token={token} recipe={open} method={method} canManage={state.canManage}
             onClose={() => { setOpen(null); setOpenId(null); }}
             onEdit={() => startEditing(open)}
+            onDelete={async () => {
+              if (!window.confirm(fill(t.recipes.deleteConfirm, { name: open.menuItem }))) return;
+              try {
+                await fetch(`/api/recipes?id=${encodeURIComponent(open.id)}`,
+                  { method: "DELETE", headers: auth });
+                setOpen(null);
+                await load();
+              } catch { /* the list reloads either way */ }
+            }}
             onArchive={(archived) => archive(open.id, archived)} />
         )}
       </div>

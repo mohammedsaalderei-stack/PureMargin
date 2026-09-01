@@ -20,11 +20,29 @@ import "../glass.css";
 /* ─── Date + category filter bar ─────────────────────────── */
 /* Labels come from the dictionary; they used to be hardcoded English and
    stayed English in Arabic, Hindi and Filipino. */
+/* Periods, as day counts.
+
+   "monthly" used to mean *everything the API returned*, which was fine while
+   that was always thirty days and became a lie the moment the history ladder
+   started pulling a year: the button said "this month" and the figures covered
+   twelve. Now each period is an explicit number of days, and the longer ones
+   only appear when there is enough history behind them — offering a year to an
+   account whose plan caps it at a month is offering a button that lies. */
 export const DATE_RANGES = [
-  { key: "daily", label: "Today" },
-  { key: "weekly", label: "This Week" },
-  { key: "monthly", label: "This Month" },
+  { key: "daily", days: 1 },
+  { key: "weekly", days: 7 },
+  { key: "monthly", days: 30 },
+  { key: "quarter", days: 90 },
+  { key: "year", days: 365 },
 ];
+
+export function rangesFor(data) {
+  /* Fall back to what is actually on hand when the API did not say. A period
+     longer than the data is a flat line with a confident label. */
+  const have = Number(data?.historyDays) || (data?.daily || []).length || 30;
+  const usable = DATE_RANGES.filter((r) => r.days <= have);
+  return usable.length ? usable : [DATE_RANGES[0]];
+}
 
 /* The category filter that used to sit here was removed. It never worked:
    the third argument was passed to a hook that took two, so nothing was ever
@@ -38,15 +56,16 @@ export const DATE_RANGES = [
    backend change; a row of buttons that silently does nothing is not a
    smaller version of it. */
 
-export function FilterBar({ dateRange, onDateChange }) {
+export function FilterBar({ dateRange, onDateChange, data }) {
   const C = useC();
   const { t } = useLang();
+  const shown = rangesFor(data);
   return (
     <div className="flex items-center gap-3 flex-wrap">
       <div className="flex items-center gap-2">
         <Calendar size={14} style={{ color: C.slate }} />
         <div className="glass-filter" role="group">
-          {DATE_RANGES.map((r) => (
+          {shown.map((r) => (
             <button key={r.key} aria-pressed={dateRange === r.key} onClick={() => onDateChange(r.key)}>
               {t.ranges[r.key]}
             </button>
@@ -62,10 +81,8 @@ export function useDateRangeData(data, range) {
   return useMemo(() => {
     const daily = data.daily || [];
     if (!daily.length) return { totals: data.totals || {}, series: [] };
-    let slice;
-    if (range === "daily") slice = daily.slice(-1);
-    else if (range === "weekly") slice = daily.slice(-7);
-    else slice = daily;
+    const days = (DATE_RANGES.find((r) => r.key === range) || {}).days;
+    const slice = days ? daily.slice(-days) : daily;
     if (!slice.length) return { totals: data.totals || {}, series: [] };
     const sales = slice.reduce((s, d) => s + (d.sales || 0), 0);
     const receipts = slice.reduce((s, d) => s + (d.receipts || 0), 0);
@@ -332,7 +349,7 @@ export default function Overview({ data, dateRange, onDateRangeChange, onAsk, on
             <h2 className="display text-2xl md:text-3xl font-bold grad-text">{t.overview.title}</h2>
             <p className="text-xs mt-1" style={{ color: C.slate }}>{t.overview.subtitle}</p>
           </div>
-          <FilterBar dateRange={dateRange} onDateChange={onDateRangeChange} />
+          <FilterBar dateRange={dateRange} onDateChange={onDateRangeChange} data={data} />
         </div>
 
         {/* The headline.

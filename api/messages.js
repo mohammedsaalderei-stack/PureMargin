@@ -3,7 +3,7 @@ import { getAccount, posTokenFor } from "./_accounts.js";
 import { orgFor, membership, ROLES, can } from "./_org.js";
 import { branchList } from "./_data.js";
 import { recordAudit } from "./_audit.js";
-import { sendMail } from "./_mail.js";
+import { sendMail, shell, quote, row } from "./_mail.js";
 import {
   listMessages, postMessage, markRead, lastReadAt, recipientsFor,
   matchesAudience, audienceIsEveryone, addressable, visibleTo, isDirect,
@@ -32,11 +32,9 @@ function publicMessage(message, member, username) {
 
 /* An important message names its audience in the subject, because somebody
    scanning a phone inbox decides whether to open it from that line alone. */
-function subjectFor(orgName, audience, branchNames, author) {
-  /* A personal message says who it is from; that is what makes somebody open
-     it. A broadcast says who it is for, because that is what makes somebody
-     decide whether it concerns them. */
-  if (audience.users?.length) return `[${orgName}] ${author} sent you a message`;
+/* The audience in words, shared by the subject line and the body so the two
+   can never describe different recipients for the same message. */
+function subjectAudience(audience, branchNames) {
   const parts = [];
   if (audience.branches.length) {
     parts.push(audience.branches.map((id) => branchNames[id] || id).join(", "));
@@ -44,7 +42,15 @@ function subjectFor(orgName, audience, branchNames, author) {
   if (audience.roles.length) {
     parts.push(audience.roles.map((r) => ROLES[r]?.label || r).join(", "));
   }
-  const who = parts.length ? parts.join(" · ") : "Everyone";
+  return parts.length ? parts.join(" · ") : "Everyone";
+}
+
+function subjectFor(orgName, audience, branchNames, author) {
+  /* A personal message says who it is from; that is what makes somebody open
+     it. A broadcast says who it is for, because that is what makes somebody
+     decide whether it concerns them. */
+  if (audience.users?.length) return `[${orgName}] ${author} sent you a message`;
+  const who = subjectAudience(audience, branchNames);
   return `[${orgName}] Important — ${who}`;
 }
 
@@ -147,9 +153,19 @@ export default async function handler(req, res) {
               text: isDirect(message)
                 ? `${account.username} sent you a message on ${orgName}.\n\n${message.body}\n\nOpen PureMargin to reply.`
                 : `${account.username} marked a message important on the ${orgName} board.\n\n${message.body}\n\nOpen PureMargin to reply.`,
-              html: `<p><strong>${account.username}</strong> ${isDirect(message) ? "sent you a message on" : "marked a message important on the"} <strong>${orgName}</strong>${isDirect(message) ? "." : " board."}</p>`
-                + `<blockquote style="margin:16px 0;padding:12px 16px;border-inline-start:3px solid #8B5CF6;background:#F7F6FB;white-space:pre-wrap">${escapeHtml(message.body)}</blockquote>`
-                + `<p>Open PureMargin to reply.</p>`,
+              html: shell({
+                title: isDirect(message)
+                  ? `${account.username} sent you a message`
+                  : "Marked important on the team board",
+                intro: isDirect(message)
+                  ? `This one is addressed to you personally on ${orgName}.`
+                  : `${account.username} flagged this for the people it names on ${orgName}.`,
+                blocks: [
+                  quote(message.body),
+                  ...(isDirect(message) ? [] : [row("Sent to", subjectAudience(message.audience, names))]),
+                ],
+                footer: "Open PureMargin to reply on the board.",
+              }),
             });
             notified += 1;
           }

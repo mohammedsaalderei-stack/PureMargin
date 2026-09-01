@@ -34,10 +34,14 @@ test("a supplier document goes to inventory, not to costs", () => {
   assert.equal(r.scanner, "supplier");
 });
 
-test("a customer bill goes to costs, not to inventory", () => {
+test("a customer bill has nowhere to go", () => {
+  /* Sales are the till's record. Reading them off a photographed printout
+     made a second copy of the same transaction, so the destination was
+     removed and the document is handed back instead. */
   const r = routeFor("bill", ALL);
-  assert.equal(r.tab, "costs");
-  assert.equal(r.scanner, "bill");
+  assert.equal(r.allowed, false);
+  assert.equal(r.tab, undefined);
+  assert.ok(!KIND_KEYS.includes("bill"));
 });
 
 test("a recipe goes to recipes", () => {
@@ -60,12 +64,20 @@ test("a kind the model invented routes nowhere", () => {
   assert.equal(routeFor("purchase_order_maybe", ALL).allowed, false);
 });
 
+test("a bill verdict from the model normalises to unknown", () => {
+  /* The prompt tells it to say unknown, but a model that says "bill" anyway
+     must not become a certain verdict with no destination behind it. */
+  const v = normaliseVerdict({ kind: "bill", confidence: "high" });
+  assert.equal(v.kind, "unknown");
+  assert.equal(v.certain, false);
+});
+
 test("a destination the caller cannot use is marked closed", () => {
   const cashier = ["view:dashboard"];
-  assert.equal(routeFor("bill", cashier).allowed, true, "a cashier may price a bill");
   assert.equal(routeFor("supplier", cashier).allowed, false,
     "a cashier may photograph a delivery note but not receive it");
   assert.equal(routeFor("recipe", cashier).allowed, false);
+  assert.equal(routeFor("inventory", cashier).allowed, false);
 });
 
 test("someone with no capabilities is routed nowhere", () => {
@@ -107,20 +119,22 @@ test("a junk response does not crash", () => {
 });
 
 test("the page count defaults to one rather than zero", () => {
-  assert.equal(normaliseVerdict({ kind: "bill", pages: 0 }).pages, 1);
-  assert.equal(normaliseVerdict({ kind: "bill", pages: 3 }).pages, 3);
+  assert.equal(normaliseVerdict({ kind: "supplier", pages: 0 }).pages, 1);
+  assert.equal(normaliseVerdict({ kind: "supplier", pages: 3 }).pages, 3);
 });
 
 test("the explanation is kept but bounded", () => {
-  const v = normaliseVerdict({ kind: "bill", why: "x".repeat(500) });
+  const v = normaliseVerdict({ kind: "supplier", why: "x".repeat(500) });
   assert.ok(v.why.length <= 200);
 });
 
 test("the prompt tells the model to say unknown when unsure", () => {
   const p = classifyPrompt("");
   assert.match(p, /unknown/);
-  assert.match(p, /supplier against bill/i,
+  assert.match(p, /supplier against a customer bill/i,
     "the pair most easily confused has to be called out explicitly");
+  assert.doesNotMatch(p, /"bill"/,
+    "a bill must not be offered as an answer the model can pick");
 });
 
 console.log(failures ? `\n${failures} failed` : "\nall passed");
