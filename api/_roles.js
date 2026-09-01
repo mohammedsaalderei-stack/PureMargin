@@ -26,7 +26,7 @@ export const ROLES = {
       "view:costs", "view:reports", "export",
       "manage:recipes", "manage:inventory", "manage:costs",
       "manage:users", "manage:integrations", "manage:billing",
-      "approve:counts", "manage:purchasing", "adjust:sales",
+      "manage:purchasing", "adjust:sales",
     ],
   },
   ops: {
@@ -37,7 +37,7 @@ export const ROLES = {
     can: [
       "view:dashboard", "view:profitability", "view:forecast", "view:inventory",
       "view:costs", "view:reports", "export",
-      "manage:recipes", "manage:inventory", "approve:counts", "manage:purchasing",
+      "manage:recipes", "manage:inventory", "manage:purchasing",
       "adjust:sales",
     ],
   },
@@ -46,7 +46,7 @@ export const ROLES = {
     scope: "assigned",
     can: [
       "view:dashboard", "view:profitability", "view:inventory", "view:reports",
-      "export", "manage:inventory", "approve:counts", "manage:purchasing",
+      "export", "manage:inventory", "manage:purchasing",
       /* A till mistake is found at the branch, usually on the day. Sending
          every wrong-price correction to the owner means most are never made,
          and the figures stay wrong in a way everyone on site can see. */
@@ -56,10 +56,14 @@ export const ROLES = {
   chef: {
     label: "Chef / Inventory lead",
     scope: "assigned",
-    /* Recipes, counts and waste — deliberately no costs or profitability, and
-       deliberately no `approve:counts`: a chef records a count, and somebody
-       else approves the adjustment it writes into the ledger. That separation is
-       the entire point of the count workflow. */
+    /* Recipes, stock and waste — deliberately no costs or profitability.
+
+       This used to also withhold `approve:counts`, so that a chef recorded a
+       physical count and somebody else approved the adjustment it wrote. There
+       are no counts any more: stock is deliveries in and sales out, and neither
+       is a number anybody types, so there is no adjustment to hold back and
+       nothing for a second person to approve. Reversing a movement is still
+       held apart, which is where that separation now lives. */
     can: ["view:inventory", "manage:recipes", "manage:inventory"],
   },
   cashier: {

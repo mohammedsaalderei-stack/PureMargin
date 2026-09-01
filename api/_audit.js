@@ -50,13 +50,15 @@ export const AUDIT_ACTIONS = {
   "stock.reverse": "stock movement reversed",
   "stock.policy": "negative-stock policy changed",
 
-  /* Stage 4, phase 3 — stock counts. Approval is named in the document
-     explicitly, and it is the step that writes adjustments into the ledger. */
-  "count.open": "stock count opened",
-  "count.submit": "stock count submitted for review",
-  "count.reopen": "stock count sent back to draft",
-  "count.approve": "stock count approved",
-  "count.cancel": "stock count cancelled",
+  /* Stock counts used to be logged here — opened, submitted, approved,
+     cancelled. The workflow is gone: a balance is deliveries in and sales out,
+     with no step where somebody writes down what they think is on a shelf, so
+     there is nothing left to log.
+
+     The keys are deliberately not kept as dead entries. Log rows already
+     written keep rendering — `AuditLog` shows `actions[e.action] || e.action`,
+     so an old `count.approve` reads as its raw key rather than vanishing — and
+     leaving the labels here would instead invite writing new ones. */
 
   /* Stage 4, phase 4 — purchasing. Receiving is where cost enters the system, so
      it is logged with the invoice it was billed on. */

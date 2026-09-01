@@ -33,9 +33,9 @@
    duplicated recipe per branch. */
 
 import { getJSON, setJSON } from "./_store.js";
-import { getIngredient, listIngredients, slug } from "./_inventory.js";
+import { getIngredient, listIngredients, ensureIngredient, slug } from "./_inventory.js";
 import { baseUnitOf } from "./_movements.js";
-import { convert, isUnit, sameDimension } from "./_units.js";
+import { convert, isUnit, sameDimension, baseUnitFor } from "./_units.js";
 import { costBasis, costFrom, evidenceFor, DEFAULT_COST_METHOD } from "./_costing.js";
 
 const RECIPES = (orgId) => `inv:${orgId}:recipes`;
@@ -57,23 +57,71 @@ async function readAll(orgId) {
 
 /* Lines come back resolved against the ingredient master, with each quantity
    converted to base units once, here. Everything downstream then works in one
-   scale — the reason a unit mistake can't survive past this function. */
+   scale — the reason a unit mistake can't survive past this function.
+
+   A line naming an ingredient the store has never heard of used to be refused —
+   `{ error: "ingredientId" }`, which the screen showed as "item not found in
+   inventory". That was the wrong answer to the wrong question. Somebody writing
+   down a recipe is telling the system what a dish is made of; being told to go
+   and register nine ingredients first means the recipe does not get written,
+   and a recipe that does not exist costs nothing and explains nothing.
+
+   So a name that resolves to nothing creates the ingredient, from what the
+   recipe already said about it: the unit the quantity is in, and the chef's own
+   estimate of what it costs. `ensureIngredient` matches on the same slug ids
+   use, so writing "Olive oil" in one recipe and "olive oil" in the next refers
+   to one ingredient. Nothing is invented that the recipe did not state, and the
+   estimate is superseded by the first real invoice without anyone clearing it.
+
+   The remaining refusals are all about the line being unusable rather than the
+   ingredient being unknown: a quantity that is not a positive number, a unit
+   that measures the wrong kind of thing, the same ingredient twice. */
 async function buildLines(orgId, inputs, { required }) {
   const rows = [];
   if (inputs === undefined || inputs === null) return { lines: rows };
   if (!Array.isArray(inputs)) return { error: "lines" };
   if (required && !inputs.length) return { error: "nolines" };
 
-  for (const input of inputs) {
-    const ingredient = await getIngredient(orgId, String(input.ingredientId || ""));
-    if (!ingredient) return { error: "ingredientId" };
-    if (rows.some((r) => r.ingredientId === ingredient.id)) return { error: "duplicate" };
+  const created = [];
 
+  for (const input of inputs) {
     const qty = Number(input.qty);
     if (!Number.isFinite(qty) || qty <= 0) return { error: "qty" };
 
-    const unit = input.unit || ingredient.stockUnit;
-    if (!isUnit(unit) || !sameDimension(unit, ingredient.stockUnit)) return { error: "unit" };
+    /* The unit is read before the ingredient exists, because it is what the
+       ingredient gets created with. Unstated, it falls back to grams inside
+       `ensureIngredient` rather than refusing the line. */
+    const stated = input.unit;
+    if (stated && !isUnit(stated)) return { error: "unit" };
+
+    let ingredient = await getIngredient(orgId, String(input.ingredientId || ""));
+
+    if (!ingredient) {
+      const name = String(input.name || input.ingredientId || "").trim();
+      if (!name) return { error: "ingredientId" };
+
+      /* The chef's estimate arrives per stated unit — "22.80 a kilo" — and is
+         stored per base unit, so it survives the shelf being relabelled. */
+      const perUnit = Number(input.estimatedCost);
+      const perBase = Number.isFinite(perUnit) && perUnit > 0 && stated
+        ? perUnit / convert(1, stated, baseUnitFor(stated))
+        : null;
+
+      const made = await ensureIngredient(orgId, {
+        name,
+        unit: stated,
+        estimatedCostPerBase: perBase,
+        category: input.category,
+      });
+      if (made.error) return { error: made.error };
+      ingredient = made.ingredient;
+      if (made.created) created.push({ id: ingredient.id, name: ingredient.name });
+    }
+
+    if (rows.some((r) => r.ingredientId === ingredient.id)) return { error: "duplicate" };
+
+    const unit = stated || ingredient.stockUnit;
+    if (!sameDimension(unit, ingredient.stockUnit)) return { error: "unit" };
 
     rows.push({
       ingredientId: ingredient.id,
@@ -85,7 +133,7 @@ async function buildLines(orgId, inputs, { required }) {
       note: String(input.note || "").trim(),
     });
   }
-  return { lines: rows };
+  return { lines: rows, created };
 }
 
 function validateVersion({ portions, yieldPct }) {
@@ -156,7 +204,16 @@ export async function saveVersion(orgId, input = {}) {
 
   map[id] = recipe;
   await setJSON(RECIPES(orgId), map);
-  return { recipe, version, created: !existing };
+  return {
+    recipe,
+    version,
+    created: !existing,
+    /* Ingredients this save brought into existence. Saying so is not a warning —
+       it is the feature working — but a recipe that silently adds six rows to
+       the item master and mentions none of them is a system doing things behind
+       somebody's back. */
+    newIngredients: [...(built.created || []), ...(packaging.created || [])],
+  };
 }
 
 /* Archived, never deleted: past sales were costed with these versions, and the
@@ -242,6 +299,13 @@ export function costVersion(version, basis, { method = DEFAULT_COST_METHOD } = {
   const unpriced = all.filter((r) => r.cost === null);
   const coverage = all.length ? round((all.length - unpriced.length) / all.length, 4) : 0;
 
+  /* Lines priced from a chef's estimate rather than an invoice. A separate
+     count from `unpriced`, because they are a different claim: unpriced means
+     the total is a lower bound, estimated means it is a complete figure resting
+     on numbers nobody has paid yet. Both are worth knowing and conflating them
+     would hide the more common one. */
+  const estimated = all.filter((r) => r.estimated && r.cost !== null);
+
   return {
     method,
     portions: version.portions,
@@ -262,6 +326,9 @@ export function costVersion(version, basis, { method = DEFAULT_COST_METHOD } = {
     complete: unpriced.length === 0,
     coverage,
     unpriced: unpriced.map((r) => ({ ingredientId: r.ingredientId, name: r.name })),
+    /* Complete, but resting on estimates rather than invoices. */
+    estimatedCount: estimated.length,
+    estimated: estimated.map((r) => ({ ingredientId: r.ingredientId, name: r.name })),
   };
 }
 
@@ -334,6 +401,7 @@ export async function costedList(orgId, branchIds, { at = Date.now(), method, in
         complete: costing?.complete ?? false,
         coverage: costing?.coverage ?? 0,
         unpriced: costing?.unpriced || [],
+        estimatedCount: costing?.estimatedCount ?? 0,
         margin: costing ? marginFor(recipe.sellPrice, costing.perPortion.total) : null,
       };
     });

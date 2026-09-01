@@ -33,7 +33,7 @@
 
 import { getJSON, setJSON } from "./_store.js";
 import { getIngredient } from "./_inventory.js";
-import { convert, sameDimension, isUnit } from "./_units.js";
+import { convert, sameDimension, isUnit, BASE_UNIT, baseUnitFor } from "./_units.js";
 
 const MOVES = (orgId, branchId) => `inv:${orgId}:moves:${branchId}`;
 const POLICY = (orgId) => `inv:${orgId}:policy`;
@@ -280,9 +280,10 @@ export async function reverseMovement(orgId, branchId, id, { actor, reason } = {
 /* ── Reading ──────────────────────────────────────────────── */
 
 /* The base unit an ingredient's quantities are held in. Derived from its stock
-   unit rather than stored, so the two can never disagree. */
+   unit rather than stored, so the two can never disagree — and derived through
+   `_units.js`, so there is one table of what a dimension's base unit is. */
 function baseUnitOf(ingredient) {
-  return { mass: "g", volume: "ml", count: "ea" }[ingredient.dimension] || ingredient.stockUnit;
+  return BASE_UNIT[ingredient.dimension] || baseUnitFor(ingredient.stockUnit) || ingredient.stockUnit;
 }
 
 function fromBaseQty(qtyBase, ingredient) {

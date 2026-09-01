@@ -2,6 +2,7 @@ import { listIngredients } from "./_inventory.js";
 import { normaliseUnit, isPackaging, toStockUnit } from "./_unitwords.js";
 import { sameDimension } from "./_units.js";
 import { slug } from "./_inventory.js";
+import { aliasKey, resolveMany } from "./_aliases.js";
 
 /* A supplier invoice, turned into something the store can receive.
 
@@ -103,7 +104,54 @@ export function proposeItem(line, text, printedUnit) {
   };
 }
 
-export function buildPurchase(parsed, ingredients) {
+const round2 = (n) => (Number.isFinite(n) ? Math.round(n * 100) / 100 : null);
+
+/* Subtotal, tax and total, from whichever of the three the invoice printed.
+
+   The header a person checks before pressing save is these three numbers, and
+   invoices print an inconsistent subset of them: a VAT invoice usually prints
+   all three, a small supplier's delivery note prints one, a receipt prints a
+   total and a tax line and leaves the subtotal to be worked out.
+
+   So each is taken as printed where it exists, and derived only where it does
+   not — the two known ones always determine the third. Nothing is invented from
+   a single figure: a total alone stays a total alone, with the tax null, rather
+   than being split by an assumed rate. A 5% VAT is the rule in the UAE and not
+   the rule everywhere, and a number that looks read off the paper but was
+   actually assumed is the kind of wrong that never gets questioned.
+
+   `linesTotal` is the fallback for a subtotal nothing states, since the lines
+   are transcribed individually and their sum is a real observation rather than
+   an assumption. */
+export function totalsOf(parsed, lines) {
+  const printedSub = num(parsed?.subtotal);
+  const printedTax = num(parsed?.tax);
+  const printedTotal = num(parsed?.total);
+
+  const linesTotal = lines.reduce((sum, l) => sum + (l.amount || 0), 0) || null;
+
+  const subtotal = printedSub
+    ?? (printedTotal && printedTax ? round2(printedTotal - printedTax) : linesTotal);
+  const total = printedTotal
+    ?? (subtotal && printedTax ? round2(subtotal + printedTax) : null);
+  const tax = printedTax
+    ?? (printedTotal && subtotal ? round2(printedTotal - subtotal) : null);
+
+  return {
+    subtotal,
+    tax,
+    total: total ?? subtotal,
+    /* Whether the three agree with each other. A subtotal and a tax that do not
+       add up to the printed total means a line was misread, and that is worth
+       saying before a delivery is committed on it. */
+    totalsAgree: !(subtotal && tax && printedTotal)
+      || Math.abs(subtotal + tax - printedTotal) < 0.02,
+  };
+}
+
+export function buildPurchase(parsed, ingredients, aliases = new Map()) {
+  const byId = new Map(ingredients.map((i) => [i.id, i]));
+
   const lines = (Array.isArray(parsed?.lines) ? parsed.lines : []).map((line) => {
     const text = String(line.text || line.description || "").trim();
     const qty = num(line.qty);
@@ -111,22 +159,36 @@ export function buildPurchase(parsed, ingredients) {
 
     const printed = String(line.unit || "").trim();
     const unit = normaliseUnit(printed);
-    /* The model was given the real list and asked to pick from it. Trust that
-       pick only after checking the name is actually on the list — a model asked
-       to choose from a list will occasionally return something adjacent to it —
-       and fall back to token matching when it declined or invented.
+    /* Three ways to know what a line is, in descending order of how much the
+       answer is worth.
 
-       This order matters. The model sees the whole line in context and can tell
-       that "TOMATO RED 5KG BOX" is the tomatoes; token overlap cannot see
-       through a supplier's abbreviations nearly as well. Doing it the other way
-       round was what left lines unmatched and sent people to a dropdown. */
+       1. **A learned alias.** Somebody already committed an invoice with this
+          exact description against this ingredient. That is not a guess, it is
+          a decision, and it beats anything derived fresh from the text — which
+          is the entire reason the alias table exists.
+       2. **The model's pick**, checked against the real list. It sees the whole
+          line in context and can tell that "TOMATO RED 5KG BOX" is the
+          tomatoes. Trusted only after confirming the name is actually on the
+          list, because a model asked to choose from a list will occasionally
+          return something adjacent to it.
+       3. **Token overlap.** Cannot see through a supplier's abbreviations
+          nearly as well, but it is honest about failing.
+
+       This order matters. Doing it the other way round was what left lines
+       unmatched and sent people to a dropdown. */
+    const learned = aliases.get(aliasKey(text));
+    const remembered = learned ? byId.get(learned.ingredientId) : null;
+
     const named = String(line.ingredient || "").trim().toLowerCase();
     const chosen = named
       ? ingredients.find((i) => i.name.trim().toLowerCase() === named)
       : null;
-    const hit = chosen
-      ? { ingredient: chosen, confidence: 1 }
-      : bestMatch(text, ingredients);
+
+    const hit = remembered
+      ? { ingredient: remembered, confidence: 1, viaAlias: true }
+      : chosen
+        ? { ingredient: chosen, confidence: 1 }
+        : bestMatch(text, ingredients);
 
     /* Unit cost is derived, never read. An invoice usually prints a line total
        and a quantity; the per-unit figure it sometimes also prints is rounded
@@ -199,6 +261,10 @@ export function buildPurchase(parsed, ingredients) {
       ingredientId: hit?.ingredient?.id || null,
       ingredientName: hit?.ingredient?.name || null,
       confidence: hit?.confidence ?? 0,
+      /* Resolved from the table rather than worked out again. Surfaced so the
+         screen can say "known supplier wording" instead of showing a
+         confidence score for something nobody is guessing at. */
+      viaAlias: Boolean(hit?.viaAlias),
       /* The unit the store keeps this in, so the screen can warn when the
          invoice speaks in cases and the shelf counts kilos. */
       stockUnit,
@@ -213,7 +279,7 @@ export function buildPurchase(parsed, ingredients) {
     supplier: String(parsed?.supplier || "").trim(),
     invoiceNo: String(parsed?.invoiceNo || "").trim(),
     date: String(parsed?.date || "").trim(),
-    total: num(parsed?.total),
+    ...totalsOf(parsed, lines),
     lines,
     unmatched: lines.filter((l) => !l.ingredientId).map((l) => l.text).filter(Boolean),
     /* A count rather than a boolean, because "6 of 9 lines matched" is what
@@ -225,7 +291,16 @@ export function buildPurchase(parsed, ingredients) {
 
 export async function matchPurchase(orgId, parsed) {
   const ingredients = orgId ? await listIngredients(orgId) : [];
-  return buildPurchase(parsed, ingredients);
+  if (!orgId) return buildPurchase(parsed, ingredients);
+
+  /* Every description on the invoice, looked up in one read. The set of live
+     ingredient ids goes with it so an alias pointing at something that has
+     since been deleted resolves to nothing rather than to a ghost. */
+  const texts = (Array.isArray(parsed?.lines) ? parsed.lines : [])
+    .map((l) => String(l.text || l.description || "").trim());
+  const aliases = await resolveMany(orgId, texts, new Set(ingredients.map((i) => i.id)));
+
+  return buildPurchase(parsed, ingredients, aliases);
 }
 
 export { slug };

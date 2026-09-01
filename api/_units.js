@@ -68,6 +68,18 @@ export function convert(qty, from, to) {
   return (qty * UNITS[from].inBase) / UNITS[to].inBase;
 }
 
+/* The base unit of a dimension, and of a unit's dimension.
+
+   Every quantity in the app is stored against one of these three, and until now
+   the mapping lived as a literal inside `_movements.js` and was reached by
+   handing that function an object shaped like an ingredient. It is a fact about
+   the unit system, so it lives with the unit system, and there is one copy. */
+export const BASE_UNIT = { mass: "g", volume: "ml", count: "ea" };
+
+export function baseUnitFor(unit) {
+  return BASE_UNIT[dimensionOf(unit)] || null;
+}
+
 /* A quantity expressed in its dimension's base unit. This is what gets stored
    on a movement or a recipe line: the entered unit is kept for display, the base
    quantity is what arithmetic uses, so a later unit change can't silently

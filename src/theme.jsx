@@ -19,6 +19,20 @@ export const LIGHT = {
   cyan: "#0891B2",
   cyanWash: "rgba(8,145,178,0.08)",
   rose: "#E11D48",
+  /* Committed, and needs looking at.
+
+     The palette had one signal colour — rose — doing every job that was not
+     brand purple or data cyan. That is fine while the only signal is "this is
+     wrong", and stops being fine the moment a screen has to distinguish a
+     delivery that saved from one whose totals do not add up, and both from the
+     cancel button beside them.
+
+     Mint reads as committed rather than merely finished; amber as worth a look
+     rather than broken. Both are chosen to clear 4.5:1 against their own
+     surface in the theme they belong to, since they are used as text and as a
+     border, never as a fill behind white. */
+  mint: "#047857",
+  amber: "#B45309",
   glow: "rgba(124,58,237,0.12)",
   grid: "rgba(124,58,237,0.04)",
   edge: "rgba(124,58,237,0.15)",
@@ -46,6 +60,10 @@ export const DARK = {
   cyan: "#06B6D4",
   cyanWash: "rgba(6,182,212,0.10)",
   rose: "#F43F5E",
+  /* Lifted well above the light values: on the near-black surface these sit as
+     text, and #047857 on #131028 is unreadable. */
+  mint: "#34D399",
+  amber: "#FBBF24",
   glow: "rgba(139,92,246,0.25)",
   grid: "rgba(139,92,246,0.04)",
   edge: "rgba(139,92,246,0.20)",

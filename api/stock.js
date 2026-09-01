@@ -14,7 +14,10 @@
 
    GET     ?what=balances[&branches=a,b]  — derived on-hand, per ingredient
            ?what=ledger&branch=<id>[&ingredientId=&type=&from=&to=]
-   POST    ?what=movement   — one entry, body { branchId, ingredientId, type, qty, unit, ... }
+   POST    ?what=invoice    — a scanned supplier invoice, whole: creates missing
+                              ingredients, receives every line, learns what the
+                              supplier calls each of them
+           ?what=movement   — one entry, body { branchId, ingredientId, type, qty, unit, ... }
            ?what=transfer   — two linked entries between branches
            ?what=reverse    — the only correction: body { branchId, id, reason }
            ?what=policy     — negative-stock policy, owner-level (manage:inventory)
@@ -28,8 +31,10 @@ import { receiptsFor } from "./_data.js";
 import { depleteFromSales } from "./_salesdepletion.js";
 import { branchList } from "./_data.js";
 import { recordAudit } from "./_audit.js";
-import { listIngredients } from "./_inventory.js";
-import { unitsByDimension } from "./_units.js";
+import { listIngredients, saveIngredient } from "./_inventory.js";
+import { learnAliases } from "./_aliases.js";
+import { costBasis, costFrom, evidenceFor } from "./_costing.js";
+import { unitsByDimension, toBase } from "./_units.js";
 import {
   MOVEMENT_KEYS, recordMovement, recordTransfer, reverseMovement,
   listMovements, balances, getPolicy, savePolicy,
@@ -85,12 +90,38 @@ export default async function handler(req, res) {
          owner's view one consolidated total rather than a branch at a time. */
       const branches = effectiveBranches(parseBranchParam(req.query?.branches), allowed);
       const ingredients = await listIngredients(orgId, { includeArchived: true });
+
+      /* What each thing on the shelf is worth, alongside how much of it there
+         is. The two were separate calls, so the stock screen showed quantities
+         and the recipe screen showed costs and nothing showed both — while the
+         question anybody actually has about a store is what is in it and what
+         that is worth.
+
+         Stated per stock unit rather than per base, because that is the unit
+         the row beside it is counted in: "22.80 per kg" against "45.5 kg". A
+         cost per gram next to a quantity in kilos is arithmetic homework. */
+      const basis = await costBasis(orgId, branches);
+      const rows = (await balances(orgId, branches, { ingredients })).map((row) => {
+        const perBase = costFrom(basis, row.ingredientId);
+        const perStockUnit = perBase === null ? null : perBase * toBase(1, row.stockUnit);
+        return {
+          ...row,
+          avgCost: perStockUnit === null ? null : Math.round(perStockUnit * 10000) / 10000,
+          value: perBase === null ? null : Math.round(row.qtyBase * perBase * 100) / 100,
+          /* Whether that price came from an invoice or from somebody's
+             estimate. It travels with the number for the same reason it does
+             on a recipe: an estimate presented as a measurement is worse than
+             an admitted gap. */
+          costEstimated: evidenceFor(basis, row.ingredientId).estimated,
+        };
+      });
+
       return res.status(200).json({
         branches,
         branchNames: Object.fromEntries(
           roster.filter((b) => branches.includes(String(b.id))).map((b) => [String(b.id), b.name])
         ),
-        rows: await balances(orgId, branches, { ingredients }),
+        rows,
         policy: await getPolicy(orgId),
         types: MOVEMENT_KEYS,
         units: unitsByDimension(),
@@ -177,6 +208,129 @@ export default async function handler(req, res) {
           });
         }
         return res.status(200).json(out);
+      }
+
+      /* A whole scanned invoice, committed in one press.
+
+         This replaces a sequence the browser used to run: create the
+         ingredients that did not match, wait, re-attach the new ids onto the
+         lines, then post the delivery. Three round trips, each able to fail on
+         its own, with no way to finish the job from the state a failure left
+         behind — the ingredients created and the delivery not received, and
+         nothing on screen saying so.
+
+         One call instead, doing the three things in the order they depend on:
+
+         1. **Create what does not exist.** The parser has already described
+            each unmatched line — a name, a unit, a pack size — so there is
+            nothing to ask anybody.
+         2. **Receive everything**, validated as a set before a single entry is
+            written, so the common failure lands before the ledger moves.
+         3. **Learn the vocabulary.** Every line that ended up against an
+            ingredient teaches the alias table what this supplier calls it, so
+            the next invoice resolves without being guessed at.
+
+         Learning happens last and only on success. An invoice that was refused
+         is not a decision about anything, and teaching the table from one would
+         make a rejected guess permanent. */
+      if (what === "invoice") {
+        const branch = permitted(body.branchId);
+        if (!branch.length) return res.status(403).json({ error: "branch" });
+
+        const rows = Array.isArray(body.lines) ? body.lines : [];
+        if (!rows.length) return res.status(400).json({ error: "empty" });
+
+        /* Lines the scan could not match, each carrying what to create. Built
+           before anything is written so a malformed proposal fails here rather
+           than halfway through. */
+        const creating = rows.filter((r) => !r.ingredientId && r.newItem?.name);
+        const made = new Map();
+
+        for (const row of creating) {
+          const out = await saveIngredient(orgId, {
+            name: row.newItem.name,
+            stockUnit: row.newItem.stockUnit,
+            purchaseUnit: row.newItem.purchaseUnit,
+            packSize: row.newItem.packSize,
+            category: row.newItem.category || undefined,
+          });
+          /* A proposal the item master refuses is skipped rather than fatal:
+             one unreadable line out of nine must not cost the other eight.
+             The line is reported back unreceived. */
+          if (out.error) continue;
+          made.set(row.newItem.name.toLowerCase(), out.ingredient);
+        }
+
+        const resolved = rows.map((row) => {
+          if (row.ingredientId) return row;
+          const hit = row.newItem?.name ? made.get(row.newItem.name.toLowerCase()) : null;
+          return hit ? { ...row, ingredientId: hit.id, unit: row.unit || hit.stockUnit } : row;
+        });
+
+        const receivable = resolved.filter((r) => r.ingredientId && Number(r.qty) > 0 && r.unit);
+        if (!receivable.length) return res.status(400).json({ error: "line" });
+
+        const note = [body.supplier, body.invoiceNo].filter(Boolean).join(" · ").slice(0, 200);
+        const prepared = receivable.map((r) => ({
+          ingredientId: String(r.ingredientId),
+          qty: Number(r.qty),
+          unit: String(r.unit),
+          unitCost: Number(r.unitCost) > 0 ? Number(r.unitCost) : undefined,
+          type: "receive",
+          ref: String(body.invoiceNo || "").slice(0, 60),
+          note,
+        }));
+
+        const dry = await Promise.all(prepared.map((r) =>
+          recordMovement(orgId, branch[0], { ...r, actor: session.username, dryRun: true })));
+        const refused = dry.find((d) => d.error);
+        if (refused) {
+          return res.status(400).json({
+            error: refused.error,
+            ingredientId: refused.ingredientId || null,
+            ingredientName: refused.ingredientName || null,
+          });
+        }
+
+        const written = [];
+        for (const r of prepared) {
+          const out = await recordMovement(orgId, branch[0], { ...r, actor: session.username });
+          if (out.error) break;
+          written.push(out.movement);
+        }
+
+        /* What this supplier calls each thing, remembered. Only for lines that
+           were actually received, and only from their printed description. */
+        const receivedIds = new Set(written.map((m) => m.ingredientId));
+        const learned = await learnAliases(orgId, receivable
+          .filter((r) => receivedIds.has(String(r.ingredientId)) && r.text)
+          .map((r) => ({ text: r.text, ingredientId: String(r.ingredientId) })));
+
+        await recordAudit(orgId, {
+          actor: session.username,
+          action: "stock.receive",
+          detail: {
+            branchId: branch[0],
+            lines: written.length,
+            created: made.size,
+            invoiceNo: String(body.invoiceNo || ""),
+            supplier: String(body.supplier || ""),
+            source: "invoice",
+          },
+        });
+
+        return res.status(200).json({
+          movements: written,
+          created: [...made.values()].map((i) => ({ id: i.id, name: i.name })),
+          learned: learned.learned,
+          /* Lines that could not be received at all, named rather than
+             silently dropped — the count on screen has to be able to say
+             "eight of nine". */
+          skipped: resolved
+            .filter((r) => !receivable.includes(r))
+            .map((r) => r.text || r.newItem?.name || "")
+            .filter(Boolean),
+        });
       }
 
       if (what === "receive-batch") {

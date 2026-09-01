@@ -142,7 +142,10 @@ await test("bad recipes are refused by field name", async () => {
   assert.strictEqual(await bad({ yieldPct: 0 }), "yieldPct");
   assert.strictEqual(await bad({ yieldPct: 140 }), "yieldPct");
   assert.strictEqual(await bad({ lines: [] }), "nolines");
-  assert.strictEqual(await bad({ lines: [{ ingredientId: "ghost", qty: 1 }] }), "ingredientId");
+  /* A line with no way to name an ingredient at all — no id that resolves and
+     no name to create one from — is still refused. An unknown *name* is not:
+     that is the decoupling, and it has its own test below. */
+  assert.strictEqual(await bad({ lines: [{ qty: 1 }] }), "ingredientId");
   assert.strictEqual(await bad({ lines: [{ ingredientId: "beef-mince", qty: 0 }] }), "qty");
   assert.strictEqual(await bad({ lines: [{ ingredientId: "beef-mince", qty: 1, unit: "l" }] }), "unit");
   assert.strictEqual(await bad({
@@ -406,6 +409,110 @@ await test("a simulation on a recipe with no effective version says nothing rath
   await rc.saveVersion("org1", burger({ effectiveFrom: Date.now() + 10 * DAY }));
   assert.strictEqual(await rc.simulate("org1", "cheeseburger", ["b1"]), null);
   assert.strictEqual(await rc.simulate("org1", "ghost", ["b1"]), null);
+});
+
+/* ------------- recipes decoupled from the item master ------------ */
+
+/* The whole point of the decoupling: a chef writes down a dish naming things
+   the store has never received, and it saves. Before this, every one of these
+   lines came back `{ error: "ingredientId" }` and the screen said the item was
+   not in inventory — so the recipe could not be written until the inventory
+   had been done, which is backwards from how a menu is planned. */
+
+await test("a recipe naming ingredients that do not exist creates them and saves", async () => {
+  const out = await rc.saveVersion("org1", {
+    menuItem: "Shawarma wrap", portions: 1, yieldPct: 100, sellPrice: 22,
+    lines: [
+      { name: "Chicken thigh", qty: 180, unit: "g", estimatedCost: 0.0228 },
+      { name: "Flatbread", qty: 1, unit: "ea", estimatedCost: 1.2 },
+      { name: "Garlic sauce", qty: 30, unit: "ml", estimatedCost: 0.014 },
+    ],
+  });
+
+  assert.strictEqual(out.error, undefined);
+  assert.strictEqual(out.recipe.versions.length, 1);
+  assert.deepStrictEqual(
+    out.newIngredients.map((i) => i.id).sort(),
+    ["chicken-thigh", "flatbread", "garlic-sauce"],
+  );
+
+  /* Created for real, in the unit the recipe stated — not a placeholder the
+     rest of the app has to know about. */
+  const chicken = await inv.getIngredient("org1", "chicken-thigh");
+  assert.strictEqual(chicken.stockUnit, "g");
+  assert.strictEqual(chicken.dimension, "mass");
+  const sauce = await inv.getIngredient("org1", "garlic-sauce");
+  assert.strictEqual(sauce.stockUnit, "ml");
+  assert.strictEqual(sauce.dimension, "volume");
+});
+
+await test("the same ingredient named twice across recipes is one ingredient", async () => {
+  await rc.saveVersion("org1", {
+    menuItem: "Wrap", portions: 1, yieldPct: 100,
+    lines: [{ name: "Olive oil", qty: 10, unit: "ml", estimatedCost: 0.02 }],
+  });
+  const second = await rc.saveVersion("org1", {
+    menuItem: "Salad", portions: 1, yieldPct: 100,
+    lines: [{ name: "OLIVE OIL", qty: 5, unit: "ml" }],
+  });
+
+  assert.deepStrictEqual(second.newIngredients, []);
+  assert.strictEqual((await inv.listIngredients("org1")).length, 1);
+  assert.strictEqual(second.version.lines[0].ingredientId, "olive-oil");
+});
+
+await test("a chef's estimate costs the recipe until a real delivery replaces it", async () => {
+  /* 22.80 a kilo, stated per gram because that is the base unit. */
+  await rc.saveVersion("org1", {
+    menuItem: "Steak", portions: 1, yieldPct: 100, sellPrice: 90,
+    lines: [{ name: "Sirloin", qty: 200, unit: "g", estimatedCost: 0.0228 }],
+  });
+
+  const onEstimate = await rc.costedRecipe("org1", "steak", ["b1"]);
+  near(onEstimate.costing.perPortion.total, 4.56);
+  /* Complete — but complete on an estimate, and it says so. Conflating the two
+     would let a menu decision rest on a number nobody has paid. */
+  assert.strictEqual(onEstimate.costing.complete, true);
+  assert.strictEqual(onEstimate.costing.estimatedCount, 1);
+  assert.strictEqual(onEstimate.costing.lines[0].estimated, true);
+
+  /* One real invoice at 30/kg, and the estimate stops mattering — with nobody
+     having to go and clear it out. */
+  await receive("sirloin", 5, "kg", 30);
+  const onInvoice = await rc.costedRecipe("org1", "steak", ["b1"]);
+  near(onInvoice.costing.perPortion.total, 6);
+  assert.strictEqual(onInvoice.costing.estimatedCount, 0);
+  assert.strictEqual(onInvoice.costing.lines[0].estimated, false);
+});
+
+await test("an ingredient with neither an estimate nor a delivery is still an honest gap", async () => {
+  /* The decoupling must not become a licence to invent numbers. No estimate
+     given, no delivery received: the cost is null and the recipe is incomplete,
+     exactly as before. */
+  await rc.saveVersion("org1", {
+    menuItem: "Mystery", portions: 1, yieldPct: 100,
+    lines: [{ name: "Saffron", qty: 1, unit: "g" }],
+  });
+
+  const out = await rc.costedRecipe("org1", "mystery", ["b1"]);
+  assert.strictEqual(out.costing.complete, false);
+  assert.strictEqual(out.costing.lines[0].cost, null);
+  assert.deepStrictEqual(out.costing.unpriced.map((u) => u.id ?? u.ingredientId), ["saffron"]);
+});
+
+await test("a recipe reviving an archived ingredient does not duplicate it", async () => {
+  await inv.saveIngredient("org1", { name: "Butter", stockUnit: "g" });
+  await inv.archiveIngredient("org1", "butter");
+
+  const out = await rc.saveVersion("org1", {
+    menuItem: "Croissant", portions: 1, yieldPct: 100,
+    lines: [{ name: "Butter", qty: 40, unit: "g" }],
+  });
+
+  assert.deepStrictEqual(out.newIngredients, []);
+  const butter = await inv.getIngredient("org1", "butter");
+  assert.strictEqual(butter.archived, false);
+  assert.strictEqual((await inv.listIngredients("org1", { includeArchived: true })).length, 1);
 });
 
 console.log(failures ? `\n${failures} failed` : "\nall passed");

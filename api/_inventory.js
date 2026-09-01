@@ -20,6 +20,7 @@
 
 import { getJSON, setJSON, del } from "./_store.js";
 import { isUnit, dimensionOf, UNITS, convert as convertUnits } from "./_units.js";
+import { resetAliases } from "./_aliases.js";
 
 const ING = (orgId) => `inv:${orgId}:ingredients`;
 const SUP = (orgId) => `inv:${orgId}:suppliers`;
@@ -129,6 +130,23 @@ export async function saveIngredient(orgId, input) {
        inventing thresholds. */
     reorderPoint: Number(input.reorderPoint) >= 0 ? Number(input.reorderPoint) : null,
     parLevel: Number(input.parLevel) >= 0 ? Number(input.parLevel) : null,
+    /* What a chef reckons this is worth, per base unit, before any invoice has
+       said otherwise.
+
+       A recipe has to be costable the day it is written, and on that day the
+       store has usually never received the ingredient. The alternative to an
+       estimate is a recipe that reports no cost at all — which is correct and
+       useless, and which is what made writing a recipe feel like it required
+       doing the inventory first.
+
+       Held per base unit, like every other price here, so changing the shelf's
+       label from kilos to grams cannot restate it. Superseded automatically:
+       `_costing.js` prefers a real receipt wherever one exists and only falls
+       back to this, so the estimate quietly stops mattering the moment the
+       first delivery is scanned, without anybody having to clear it out. */
+    estimatedCostPerBase: Number(input.estimatedCostPerBase) > 0
+      ? Number(input.estimatedCostPerBase)
+      : (input.estimatedCostPerBase === null ? null : existing?.estimatedCostPerBase ?? null),
     shelfLifeDays: Number(input.shelfLifeDays) > 0 ? Number(input.shelfLifeDays) : null,
     branchOverrides: input.branchOverrides && typeof input.branchOverrides === "object"
       ? input.branchOverrides
@@ -148,6 +166,66 @@ export async function saveIngredient(orgId, input) {
   /* map[id], not record — the conversion above writes to the map, and
      returning the pre-conversion object would send the caller a stale unit. */
   return { ingredient: map[id], created: !existing };
+}
+
+/* Find an ingredient by name, or create it.
+
+   This is what decouples writing a recipe from doing the inventory. A chef
+   writing down a burger names beef, a bun, cheese and pickles; requiring each
+   of those to already exist in the item master means the answer to "let me
+   write down my recipe" is "first go and register nine ingredients", and the
+   recipe does not get written.
+
+   So a name that resolves to nothing becomes an ingredient, right there, from
+   what the recipe already said about it — the unit it is measured in, and what
+   the chef reckons it costs. Nothing is invented that was not stated.
+
+   Matching is by slug, which is the same derivation `saveIngredient` uses for
+   ids, so "Olive oil", "olive-oil" and "OLIVE OIL" are one ingredient rather
+   than three. Archived ingredients match too, and are revived rather than
+   duplicated: somebody archiving beef and then writing a recipe with beef in it
+   means beef, not a second beef.
+
+   `created` is returned so callers can tell somebody what happened. A recipe
+   that quietly conjures six ingredients is doing the right thing, but it should
+   still say it did. */
+export async function ensureIngredient(orgId, { name, unit, estimatedCostPerBase, category }) {
+  const wanted = String(name || "").trim();
+  const id = slug(wanted);
+  if (!id) return { error: "name" };
+
+  const map = (await getJSON(ING(orgId))) || {};
+  const existing = map[id];
+
+  if (existing) {
+    /* Un-archive on reference, and fill in an estimate if the item has never
+       had one — but never overwrite an estimate or a unit that is already
+       there. A recipe mentioning an ingredient is weaker evidence about it than
+       whatever put it in the master in the first place. */
+    const patch = {};
+    if (existing.archived) patch.archived = false;
+    if (!(existing.estimatedCostPerBase > 0) && Number(estimatedCostPerBase) > 0) {
+      patch.estimatedCostPerBase = Number(estimatedCostPerBase);
+    }
+    if (!Object.keys(patch).length) return { ingredient: existing, created: false };
+
+    map[id] = { ...existing, ...patch, updatedAt: Date.now() };
+    await setJSON(ING(orgId), map);
+    return { ingredient: map[id], created: false };
+  }
+
+  /* A unit the ledger does not keep would make every quantity recorded against
+     this ingredient unconvertible. Falling back to grams is not a guess about
+     the ingredient — it is the most common case, and it is visible and
+     correctable on the item, where a refused save would not have been. */
+  const stockUnit = isUnit(unit) ? unit : "g";
+
+  return saveIngredient(orgId, {
+    name: wanted,
+    stockUnit,
+    category: String(category || "").trim(),
+    estimatedCostPerBase: Number(estimatedCostPerBase) > 0 ? Number(estimatedCostPerBase) : null,
+  });
 }
 
 /* Archive, never delete. The document is explicit that the ledger is corrected
@@ -212,8 +290,12 @@ export async function resetInventory(orgId, branchIds = []) {
   for (const branchId of branchIds) {
     await del(`inv:${orgId}:moves:${branchId}`);
   }
-  await del(`inv:${orgId}:counts`);
   await del(`inv:${orgId}:purchases`);
+
+  /* The learned supplier vocabulary goes too. Every alias points at an
+     ingredient that no longer exists, so keeping the table would mean the first
+     invoice after a reset resolving its lines to ghosts. */
+  await resetAliases(orgId);
 
   return { reset: true };
 }

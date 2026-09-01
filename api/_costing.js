@@ -22,6 +22,7 @@
    error stops being possible. */
 
 import { listMovements } from "./_movements.js";
+import { listIngredients } from "./_inventory.js";
 
 export const COST_METHODS = ["last", "wavg"];
 export const DEFAULT_COST_METHOD = "wavg";
@@ -75,8 +76,38 @@ export async function costBasis(orgId, branchIds, { to } = {}) {
          claim from one resting on forty. */
       receipts: row.receipts,
       lastAt: row.lastAt || null,
+      estimated: false,
     });
   }
+
+  /* Ingredients no delivery has ever priced fall back to the estimate recorded
+     when they were created — usually by a chef writing a recipe before the
+     store had ever received the thing.
+
+     Two rules keep this honest. It is only ever a fallback: an ingredient with
+     a single priced receipt uses the receipt, because one real invoice beats
+     any estimate. And it is labelled `estimated`, which travels with the number
+     all the way to the screen — an estimate is a placeholder, and a food cost
+     built on placeholders that presented itself as measured would be worse than
+     the gap it filled.
+
+     Before this, such an ingredient had no cost at all and the recipe reported
+     itself incomplete. That was correct and unhelpful: it meant a new menu
+     could not be costed until every ingredient had been bought at least once,
+     which is the wrong way round from how a menu is actually planned. */
+  for (const ingredient of await listIngredients(orgId, { includeArchived: true })) {
+    if (basis.has(ingredient.id)) continue;
+    const estimate = Number(ingredient.estimatedCostPerBase);
+    if (!(estimate > 0)) continue;
+    basis.set(ingredient.id, {
+      last: estimate,
+      wavg: estimate,
+      receipts: 0,
+      lastAt: null,
+      estimated: true,
+    });
+  }
+
   return basis;
 }
 
@@ -93,5 +124,7 @@ export function costFrom(basis, ingredientId, method = DEFAULT_COST_METHOD) {
 
 export function evidenceFor(basis, ingredientId) {
   const row = basis.get(ingredientId);
-  return row ? { receipts: row.receipts, lastAt: row.lastAt } : { receipts: 0, lastAt: null };
+  return row
+    ? { receipts: row.receipts, lastAt: row.lastAt, estimated: Boolean(row.estimated) }
+    : { receipts: 0, lastAt: null, estimated: false };
 }

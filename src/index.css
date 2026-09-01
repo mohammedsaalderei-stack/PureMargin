@@ -24,6 +24,8 @@
   --cyan: #0891B2;
   --cyan-wash: rgba(8,145,178,0.08);
   --rose: #E11D48;
+  --mint: #047857;
+  --amber: #B45309;
   --glow: rgba(124,58,237,0.12);
   --grid: rgba(124,58,237,0.04);
   --edge: rgba(124,58,237,0.15);
@@ -49,6 +51,8 @@
   --cyan: #06B6D4;
   --cyan-wash: rgba(6,182,212,0.10);
   --rose: #F43F5E;
+  --mint: #34D399;
+  --amber: #FBBF24;
   --glow: rgba(139,92,246,0.25);
   --grid: rgba(139,92,246,0.04);
   --edge: rgba(139,92,246,0.20);

@@ -149,8 +149,15 @@ Respond with ONLY this JSON, nothing else:
   "invoiceNo": "<invoice or receipt number, or null>",
   "date": "<date as printed, or null>",
   "lines": [{ "text": "<line as printed>", "qty": <number, or null>, "unit": "<kg, g, l, ml, box, pcs… as printed, or null>", "amount": <line total, or null>, "ingredient": "<exact name from the list, or null>", "newItem": { "name": "<short kitchen name>", "stockUnit": "<kg|g|l|ml|ea>", "purchaseUnit": "<how it is sold>", "packSize": <number>, "category": "<produce|meat|dairy|dry|oil|drink|packaging>" } }],
+  "subtotal": <total before tax as printed, or null>,
+  "tax": <tax or VAT amount as printed, or null>,
   "total": <invoice total as printed, or null>
 }
+
+Read subtotal, tax and total only where the invoice prints them. Use null for
+any the document does not state — they are derived from the others downstream,
+and a figure you worked out yourself is indistinguishable from one the supplier
+printed once it is in this field.
 ${langNote}`;
 }
 

@@ -1,9 +1,8 @@
 import { useEffect, useState } from "react";
-import { Plus, Trash2, RotateCcw, Package, Truck, Pencil } from "lucide-react";
+import { Trash2, RotateCcw, Package, Pencil, ChevronDown, Settings2 } from "lucide-react";
 import IngredientForm from "../inventory/IngredientForm.jsx";
 import SupplierList from "../inventory/SupplierList.jsx";
 import StockPanel from "../inventory/StockPanel.jsx";
-import CountsPanel from "../inventory/CountsPanel.jsx";
 import PurchasingPanel from "../purchasing/PurchasingPanel.jsx";
 import SupplierScan from "../ai/SupplierScan.jsx";
 import IngredientIcon from "../inventory/IngredientIcon.jsx";
@@ -11,18 +10,38 @@ import StockSource from "../inventory/StockSource.jsx";
 import { useC } from "../theme.jsx";
 import { useLang, fill } from "../i18n.jsx";
 
-/* Inventory: the item master, and the stock that moves through it.
+/* Inventory: a way in, and what is on the shelf.
 
-   Phase 1 is the definitions — ingredients, units, suppliers. Phase 2 adds the
-   movement ledger, which is where quantities live. Phase 3 adds stock counts,
-   which is where the ledger is confronted with the shelf. Phase 4 adds
-   purchasing, which is where cost enters the system.
+   ── What this screen is now ────────────────────────────────────────────────
 
-   There is still no editable "quantity on hand" anywhere on this screen. Every
-   balance in `StockPanel` is the sum of the ledger beneath it, and the only way
-   to change one is to record another entry — including the reversal that
-   corrects a mistake. An editable field here would be a second version of a
-   derived number, and the two would disagree within a week.
+   Two things, in the order somebody uses them. A button that photographs or
+   uploads a supplier invoice, and the resulting stock. Everything else — the
+   item master, suppliers, settings, the manual ledger entry — is real, still
+   here, and folded away behind one control, because it is what you reach for
+   when something has gone wrong rather than what you do on a Tuesday.
+
+   It used to be seven panels stacked down the page with equal weight: the
+   source switch, the depletion switch, the scanner, the item list, the
+   balances, the count sheet, purchasing, suppliers. Every one of them was
+   reasonable on its own and the sum was a screen nobody could see the point
+   of. The point is: invoices in, sales out, this is what you have.
+
+   ── What is gone ───────────────────────────────────────────────────────────
+
+   The stock count. Opening a sheet, typing what is on each shelf, submitting
+   it for somebody else to approve, and having the difference written into the
+   ledger as an adjustment. It was a faithful implementation of how stock
+   control is done on paper, and it asked a restaurant to do the single most
+   tedious job in the building on a schedule, for a number this system can
+   derive: deliveries in, minus what the sales consumed.
+
+   ── What has not changed ───────────────────────────────────────────────────
+
+   There is still no editable "quantity on hand" anywhere. Every balance in
+   `StockPanel` is the sum of the ledger beneath it, and the only way to change
+   one is to record another entry — including the reversal that corrects a
+   mistake. An editable field here would be a second version of a derived
+   number, and the two would disagree within a week.
 
    Reading needs `view:inventory`, editing needs `manage:inventory`. The server
    enforces both, so a viewer simply sees no buttons rather than buttons that
@@ -55,6 +74,7 @@ export default function Inventory({ token, pendingDoc, onDocUsed }) {
   const [editing, setEditing] = useState(null);
   const [showArchived, setShowArchived] = useState(false);
   const [stockKey, setStockKey] = useState(0);
+  const [managing, setManaging] = useState(false);
 
   const auth = { Authorization: `Bearer ${token}` };
 
@@ -213,17 +233,43 @@ export default function Inventory({ token, pendingDoc, onDocUsed }) {
           <p className="text-sm mt-1" style={{ color: C.slate }}>{t.inventory.lead}</p>
         </div>
 
-        {/* AI stock reading — photo in, suggested list out. */}
-        {/* The shelf scanner used to sit here beside this one, and it was the
-            wrong offer in the wrong place: photographing a shelf produces
-            estimates, and estimates do not belong in a master that every
-            recipe cost is built on. Counting a shelf is what the count sheet
-            is for, where two people sign off on the number.
+        {/* The way in, and the only one that matters day to day: photograph the
+            delivery note, or upload the PDF the supplier emailed. */}
+        <SupplierScan
+          token={token}
+          initial={pendingDoc?.scanner === "supplier" ? pendingDoc.data : null}
+          onInitialUsed={onDocUsed}
+          onReceived={() => { setStockKey((n) => n + 1); load(); }}
+        />
 
-            What belongs here is the paperwork a delivery actually arrives
-            with. A PDF invoice from a supplier is a perfect record of what was
-            bought and what it cost — better than any photograph of the shelf
-            it ended up on. */}
+        {/* What is on the shelf, which is what somebody opened this screen to
+            see. Directly under the button that changes it. */}
+        <StockPanel key={`stock-${stockKey}`} token={token} ingredients={ingredients} />
+
+        {/* Everything else, behind one control.
+
+            None of it is deprecated and none of it is hidden to make the screen
+            look tidier — the item master is how a mis-scanned name gets fixed,
+            and suppliers and the settings are load-bearing. It is folded
+            because reaching for it means something needs correcting, and
+            putting the correction tools at the same weight as the daily job
+            made the daily job hard to find. */}
+        <button
+          type="button"
+          onClick={() => setManaging((v) => !v)}
+          className="w-full flex items-center justify-between gap-2 px-4 py-3 rounded-xl text-sm font-semibold"
+          style={{ background: "var(--chip-bg)", color: C.slate }}
+        >
+          <span className="flex items-center gap-2">
+            <Settings2 size={15} /> {t.inventory.manage}
+          </span>
+          <ChevronDown size={15} style={{
+            transform: managing ? "rotate(180deg)" : "none", transition: "transform .15s",
+          }} />
+        </button>
+
+        {managing && (
+        <>
         {/* Which side keeps the stock. Above the depletion switch because it
             decides whether that switch applies at all. */}
         {canManage && <StockSource token={token} meta={state?.meta} onChanged={load} />}
@@ -253,12 +299,6 @@ export default function Inventory({ token, pendingDoc, onDocUsed }) {
           </label>
         </section>
         )}
-
-        <SupplierScan
-          token={token}
-          initial={pendingDoc?.scanner === "supplier" ? pendingDoc.data : null}
-          onInitialUsed={onDocUsed}
-        />
 
         {(adding || editing) && (
           <Panel title={editing ? t.inventory.editTitle : t.inventory.addTitle}
@@ -382,13 +422,7 @@ export default function Inventory({ token, pendingDoc, onDocUsed }) {
           )}
         </Panel>
 
-        <StockPanel key={`stock-${stockKey}`} token={token} ingredients={ingredients} />
-
-        {/* Approving a count writes adjustments, so the balances above have to
-            be re-read when one lands. */}
-        <CountsPanel token={token} onStockChanged={() => setStockKey((n) => n + 1)} />
-
-        {/* Receiving writes movements too, so the balances above re-read. */}
+        {/* Receiving writes movements, so the balances above re-read. */}
         <PurchasingPanel token={token} onStockChanged={() => setStockKey((n) => n + 1)} />
 
         <SupplierList
@@ -397,11 +431,8 @@ export default function Inventory({ token, pendingDoc, onDocUsed }) {
           canManage={canManage}
           onChanged={load}
         />
-
-        <p className="text-[11px] text-center pb-2" style={{ color: C.slate }}>
-          <Truck size={11} className="inline me-1" />
-          {t.inventory.nextPhase}
-        </p>
+        </>
+        )}
       </div>
     </div>
   );

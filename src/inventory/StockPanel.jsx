@@ -1,6 +1,8 @@
-import { useEffect, useState } from "react";
-import { Plus, Boxes, AlertTriangle, RotateCcw, ScrollText } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Plus, Boxes, AlertTriangle, RotateCcw, ScrollText, Search, Layers } from "lucide-react";
 import MovementForm from "./MovementForm.jsx";
+import IngredientIcon from "./IngredientIcon.jsx";
+import { Money } from "../Dirham.jsx";
 import { useC } from "../theme.jsx";
 import { useLang, fill } from "../i18n.jsx";
 
@@ -17,53 +19,76 @@ import { useLang, fill } from "../i18n.jsx";
    per-branch split beside it, while a branch manager sees their branch — the same
    computation, not a different screen. */
 
+/* Trailing zeros on a derived number read as false precision; four decimals is
+   enough to show that 250 g of a kilogram-held item is 0.25. */
+const fmt = (n) => Number(n.toFixed(4)).toLocaleString();
+
+/* One line of the shelf: what it is, how much there is, what it costs.
+
+   Three columns rather than a name with figures stacked beside it, because
+   those are the three questions and they are asked across rows — "what is
+   running low", "what has got expensive" — which a column answers and a stack
+   does not. Expanding still shows the per-branch split, since a consolidated
+   total that cannot be broken down is a number to be taken on trust. */
 function Row({ row, branches, branchNames, expanded, onToggle }) {
   const C = useC();
   const { t } = useLang();
   const s = t.inventory.stock;
-
-  /* Trailing zeros on a derived number read as false precision; four decimals is
-     enough to show that 250 g of a kilogram-held item is 0.25. */
-  const fmt = (n) => Number(n.toFixed(4)).toLocaleString();
   const flagged = row.negative || row.belowReorder;
 
   return (
     <div className="rounded-lg" style={{ background: "var(--chip-bg)" }}>
-      <button onClick={onToggle} className="w-full flex items-center gap-3 p-3 text-start">
+      <button onClick={onToggle} className="w-full flex items-center gap-3 py-2.5 px-3 text-start">
+        <IngredientIcon name={row.name} size={30} />
+
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             <span className="text-sm font-semibold truncate-safe">{row.name}</span>
             {flagged && (
-              <span className="text-[10px] px-1.5 py-0.5 rounded inline-flex items-center gap-1"
-                style={{ background: C.hairline, color: row.negative ? C.rose : C.amber || C.slate }}>
-                <AlertTriangle size={10} />
-                {row.negative ? s.negative : s.belowReorder}
-              </span>
+              <AlertTriangle size={11} className="shrink-0"
+                style={{ color: row.negative ? C.rose : C.amber }} />
             )}
           </div>
-          <div className="text-[11px] mt-0.5" style={{ color: C.slate }}>
-            {[row.category, branches.length > 1 ? fill(s.acrossBranches, { n: Object.keys(row.byBranch).length }) : null]
-              .filter(Boolean).join(" · ")}
-          </div>
+          {row.category && (
+            <div className="text-[11px] mt-0.5 truncate-safe" style={{ color: C.slate }}>
+              {row.category}
+            </div>
+          )}
         </div>
-        <div className="text-end shrink-0">
-          <div className="text-sm font-bold tabular-nums" style={{ color: row.negative ? C.rose : C.ink }} dir="ltr">
+
+        <div className="text-end shrink-0 w-[5.5rem]">
+          <div className="data text-sm font-bold" style={{ color: row.negative ? C.rose : C.ink }} dir="ltr">
             {fmt(row.qty)} {row.stockUnit}
           </div>
-          {row.reorderPoint !== null && row.reorderPoint !== undefined && (
-            <div className="text-[10px] tabular-nums" style={{ color: C.slate }} dir="ltr">
-              ⌂ {fmt(row.reorderPoint)}
+        </div>
+
+        <div className="text-end shrink-0 w-[6.5rem] hidden sm:block">
+          {row.avgCost === null || row.avgCost === undefined ? (
+            <span className="text-xs" style={{ color: C.slate }}>—</span>
+          ) : (
+            <div className="text-xs" style={{ color: row.costEstimated ? C.amber : C.slate }}>
+              <Money value={row.avgCost} decimals={2} /> / {row.stockUnit}
             </div>
           )}
         </div>
       </button>
 
-      {expanded && branches.length > 1 && (
+      {expanded && (
         <div className="px-3 pb-3 space-y-1">
-          {branches.map((b) => (
+          {/* The cost, on the small screens where the column is hidden. */}
+          {row.avgCost !== null && row.avgCost !== undefined && (
+            <div className="flex items-center justify-between text-[11px] sm:hidden" style={{ color: C.slate }}>
+              <span>{s.avgCost}</span>
+              <span><Money value={row.avgCost} decimals={2} /> / {row.stockUnit}</span>
+            </div>
+          )}
+          {row.costEstimated && (
+            <div className="text-[11px]" style={{ color: C.amber }}>{s.costEstimated}</div>
+          )}
+          {branches.length > 1 && branches.map((b) => (
             <div key={b} className="flex items-center justify-between text-[11px]" style={{ color: C.slate }}>
               <span className="truncate-safe">{branchNames[b] || b}</span>
-              <span className="tabular-nums" dir="ltr">{fmt(row.byBranch[b] || 0)} {row.stockUnit}</span>
+              <span className="data" dir="ltr">{fmt(row.byBranch[b] || 0)} {row.stockUnit}</span>
             </div>
           ))}
         </div>
@@ -153,6 +178,7 @@ export default function StockPanel({ token, ingredients }) {
   const [formError, setFormError] = useState("");
   const [expanded, setExpanded] = useState(null);
   const [ledgerFor, setLedgerFor] = useState(null);
+  const [query, setQuery] = useState("");
 
   const auth = { Authorization: `Bearer ${token}` };
 
@@ -198,22 +224,57 @@ export default function StockPanel({ token, ingredients }) {
     }
   }
 
+  const branches = state?.branches || [];
+  const names = state?.branchNames || {};
+  const rows = state?.rows || [];
+
+  /* Name and category both, folded and accent-insensitive, so searching for
+     "tomate" finds "Tomatoes" and an Arabic search finds an Arabic name.
+     `localeCompare`-grade matching is not needed for a substring test, and
+     `normalize` costs nothing at this size. */
+  const shown = useMemo(() => {
+    const q = query.trim().toLowerCase().normalize("NFKD").replace(/\p{Diacritic}/gu, "");
+    if (!q) return rows;
+    return rows.filter((row) =>
+      `${row.name} ${row.category || ""}`.toLowerCase()
+        .normalize("NFKD").replace(/\p{Diacritic}/gu, "")
+        .includes(q));
+  }, [rows, query]);
+
   if (!state) return null;
 
-  const branches = state.branches || [];
-  const names = state.branchNames || {};
-  const rows = state.rows || [];
   const live = (ingredients || []).filter((i) => !i.archived);
 
   return (
     <div className="panel p-5 md:p-6">
-      <div className="flex items-start justify-between gap-3 mb-4">
-        <div>
-          <h3 className="display font-bold text-base">{s.title}</h3>
-          <p className="text-xs mt-1" style={{ color: C.slate }}>
-            {fill(s.note, { n: branches.length, m: rows.length })}
-          </p>
-        </div>
+      <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
+        <h3 className="display font-bold text-base flex items-center gap-2">
+          <span className="grid place-items-center w-7 h-7 rounded-lg shrink-0"
+            style={{ background: "var(--chip-bg)" }}>
+            <Layers size={14} style={{ color: C.iris }} />
+          </span>
+          {s.title}
+        </h3>
+
+        {/* Search earns its place at about twenty rows, and a real store passes
+            that in a month of invoices. Filtering in the browser rather than
+            round-tripping: the whole list is already here, and a shelf is
+            hundreds of rows, not thousands. */}
+        {rows.length > 8 && (
+          <div className="relative flex-1 min-w-[8rem] max-w-[14rem]">
+            <Search size={13} className="absolute top-1/2 -translate-y-1/2 start-3 pointer-events-none"
+              style={{ color: C.slate }} />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder={s.search}
+              aria-label={s.search}
+              className="w-full rounded-xl ps-8 pe-3 py-1.5 text-sm outline-none"
+              style={{ background: C.bone, border: `1px solid ${C.hairline}`, color: C.ink }}
+            />
+          </div>
+        )}
+
         {state.canManage && !adding && live.length > 0 && branches.length > 0 && (
           <button onClick={() => { setAdding(true); setFormError(""); }}
             className="px-3 py-2 rounded-lg text-xs font-semibold inline-flex items-center gap-1.5 shrink-0"
@@ -246,13 +307,31 @@ export default function StockPanel({ token, ingredients }) {
           <p className="text-sm" style={{ color: C.slate }}>{s.empty}</p>
         </div>
       ) : (
-        <div className="space-y-1.5">
-          {rows.map((row) => (
-            <Row key={row.ingredientId} row={row} branches={branches} branchNames={names}
-              expanded={expanded === row.ingredientId}
-              onToggle={() => setExpanded(expanded === row.ingredientId ? null : row.ingredientId)} />
-          ))}
-        </div>
+        <>
+          {/* Column headings, so the two figures on the end are labelled once
+              rather than repeated per row. */}
+          <div className="flex items-center gap-3 px-3 pb-2 text-[11px] font-bold uppercase tracking-wide"
+            style={{ color: C.slate, borderBottom: `1px solid ${C.hairline}` }}>
+            <span className="w-[30px] shrink-0" aria-hidden="true" />
+            <span className="flex-1">{s.material}</span>
+            <span className="w-[5.5rem] text-end">{s.onHand}</span>
+            <span className="w-[6.5rem] text-end hidden sm:block">{s.avgCost}</span>
+          </div>
+
+          <div className="space-y-1.5 mt-1.5">
+            {shown.map((row) => (
+              <Row key={row.ingredientId} row={row} branches={branches} branchNames={names}
+                expanded={expanded === row.ingredientId}
+                onToggle={() => setExpanded(expanded === row.ingredientId ? null : row.ingredientId)} />
+            ))}
+          </div>
+
+          {!shown.length && (
+            <p className="text-sm text-center py-6" style={{ color: C.slate }}>
+              {fill(s.noMatches, { q: query })}
+            </p>
+          )}
+        </>
       )}
 
       {branches.length > 0 && (

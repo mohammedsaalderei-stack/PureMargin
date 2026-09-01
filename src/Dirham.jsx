@@ -41,9 +41,19 @@ export function DirhamMark({ size = "0.95em", className = "", style = {} }) {
 }
 
 /* Amount with the mark. Always renders LTR — currency amounts are written
-   left-to-right in Arabic too, with the symbol leading. */
-export function Money({ value, size, className = "", style = {} }) {
-  const amount = Math.round(Number(value) || 0).toLocaleString("en-AE");
+   left-to-right in Arabic too, with the symbol leading.
+
+   Whole dirhams by default, which is right for the figures this was written
+   for: a day's sales, a month's food cost, a margin. It is wrong for the two
+   places money is small — an invoice line at 1,312.50, and a unit cost at 22.80
+   a kilo, where rounding to 23 loses the digit the number exists to show. Hence
+   `decimals`, rather than a second formatter in each of those screens that
+   would drift from this one's grouping and locale. */
+export function Money({ value, size, decimals = 0, className = "", style = {} }) {
+  const amount = (Number(value) || 0).toLocaleString("en-AE", {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  });
   return (
     <span
       dir="ltr"

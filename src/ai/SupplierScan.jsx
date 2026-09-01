@@ -1,24 +1,49 @@
 import { useState, useEffect } from "react";
-import { Truck, Loader2, Check, AlertTriangle, Trash2 } from "lucide-react";
+import { Loader2, Check, Save, Trash2, FileText, AlertTriangle, ChevronDown } from "lucide-react";
 import { useC } from "../theme.jsx";
 import { useLang, fill } from "../i18n.jsx";
+import { Money } from "../Dirham.jsx";
 import PhotoScan from "./PhotoScan.jsx";
 
-/* A delivery note, turned into stock.
+/* A supplier invoice, photographed or uploaded, turned into stock.
 
-   The kitchen already photographs the note to check it against what arrived.
-   This reads the same photograph, matches each line to an ingredient the
-   business already keeps, and offers to receive it — so a delivery becomes
-   stock and a fresh unit cost without a purchase order being typed twice.
+   ── What this screen deliberately does not ask ─────────────────────────────
 
-   Nothing is written until somebody presses the button, for the same reason
-   the bill scanner does not write consumption: a `receive` moves the balance
-   the leakage screen later treats as fact.
+   It used to open a table: a dropdown per line to pick the ingredient, a text
+   box for the unit, a number for the cost, and a mismatch warning when the
+   invoice said kilos and the shelf said litres. Twelve lines of that, before a
+   delivery could be received.
 
-   Every field stays editable. The match is a guess made from a supplier's
-   abbreviation — "TOMATO RED 5KG BOX" against a shelf labelled "Tomatoes" —
-   and the one thing worse than leaving a line unmatched is matching it to the
-   wrong ingredient and calling that done. */
+   Every one of those questions has an answer the system already holds or can
+   work out. Which ingredient: the alias table remembers what this supplier
+   called it last time, and the matcher handles the first time. What unit: read
+   off the invoice and converted in `_units.js`, which is the only place that
+   arithmetic is safe. What cost: the line total over the quantity, restated
+   into the unit the shelf keeps — a figure derived, never typed, because the
+   per-unit price printed on an invoice is rounded for display.
+
+   So the screen asks nothing and states everything: the header a person would
+   check on the paper itself — number, date, supplier, subtotal, VAT, total,
+   how many lines — and two buttons. Save commits the delivery. Cancel throws
+   the draft away without touching the database.
+
+   The lines are still one press away, and still editable, because a scan can
+   be wrong and the answer to that must never be "start again". They are just
+   not the first thing anybody has to deal with. */
+
+/* One row of the invoice header. Dotted rule between, values ending the line,
+   which is how the paper itself is laid out and how it reads in both
+   directions. */
+function Row({ label, children }) {
+  const C = useC();
+  return (
+    <div className="flex items-center justify-between gap-4 py-2.5"
+      style={{ borderBottom: `1px dashed ${C.hairline}` }}>
+      <span className="text-xs shrink-0" style={{ color: C.slate }}>{label}</span>
+      <span className="data text-sm font-semibold text-end">{children}</span>
+    </div>
+  );
+}
 
 export default function SupplierScan({ token, onReceived, initial, onInitialUsed }) {
   const C = useC();
@@ -28,19 +53,11 @@ export default function SupplierScan({ token, onReceived, initial, onInitialUsed
   const [result, setResult] = useState(null);
   const [lines, setLines] = useState([]);
   const [stock, setStock] = useState([]);
-  /* Fetched here rather than taken as a prop: this component is dropped into
-     the inventory screen, which does not otherwise need the branch list, and
-     threading one through only for this would make the screen carry state it
-     has no use for. */
   const [branches, setBranches] = useState([]);
   const [branch, setBranch] = useState("");
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState("");
   const [failed, setFailed] = useState(false);
-  const [done, setDone] = useState(false);
-  /* Closed by default. The rows are almost always right, and opening a list of
-     twelve editable lines to confirm that is work the feature exists to
-     remove. It is one press away for the times it is wrong. */
   const [review, setReview] = useState(false);
 
   useEffect(() => {
@@ -52,7 +69,7 @@ export default function SupplierScan({ token, onReceived, initial, onInitialUsed
      re-open a delivery somebody already received. */
   useEffect(() => {
     if (!initial) return;
-    receive(initial);
+    open(initial);
     onInitialUsed?.();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initial]);
@@ -69,100 +86,71 @@ export default function SupplierScan({ token, onReceived, initial, onInitialUsed
       .catch(() => {});
   }, [token]);
 
-  const receive = (r) => {
+  const open = (r) => {
     setResult(r);
-    setDone(false);
     setNote("");
+    setFailed(false);
+    setReview(false);
     setLines((r?.lines || []).map((l) => ({ ...l })));
+  };
+
+  /* Throw the draft away. Nothing has been written at this point — the scan
+     produced an object in this component and nowhere else — so there is nothing
+     to undo and no confirmation to ask for. */
+  const cancel = () => {
+    setResult(null);
+    setLines([]);
+    setNote("");
+    setFailed(false);
+    setReview(false);
   };
 
   const edit = (i, patch) =>
     setLines((list) => list.map((l, n) => (n === i ? { ...l, ...patch } : l)));
   const drop = (i) => setLines((list) => list.filter((_, n) => n !== i));
 
-  const ready = lines.filter((l) => l.ingredientId && l.qty > 0);
-  /* Lines with nothing to match. The model has already described what each one
-     should become, so these are things to create rather than questions to ask. */
-  const toCreate = lines.filter((l) => !l.ingredientId && l.newItem && l.qty > 0);
+  /* Everything the delivery will do: lines that already match, plus lines the
+     scan described well enough to create. Both are received; the difference is
+     invisible from here and that is the point. */
+  const willReceive = lines.filter((l) =>
+    Number(l.qty) > 0 && (l.ingredientId || l.newItem?.name));
 
-  /* One action for the whole delivery.
-
-     This used to be three: correct the rows, press a button to create the
-     ingredients that did not match, then press another to receive. Every one
-     of those steps was the software asking somebody to finish a job it already
-     had the information to do — and the whole reason to photograph a delivery
-     note is not typing it in.
-
-     Now: create whatever is missing, then receive everything, in that order,
-     from one press. The review list is still there for anybody who wants it,
-     closed by default, because most of the time the answer is right and
-     opening it is work too. */
-  const commit = async () => {
-    if (!branch) { setFailed(true); setNote(s.pickBranch); return; }
-    setBusy(true); setNote("");
+  const save = async () => {
+    if (!branch && branches.length) { setFailed(true); setNote(s.pickBranch); return; }
+    setBusy(true);
+    setNote("");
     try {
-      let live = lines;
-
-      if (toCreate.length) {
-        const res = await fetch("/api/inventory?what=ingredients", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-          body: JSON.stringify({
-            source: "supplier-scan",
-            ingredients: toCreate.map((l) => ({
-              name: l.newItem.name,
-              stockUnit: l.newItem.stockUnit,
-              purchaseUnit: l.newItem.purchaseUnit,
-              packSize: l.newItem.packSize,
-              category: l.newItem.category || undefined,
-            })),
-          }),
-        });
-        const json = await res.json().catch(() => ({}));
-        if (res.ok) {
-          const made = json.ingredients || [];
-          setStock((prev) => [...prev, ...made]);
-          /* Attach what was just created back onto the lines that asked for
-             it, so the receive below covers the whole delivery rather than
-             the part that happened to already exist. */
-          live = lines.map((l) => {
-            if (l.ingredientId || !l.newItem) return l;
-            const hit = made.find((m) => m.name.toLowerCase() === l.newItem.name.toLowerCase());
-            return hit ? { ...l, ingredientId: hit.id, stockUnit: hit.stockUnit } : l;
-          });
-          setLines(live);
-        }
-      }
-
-      const receiving = live.filter((l) => l.ingredientId && l.qty > 0);
-      if (!receiving.length) { setFailed(true); setNote(s.errNothing); return; }
-
-      const res = await fetch("/api/stock?what=receive-batch", {
+      const res = await fetch("/api/stock?what=invoice", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({
-          branchId: branch,
-          note: [s.source, result?.supplier, result?.invoiceNo].filter(Boolean).join(" · "),
-          movements: ready.map((l) => ({
-            ingredientId: l.ingredientId,
-            qty: Number(l.qty),
-            unit: l.unit || l.stockUnit,
-            unitCost: l.unitCost,
-          })),
+          branchId: branch || branches[0]?.id,
+          supplier: result?.supplier || "",
+          invoiceNo: result?.invoiceNo || "",
+          lines: willReceive,
         }),
       });
-      const json = await res.json();
+      const json = await res.json().catch(() => ({}));
       if (!res.ok) {
         setFailed(true);
-        setNote(json.error === "unit" ? s.errUnit : s.errServer);
+        setNote(json.error === "unit" ? s.errUnit
+          : json.error === "branch" ? s.pickBranch
+          : json.error === "line" || json.error === "empty" ? s.errNothing
+          : s.errServer);
         return;
       }
+
       setFailed(false);
-      setDone(true);
-      setNote(toCreate.length
-        ? `${fill(s.created, { count: toCreate.length })} ${fill(s.done, { count: json.movements?.length || 0 })}`
-        : fill(s.done, { count: json.movements?.length || 0 }));
       onReceived?.(json.movements || []);
+      /* Saved and gone. Leaving the card on screen after a successful commit
+         invited pressing save again, and the only thing standing between that
+         and a doubled delivery was somebody noticing. */
+      setResult(null);
+      setLines([]);
+      setNote(fill(s.saved, {
+        count: json.movements?.length || 0,
+        created: json.created?.length || 0,
+      }));
     } catch {
       setFailed(true);
       setNote(s.errServer);
@@ -176,56 +164,119 @@ export default function SupplierScan({ token, onReceived, initial, onInitialUsed
     style: { background: C.surface, border: `1px solid ${C.hairline}`, color: C.ink },
   };
 
-  return (
-    <div className="panel p-5 md:p-6">
-      <h3 className="display font-bold text-base mb-1 flex items-center gap-2">
-        <Truck size={15} style={{ color: C.iris }} /> {s.title}
-      </h3>
-      <p className="text-xs mb-3" style={{ color: C.slate }}>{s.lead}</p>
+  const money = (n) => (n === null || n === undefined
+    ? <span style={{ color: C.slate }}>—</span>
+    : <Money value={n} decimals={2} />);
 
-      <PhotoScan token={token} kind="supplier" buttonLabel={s.scan} onResult={receive} />
+  return (
+    <div className="space-y-4">
+      {/* The way in. One control, both input modes — the camera for a paper
+          delivery note, the file picker for the PDF a supplier emailed. */}
+      <PhotoScan token={token} kind="supplier" buttonLabel={s.scan} onResult={open} />
+
+      {note && !result && (
+        <p className="text-xs flex items-center gap-1.5 px-1"
+          style={{ color: failed ? C.rose : C.mint }}>
+          {failed ? <AlertTriangle size={13} /> : <Check size={13} />} {note}
+        </p>
+      )}
 
       {result && (
-        <div className="mt-4">
-          <p className="text-xs mb-3" style={{ color: C.slate }}>
-            {[result.supplier, result.invoiceNo, result.date].filter(Boolean).join(" · ") || s.noHeader}
-          </p>
+        <div className="panel p-5 md:p-6">
+          <div className="flex items-center justify-between gap-3 mb-4">
+            <h3 className="display font-bold text-base flex items-center gap-2">
+              <span className="grid place-items-center w-7 h-7 rounded-lg shrink-0"
+                style={{ background: "var(--chip-bg)" }}>
+                <FileText size={14} style={{ color: C.iris }} />
+              </span>
+              {s.extracted}
+            </h3>
+            {/* Ready, or ready with a caveat. The caveat is that the three
+                printed totals do not add up, which means a figure was misread —
+                worth saying before a delivery is committed on it, and not worth
+                refusing over, because the lines may still be right. */}
+            <span className="text-[11px] font-bold px-2.5 py-1 rounded-lg flex items-center gap-1 shrink-0"
+              style={result.totalsAgree === false
+                ? { background: "color-mix(in srgb, var(--amber) 14%, transparent)", color: C.amber }
+                : { background: "color-mix(in srgb, var(--mint) 14%, transparent)", color: C.mint }}>
+              {result.totalsAgree === false
+                ? <><AlertTriangle size={12} /> {s.checkTotals}</>
+                : <><Check size={12} /> {s.ready}</>}
+            </span>
+          </div>
+
+          <div style={{ borderTop: `1px dashed ${C.hairline}` }}>
+            <Row label={s.invoiceNo}>{result.invoiceNo || "—"}</Row>
+            <Row label={s.invoiceDate}>{result.date || "—"}</Row>
+            <Row label={s.supplier}>{result.supplier || "—"}</Row>
+            <Row label={s.subtotal}>{money(result.subtotal)}</Row>
+            <Row label={s.vat}>{money(result.tax)}</Row>
+            <Row label={s.total}>{money(result.total)}</Row>
+            <Row label={s.itemCount}>{fill(s.items, { n: willReceive.length })}</Row>
+          </div>
 
           {branches.length > 1 && (
-            <div className="mb-3">
-              <label htmlFor="supbranch" className="block text-[11px] font-bold uppercase tracking-wide mb-1"
+            <div className="mt-4">
+              <label htmlFor="supbranch" className="block text-[11px] font-bold uppercase tracking-wide mb-1.5"
                 style={{ color: C.slate }}>{s.branch}</label>
               <select id="supbranch" value={branch} onChange={(e) => setBranch(e.target.value)}
-                className="rounded-lg px-2.5 py-1.5 text-sm outline-none"
+                className="w-full rounded-xl px-3 py-2 text-sm outline-none"
                 style={{ background: C.bone, border: `1px solid ${C.hairline}`, color: C.ink }}>
                 {branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
               </select>
             </div>
           )}
 
-          {/* A sentence instead of a table: what was read, what will be
-              created, what will be received. Enough to decide whether to
-              look closer. */}
-          <p className="text-sm mb-2">
-            {fill(s.summary, { received: ready.length, created: toCreate.length })}
-          </p>
+          {/* Two actions, equal weight, both saying what they do. Cancel is not
+              a quiet link beside a loud button: throwing away a scan is a
+              reasonable thing to want and hiding it only produces deliveries
+              nobody meant to receive. */}
+          <div className="grid grid-cols-2 gap-3 mt-5">
+            <button type="button" onClick={cancel} disabled={busy}
+              className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-bold disabled:opacity-50"
+              style={{
+                background: "color-mix(in srgb, var(--rose) 10%, transparent)",
+                border: `1px solid color-mix(in srgb, var(--rose) 35%, transparent)`,
+                color: C.rose,
+              }}>
+              <Trash2 size={15} /> {s.cancel}
+            </button>
 
-          <button
-            type="button"
-            onClick={() => setReview((v) => !v)}
-            className="text-xs font-semibold mb-3"
-            style={{ color: C.iris }}
-          >
+            <button type="button" onClick={save} disabled={busy || !willReceive.length}
+              className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-bold disabled:opacity-50"
+              style={{
+                background: "color-mix(in srgb, var(--mint) 12%, transparent)",
+                border: `1px solid color-mix(in srgb, var(--mint) 40%, transparent)`,
+                color: C.mint,
+              }}>
+              {busy ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
+              {busy ? s.saving : s.save}
+            </button>
+          </div>
+
+          {note && (
+            <p className="text-xs mt-3 flex items-center gap-1.5"
+              style={{ color: failed ? C.rose : C.mint }}>
+              {failed ? <AlertTriangle size={13} /> : <Check size={13} />} {note}
+            </p>
+          )}
+
+          {/* Closed, and closed on purpose. The rows are almost always right,
+              and opening twelve editable lines to confirm that is exactly the
+              work this screen exists to remove. One press away for when it
+              matters. */}
+          <button type="button" onClick={() => setReview((v) => !v)}
+            className="mt-4 text-xs font-semibold flex items-center gap-1"
+            style={{ color: C.slate }}>
+            <ChevronDown size={13} style={{
+              transform: review ? "rotate(180deg)" : "none", transition: "transform .15s",
+            }} />
             {review ? s.hideLines : fill(s.reviewLines, { n: lines.length })}
           </button>
 
           {review && (
-          <>
-          <div className="space-y-1.5">
-            {lines.map((l, i) => {
-              const mismatch = l.ingredientId && l.stockUnit && l.unit
-                && l.unit.toLowerCase() !== l.stockUnit.toLowerCase();
-              return (
+            <div className="mt-3 space-y-1.5">
+              {lines.map((l, i) => (
                 <div key={i} className="flex items-center gap-2 py-2 px-3 rounded-lg text-sm flex-wrap"
                   style={{ background: "var(--chip-bg)" }}>
                   <div className="flex-1 min-w-[9rem]">
@@ -237,14 +288,22 @@ export default function SupplierScan({ token, onReceived, initial, onInitialUsed
                       }}
                       aria-label={s.ingredient}
                       className="w-full bg-transparent font-medium outline-none text-sm"
-                      style={{ color: l.ingredientId ? C.ink : C.rose }}
+                      style={{ color: C.ink }}
                     >
-                      <option value="">{s.noMatch}</option>
+                      {/* Not "no match" any more. An unmatched line is a thing
+                          to be created, and the scan has already said what — so
+                          the option names it rather than reporting a failure. */}
+                      <option value="">
+                        {l.newItem?.name ? fill(s.willCreate, { name: l.newItem.name }) : s.noMatch}
+                      </option>
                       {stock.map((ing) => (
                         <option key={ing.id} value={ing.id}>{ing.name}</option>
                       ))}
                     </select>
-                    <div className="text-[11px] truncate" style={{ color: C.slate }}>{l.text}</div>
+                    <div className="text-[11px] truncate" style={{ color: C.slate }}>
+                      {l.text}
+                      {l.viaAlias && <span className="ms-1" style={{ color: C.iris }}>· {s.remembered}</span>}
+                    </div>
                   </div>
 
                   <input type="number" min="0" step="any" inputMode="decimal" dir="ltr"
@@ -262,35 +321,10 @@ export default function SupplierScan({ token, onReceived, initial, onInitialUsed
                     className="shrink-0 p-1 rounded" style={{ color: C.slate }}>
                     <Trash2 size={13} />
                   </button>
-
-                  {mismatch && (
-                    <p className="w-full text-[11px] flex items-center gap-1" style={{ color: C.rose }}>
-                      <AlertTriangle size={11} />
-                      {fill(s.unitMismatch, { invoice: l.unit, stock: l.stockUnit })}
-                    </p>
-                  )}
                 </div>
-              );
-            })}
-          </div>
-
-          <p className="text-[11px] mt-2" style={{ color: C.slate }}>{s.editHint}</p>
-          </>
-          )}
-
-          {note && (
-            <p className="text-xs mt-3 flex items-center gap-1" style={{ color: failed ? C.rose : C.cyan }}>
-              {!failed && <Check size={13} />} {note}
-            </p>
-          )}
-
-          {!done && (
-            <button type="button" onClick={commit} disabled={busy || !ready.length}
-              className="mt-3 inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold disabled:opacity-50"
-              style={{ background: C.iris, color: C.onPrimary }}>
-              {busy ? <Loader2 size={14} className="animate-spin" /> : <Truck size={14} />}
-              {busy ? s.saving : fill(s.commit, { count: ready.length + toCreate.length })}
-            </button>
+              ))}
+              <p className="text-[11px] pt-1" style={{ color: C.slate }}>{s.editHint}</p>
+            </div>
           )}
         </div>
       )}
