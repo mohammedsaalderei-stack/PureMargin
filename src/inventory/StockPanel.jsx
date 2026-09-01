@@ -38,8 +38,8 @@ function Row({ row, branches, branchNames, expanded, onToggle }) {
 
   return (
     <div className="rounded-lg" style={{ background: "var(--chip-bg)" }}>
-      <button onClick={onToggle} className="w-full flex items-center gap-3 py-2.5 px-3 text-start">
-        <IngredientIcon name={row.name} size={30} />
+      <button onClick={onToggle} className="w-full flex items-center gap-2 py-2.5 px-2.5 text-start">
+        <IngredientIcon name={row.name} size={28} />
 
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
@@ -56,32 +56,34 @@ function Row({ row, branches, branchNames, expanded, onToggle }) {
           )}
         </div>
 
-        <div className="text-end shrink-0 w-[5.5rem]">
+        {/* Both figures, at every width. The cost used to be `hidden sm:block`,
+            which on a phone left the column heading with nothing under it and
+            dropped half of what the row is for — and a phone in a storeroom is
+            where this screen is actually read. */}
+        <div className="text-end shrink-0 w-[3.75rem]">
           <div className="data text-sm font-bold" style={{ color: row.negative ? C.rose : C.ink }} dir="ltr">
-            {fmt(row.qty)} {row.stockUnit}
+            {fmt(row.qty)}
           </div>
+          <div className="text-[10px]" style={{ color: C.slate }} dir="ltr">{row.stockUnit}</div>
         </div>
 
-        <div className="text-end shrink-0 w-[6.5rem] hidden sm:block">
+        <div className="text-end shrink-0 w-[4.5rem]">
           {row.avgCost === null || row.avgCost === undefined ? (
             <span className="text-xs" style={{ color: C.slate }}>—</span>
           ) : (
-            <div className="text-xs" style={{ color: row.costEstimated ? C.amber : C.slate }}>
-              <Money value={row.avgCost} decimals={2} /> / {row.stockUnit}
-            </div>
+            <>
+              <div className="text-xs font-semibold"
+                style={{ color: row.costEstimated ? C.amber : C.ink }}>
+                <Money value={row.avgCost} decimals={2} />
+              </div>
+              <div className="text-[10px]" style={{ color: C.slate }} dir="ltr">/ {row.stockUnit}</div>
+            </>
           )}
         </div>
       </button>
 
       {expanded && (
         <div className="px-3 pb-3 space-y-1">
-          {/* The cost, on the small screens where the column is hidden. */}
-          {row.avgCost !== null && row.avgCost !== undefined && (
-            <div className="flex items-center justify-between text-[11px] sm:hidden" style={{ color: C.slate }}>
-              <span>{s.avgCost}</span>
-              <span><Money value={row.avgCost} decimals={2} /> / {row.stockUnit}</span>
-            </div>
-          )}
           {row.costEstimated && (
             <div className="text-[11px]" style={{ color: C.amber }}>{s.costEstimated}</div>
           )}
@@ -275,11 +277,16 @@ export default function StockPanel({ token, ingredients }) {
           </div>
         )}
 
+        {/* Recording a movement by hand — waste, a transfer, a correction — is
+            still here and still needs to be. It is a quiet control rather than
+            a filled button because it is the exception: stock arrives on an
+            invoice and leaves on a sale, and a loud button inviting somebody to
+            type a quantity is how a derived balance starts drifting. */}
         {state.canManage && !adding && live.length > 0 && branches.length > 0 && (
           <button onClick={() => { setAdding(true); setFormError(""); }}
-            className="px-3 py-2 rounded-lg text-xs font-semibold inline-flex items-center gap-1.5 shrink-0"
-            style={{ background: C.iris, color: C.onPrimary }}>
-            <Plus size={14} /> {s.record}
+            className="text-xs font-semibold inline-flex items-center gap-1 shrink-0"
+            style={{ color: C.slate }}>
+            <Plus size={13} /> {s.record}
           </button>
         )}
       </div>
@@ -310,12 +317,12 @@ export default function StockPanel({ token, ingredients }) {
         <>
           {/* Column headings, so the two figures on the end are labelled once
               rather than repeated per row. */}
-          <div className="flex items-center gap-3 px-3 pb-2 text-[11px] font-bold uppercase tracking-wide"
+          <div className="flex items-center gap-2 px-2.5 pb-2 text-[11px] font-bold uppercase tracking-wide"
             style={{ color: C.slate, borderBottom: `1px solid ${C.hairline}` }}>
-            <span className="w-[30px] shrink-0" aria-hidden="true" />
+            <span className="w-[28px] shrink-0" aria-hidden="true" />
             <span className="flex-1">{s.material}</span>
-            <span className="w-[5.5rem] text-end">{s.onHand}</span>
-            <span className="w-[6.5rem] text-end hidden sm:block">{s.avgCost}</span>
+            <span className="w-[3.75rem] text-end">{s.onHand}</span>
+            <span className="w-[4.5rem] text-end">{s.avgCost}</span>
           </div>
 
           <div className="space-y-1.5 mt-1.5">

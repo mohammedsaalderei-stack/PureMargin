@@ -31,6 +31,7 @@ export default function Recipes({ token, pendingDoc, onDocUsed }) {
   const [open, setOpen] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [created, setCreated] = useState([]);
 
   const auth = { Authorization: `Bearer ${token}` };
 
@@ -75,6 +76,10 @@ export default function Recipes({ token, pendingDoc, onDocUsed }) {
       await load();
       setOpen(out.recipe);
       setOpenId(out.recipe.id);
+      /* Ingredients the save created, named. Writing a recipe adding rows to
+         the shared item master is the feature working, but a system that does
+         it without saying so is doing things behind somebody's back. */
+      setCreated(out.newIngredients?.map((i) => i.name) || []);
     } catch {
       setError(s.errors.failed);
     } finally {
@@ -155,6 +160,12 @@ export default function Recipes({ token, pendingDoc, onDocUsed }) {
             </div>
 
             {error && <p className="text-sm mb-3" style={{ color: C.rose }}>{error}</p>}
+
+            {created.length > 0 && (
+              <p className="text-xs mb-3" style={{ color: C.iris }}>
+                {fill(s.createdIngredients, { names: created.join(", ") })}
+              </p>
+            )}
 
             {recipes.length === 0 ? (
               <div className="text-center py-8">

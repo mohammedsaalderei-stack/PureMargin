@@ -116,6 +116,17 @@ export default function RecipeSheet({ token, recipe, method, canManage, onClose,
             </div>
           )}
 
+          {/* Complete, but resting on estimates rather than invoices. A
+              different and quieter claim than an unpriced gap — the total is
+              whole, it is just made of numbers nobody has paid yet — so it is
+              said in amber and without the border. */}
+          {costing.complete && costing.estimatedCount > 0 && (
+            <p className="text-[11px] mb-4 flex items-start gap-1.5" style={{ color: C.amber }}>
+              <AlertTriangle size={12} className="shrink-0 mt-0.5" />
+              {fill(s.estimatedNote, { n: costing.estimatedCount })}
+            </p>
+          )}
+
           <div className="text-xs font-semibold mb-2" style={{ color: C.slate }}>{s.ingredients}</div>
           <div className="space-y-1.5">
             {costing.lines.map((line) => <Line key={line.ingredientId} line={line} />)}

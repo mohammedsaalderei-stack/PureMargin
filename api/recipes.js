@@ -122,10 +122,17 @@ export default async function handler(req, res) {
             portions: out.version.portions,
             yieldPct: out.version.yieldPct,
             lines: out.version.lines.length,
+            /* Ingredients this save brought into the item master. Logged
+               because a recipe adding rows to the master is a real change to
+               shared data, even though it is the feature working. */
+            newIngredients: out.newIngredients.length,
           },
         });
         return res.status(200).json({
           recipe: await costedRecipe(orgId, out.recipe.id, effectiveBranches([], scope.authorized)),
+          /* Named back so the screen can say what it created rather than
+             leaving somebody to notice six new rows on another screen. */
+          newIngredients: out.newIngredients,
         });
       }
 
