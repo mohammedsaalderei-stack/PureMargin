@@ -19,6 +19,7 @@ import { posTokenFor } from "./_accounts.js";
 import { branchList, salesLines, NotConnected, PosUnreachable } from "./_data.js";
 import { COST_METHODS, DEFAULT_COST_METHOD } from "./_costing.js";
 import { varianceReport } from "./_variance.js";
+import { listEdits } from "./_saleedits.js";
 
 const DAY = 864e5;
 
@@ -59,7 +60,7 @@ export default async function handler(req, res) {
     let sales = { lines: [], fetch: null };
     let salesError = null;
     try {
-      sales = await salesLines(posToken, { from, to, branches });
+      sales = await salesLines(posToken, { from, to, branches, edits: await listEdits(orgId) });
     } catch (err) {
       salesError = err instanceof NotConnected ? "notconnected"
         : err instanceof PosUnreachable ? "unreachable" : "failed";

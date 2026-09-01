@@ -1,289 +1,406 @@
-import { useEffect, useMemo, useState } from "react";
-import { Receipt, Sparkles } from "lucide-react";
-import PhotoScan from "../ai/PhotoScan.jsx";
-import DepletionPanel from "../ai/DepletionPanel.jsx";
-import FixedCosts from "../costs/FixedCosts.jsx";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  Calculator, ChevronLeft, ChevronRight, Layers, TrendingUp, PieChart,
+  Building2, Package, Plus, Loader2,
+} from "lucide-react";
+import CostModal from "../costs/CostModal.jsx";
+import CostRow from "../costs/CostRow.jsx";
 import { useC } from "../theme.jsx";
-import { useLang, fill } from "../i18n.jsx";
+import { useLang, fill, localeFor } from "../i18n.jsx";
 import { Money } from "../Dirham.jsx";
 
-/* The bill scanner — the cashier's screen.
+/* Cost management — a ledger somebody types into.
 
-   Photograph a printed bill; the AI reads the lines, matches them to the
-   menu, and prices each one against the owner's entered costs, so the cost
-   and profit of that sale land without any typing. A line the AI can't
-   match is handed back: the cashier picks the menu item and enters the
-   amount, and the maths is done the same way. */
+   ── What this screen deliberately does not do ────────────────────────────
 
-export default function Costs({ token, pendingDoc, onDocUsed }) {
+   It does not read invoices. It does not match lines to a menu. It does not
+   touch stock, recipes or the depletion engine. There is no camera on it.
+
+   That is a removal, and the reason is worth writing down so it is not
+   quietly reversed. The screen used to be the bill scanner: to record that
+   packaging cost 1,620 in May, an owner had to photograph a document, wait for
+   a model to read it, and then correct whatever it misread. Everything on the
+   screen was downstream of a scan, so the plainest thing anybody wanted to do
+   here — write down a number they already knew — was the one thing it could
+   not do.
+
+   Purchase-invoice scanning still exists and still belongs to Inventory,
+   where a delivery note has quantities, units and a supplier to be received
+   against. Here there is nothing to receive. Rent is not a delivery.
+
+   ── The two halves ───────────────────────────────────────────────────────
+
+   Constant costs recur and are held as a rate: rent every month, a licence
+   every year. Variable costs happened once, on a day.
+
+   Both are stated as what they come to in a month, because that is the only
+   basis on which they can be added together, and the total of the two is the
+   only figure on this screen anybody quotes.
+
+   ── Why a month, and why one you can move ────────────────────────────────
+
+   Constant costs do not have a month — they are the same every month by
+   definition. Variable costs do. So the month picker moves the variable half
+   and the total, and leaves the constant half alone. Without the picker the
+   screen would silently mean "this month" and there would be no way to look at
+   what April actually cost, which is the question asked at the end of a
+   quarter rather than in the middle of one. */
+
+function monthKey(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function shiftMonth(key, by) {
+  const [y, m] = key.split("-").map(Number);
+  return monthKey(new Date(y, m - 1 + by, 1));
+}
+
+/* The first instant of a month and of the one after it, which is what the
+   constant-cost endpoint apportions across. */
+function monthWindow(key) {
+  const [y, m] = key.split("-").map(Number);
+  return [Date.UTC(y, m - 1, 1), Date.UTC(y, m, 1)];
+}
+
+export default function Costs({ token }) {
   const C = useC();
-  const { t } = useLang();
+  const { t, lang, rtl } = useLang();
   const s = t.costs;
 
-  const [result, setResult] = useState(null);
-  /* The menu with unit costs, for pricing manual picks. */
-  const [menu, setMenu] = useState([]);
-  const [manual, setManual] = useState({});
+  const [month, setMonth] = useState(() => monthKey(new Date()));
+  const [fixed, setFixed] = useState(null);
+  const [variable, setVariable] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const [mRes, cRes] = await Promise.all([
-          fetch("/api/metrics", { headers: { Authorization: `Bearer ${token}` } }),
-          fetch("/api/costs", { headers: { Authorization: `Bearer ${token}` } }),
-        ]);
-        if (!mRes.ok) return;
-        const m = await mRes.json();
-        const overrides = cRes.ok ? (await cRes.json()).costs || {} : {};
-        setMenu((m.items || []).map((i) => ({
-          name: i.name,
-          price: i.qty > 0 ? Math.round((i.revenue / i.qty) * 100) / 100 : 0,
-          cost: overrides[i.name] || i.cost || 0,
-        })));
-        const scopeRes = await fetch("/api/scope", { headers: { Authorization: `Bearer ${token}` } });
-        if (scopeRes.ok) setScopeBranches((await scopeRes.json()).branches || []);
-      } catch { /* the scanner still works; manual matching just has no list */ }
-    })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  /* One dialog for both sections. `kind` decides its shape, `editing` decides
+     whether it is an add or an amend. */
+  const [dialog, setDialog] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
+  const [confirming, setConfirming] = useState(null);
 
-  const money = (n) => (n === null || n === undefined ? "—" : <Money value={Math.round(n * 100) / 100} />);
+  const auth = useMemo(() => ({ Authorization: `Bearer ${token}` }), [token]);
 
-  /* Corrections to what the scan read.
+  const load = useCallback(async () => {
+    const [from, to] = monthWindow(month);
+    try {
+      const [fRes, vRes] = await Promise.all([
+        fetch(`/api/fixedcosts?from=${from}&to=${to}`, { headers: auth }),
+        fetch(`/api/varcosts?month=${month}`, { headers: auth }),
+      ]);
+      /* A 403 on either half is a permission answer, not a failure — the
+         screen says so rather than showing an empty list that reads as
+         "you have no costs". */
+      if (fRes.status === 403 || vRes.status === 403) { setError(s.forbidden); return; }
+      if (!fRes.ok || !vRes.ok) { setError(s.failed); return; }
+      setError("");
+      setFixed(await fRes.json());
+      setVariable(await vRes.json());
+    } catch {
+      setError(s.failed);
+    } finally {
+      setLoading(false);
+    }
+  }, [auth, month, s.failed, s.forbidden]);
 
-     The scanner is a reading of a photograph and it is occasionally wrong —
-     a smudged 11 becomes 4, a handwritten addition is missed, a dish is
-     matched to the wrong menu entry. Before this the result was final, so
-     one misread digit meant discarding the whole scan and typing the bill by
-     hand, which is the work the feature exists to remove.
+  useEffect(() => { load(); }, [load]);
 
-     Edits are held here rather than sent back for re-analysis: the numbers
-     are already priced from the owner's own cost table, so a corrected
-     quantity re-prices locally and instantly. `edits` is keyed by line index
-     because two lines of a bill can legitimately read identically. */
-  const [edits, setEdits] = useState({});
-  const [depletion, setDepletion] = useState(null);
+  const fixedCosts = fixed?.costs || [];
+  const variableCosts = variable?.costs || [];
+  const mayWrite = fixed?.mayWrite !== false && variable?.mayWrite !== false;
 
-  /* This screen has no period picker of its own, and the constant costs need a
-     window to be apportioned across. The calendar month is the right default:
-     rent and salaries are quoted monthly and paid monthly, so "what does this
-     month cost to run" is the question somebody arrives with. */
-  const [from, to] = useMemo(() => {
-    const now = new Date();
-    return [
-      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1),
-      Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1),
-    ];
-  }, []);
+  /* Both totals come from the server, which computed them from the same rows
+     it sent. Re-adding them here would create a second answer that disagrees
+     with the API the moment a rounding rule changes on one side only. */
+  const totalFixed = fixed?.monthly || 0;
+  const totalVariable = variable?.total || 0;
+  const totalAll = Math.round((totalFixed + totalVariable) * 100) / 100;
 
-  /* A bill dropped into Ask arrives already priced. Consumed once, so coming
-     back to this tab does not re-open a bill that was already dealt with. */
-  useEffect(() => {
-    if (pendingDoc?.scanner !== "bill" || !pendingDoc.data) return;
-    setResult(pendingDoc.data); setManual({}); setEdits({}); setDepletion(null);
-    onDocUsed?.();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pendingDoc]);
-  const [scopeBranches, setScopeBranches] = useState([]);
-  const editLine = (i, patch) =>
-    setEdits((e) => ({ ...e, [i]: { ...(e[i] || {}), ...patch } }));
+  /* `localeFor` rather than the bare language code: the dictionary already
+     decides that Arabic, Hindi and Urdu are formatted with Latin numerals,
+     because a figure read off this screen gets typed into a till that only
+     speaks them. Formatting is wrapped because an unsupported locale throws a
+     RangeError, and a date that cannot be formatted should degrade to the raw
+     one rather than take the whole screen down with it. */
+  const locale = localeFor(lang);
 
-  const applyEdits = (line, i) => {
-    const e = edits[i];
-    if (!e) return line;
-    const qty = e.qty !== undefined ? Number(e.qty) : line.qty;
-    const amount = e.amount !== undefined ? Number(e.amount) : line.amount;
-    const name = e.menuItem !== undefined ? e.menuItem : line.menuItem;
-    const entry = menu.find((m) => m.name === name);
-    const unit = entry?.cost || 0;
-    const cost = name && unit > 0 && Number.isFinite(qty) ? Math.round(unit * qty * 100) / 100 : null;
-    const profit = cost !== null && Number.isFinite(amount) ? Math.round((amount - cost) * 100) / 100 : null;
-    return { ...line, qty, amount, menuItem: name || null, cost, profit, edited: true };
+  const dateText = (y, m, d, options) => {
+    try {
+      return new Date(y, m - 1, d).toLocaleDateString(locale, options)
+        .replace(/[\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, "");
+    } catch {
+      return `${String(d).padStart(2, "0")}/${String(m).padStart(2, "0")}/${y}`;
+    }
   };
 
-  const lines = (result?.lines || []).map(applyEdits);
+  const monthLabel = useMemo(() => {
+    const [y, m] = month.split("-").map(Number);
+    return dateText(y, m, 1, { month: "long", year: "numeric" });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [month, locale]);
 
-  /* Manually resolved lines, priced from the menu list. */
-  const resolved = Object.entries(manual)
-    .filter(([, v]) => v.item && Number(v.amount) > 0)
-    .map(([text, v]) => {
-      const entry = menu.find((m) => m.name === v.item);
-      const amount = Number(v.amount);
-      const cost = entry?.cost ? entry.cost * (Number(v.qty) || 1) : null;
-      return { text, menuItem: v.item, qty: Number(v.qty) || 1, amount, cost, profit: cost !== null ? amount - cost : null };
-    });
+  const dayLabel = (iso) => {
+    const [y, m, d] = String(iso).split("-").map(Number);
+    if (!y) return "";
+    return dateText(y, m, d, { day: "numeric", month: "short", year: "numeric" });
+  };
 
-  const allLines = result
-    ? [...lines.filter((l) => l.menuItem), ...resolved]
-    : [];
-  const totalCost = allLines.reduce((sum, l) => (l.cost !== null && sum !== null ? sum + l.cost : null), 0);
-  const totalAmount = allLines.reduce((sum, l) => sum + (l.amount || 0), 0);
+  async function save(values) {
+    setSaving(true);
+    setSaveError("");
+    try {
+      const isFixed = dialog.kind === "fixed";
+      const url = isFixed ? "/api/fixedcosts" : "/api/varcosts";
+      /* The constant-cost endpoint predates this screen and speaks
+         `name`/`period`; the dialog speaks `title`/`frequency`. Translating at
+         the one call site is cheaper than renaming a stored field that older
+         records already carry. */
+      const body = isFixed
+        ? { id: dialog.editing?.id, name: values.title, amount: values.amount, period: values.frequency }
+        : { id: dialog.editing?.id, title: values.title, amount: values.amount, date: values.date };
 
-  const unmatched = (result?.unmatched || []).filter((text) => !manual[text]?.item || !(Number(manual[text]?.amount) > 0));
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...auth },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) { setSaveError(s.errServer); return; }
+      setDialog(null);
+      await load();
+    } catch {
+      setSaveError(s.errServer);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  /* Two ways out for a constant cost, one for a variable one.
+
+     `mode: "end"` closes a cost that really ran: it stops counting forwards
+     and keeps costing the months it applied to, which is what a report over
+     February needs when the rent stopped in March. `mode: "delete"` removes it
+     entirely, for the entry that was never true of any month.
+
+     A variable cost has only delete. It is a single dated line — there is no
+     period it goes on applying to, so nothing is preserved by ending it. */
+  async function remove(entry) {
+    const url = entry.kind === "fixed"
+      ? `/api/fixedcosts?id=${encodeURIComponent(entry.id)}${entry.mode === "end" ? "&end=1" : ""}`
+      : `/api/varcosts?id=${encodeURIComponent(entry.id)}`;
+    setConfirming(null);
+    try {
+      const res = await fetch(url, { method: "DELETE", headers: auth });
+      if (!res.ok) { setError(s.errServer); return; }
+      await load();
+    } catch {
+      setError(s.errServer);
+    }
+  }
+
+  const metric = (label, value, Icon, tone) => (
+    <div className="flex-1 min-w-0 px-2 text-center">
+      <div className="mx-auto mb-2 w-9 h-9 rounded-full flex items-center justify-center"
+        style={{ background: C.irisWash, color: tone || C.iris }}>
+        <Icon size={16} />
+      </div>
+      <div className="text-[11px] mb-1 truncate" style={{ color: C.slate }}>{label}</div>
+      <div className="data text-xl font-bold" style={{ color: tone || C.ink }}>
+        <Money value={value} />
+      </div>
+    </div>
+  );
+
+  const section = ({ title, note, rows, addLabel, onAdd }) => (
+    <section className="space-y-2.5">
+      <div className="flex items-center gap-2 px-1">
+        <span className="w-1.5 h-1.5 rounded-full" style={{ background: C.iris }} />
+        <h3 className="display font-bold text-sm">{title}</h3>
+      </div>
+      <div className="panel p-3 md:p-4 space-y-2">
+        {rows}
+        {mayWrite && (
+          <button type="button" onClick={onAdd}
+            className="w-full rounded-xl py-3 text-xs font-semibold flex items-center justify-center gap-1.5"
+            style={{ border: `1px dashed ${C.edge}`, color: C.iris, background: "transparent" }}>
+            <Plus size={14} /> {addLabel}
+          </button>
+        )}
+        {note && <p className="text-[11px] px-1 pt-1" style={{ color: C.slate }}>{note}</p>}
+      </div>
+    </section>
+  );
 
   return (
     <div className="h-full overflow-y-auto">
-      <div className="p-4 md:p-6 space-y-4 max-w-3xl mx-auto w-full">
-        <div>
-          <h2 className="display font-bold text-xl flex items-center gap-2">
-            <Sparkles size={18} style={{ color: C.iris }} /> {s.title}
-          </h2>
-          <p className="text-sm mt-1" style={{ color: C.slate }}>{s.lead}</p>
+      <div className="p-4 md:p-6 space-y-5 max-w-3xl mx-auto w-full">
+
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h2 className="display font-bold text-xl">{s.title}</h2>
+            <p className="text-xs mt-0.5" style={{ color: C.slate }}>{s.lead}</p>
+          </div>
+          <div className="shrink-0 w-10 h-10 rounded-xl flex items-center justify-center"
+            style={{ background: C.irisWash, color: C.iris }}>
+            <Calculator size={19} />
+          </div>
         </div>
 
-        <div className="panel p-5 md:p-6">
-          <h3 className="display font-bold text-base mb-1">{s.changingTitle}</h3>
-          <p className="text-xs mb-3" style={{ color: C.slate }}>{s.changingLead}</p>
-          <PhotoScan token={token} kind="bill" buttonLabel={s.scan}
-            onResult={(r, _img, plan) => {
-              setResult(r); setManual({}); setEdits({}); setDepletion(plan);
-            }} />
+        {/* The three figures, and the month they are being read for. */}
+        <div className="panel p-4 md:p-5">
+          <div className="flex items-center justify-between mb-4">
+            {/* The arrows follow the writing direction, not the calendar. In
+                Arabic and Urdu the previous month sits to the right and the
+                glyph has to point that way, or the control reads backwards to
+                everyone using it. */}
+            <button type="button" onClick={() => setMonth((m) => shiftMonth(m, -1))}
+              aria-label={s.prevMonth} className="p-1.5 rounded-lg" style={{ color: C.slate }}>
+              {rtl ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
+            </button>
+            <div className="text-xs font-semibold">{monthLabel}</div>
+            <button type="button" onClick={() => setMonth((m) => shiftMonth(m, 1))}
+              aria-label={s.nextMonth} className="p-1.5 rounded-lg" style={{ color: C.slate }}>
+              {rtl ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
+            </button>
+          </div>
+
+          <div className="flex items-start">
+            {metric(s.totalFixed, totalFixed, Layers)}
+            <div style={{ width: 1, alignSelf: "stretch", background: C.hairline }} />
+            {metric(s.totalVariable, totalVariable, TrendingUp)}
+            <div style={{ width: 1, alignSelf: "stretch", background: C.hairline }} />
+            {metric(s.totalAll, totalAll, PieChart, C.iris)}
+          </div>
         </div>
 
-        {result && (
-          <>
-            {result.summary && (
-              <div className="panel p-4 flex gap-2.5">
-                <Sparkles size={15} className="shrink-0 mt-0.5" style={{ color: C.iris }} />
-                <p className="text-sm" style={{ color: C.ink }}>{result.summary}</p>
-              </div>
-            )}
-
-            <div className="panel p-5 md:p-6">
-              <h3 className="display font-bold text-base mb-3 flex items-center gap-2">
-                <Receipt size={15} style={{ color: C.iris }} /> {s.linesTitle}
-              </h3>
-
-              <div className="space-y-1.5">
-                {lines.map((l, i) => (
-                  <div key={i} className="flex items-center gap-2 py-2 px-3 rounded-lg text-sm flex-wrap"
-                    style={{ background: "var(--chip-bg)" }}>
-                    <div className="flex-1 min-w-[8rem]">
-                      <select
-                        value={l.menuItem || ""}
-                        onChange={(e) => editLine(i, { menuItem: e.target.value })}
-                        aria-label={s.pickItem}
-                        className="w-full bg-transparent font-medium outline-none text-sm"
-                        style={{ color: C.ink }}
-                      >
-                        <option value="">{s.unmatchedTitle}</option>
-                        {menu.map((m) => (
-                          <option key={m.name} value={m.name}>{m.name}</option>
-                        ))}
-                      </select>
-                      <div className="text-[11px] truncate" style={{ color: C.slate }}>{l.text}</div>
-                    </div>
-
-                    <input
-                      type="number" min="0" step="any" inputMode="decimal" dir="ltr"
-                      value={l.qty ?? ""}
-                      onChange={(e) => editLine(i, { qty: e.target.value })}
-                      aria-label={s.qty}
-                      className="data text-xs shrink-0 w-14 text-end rounded px-1.5 py-1 outline-none"
-                      style={{ background: C.surface, border: `1px solid ${C.hairline}`, color: C.ink }}
-                    />
-                    <input
-                      type="number" min="0" step="any" inputMode="decimal" dir="ltr"
-                      value={l.amount ?? ""}
-                      onChange={(e) => editLine(i, { amount: e.target.value })}
-                      aria-label={s.amount}
-                      className="data text-xs shrink-0 w-20 text-end rounded px-1.5 py-1 outline-none"
-                      style={{ background: C.surface, border: `1px solid ${C.hairline}`, color: C.ink }}
-                    />
-                    <span className="data text-xs shrink-0 w-16 text-end" style={{ color: C.slate }}>{money(l.cost)}</span>
-                    <span className="data text-xs font-semibold shrink-0 w-16 text-end"
-                      style={{ color: l.profit === null ? C.slate : l.profit >= 0 ? C.iris : C.rose }}>
-                      {money(l.profit)}
-                    </span>
-                  </div>
-                ))}
-              </div>
-              <p className="text-[11px] mt-2" style={{ color: C.slate }}>{s.editHint}</p>
-
-              <div className="flex justify-end gap-3 mt-1 px-3">
-                <span className="text-[10px] uppercase tracking-wide w-14 text-end" style={{ color: C.slate }}>{s.qty}</span>
-                <span className="text-[10px] uppercase tracking-wide w-20 text-end" style={{ color: C.slate }}>{s.amount}</span>
-                <span className="text-[10px] uppercase tracking-wide w-16 text-end" style={{ color: C.slate }}>{s.cost}</span>
-                <span className="text-[10px] uppercase tracking-wide w-16 text-end" style={{ color: C.slate }}>{s.profit}</span>
-              </div>
-
-              {/* Lines the AI couldn't place: the cashier resolves them by hand. */}
-              {unmatched.length > 0 && (
-                <div className="mt-4 pt-4" style={{ borderTop: `1px solid ${C.hairline}` }}>
-                  <div className="text-xs font-semibold mb-1">{s.unmatchedTitle}</div>
-                  <p className="text-[11px] mb-3" style={{ color: C.slate }}>{s.unmatchedNote}</p>
-                  {unmatched.map((text) => (
-                    <div key={text} className="flex flex-wrap items-center gap-2 py-2">
-                      <span className="text-xs flex-1 min-w-[120px]" style={{ color: C.slate }}>{text}</span>
-                      <select
-                        value={manual[text]?.item || ""}
-                        onChange={(e) => setManual({ ...manual, [text]: { ...(manual[text] || {}), item: e.target.value } })}
-                        className="px-2 py-1.5 rounded-lg text-xs max-w-[160px]"
-                        style={{ border: `1px solid ${C.hairline}`, background: "transparent", color: C.ink }}>
-                        <option value="">{s.pickItem}</option>
-                        {menu.map((m) => <option key={m.name} value={m.name}>{m.name}</option>)}
-                      </select>
-                      <input
-                        type="number" min="0" step="0.01" inputMode="decimal"
-                        placeholder={s.amountPlaceholder}
-                        value={manual[text]?.amount || ""}
-                        onChange={(e) => setManual({ ...manual, [text]: { ...(manual[text] || {}), amount: e.target.value } })}
-                        className="w-24 px-2 py-1.5 rounded-lg text-xs"
-                        style={{ border: `1px solid ${C.hairline}`, background: "transparent", color: C.ink }} dir="ltr" />
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* The answer: what the bill was worth after cost. */}
-            <div className="panel p-5 md:p-6">
-              <div className="grid grid-cols-3 gap-2">
-                {[
-                  [s.total, result.total ?? totalAmount, null],
-                  [s.totalCost, resolved.length ? totalCost : result.totalCost, null],
-                  [s.totalProfit,
-                    resolved.length && totalCost !== null && result.total != null
-                      ? result.total - totalCost
-                      : result.totalProfit,
-                    C.iris],
-                ].map(([label, value, tone]) => (
-                  <div key={label} className="p-3 rounded-lg" style={{ background: "var(--chip-bg)" }}>
-                    <div className="text-[10px] uppercase tracking-wide" style={{ color: C.slate }}>{label}</div>
-                    <div className="text-base font-bold mt-0.5" style={tone ? { color: tone } : undefined}>
-                      {money(value)}
-                    </div>
-                  </div>
-                ))}
-              </div>
-              {(result.totalCost === null || unmatched.length > 0) && (
-                <p className="text-[11px] mt-3" style={{ color: C.slate }}>
-                  {fill(s.partialNote, { n: unmatched.length })}
-                </p>
-              )}
-            </div>
-
-            {/* Only rendered when the API sent a plan, which it only does for
-                somebody holding manage:inventory. A cashier never sees a button
-                they could not press. */}
-            <DepletionPanel
-              token={token}
-              plan={depletion}
-              branches={scopeBranches}
-              onDone={() => setDepletion(null)}
-            />
-          </>
+        {error && (
+          <div className="panel p-4 text-sm" style={{ color: C.rose }}>{error}</div>
         )}
 
-        {/* The two halves of what a month costs, on one screen. Splitting them
-            across tabs is how somebody ends up believing one of them is the
-            whole picture. */}
-        <FixedCosts token={token} from={from} to={to} />
+        {loading && !fixed && (
+          <div className="flex justify-center py-10" style={{ color: C.slate }}>
+            <Loader2 size={20} className="animate-spin" />
+          </div>
+        )}
 
-        {!result && (
-          <div className="text-center py-10">
-            <Receipt size={30} className="mx-auto mb-3" style={{ color: C.slate, opacity: 0.5 }} />
-            <p className="text-sm" style={{ color: C.slate }}>{s.empty}</p>
+        {fixed && section({
+          title: s.fixedTitle,
+          note: s.fixedNote,
+          addLabel: s.addFixed,
+          onAdd: () => { setSaveError(""); setDialog({ kind: "fixed", editing: null }); },
+          rows: (
+            <>
+              {fixedCosts.length === 0 && (
+                <p className="text-sm px-1 py-3" style={{ color: C.slate }}>{s.fixedEmpty}</p>
+              )}
+              {fixedCosts.map((c) => (
+                <CostRow
+                  key={c.id}
+                  icon={Building2}
+                  title={c.name}
+                  /* A yearly entry shows the yearly figure it was entered as
+                     underneath the monthly one it is counted at, so the list
+                     never contradicts what somebody remembers typing. */
+                  subtitle={c.period === "monthly"
+                    ? s.frequencies.monthly
+                    : fill(s.perYearNote, { amount: Number(c.amount).toLocaleString() })}
+                  amount={c.period === "yearly" ? c.amount / 12
+                    : c.period === "weekly" ? (c.amount * 52) / 12
+                      : c.amount}
+                  mayWrite={mayWrite}
+                  onEdit={() => {
+                    setSaveError("");
+                    setDialog({
+                      kind: "fixed",
+                      editing: {
+                        id: c.id,
+                        title: c.name,
+                        amount: c.amount,
+                        frequency: c.period === "yearly" ? "yearly" : "monthly",
+                      },
+                    });
+                  }}
+                  onEnd={() => setConfirming({ kind: "fixed", mode: "end", id: c.id, title: c.name })}
+                  onDelete={() => setConfirming({ kind: "fixed", mode: "delete", id: c.id, title: c.name })}
+                />
+              ))}
+            </>
+          ),
+        })}
+
+        {variable && section({
+          title: s.variableTitle,
+          note: s.variableNote,
+          addLabel: s.addVariable,
+          onAdd: () => { setSaveError(""); setDialog({ kind: "variable", editing: null }); },
+          rows: (
+            <>
+              {variableCosts.length === 0 && (
+                <p className="text-sm px-1 py-3" style={{ color: C.slate }}>{s.variableEmpty}</p>
+              )}
+              {variableCosts.map((c) => (
+                <CostRow
+                  key={c.id}
+                  icon={Package}
+                  title={c.title}
+                  subtitle={dayLabel(c.date)}
+                  amount={c.amount}
+                  mayWrite={mayWrite}
+                  onEdit={() => {
+                    setSaveError("");
+                    setDialog({
+                      kind: "variable",
+                      editing: { id: c.id, title: c.title, amount: c.amount, date: c.date },
+                    });
+                  }}
+                  onDelete={() => setConfirming({ kind: "variable", mode: "delete", id: c.id, title: c.title })}
+                />
+              ))}
+            </>
+          ),
+        })}
+
+        <CostModal
+          open={Boolean(dialog)}
+          kind={dialog?.kind}
+          initial={dialog?.editing}
+          busy={saving}
+          error={saveError}
+          onClose={() => setDialog(null)}
+          onSave={save}
+        />
+
+        {/* Both actions are one tap from a menu, so both ask. Naming the row in
+            the question is the part that matters — "delete this cost?" is not
+            answerable without knowing which one is about to go — and ending is
+            worded as what it does rather than as a softer delete, since the
+            difference between the two is the whole reason both exist. */}
+        {confirming && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            style={{ background: C.scrim, backdropFilter: "blur(3px)" }}
+            onClick={() => setConfirming(null)}>
+            <div className="palette-in w-full sm:max-w-sm rounded-2xl p-5"
+              style={{ background: C.surface, border: `1px solid ${C.hairline}` }}
+              onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+              <h3 className="display font-bold text-base mb-1">
+                {confirming.mode === "end" ? s.endTitle : s.deleteTitle}
+              </h3>
+              <p className="text-sm mb-5" style={{ color: C.slate }}>
+                {fill(confirming.mode === "end" ? s.endBody : s.deleteBody, { name: confirming.title })}
+              </p>
+              <div className="flex gap-2">
+                <button type="button" onClick={() => setConfirming(null)}
+                  className="flex-1 rounded-xl py-2.5 text-sm font-semibold"
+                  style={{ border: `1px solid ${C.hairline}`, color: C.ink }}>
+                  {s.cancel}
+                </button>
+                <button type="button" onClick={() => remove(confirming)}
+                  className="flex-1 rounded-xl py-2.5 text-sm font-bold"
+                  style={{ background: confirming.mode === "end" ? C.iris : C.rose, color: C.onPrimary }}>
+                  {confirming.mode === "end" ? s.end : s.delete}
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </div>

@@ -282,7 +282,10 @@ export default async function handler(req, res) {
         await recordAudit(orgId, {
           actor: session.username,
           action: "stock.consume",
-          detail: { branchId: branch[0], lines: written.length, source: "billscan" },
+          /* Automatic depletion from POS sales. Labelled "billscan" until the
+             bill scanner was removed — this path never involved one, it reads
+             the till. */
+          detail: { branchId: branch[0], lines: written.length, source: "sales" },
         });
 
         return res.status(200).json({ movements: written });

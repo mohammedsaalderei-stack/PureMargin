@@ -25,7 +25,7 @@ import crypto from "crypto";
 import { getJSON, setJSON, del } from "./_store.js";
 import { capabilitiesFor } from "./_tabs.js";
 import { ROLES, ROLE_KEYS, isRole, can } from "./_roles.js";
-import { getAccount, normalise } from "./_accounts.js";
+import { getAccount, normalise, normaliseFeatures } from "./_accounts.js";
 
 /* Re-exported: the role table moved to its own module to break an import
    cycle, and every caller that already asks _org.js for it should keep
@@ -128,7 +128,11 @@ export function membership(org, username) {
    owner has, without buying anything themselves. A member's own plan (if an
    admin granted one directly) still counts — the union of both applies. */
 export async function effectivePlanFor(account) {
-  const own = account?.plan || { items: [], since: null, until: null };
+  const stored = account?.plan || { items: [], since: null, until: null };
+  /* Retired package ids translated forward on read. An account that bought
+     `billscan` still holds it in storage, and must still get the costs
+     package it paid for. */
+  const own = { ...stored, items: normaliseFeatures(stored.items || []) };
   try {
     const org = await orgFor(account);
     if (!org || org.ownerUsername === account.username) return { ...own, inherited: false };
@@ -139,7 +143,7 @@ export async function effectivePlanFor(account) {
     if (!ownerActive) return { ...own, inherited: false };
     const ownActive = own.items?.length && !(own.until && own.until < Date.now());
     return {
-      items: [...new Set([...(ownActive ? own.items : []), ...ownerPlan.items])],
+      items: [...new Set([...(ownActive ? own.items : []), ...normaliseFeatures(ownerPlan.items)])],
       since: own.since || ownerPlan.since,
       until: Math.max(own.until || 0, ownerPlan.until || 0) || null,
       inherited: true,

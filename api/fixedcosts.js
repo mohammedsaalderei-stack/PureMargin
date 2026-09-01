@@ -1,7 +1,7 @@
 import { requireAuth } from "./_auth.js";
 import { scopeFor } from "./_org.js";
 import { recordAudit } from "./_audit.js";
-import { listCosts, saveCost, endCost, deleteCost, costsFor } from "./_fixedcosts.js";
+import { listCosts, saveCost, endCost, deleteCost, costsFor, monthlyTotal } from "./_fixedcosts.js";
 
 /* Rent, salaries and the rest of what goes out regardless of trade.
 
@@ -40,7 +40,11 @@ export default async function handler(req, res) {
           from: Number(from), to: Number(to), branches: scope.authorized,
         })
         : { total: 0, lines: [] };
-      return res.status(200).json({ costs, window, mayWrite });
+      /* `monthly` is what the simplified screen shows: every entry expressed
+         as what it costs in a month, added up. `window` stays alongside it
+         because a report over an arbitrary date range still needs the per-day
+         apportionment, and the two answer different questions. */
+      return res.status(200).json({ costs, window, monthly: monthlyTotal(costs), mayWrite });
     }
 
     if (!mayWrite) return res.status(403).json({ error: "notowner" });

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   BarChart3, LineChart, MessageSquare, Settings as Cog, UtensilsCrossed, Users,
   Search, Lightbulb, PanelRightClose, PanelRightOpen, LogOut, Lock, Wallet,
-  LayoutDashboard, Download, FileText, Table, ChevronDown, Package, ChefHat, Scale, BellRing, ShoppingCart, Camera, MessagesSquare,} from "lucide-react";
+  LayoutDashboard, Download, FileText, Table, ChevronDown, Package, ChefHat, Scale, BellRing, ShoppingCart, Calculator, Receipt, MessagesSquare,} from "lucide-react";
 import { useC } from "./theme.jsx";
 import BrandMark from "./BrandMark.jsx";
 import { useLang, fill } from "./i18n.jsx";
@@ -30,6 +30,7 @@ import Variance from "./screens/Variance.jsx";
 import Alerts from "./screens/Alerts.jsx";
 import Plan from "./screens/Plan.jsx";
 import Costs from "./screens/Costs.jsx";
+import Sales from "./screens/Sales.jsx";
 import BranchScope from "./BranchScope.jsx";
 import CommandPalette from "./CommandPalette.jsx";
 import LanguagePicker from "./LanguagePicker.jsx";
@@ -61,11 +62,11 @@ const EMPTY_METRICS = {
 
 const POLL_MS = 30 * 1000;
 
-/* Ordered by importance: the numbers you check first, the AI bill scanner a
-   cashier lives in, then analysis, with account plumbing last. */
+/* Ordered by importance: the numbers you check first, the cost ledger, the
+   assistant, then analysis, with account plumbing last. */
 const TAB_META = [
   { id: "overview", icon: LayoutDashboard },
-  { id: "costs", icon: Camera },
+  { id: "costs", icon: Calculator },
   { id: "ask", icon: MessageSquare },
   { id: "watch", icon: BarChart3 },
   { id: "menu", icon: UtensilsCrossed },
@@ -111,7 +112,13 @@ const RECIPES_TAB = { id: "recipes", icon: ChefHat };
    recipes, since it is the costing answer they are both building towards. */
 const VARIANCE_TAB = { id: "variance", icon: Scale };
 
-const TAB_ICONS = Object.fromEntries([...TAB_META, INVENTORY_TAB, ALERTS_TAB, PLAN_TAB, RECIPES_TAB, VARIANCE_TAB, TEAM_TAB, MESSAGES_TAB].map((tb) => [tb.id, tb.icon]));
+/* Sales as the till reported them, and the corrections made to them. Gated on
+   `view:dashboard` rather than on `adjust:sales`: reading the day's takings is
+   what everybody with a dashboard already does, and the screen shows no edit
+   controls to somebody who cannot use them. */
+const SALES_TAB = { id: "sales", icon: Receipt };
+
+const TAB_ICONS = Object.fromEntries([...TAB_META, SALES_TAB, INVENTORY_TAB, ALERTS_TAB, PLAN_TAB, RECIPES_TAB, VARIANCE_TAB, TEAM_TAB, MESSAGES_TAB].map((tb) => [tb.id, tb.icon]));
 
 function useDesktop() {
   const [big, setBig] = useState(() => typeof window !== "undefined" && window.matchMedia("(min-width: 1024px)").matches);
@@ -217,12 +224,12 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
 
   const canManageTeam = allowed("team");
 
-  /* Importance order: today's numbers, the bill scanner, the assistant, then
+  /* Importance order: today's numbers, the cost ledger, the assistant, then
      operations, then the analysis screens, then the team, with billing and
      settings last. */
   const byId = Object.fromEntries(TAB_META.map((tb) => [tb.id, tb]));
   const navTabs = [
-    byId.overview, byId.costs, byId.ask,
+    byId.overview, SALES_TAB, byId.costs, byId.ask,
     INVENTORY_TAB, ALERTS_TAB, PLAN_TAB, RECIPES_TAB, VARIANCE_TAB,
     byId.watch, byId.menu, byId.forecast, byId.advice,
     MESSAGES_TAB, TEAM_TAB,
@@ -431,7 +438,10 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
   } else if (tab === "team") { body = <Team token={token} />; }
   else if (tab === "messages") { body = <Messages token={token} />; }
   else if (locked) { body = <Locked feature={needed} onSeePlans={() => go("billing")} />; }
-  else if (tab === "costs") { body = <Costs token={token} pendingDoc={pendingDoc} onDocUsed={() => setPendingDoc(null)} />; }
+  /* No `pendingDoc` here any more. The cost screen is a typed ledger and has
+     no scanner to hand a document to; documents route to Inventory or Recipes. */
+  else if (tab === "costs") { body = <Costs token={token} />; }
+  else if (tab === "sales") { body = <Sales token={token} branches={branches} />; }
   else if (tab === "inventory") { body = <Inventory token={token} pendingDoc={pendingDoc} onDocUsed={() => setPendingDoc(null)} />; }
   else if (tab === "recipes") { body = <Recipes token={token} pendingDoc={pendingDoc} onDocUsed={() => setPendingDoc(null)} />; }
   else if (tab === "variance") { body = <Variance token={token} branches={branches} />; }

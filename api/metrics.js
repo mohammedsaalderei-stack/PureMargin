@@ -6,6 +6,7 @@ import { scopeFor, effectiveBranches, parseBranchParam } from "./_org.js";
 import { applyScope } from "./_scope-metrics.js";
 import { provenance } from "./_provenance.js";
 import { noteSync, lastSync } from "./_sync.js";
+import { listEdits } from "./_saleedits.js";
 
 export default async function handler(req, res) {
   const session = await requireAuth(req, res);
@@ -30,8 +31,14 @@ export default async function handler(req, res) {
     const scope = await scopeFor(session.account, allBranches);
     const effective = effectiveBranches(parseBranchParam(req.query?.branches), scope.authorized);
 
+    /* Owner corrections to what the till reported. Loaded per organization and
+       applied inside the aggregation, so a voided sale is absent from every
+       series rather than subtracted from the headline alone. */
+    const edits = await listEdits(scope.org?.id);
+
     const metrics = await getMetrics(posToken, {
       overrides,
+      edits,
       branches: effective,
       ...(fresh ? { maxAge: 0 } : {}),
     });

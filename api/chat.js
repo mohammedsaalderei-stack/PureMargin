@@ -5,6 +5,7 @@ import { posTokenFor, noteQuestion, getAccount, activeItems } from "./_accounts.
 import { getJSON } from "./_store.js";
 import { groundingFor, ANSWER_CONTRACT } from "./_grounding.js";
 import { parseBranchParam, scopeFor } from "./_org.js";
+import { listEdits } from "./_saleedits.js";
 
 const MODEL = "claude-sonnet-4-5";
 
@@ -84,7 +85,12 @@ export default async function handler(req, res) {
 
     const overrides = (await getJSON(`costs:${session.username}`)) || {};
     const posToken = await posTokenFor(session.username);
-    const metrics = await getMetrics(posToken, { overrides });
+    /* The same corrections the screens read. An assistant quoting the till's
+       uncorrected total while the dashboard shows the corrected one is worse
+       than an assistant with no figures at all: two authoritative answers that
+       disagree, with nothing on screen to explain which is which. */
+    const saleEdits = await listEdits(askerScope?.org?.id).catch(() => ({}));
+    const metrics = await getMetrics(posToken, { overrides, edits: saleEdits });
 
     /* The operations half of the answer. It is best-effort: an account with no
        organization, or a POS that won't answer, still gets the sales assistant it
@@ -94,7 +100,7 @@ export default async function handler(req, res) {
       const roster = await branchList(posToken).catch(() => []);
       const to = Date.now();
       const from = to - 30 * 864e5;
-      const sales = await salesLines(posToken, { from, to }).catch(() => ({ lines: [], fetch: null }));
+      const sales = await salesLines(posToken, { from, to, edits: saleEdits }).catch(() => ({ lines: [], fetch: null }));
       grounding = await groundingFor(session.account, {
         allBranchIds: roster.map((b) => b.id),
         branchNames: Object.fromEntries(roster.map((b) => [b.id, b.name])),

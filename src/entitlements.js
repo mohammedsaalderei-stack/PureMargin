@@ -11,15 +11,17 @@ export const SCREEN_FEATURE = {
   ask: "assistant",
   advice: "assistant",
   watch: "table",
-  /* Menu engineering and the forecast were sold as packages of their own, and
-     the pricing page no longer offers them — somebody who signed up saw two
-     items on their Packages screen that they could not have bought and could
-     not find a price for. Both are readings of trading performance against
-     cost, which is what the Costs package is, so that is where they belong. */
-  menu: "billscan",
-  forecast: "billscan",
-  // The AI bill scanner is its own package.
-  costs: "billscan",
+  /* The costs package: everything that reads money rather than stock.
+
+     The id used to be `billscan`, from when the only thing in it was a bill
+     scanner. There is no scanner in it now — it is the cost ledger, the
+     corrections to what the till reported, menu engineering and the forecast.
+     Retired ids are translated forward in `entitlements()` below, so an
+     account that bought `billscan` still opens all four. */
+  menu: "costs",
+  forecast: "costs",
+  costs: "costs",
+  sales: "costs",
   // Team administration is gated by role, not by plan.
   team: null,
   /* The team board is never gated. It is how the people in an organization
@@ -38,12 +40,40 @@ export const SCREEN_FEATURE = {
   billing: null,
 };
 
+/* Package ids that were retired, and what they mean now.
+
+   Kept in step with `LEGACY_FEATURES` in `api/_accounts.js` — the server is
+   authoritative, but the client decides which tabs to draw, and a client that
+   did not know `billscan` means `costs` would grey out four screens the
+   account still has. `pos_hardware` maps to nothing: it never gated a screen,
+   so an account holding it loses no access.
+
+   Deliberately a translation on read, never a rewrite. The stored record keeps
+   saying what was actually sold. */
+const LEGACY_FEATURES = {
+  billscan: "costs",
+  menu: "costs",
+  forecast: "costs",
+  pos_hardware: null,
+};
+
+export function normaliseFeatures(items = []) {
+  const out = [];
+  for (const raw of items) {
+    const id = Object.prototype.hasOwnProperty.call(LEGACY_FEATURES, raw)
+      ? LEGACY_FEATURES[raw]
+      : raw;
+    if (id && !out.includes(id)) out.push(id);
+  }
+  return out;
+}
+
 /* Demo sessions — the shared-password route with no registered account —
    are deliberately ungated, so single-tenant deployments keep working
    exactly as they did before packages existed. */
 export function entitlements(account) {
   const registered = Boolean(account?.account);
-  const paid = account?.account?.plan?.items || [];
+  const paid = normaliseFeatures(account?.account?.plan?.items || []);
   const items = [...new Set([...FREE_FEATURES, ...paid])];
   return {
     registered,

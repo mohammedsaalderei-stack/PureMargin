@@ -135,23 +135,80 @@ export async function verifyPassword(identifier, password) {
    pieces worth buying, and an empty product nobody can use sells nothing. */
 export const FREE_FEATURES = ["table"];
 
-/* Sold separately. Every id here must exist in `SCREEN_FEATURE` on the client,
-   or a package would be sellable with nothing behind it — and anything missing
-   here can't be granted at all, which is how the operations suite and the bill
-   scanner were unsellable. */
-/* The packages that can be bought, in the order the pricing page lists them.
-   It has to be the same list in the same order, or the Packages screen after
-   sign-in shows items the pricing page never offered — which is what happened
-   when menu and forecast were retired from pricing and left here. */
-export const FEATURES = ["assistant", "operations", "billscan", "pos_hardware"];
+/* The three packages that can be bought.
 
-/* How many bill scans a month buys, whatever package it came with.
+   Every id here must exist in `SCREEN_FEATURE` on the client, or a package
+   would be sellable with nothing behind it. It has to be the same list in the
+   same order the pricing page shows, or the Packages screen after sign-in
+   offers something the pricing page never did.
 
-   Every scan is a vision-model call against a photograph, and that is the one
-   cost here that scales with use rather than with accounts. A cap makes the
-   ceiling visible to whoever is paying instead of arriving as a surprise, and
-   100 is comfortably above what a single site gets through in a month while
-   still stopping a stuck retry loop from running up a bill overnight. */
+   ── Why three ────────────────────────────────────────────────────────────
+
+   There were four ids and five cards on the pricing page, and they did not
+   describe the same product. `menu` and `forecast` had prices in `billing.js`
+   and were never in this list, so they could not be granted at all. "An extra
+   branch" was a card with no id behind it, so it could be chosen and bought
+   and would grant nothing. `pos_hardware` was an entitlement for a physical
+   till, which is not something the software can switch on or off.
+
+   What remains is the three things an account can actually be given:
+
+     assistant   — asking questions of your own numbers
+     operations  — the back of house: stock, recipes, leakage, purchasing
+     costs       — the money: the cost ledger, sale corrections, menu
+                   engineering, the forecast
+
+   Hardware is quoted per order and lives on the pricing page as a note, not as
+   a package. Extra branches are a percentage of the monthly total, not an id —
+   see `BRANCH_SURCHARGE_PCT` in `billing.js`. Both were removed from here
+   because a thing that cannot be granted has no business in a grant list. */
+export const FEATURES = ["assistant", "operations", "costs"];
+
+/* Ids that used to be grantable, and what they mean now.
+
+   Accounts already exist holding `billscan`, and some hold `pos_hardware`.
+   Dropping those ids from `FEATURES` without this map would silently revoke
+   paid access at the next page load — the screens would lock, the customer
+   would have bought something that stopped working, and nothing in the app
+   would explain why.
+
+   `billscan` was the costs package under its old name, so it forwards.
+   `pos_hardware` forwards to nothing: it never gated a screen, so an account
+   holding it loses no access. Legacy ids are translated on read and never
+   written back, which means an account's stored record still says what was
+   actually sold to them. */
+const LEGACY_FEATURES = {
+  billscan: "costs",
+  menu: "costs",
+  forecast: "costs",
+  pos_hardware: null,
+};
+
+/* One list of ids, with retired names translated forward. Every read of an
+   account's entitlements goes through here so there is exactly one place the
+   migration lives. */
+export function normaliseFeatures(items = []) {
+  const out = [];
+  for (const raw of items) {
+    const id = Object.prototype.hasOwnProperty.call(LEGACY_FEATURES, raw)
+      ? LEGACY_FEATURES[raw]
+      : raw;
+    if (id && !out.includes(id)) out.push(id);
+  }
+  return out;
+}
+
+/* How many document scans a month a plan buys.
+
+   Every scan is a vision-model call against a photograph or a PDF, and that is
+   the one cost here that scales with use rather than with accounts. A cap makes
+   the ceiling visible to whoever is paying instead of arriving as a surprise,
+   and 100 is comfortably above what a single site gets through in a month while
+   still stopping a stuck retry loop from running up a bill overnight.
+
+   Named for bills once, when bill scanning was the only thing that used it. It
+   now covers delivery notes, recipes and stock takes, which all ride the
+   operations package. */
 export const SCAN_LIMIT_PER_MONTH = 100;
 
 /* The terms a subscription can be activated for, in months. Anything else is
@@ -197,7 +254,7 @@ export function activeItems(account) {
   const plan = account?.plan;
   const paid =
     plan?.items?.length && !(plan.until && plan.until < Date.now()) ? plan.items : [];
-  return [...FREE_FEATURES, ...paid];
+  return [...FREE_FEATURES, ...normaliseFeatures(paid)];
 }
 
 const GRACE_DAYS = 7;

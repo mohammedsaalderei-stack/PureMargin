@@ -76,6 +76,31 @@ export const AUDIT_ACTIONS = {
   /* Stage 4, phase 7 — targets. A threshold decides what the whole organization
      is warned about, so moving one is a sensitive change like a permission. */
   "targets.update": "cost targets and thresholds changed",
+
+  /* The cost ledger. `fixedcosts.js` has been writing these three since it was
+     added, and every one was dropped on the floor: `recordAudit` refuses an
+     action it has no label for, and these had none. Salaries are typed on that
+     screen, so an unlogged edit there is exactly the kind the log exists for.
+
+     Constant costs distinguish `end` from `delete` because they mean different
+     things — one closes a cost that really ran, the other erases one that
+     should never have existed. Variable costs have only `delete`, because a
+     single dated line preserves nothing by being kept. */
+  "fixedcost.save": "constant cost added or amended",
+  "fixedcost.end": "constant cost ended",
+  "fixedcost.delete": "constant cost removed",
+  "varcost.add": "variable cost added",
+  "varcost.update": "variable cost amended",
+  "varcost.delete": "variable cost removed",
+
+  /* Corrections to what the till reported. These are the most sensitive
+     entries in the log: a sale that stops counting is money leaving the
+     figures, and the only defence against that being done quietly is that it
+     is written down with who did it and why. */
+  "sale.correct": "sale corrected",
+  "sale.recorrect": "sale correction amended",
+  "sale.void": "sale voided",
+  "sale.restore": "sale correction removed",
 };
 
 export async function recordAudit(orgId, { actor, action, target = "", detail = {} }) {

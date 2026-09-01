@@ -1,27 +1,39 @@
-/* AI photo analysis — one endpoint, two jobs.
+/* AI document analysis — one endpoint, several jobs.
 
-   POST { kind: "bill" | "inventory", image: <data URL>, lang, note? }
+   POST { kind: "supplier" | "recipe" | "inventory" | "classify" | "auto", image: <data URL>, lang, note? }
 
-   "bill":      a photo of a printed bill/receipt. Claude reads the line
-                items, matches them to the menu (with the owner's entered
-                costs), and returns cost and profit per line and in total.
-                Anything it can't match is flagged so the cashier can pick
-                the menu item by hand.
+   "supplier":  a delivery note, supplier invoice or grocery receipt. Read
+                into a receipt against the item master.
+   "recipe":    a recipe card or spec sheet, read into a recipe version.
    "inventory": a photo of a shelf, delivery, or stock. Claude identifies
                 the items and estimates quantities as a starting point for
                 a count.
+   "classify":  sort a document into one of the above.
+   "auto":      classify, then read, in one call.
 
-   The model only ever sees the photo plus the menu list — never another
-   account's data. Requires the `billscan` package for bills; inventory
-   analysis rides the `operations` package. */
+   ── Customer bills are deliberately not one of these ─────────────────────
+
+   There used to be a "bill" kind: photograph a diner's bill, match its lines
+   to the menu, price them from the owner's costs. It was removed, and the
+   reason should stay written down so it is not re-added by someone who only
+   sees the gap.
+
+   The sales it produced already existed. They were in the POS, which is the
+   system of record for what was sold, and re-reading them off a printout
+   created a second version of the same transaction that nothing reconciled.
+   A misread digit became a sale that never happened; a bill scanned twice
+   became two. What people actually wanted from it was the ability to correct
+   a sale the till got wrong, and that is now `api/sales.js`, which edits the
+   real receipt rather than photographing a copy of it.
+
+   The model only ever sees the document plus the account's own item master —
+   never another account's data. Everything here rides the `operations`
+   package. */
 
 import { requireAuth } from "./_auth.js";
-import { getAccount, posTokenFor } from "./_accounts.js";
+import { getAccount } from "./_accounts.js";
 import { effectivePlanFor } from "./_org.js";
-import { getMetrics } from "./_data.js";
-import { getJSON } from "./_store.js";
-import { orgFor, membership, can, scopeFor } from "./_org.js";
-import { depletionFor } from "./_depletion.js";
+import { orgFor, scopeFor } from "./_org.js";
 import { claimScan, refundScan, scanUsage } from "./_scanquota.js";
 import { matchPurchase } from "./_purchase.js";
 import { listIngredients } from "./_inventory.js";
@@ -87,86 +99,6 @@ const LANG_NOTE = {
   tl: "Write every `note` and `summary` field in Filipino.",
   en: "Write every `note` and `summary` field in English.",
 };
-
-function billPrompt(menu, langNote) {
-  return `You read photos of restaurant bills/receipts.
-
-MENU (one name per line):
-${menu.map((i) => i.name).join("\n") || "(no menu data available)"}
-
-From the photo, transcribe every line item exactly as printed. Match each to
-the closest MENU name (fuzzy matching is fine — abbreviations, misspellings,
-another language). Use null when nothing on the menu is a plausible match.
-
-Report only what you can SEE on the paper. Do not calculate costs, profit, or
-any figure that is not printed on the bill, and do not estimate a number you
-cannot read — use null instead. Guessing here is worse than admitting the line
-is unreadable, because a plausible wrong number gets trusted.
-
-Respond with ONLY this JSON, nothing else:
-{
-  "lines": [{ "text": "<line as printed>", "qty": <number printed, or null>, "amount": <line total printed, or null>, "menuItem": "<matched menu name, or null>" }],
-  "total": <bill total as printed, or null>,
-  "summary": "<one sentence describing this bill>"
-}
-${langNote}`;
-}
-
-/* Cost and profit are computed here, from the owner's own cost table, and
-   never asked of the model.
-
-   Before this, the prompt handed Claude the unit costs and asked it to
-   multiply and subtract. Language models are unreliable arithmetic engines:
-   the same bill scanned twice produced different totals, and a cost the model
-   half-remembered from the menu list looked exactly as authoritative as one
-   the owner had actually entered. Reading a photo is the part that needs a
-   model. Multiplication is not.
-
-   A line only gets a cost when it matched a menu item that has a real cost
-   recorded. Everything else stays null and surfaces to the cashier as
-   unmatched, which is the honest answer. */
-export function priceBill(parsed, menu) {
-  const costs = new Map(menu.map((i) => [i.name, Number(i.cost) || 0]));
-  const num = (v) => (typeof v === "number" && Number.isFinite(v) ? v : null);
-
-  const lines = (Array.isArray(parsed.lines) ? parsed.lines : []).map((line) => {
-    const qty = num(line.qty);
-    const amount = num(line.amount);
-    const name = typeof line.menuItem === "string" && costs.has(line.menuItem)
-      ? line.menuItem
-      : null;
-    const unit = name ? costs.get(name) : 0;
-    const cost = name && unit > 0 && qty !== null
-      ? Math.round(unit * qty * 100) / 100
-      : null;
-    const profit = cost !== null && amount !== null
-      ? Math.round((amount - cost) * 100) / 100
-      : null;
-    return { text: String(line.text || ""), qty, amount, menuItem: name, cost, profit };
-  });
-
-  const sum = (pick) => lines.reduce((acc, l) => {
-    const v = pick(l);
-    return acc === null || v === null ? null : acc + v;
-  }, 0);
-
-  const totalAmount = num(parsed.total);
-  /* A total is only reported when every line contributed one. A partial sum
-     presented as "total cost" reads as complete and is quietly wrong. */
-  const totalCost = lines.length ? sum((l) => l.cost) : null;
-  const totalProfit = totalCost !== null && totalAmount !== null
-    ? Math.round((totalAmount - totalCost) * 100) / 100
-    : null;
-
-  return {
-    lines,
-    total: totalAmount,
-    totalCost: totalCost === null ? null : Math.round(totalCost * 100) / 100,
-    totalProfit,
-    unmatched: lines.filter((l) => !l.menuItem).map((l) => l.text),
-    summary: typeof parsed.summary === "string" ? parsed.summary : "",
-  };
-}
 
 function supplierPrompt(langNote, stock = []) {
   return `You read photos of supplier invoices and delivery notes for a
@@ -300,14 +232,14 @@ export default async function handler(req, res) {
   const { kind, image, lang } = req.body || {};
   const file = parseDataUrl(image);
   if (!file) return res.status(400).json({ error: "image" });
-  if (!["bill", "inventory", "supplier", "recipe", "classify", "auto"].includes(kind)) return res.status(400).json({ error: "kind" });
+  if (!["inventory", "supplier", "recipe", "classify", "auto"].includes(kind)) return res.status(400).json({ error: "kind" });
 
   try {
     const account = await getAccount(session.username);
     const plan = await effectivePlanFor(account);
     const active = plan.items?.length && !(plan.until && plan.until < Date.now());
     const items = active ? plan.items : [];
-    const needed = kind === "bill" ? "billscan" : "operations";
+    const needed = "operations";
     if (!items.includes(needed)) {
       return res.status(402).json({ error: "locked", feature: needed });
     }
@@ -326,31 +258,10 @@ export default async function handler(req, res) {
 
     const langNote = LANG_NOTE[lang] || LANG_NOTE.en;
     let prompt;
-    let menuForPricing = [];
-    /* Loaded for `auto` as well, because auto may turn out to be a bill and
-       the menu has to be in hand before the second call rather than fetched
-       after the model has already answered. */
-    if (kind === "bill" || kind === "auto") {
-      /* The menu with the owner's costs, so profit is computable. */
-      let menu = [];
-      try {
-        const overrides = (await getJSON(`costs:${session.username}`)) || {};
-        const metrics = await getMetrics(await posTokenFor(session.username), { overrides });
-        menu = (metrics.items || []).map((i) => ({
-          name: i.name,
-          price: i.qty > 0 ? Math.round((i.revenue / i.qty) * 100) / 100 : 0,
-          cost: overrides[i.name] || i.cost || 0,
-        }));
-      } catch {
-        /* No POS — the scan still reads the bill, just without matching. */
-      }
-      menuForPricing = menu;
-      if (kind === "bill") prompt = billPrompt(menu, langNote);
-    }
     /* The scanners that match against stock need the list in hand before the
-       call, the same way the bill scanner needs the menu. The model picks a
-       name from it; the server then checks that name is really on the list, so
-       an invented one is discarded rather than trusted. */
+       call. The model picks a name from it; the server then checks that name
+       is really on the list, so an invented one is discarded rather than
+       trusted. */
     let stockForMatching = [];
     if (kind === "supplier" || kind === "recipe" || kind === "auto") {
       try {
@@ -418,15 +329,13 @@ export default async function handler(req, res) {
       const prompts = {
         supplier: (note) => supplierPrompt(note, stockForMatching),
         recipe: (note) => recipePrompt(note, stockForMatching),
-        bill: (note) => billPrompt(menuForPricing, note),
         inventory: inventoryPrompt,
       };
       const raw = await askModel(prompts[verdict.kind](langNote));
       if (!raw) { await refundScan(spend); return res.status(502).json({ error: "parse" }); }
 
       let extracted = raw;
-      if (verdict.kind === "bill") extracted = priceBill(raw, menuForPricing);
-      else if (verdict.kind === "supplier") extracted = await matchPurchase(org?.id, raw);
+      if (verdict.kind === "supplier") extracted = await matchPurchase(org?.id, raw);
       else if (verdict.kind === "recipe") extracted = await matchRecipe(org?.id, raw);
 
       return res.status(200).json({
@@ -478,8 +387,7 @@ export default async function handler(req, res) {
     }
 
     let result = parsed;
-    if (kind === "bill") result = priceBill(parsed, menuForPricing);
-    else if (kind === "supplier") result = await matchPurchase(org?.id, parsed);
+    if (kind === "supplier") result = await matchPurchase(org?.id, parsed);
     else if (kind === "recipe") result = await matchRecipe(org?.id, parsed);
     else if (kind === "classify") {
       /* Sorting a document is one model call and no data, so it costs a scan
@@ -491,28 +399,8 @@ export default async function handler(req, res) {
       result = { ...verdict, route: routeFor(verdict.kind, scope?.capabilities || []) };
     }
 
-    /* What this bill took out of the store, offered rather than applied.
-
-       Only to somebody who could commit it anyway: proposing movements to a
-       cashier would show them a button they cannot press, and the count
-       workflow deliberately separates recording from approving. Failure here
-       is silent — the scan itself worked, and losing the pricing because a
-       recipe lookup threw would be a poor trade. */
-    let depletion = null;
-    if (kind === "bill" && result.lines?.length) {
-      try {
-        const org = await orgFor(account);
-        const me = org ? membership(org, account.username) : null;
-        if (me && can(me.role, "manage:inventory")) {
-          depletion = await depletionFor(org.id, result.lines);
-        }
-      } catch (err) {
-        console.error("depletion plan failed:", err);
-      }
-    }
-
     return res.status(200).json({
-      kind, result, depletion,
+      kind, result,
       scans: { used: claim.used, limit: claim.limit, left: claim.left, resetsAt: claim.resetsAt },
     });
   } catch (err) {

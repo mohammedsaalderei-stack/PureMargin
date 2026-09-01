@@ -453,6 +453,42 @@ Two paths, both on `DELETE /api/account`:
   API server on import of `admin.js` (every route 500). `FEATURES` also lacked
   `operations` and `billscan`, so those two packages could not be granted at all.
 
+## Cost ledger, sale corrections and packages (this pass)
+- **Cost screen is a typed ledger, not a scanner.** `src/screens/Costs.jsx` +
+  `src/costs/{CostModal,CostRow}.jsx`. Fixed costs keep the old
+  `api/_fixedcosts.js` store (`monthlyEquivalent`/`monthlyTotal` added for the
+  header); variable costs are new in `api/_varcosts.js`, key `varcosts:<orgId>`.
+  **Dates are `YYYY-MM-DD` strings, never timestamps** — held as ms and read back
+  as UTC, an evening spend on the 31st in Dubai lands in the next month and the
+  total stops matching the list under it.
+- A fixed cost offers **both** end-from-today (keeps costing the months it ran)
+  and delete (for an entry that was never true). A variable cost only deletes.
+- **Customer bill scanning is gone.** The `bill` kind is out of `api/ai.js` and
+  `api/_docroute.js`; `_depletion.js` and `DepletionPanel.jsx` are deleted. A
+  diner's bill classifies as `unknown`. It made a second copy of a transaction
+  the POS already held with nothing to reconcile the two. Do not re-add it.
+- **`api/_saleedits.js` is the replacement**, key `sales:<orgId>:edits`. An
+  overlay keyed by receipt id: nothing upstream is mutated, so every correction
+  is reversible and `original` survives beside it. Voiding flags, never deletes.
+  Line edits carry tax/service across proportionally. `isStale` reports a
+  correction whose basis moved — never resolves it, only a person knows which
+  figure is now right. Capability `adjust:sales`; **the cashier deliberately
+  lacks it.** Applied inside `getMetrics`/`salesLines` so one void reaches every
+  series, not just the headline. Front end `src/screens/Sales.jsx` +
+  `src/sales/SaleEditDialog.jsx`.
+- **Three packages**: `assistant`, `operations`, `costs`. `billscan`/`menu`/
+  `forecast` forward to `costs`, `pos_hardware` to nothing, via `LEGACY_FEATURES`
+  in **both** `api/_accounts.js` and `src/entitlements.js` — `_packages.test.js`
+  asserts the two maps agree. Translated on read, never written back. Extra
+  branches are a percentage (`BRANCH_SURCHARGE_PCT`) and hardware is quoted per
+  order; neither is a grantable id.
+- **`scripts/check-i18n.mjs`** fails the build on a dictionary block missing from
+  a language. It found Arabic/Hindi/Tagalog missing six `overview` keys and
+  Hindi/Tagalog missing the whole `reset` block — the forgot-password flow was
+  blank in two languages. It also **warns on duplicate blocks**: the note below
+  calling those harmless is wrong, the later declaration wins outright and every
+  key unique to the earlier one is dead.
+
 ## Notes
 - `vite.config.js` was extended with `host`, `allowedHosts: true`, and the
   `/api` proxy — needed to run outside Vercel. Original had only `port: 5173`.
