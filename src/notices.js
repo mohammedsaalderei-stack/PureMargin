@@ -62,6 +62,77 @@ export const ALERT_KEYS = [
   "alertTarget", "alertFirst", "alertPeak", "alertWeekly", "alertGoal",
 ];
 
+/* ── The preferences, and the one place that reads them ──────────────────
+
+   These three keys were read in two places with two different sets of
+   defaults, and the disagreement was doing real damage.
+
+   `Settings.jsx` defaulted the end-of-day time to "20:00" and showed that in
+   the box, so the panel said: this switch is on, and you will hear from us at
+   eight. `NotificationBell.jsx` defaulted the same value to `""`, and
+   `pastEod("")` returns false — so the end-of-day summary never arrived for
+   anybody who had not gone into Settings and pressed Save. The switch was on,
+   the time was displayed, and the notice could not fire.
+
+   Settings also never loaded the target or the time back at all: they were
+   initialised to a blank and to 20:00 while Save wrote all three together, so
+   pressing Save for any reason — flipping an unrelated switch — wrote a blank
+   over whatever target had been set. And `buildNotices` gates both target
+   notices behind `target > 0`, so that blank silently switched off two more.
+
+   One reader, one writer, one set of defaults. `storage` is a parameter so
+   this is testable without a browser and so a private-mode failure is handled
+   in one place rather than four. */
+
+export const PREF_KEYS = { alerts: "sufra_alerts", target: "sufra_target", eod: "sufra_eod" };
+
+export const DEFAULT_ALERTS = {
+  alertEod: true, alertSwing: true, alertMargin: true, alertOrder: false,
+  alertTarget: true, alertFirst: true, alertPeak: true, alertWeekly: true, alertGoal: false,
+};
+
+/* Shown in Settings and used by the bell, because they have to be the same
+   number. Eight in the evening is when a restaurant's day is decided. */
+export const DEFAULT_EOD = "20:00";
+
+const isTime = (v) => /^([01]\d|2[0-3]):[0-5]\d$/.test(String(v || ""));
+
+export function readPrefs(storage) {
+  const get = (key) => {
+    try { return storage?.getItem(key); } catch { return null; }
+  };
+
+  let alerts = DEFAULT_ALERTS;
+  try {
+    const saved = JSON.parse(get(PREF_KEYS.alerts) || "{}");
+    if (saved && typeof saved === "object" && !Array.isArray(saved)) {
+      alerts = { ...DEFAULT_ALERTS, ...saved };
+    }
+  } catch { /* not JSON — the defaults stand */ }
+
+  const savedEod = get(PREF_KEYS.eod);
+
+  return {
+    alerts,
+    /* Kept as the string the input holds. `buildNotices` does the Number(). */
+    target: get(PREF_KEYS.target) || "",
+    eodTime: isTime(savedEod) ? savedEod : DEFAULT_EOD,
+  };
+}
+
+export function writePrefs(storage, { alerts, target, eodTime }) {
+  try {
+    storage.setItem(PREF_KEYS.alerts, JSON.stringify(alerts ?? DEFAULT_ALERTS));
+    storage.setItem(PREF_KEYS.target, String(target ?? ""));
+    storage.setItem(PREF_KEYS.eod, isTime(eodTime) ? eodTime : DEFAULT_EOD);
+    return true;
+  } catch {
+    /* Private mode. The caller still shows the confirmation, because the
+       switches are live in this session either way. */
+    return false;
+  }
+}
+
 /* A move worth mentioning. Below this, day-to-day noise in a restaurant
    produces a notice every single day and the bell stops meaning anything. */
 const SWING_PCT = 15;
@@ -81,7 +152,6 @@ export function buildNotices(data, prefs = {}, opts = {}) {
   const caps = opts.capabilities;
   const t = opts.t;
   const target = Number(opts.dailyTarget) || 0;
-  const now = opts.now ?? Date.now();
   const out = [];
 
   const totals = data.totals || {};
@@ -97,7 +167,7 @@ export function buildNotices(data, prefs = {}, opts = {}) {
   const add = (id, key, tone, title, body, ask) => {
     const need = NOTICE_NEEDS[key];
     if (caps && need && !caps.includes(need)) return;
-    out.push({ id, key, tone, title, body, ask, at: now });
+    out.push({ id, key, tone, title, body, ask });
   };
 
   if (pref(prefs, "alertFirst") && Number(today.receipts) > 0) {
@@ -159,6 +229,65 @@ export function buildNotices(data, prefs = {}, opts = {}) {
   }
 
   return out;
+}
+
+/* ── Which of these have already been read ───────────────────────────────
+
+   The bell used to answer this with a clock. Every notice carried `at:
+   Date.now()` from the moment it was *constructed*, "seen" was the timestamp
+   of the last time the bell was opened, and unseen meant `at > seen`.
+
+   That could never work, and in practice it meant the badge could not be
+   cleared for longer than thirty seconds. The dashboard re-reads
+   `/api/metrics` on a 30s timer and calls `setData` with a fresh object, so
+   the bell rebuilt its notices, every one of them was stamped with a new
+   `at`, and all of them were newer than the moment the bell was last opened.
+   Read the notices, close the bell, wait half a minute, and the full red
+   count is back — for figures nobody has looked at again.
+
+   The mistake was treating a notice as an event. It is not: it is a reading
+   of the numbers as they stand right now, and it has no time of occurrence to
+   compare against. What it has is an identity — what it is about, and the
+   figure that made it worth saying — and that is what "already read" has to be
+   recorded against.
+
+   So a notice is remembered by `id` plus its body, and the body carries the
+   number. Margin at 40% and margin at 31% are two different statements and the
+   second earns the badge again; margin at 40% re-derived thirty seconds later
+   is the same statement and does not. */
+
+export function noticeKey(notice) {
+  return `${notice.id}:${notice.body}`;
+}
+
+/* Anything that is not a list of strings is treated as nothing seen.
+
+   Deliberately forgiving rather than clever. This value comes out of
+   `localStorage`, where the previous version of this feature left a millisecond
+   timestamp, so every existing install has a number sitting under this key. A
+   `JSON.parse` of it succeeds and yields something that is not an array, and
+   the honest reading of a stored value this code does not understand is "I
+   don't know what has been seen" — which shows the badge. Showing a badge that
+   should not be there costs one glance; hiding one that should costs the
+   notice. */
+const asList = (seen) => (Array.isArray(seen) ? seen.filter((k) => typeof k === "string") : []);
+
+export function countUnseen(notices, seen) {
+  const known = new Set(asList(seen));
+  return (notices || []).filter((n) => !known.has(noticeKey(n))).length;
+}
+
+/* Enough room that a day's worth of changing figures cannot push out something
+   still on screen, and small enough that it stays a glanceable list rather than
+   a log. Newest first, so the trim drops the oldest. */
+const MAX_SEEN = 60;
+
+export function rememberSeen(notices, seen) {
+  const current = (notices || []).map(noticeKey);
+  /* Current keys first, then whatever was already known minus any repeats, so
+     a notice still on screen is never the one trimmed away. */
+  const merged = [...new Set([...current, ...asList(seen)])];
+  return merged.slice(0, MAX_SEEN);
 }
 
 export function pastEod(eodTime, now = new Date()) {

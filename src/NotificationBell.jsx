@@ -3,7 +3,9 @@ import { createPortal } from "react-dom";
 import { Bell, Check, X, MessageCircleQuestion } from "lucide-react";
 import { useC } from "./theme.jsx";
 import { useLang, fill } from "./i18n.jsx";
-import { buildNotices, pastEod, isWeekEnd, noticesApply } from "./notices.js";
+import {
+  buildNotices, pastEod, isWeekEnd, noticesApply, countUnseen, rememberSeen, readPrefs,
+} from "./notices.js";
 
 /* The bell.
 
@@ -11,49 +13,57 @@ import { buildNotices, pastEod, isWeekEnd, noticesApply } from "./notices.js";
    Notices are derived from figures already on screen rather than fetched, so
    the bell cannot disagree with the dashboard beneath it.
 
-   "Seen" is the newest timestamp acknowledged, kept in the browser. Not on the
+   "Seen" is the set of notices already read, kept in the browser. Not on the
    server, because a notice is a reading of the current numbers rather than an
    event that happened: sign in on a different device and the state of the
    business is the same, so the same things are worth saying. A read-receipt
    synced across devices would be tracking something this feature does not
-   actually have — a history. */
+   actually have — a history.
 
-const SEEN_KEY = "puremargin_notices_seen";
+   It is a set rather than a timestamp, and `notices.js` explains why at length:
+   a timestamp could not work, because the dashboard rebuilds these every thirty
+   seconds and every rebuild looked newer than the last time the bell was
+   opened. The badge could not be cleared. */
+
+/* A new key, deliberately. The old one holds a millisecond number, and reusing
+   it would mean every reader having to know that. `countUnseen` tolerates the
+   old shape anyway, but a value whose meaning changed is worth a new name. */
+const SEEN_KEY = "puremargin_notices_seen_v2";
 const TONE = { good: "cyan", warn: "rose", info: "iris" };
 
 export default function NotificationBell({ data, onAsk, capabilities }) {
   const C = useC();
   const { t } = useLang();
   const [open, setOpen] = useState(false);
-  const [seen, setSeen] = useState(0);
+  const [seen, setSeen] = useState([]);
   const box = useRef(null);
 
   useEffect(() => {
-    try { setSeen(Number(localStorage.getItem(SEEN_KEY)) || 0); } catch { /* private mode */ }
+    try {
+      setSeen(JSON.parse(localStorage.getItem(SEEN_KEY) || "[]"));
+    } catch { /* private mode, or a value that is not JSON — nothing seen */ }
   }, []);
 
   /* Read fresh each render rather than held in state: Settings writes these
      on the same page, and a copy taken at mount would go stale the moment
-     somebody flipped a switch. */
-  const { prefs, dailyTarget, eodTime } = useMemo(() => {
-    try {
-      return {
-        prefs: JSON.parse(localStorage.getItem("sufra_alerts") || "{}"),
-        dailyTarget: localStorage.getItem("sufra_target") || 0,
-        eodTime: localStorage.getItem("sufra_eod") || "",
-      };
-    } catch {
-      return { prefs: {}, dailyTarget: 0, eodTime: "" };
-    }
-  }, [open, data]);
+     somebody flipped a switch.
 
-  const notices = useMemo(() => buildNotices(data, prefs, {
-    t, fill, dailyTarget, capabilities,
+     Through `readPrefs` rather than reaching into localStorage here, because
+     this file used to keep its own copy of the defaults and disagreed with
+     Settings about the end-of-day time — Settings showed 20:00, this read "",
+     and the notice could never fire. */
+  const { alerts, target, eodTime } = useMemo(
+    () => readPrefs(typeof localStorage === "undefined" ? null : localStorage),
+    [open, data],
+  );
+
+  const notices = useMemo(() => buildNotices(data, alerts, {
+    t, fill, dailyTarget: target, capabilities,
     pastEod: pastEod(eodTime),
     isWeekEnd: isWeekEnd(),
-  }), [data, prefs, dailyTarget, eodTime, t, capabilities]);
+  }), [data, alerts, target, eodTime, t, capabilities]);
 
-  const unseen = notices.filter((n) => n.at > seen).length;
+  const unseen = countUnseen(notices, seen);
 
   /* No bell at all for somebody none of these notices are for.
 
@@ -75,11 +85,24 @@ export default function NotificationBell({ data, onAsk, capabilities }) {
     };
   }, [open]);
 
-  const markSeen = () => {
-    const now = Date.now();
-    setSeen(now);
-    try { localStorage.setItem(SEEN_KEY, String(now)); } catch { /* private mode */ }
-  };
+  /* Anything on screen while the panel is open counts as read.
+
+     Marking on the opening click was not enough: the dashboard refreshes every
+     thirty seconds, so a notice arriving while somebody is reading the list
+     stayed unread and put the badge back the moment they closed it — for
+     something they had just been looking at. Keyed on `notices` as well as
+     `open`, so whatever is showing is what gets recorded.
+
+     No loop: this sets `seen`, and `notices` does not depend on `seen`, so the
+     effect's own dependencies are unmoved by it. */
+  useEffect(() => {
+    if (!open) return;
+    setSeen((prev) => {
+      const next = rememberSeen(notices, prev);
+      try { localStorage.setItem(SEEN_KEY, JSON.stringify(next)); } catch { /* private mode */ }
+      return next;
+    });
+  }, [open, notices]);
 
   if (!applies) return null;
 
@@ -87,7 +110,7 @@ export default function NotificationBell({ data, onAsk, capabilities }) {
     <div className="relative" ref={box}>
       <button
         type="button"
-        onClick={() => { setOpen((v) => !v); if (!open) markSeen(); }}
+        onClick={() => setOpen((v) => !v)}
         className="relative p-2.5 rounded-lg min-w-[44px] min-h-[44px] flex items-center justify-center"
         style={{ color: open ? C.iris : C.slate }}
         aria-label={t.notices.title}

@@ -12,7 +12,7 @@ import EmailSetting from "../settings/EmailSetting.jsx";
 import UsernameSetting from "../settings/UsernameSetting.jsx";
 /* The single list, shared with the bell that reads these. Two copies is how a
    switch gets added in one place and silently ignored in the other. */
-import { ALERT_KEYS } from "../notices.js";
+import { ALERT_KEYS, readPrefs, writePrefs } from "../notices.js";
 
 function Panel({ title, children }) {
   const C = useC();
@@ -36,27 +36,29 @@ function Row({ label, value }) {
 
 /* Edit these once and they update everywhere they appear. */
 
-const DEFAULT_ALERTS = {
-  alertEod: true, alertSwing: true, alertMargin: true, alertOrder: false,
-  alertTarget: true, alertFirst: true, alertPeak: true, alertWeekly: true, alertGoal: false,
-};
+/* The alert preferences live in `notices.js`, with the code that acts on them.
 
-function readAlerts() {
-  try {
-    return { ...DEFAULT_ALERTS, ...JSON.parse(localStorage.getItem("sufra_alerts") || "{}") };
-  } catch {
-    return DEFAULT_ALERTS;
-  }
-}
+   This file used to keep its own defaults and its own reader, and the two
+   drifted: it defaulted the end-of-day time to 20:00 and displayed that, while
+   the bell defaulted the same value to "" and `pastEod("")` is always false —
+   so the panel promised a summary at eight and none was ever sent.
+
+   Worse, only the switches were ever loaded back. The target and the time were
+   initialised to a blank and to 20:00 and never read, while Save wrote all
+   three together — so opening this panel and pressing Save for any reason
+   wrote a blank over whatever daily target had been set, and `buildNotices`
+   gates both target notices behind `target > 0`. Two more notices silently
+   switched off by saving an unrelated switch. */
 
 export default function Settings({ data, user, onRefresh, refreshing, token, conversationCount = 0, account, onConnect, onAccountChange, onSeePlans, onSession, onLogout }) {
   const C = useC();
   const { t, lang } = useLang();
   const live = data.connected;
 
-  const [alerts, setAlerts] = useState(readAlerts);
-  const [target, setTarget] = useState("");
-  const [eodTime, setEodTime] = useState("20:00");
+  const saved = readPrefs(typeof localStorage === "undefined" ? null : localStorage);
+  const [alerts, setAlerts] = useState(saved.alerts);
+  const [target, setTarget] = useState(saved.target);
+  const [eodTime, setEodTime] = useState(saved.eodTime);
   const [savedAlerts, setSavedAlerts] = useState(false);
 
   const [ticket, setTicket] = useState({ subject: "", category: "catTechnical", priority: "prioNormal", detail: "" });
@@ -64,13 +66,7 @@ export default function Settings({ data, user, onRefresh, refreshing, token, con
   const [ticketNote, setTicketNote] = useState("");
 
   const saveAlerts = () => {
-    try {
-      localStorage.setItem("sufra_alerts", JSON.stringify(alerts));
-      localStorage.setItem("sufra_target", target);
-      localStorage.setItem("sufra_eod", eodTime);
-    } catch {
-      /* storage unavailable */
-    }
+    writePrefs(localStorage, { alerts, target, eodTime });
     setSavedAlerts(true);
     setTimeout(() => setSavedAlerts(false), 2200);
   };
