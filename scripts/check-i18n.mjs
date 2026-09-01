@@ -25,7 +25,15 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const FILE = path.join(ROOT, "src", "i18n.jsx");
 const REFERENCE = "en";
 
-const src = fs.readFileSync(FILE, "utf8");
+/* Carriage returns are stripped before anything looks at the text.
+
+   Every pattern below anchors with `$`, and a checkout on Windows with
+   `core.autocrlf=true` ends each line with `\r` — so `^ {2}(\w{2}): \{$` matches
+   nothing, no dictionary is found, and the check fails with "no en dictionary
+   to compare against" on a file that is perfectly fine. Failing only on one
+   operating system, and for a reason that has nothing to do with translations,
+   is how a check gets switched off. */
+const src = fs.readFileSync(FILE, "utf8").replace(/\r\n?/g, "\n");
 const lines = src.split("\n");
 
 /* Each top-level language object, sliced out by brace depth. */
