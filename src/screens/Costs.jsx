@@ -55,13 +55,6 @@ function shiftMonth(key, by) {
   return monthKey(new Date(y, m - 1 + by, 1));
 }
 
-/* The first instant of a month and of the one after it, which is what the
-   constant-cost endpoint apportions across. */
-function monthWindow(key) {
-  const [y, m] = key.split("-").map(Number);
-  return [Date.UTC(y, m - 1, 1), Date.UTC(y, m, 1)];
-}
-
 export default function Costs({ token }) {
   const C = useC();
   const { t, lang, rtl } = useLang();
@@ -83,10 +76,9 @@ export default function Costs({ token }) {
   const auth = useMemo(() => ({ Authorization: `Bearer ${token}` }), [token]);
 
   const load = useCallback(async () => {
-    const [from, to] = monthWindow(month);
     try {
       const [fRes, vRes] = await Promise.all([
-        fetch(`/api/fixedcosts?from=${from}&to=${to}`, { headers: auth }),
+        fetch("/api/fixedcosts", { headers: auth }),
         fetch(`/api/varcosts?month=${month}`, { headers: auth }),
       ]);
       /* A 403 on either half is a permission answer, not a failure — the
@@ -198,14 +190,27 @@ export default function Costs({ token }) {
     }
   }
 
+  /* One of the three figures at the top.
+
+     The amount does not wrap. Three of these across a 375px phone leaves
+     about a hundred pixels each, and at text-xl a five-figure sum broke over
+     two lines — 60,700 rendered as "60,70" above a lonely "0", which reads as
+     a different number before it reads as a layout fault. Wages and rent are
+     five figures in any real restaurant, so this was the normal case rather
+     than an edge one.
+
+     Kept on one line and sized down on narrow screens instead. The Money
+     component is an inline-flex of a mark and a number, so the nowrap has to
+     sit on this row rather than be inherited from the panel. */
   const metric = (label, value, Icon, tone) => (
-    <div className="flex-1 min-w-0 px-2 text-center">
+    <div className="flex-1 min-w-0 px-1 text-center">
       <div className="mx-auto mb-2 w-9 h-9 rounded-full flex items-center justify-center"
         style={{ background: C.irisWash, color: tone || C.iris }}>
         <Icon size={16} />
       </div>
       <div className="text-[11px] mb-1 truncate" style={{ color: C.slate }}>{label}</div>
-      <div className="data text-xl font-bold" style={{ color: tone || C.ink }}>
+      <div className="data text-base sm:text-xl font-bold whitespace-nowrap"
+        style={{ color: tone || C.ink }}>
         <Money value={value} />
       </div>
     </div>
@@ -304,9 +309,11 @@ export default function Costs({ token }) {
                   subtitle={c.period === "monthly"
                     ? s.frequencies.monthly
                     : fill(s.perYearNote, { amount: Number(c.amount).toLocaleString() })}
-                  amount={c.period === "yearly" ? c.amount / 12
-                    : c.period === "weekly" ? (c.amount * 52) / 12
-                      : c.amount}
+                  /* Given by the server, not re-derived here. The chain of
+                     period checks that used to sit on this line was a second
+                     copy of a rule that lives in _fixedcosts.js, and the two
+                     had already drifted over weekly entries. */
+                  amount={c.monthlyAmount}
                   mayWrite={mayWrite}
                   onEdit={() => {
                     setSaveError("");

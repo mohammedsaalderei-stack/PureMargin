@@ -1,9 +1,9 @@
-/* Rent, salaries, and spreading them across a period.
+/* Rent, salaries, and what they come to in a month.
 
-   What these protect: a monthly figure is spread by day rather than by trade;
-   only the days a cost was live are counted; a branch sees its own costs plus
-   the whole-business ones and not another branch's; and ending a cost keeps
-   the history that a report may already have used. */
+   What these protect: a yearly figure is a twelfth of itself, a legacy weekly
+   entry still converts rather than reading as zero, weekly is refused for
+   anything new, and ending a cost keeps the history that a report may already
+   have used. */
 
 import assert from "node:assert/strict";
 import { backend, __resetMemory } from "./_store.js";
@@ -36,78 +36,51 @@ const cost = (over) => ({
   branchId: null, startedAt: JAN(1), endedAt: null, ...over,
 });
 
-await test("a month of rent over that month is the whole month", () => {
-  const out = fc.apportion([cost({})], { from: JAN(1), to: JAN(32) });
-  assert.equal(out.total, 31000);
+/* ---- what a cost comes to in a month ---------------------------- */
+
+/* The only normalisation left. Per-day apportionment across an arbitrary
+   window used to live here too, with eleven tests of its own; nothing ever
+   read its output — the screen sent ?from&to on every load and discarded the
+   result — so it went, and this is what the screen actually shows. */
+
+await test("a monthly cost is itself", () => {
+  assert.equal(fc.monthlyEquivalent(cost({})), 31000);
 });
 
-await test("a single day carries one day of it", () => {
-  const out = fc.apportion([cost({})], { from: JAN(10), to: JAN(11) });
-  assert.equal(out.total, 1000, "31,000 over 31 days");
+await test("a yearly cost is a twelfth, exactly", () => {
+  /* A year is twelve months by definition, so this is arithmetic rather than
+     a convention that could be argued with. */
+  assert.equal(fc.monthlyEquivalent(cost({ period: "yearly", amount: 8400 })), 700);
+  assert.equal(fc.monthlyEquivalent(cost({ period: "yearly", amount: 1000 })), 83.33);
 });
 
-await test("a week carries seven days of it", () => {
-  const out = fc.apportion([cost({})], { from: JAN(1), to: JAN(8) });
-  assert.equal(out.total, 7000);
+await test("a legacy weekly entry still converts rather than reading as zero", () => {
+  /* No longer creatable — PERIODS refuses it — but rows stored before it was
+     dropped are real money. 52 weeks over 12 months is the average month. */
+  assert.equal(fc.monthlyEquivalent(cost({ period: "weekly", amount: 700 })), 3033.33);
 });
 
-await test("a weekly cost is spread over seven days, not thirty", () => {
-  const out = fc.apportion([cost({ period: "weekly", amount: 700 })], { from: JAN(1), to: JAN(2) });
-  assert.equal(out.total, 100);
+await test("weekly is refused for anything new", () => {
+  assert.equal(fc.validateCost({ name: "Rent", amount: 100, period: "weekly" }), "period");
+  assert.equal(fc.validateCost({ name: "Rent", amount: 100, period: "monthly" }), null);
+  assert.equal(fc.validateCost({ name: "Rent", amount: 100, period: "yearly" }), null);
 });
 
-await test("a yearly cost is spread over the year", () => {
-  const out = fc.apportion([cost({ period: "yearly", amount: 3650 })], { from: JAN(1), to: JAN(11) });
-  assert.equal(out.total, 100, "3650 over 365 days, ten days of it");
+await test("a missing or nonsense amount is worth nothing, not NaN", () => {
+  assert.equal(fc.monthlyEquivalent(cost({ amount: 0 })), 0);
+  assert.equal(fc.monthlyEquivalent(cost({ amount: -5 })), 0);
+  assert.equal(fc.monthlyEquivalent(cost({ amount: "abc" })), 0);
+  assert.equal(fc.monthlyEquivalent(null), 0);
 });
 
-await test("a cost that started mid-window is only counted from then", () => {
-  const out = fc.apportion([cost({ startedAt: JAN(16) })], { from: JAN(1), to: JAN(32) });
-  assert.equal(out.total, 16000, "sixteen of the thirty-one days");
-});
-
-await test("a cost that ended mid-window stops there", () => {
-  const out = fc.apportion([cost({ endedAt: JAN(11) })], { from: JAN(1), to: JAN(32) });
-  assert.equal(out.total, 10000);
-});
-
-await test("a cost outside the window entirely is not counted", () => {
-  const out = fc.apportion([cost({ startedAt: JAN(20), endedAt: JAN(25) })],
-    { from: JAN(1), to: JAN(10) });
-  assert.equal(out.total, 0);
-  assert.deepEqual(out.lines, []);
-});
-
-await test("a branch sees its own costs and the whole-business ones", () => {
-  const costs = [
-    cost({ id: "group", name: "Licence", amount: 3100, branchId: null }),
-    cost({ id: "b1", name: "Rent A", amount: 31000, branchId: "b1" }),
-    cost({ id: "b2", name: "Rent B", amount: 62000, branchId: "b2" }),
-  ];
-  const out = fc.apportion(costs, { from: JAN(1), to: JAN(32), branches: ["b1"] });
-  assert.deepEqual(out.lines.map((l) => l.name).sort(), ["Licence", "Rent A"]);
-  assert.equal(out.total, 34100);
-});
-
-await test("no branch filter means every cost", () => {
-  const costs = [cost({ id: "a", branchId: "b1" }), cost({ id: "b", branchId: "b2" })];
-  assert.equal(fc.apportion(costs, { from: JAN(1), to: JAN(32) }).lines.length, 2);
-});
-
-await test("lines come back with the biggest first", () => {
-  const costs = [
-    cost({ id: "small", name: "Wifi", amount: 310 }),
-    cost({ id: "big", name: "Rent", amount: 31000 }),
-  ];
-  const out = fc.apportion(costs, { from: JAN(1), to: JAN(32) });
-  assert.equal(out.lines[0].name, "Rent");
-});
-
-await test("a reversed or empty window costs nothing rather than crashing", () => {
-  for (const w of [{ from: JAN(10), to: JAN(1) }, { from: JAN(5), to: JAN(5) },
-                   { from: null, to: JAN(5) }, {}]) {
-    assert.equal(fc.apportion([cost({})], w).total, 0);
-  }
+await test("the total is the sum of the monthly equivalents", () => {
+  const total = fc.monthlyTotal([
+    cost({ id: "a", amount: 12000 }),
+    cost({ id: "b", period: "yearly", amount: 8400 }),
+    cost({ id: "c", amount: 3000 }),
+  ]);
+  assert.equal(total, 15700);
+  assert.equal(fc.monthlyTotal([]), 0);
 });
 
 await test("a name or a non-positive amount is refused", () => {
@@ -131,9 +104,14 @@ await test("ending a cost keeps it out of the list but not out of history", asyn
   await fc.endCost("org1", made.id, JAN(11));
 
   assert.equal((await fc.listCosts("org1")).length, 0, "not offered as current");
+
+  /* Still on file, with the day it stopped, so a report over January can
+     account for it. The screen totals only current costs; the record is what
+     makes it possible to answer a question about a month that has passed. */
   const all = await fc.listCosts("org1", { includeEnded: true });
-  assert.equal(all.length, 1, "still there for a report over January");
-  assert.equal(fc.apportion(all, { from: JAN(1), to: JAN(32) }).total, 10000);
+  assert.equal(all.length, 1);
+  assert.equal(all[0].endedAt, JAN(11));
+  assert.equal(fc.monthlyTotal(all), 31000);
 });
 
 await test("deleting removes it from history too", async () => {

@@ -32,21 +32,14 @@ import crypto from "crypto";
 
 const KEY = (orgId) => `fixedcosts:${orgId}`;
 
-export const PERIODS = ["monthly", "weekly", "yearly"];
+/* Monthly and yearly, and nothing else.
 
-/* Everything is normalised to a daily rate before it meets a date range,
-   because that is the only unit in which a week, a month and a year can be
-   compared without one of them being wrong at the edges. */
-const DAILY = {
-  weekly: (amount) => amount / 7,
-  monthly: (amount, daysInMonth) => amount / daysInMonth,
-  yearly: (amount) => amount / 365,
-};
-
-function daysInMonthOf(ms) {
-  const d = new Date(ms);
-  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate();
-}
+   "weekly" was accepted here long after the screen stopped offering it, so a
+   request could still create one — and the list rendered any non-monthly row
+   as "{amount} a year", which is the wrong number on screen for a weekly cost.
+   Refusing it at the door is the fix; `monthlyEquivalent` still converts the
+   ones already stored, because they are real money and must not read as zero. */
+export const PERIODS = ["monthly", "yearly"];
 
 /* One constant cost expressed as what it comes to in a month.
 
@@ -138,58 +131,4 @@ export async function deleteCost(orgId, id) {
   delete map[id];
   await setJSON(KEY(orgId), map);
   return { deleted: true };
-}
-
-/* What these cost over a window, apportioned by day.
-
-   Only the days a cost was actually live are counted, so an entry that started
-   halfway through the month carries half the month. `branches` narrows to a
-   branch's own costs plus the whole-business ones, which is what a branch
-   manager's screen should show. */
-export function apportion(costs, { from, to, branches = null }) {
-  /* Number(null) is 0, which is finite and would silently cost from the epoch
-     to whenever the window ends. Absent is checked before numeric. */
-  if (from == null || to == null) return { total: 0, lines: [] };
-  const start = Number(from);
-  const end = Number(to);
-  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) {
-    return { total: 0, lines: [] };
-  }
-
-  const DAY = 86400000;
-  const lines = [];
-
-  for (const cost of costs) {
-    if (branches && cost.branchId && !branches.includes(cost.branchId)) continue;
-
-    /* The overlap between the cost's own life and the window on screen. */
-    const liveFrom = Math.max(start, Number(cost.startedAt) || 0);
-    const liveTo = Math.min(end, Number(cost.endedAt) || end);
-    if (liveTo <= liveFrom) continue;
-
-    const days = (liveTo - liveFrom) / DAY;
-    const perDay = DAILY[cost.period](Number(cost.amount), daysInMonthOf(liveFrom));
-    const amount = Math.round(perDay * days * 100) / 100;
-    if (!(amount > 0)) continue;
-
-    lines.push({
-      id: cost.id,
-      name: cost.name,
-      period: cost.period,
-      branchId: cost.branchId,
-      full: Number(cost.amount),
-      days: Math.round(days * 100) / 100,
-      amount,
-    });
-  }
-
-  return {
-    total: Math.round(lines.reduce((n, l) => n + l.amount, 0) * 100) / 100,
-    lines: lines.sort((a, b) => b.amount - a.amount),
-  };
-}
-
-export async function costsFor(orgId, { from, to, branches = null }) {
-  if (!orgId) return { total: 0, lines: [] };
-  return apportion(await listCosts(orgId, { includeEnded: true }), { from, to, branches });
 }

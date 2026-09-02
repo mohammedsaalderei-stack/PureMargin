@@ -1,7 +1,7 @@
 import { requireAuth } from "./_auth.js";
 import { scopeFor } from "./_org.js";
 import { recordAudit } from "./_audit.js";
-import { listCosts, saveCost, endCost, deleteCost, costsFor, monthlyTotal } from "./_fixedcosts.js";
+import { listCosts, saveCost, endCost, deleteCost, monthlyEquivalent, monthlyTotal } from "./_fixedcosts.js";
 
 /* Rent, salaries and the rest of what goes out regardless of trade.
 
@@ -33,18 +33,26 @@ export default async function handler(req, res) {
     if (!mayRead) return res.status(403).json({ error: "forbidden" });
 
     if (req.method === "GET") {
-      const { from, to } = req.query || {};
       const costs = await listCosts(orgId, { includeEnded: req.query?.all === "1" });
-      const window = from && to
-        ? await costsFor(orgId, {
-          from: Number(from), to: Number(to), branches: scope.authorized,
-        })
-        : { total: 0, lines: [] };
-      /* `monthly` is what the simplified screen shows: every entry expressed
-         as what it costs in a month, added up. `window` stays alongside it
-         because a report over an arbitrary date range still needs the per-day
-         apportionment, and the two answer different questions. */
-      return res.status(200).json({ costs, window, monthly: monthlyTotal(costs), mayWrite });
+
+      /* Each row carries what it comes to in a month, worked out here.
+
+         The screen used to derive this itself — a chain of period checks
+         beside the row — which made two implementations of one rule. They had
+         already drifted: this file knew about weekly entries and the screen
+         did not, so a weekly cost was listed as "a year". One answer, computed
+         where the rule lives, and the screen renders what it is given.
+
+         The response also used to carry a `window`: every cost apportioned
+         across an arbitrary date range, per day. Nothing ever read it. The
+         screen sent ?from&to on every load, the server walked the whole ledger
+         to build it, and the result was discarded — so it is gone, along with
+         the per-day rate table behind it. */
+      return res.status(200).json({
+        costs: costs.map((c) => ({ ...c, monthlyAmount: monthlyEquivalent(c) })),
+        monthly: monthlyTotal(costs),
+        mayWrite,
+      });
     }
 
     if (!mayWrite) return res.status(403).json({ error: "notowner" });
