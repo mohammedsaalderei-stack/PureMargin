@@ -10,6 +10,27 @@ import { TOOLS, runTool, DOMAIN_GUARDRAIL } from "./_domains.js";
 
 const MODEL = "claude-sonnet-4-5";
 
+/* The wire format between this route and the Ask screen.
+
+   This endpoint does not proxy Anthropic's events through. It re-frames them
+   into one shape — `{ text }` for a chunk of answer, `{ error }` for a
+   failure — and `src/screens/Ask.jsx` accumulates `evt.text` and throws on
+   `evt.error`, ignoring anything else.
+
+   "Ignoring anything else" is the part that makes a helper worth having. A
+   frame in the wrong shape is not an error anywhere: the server writes it, the
+   stream completes, the client accumulates nothing, and the question comes
+   back blank with no failure recorded on either side. That happened — the tool
+   loop below was written to emit Anthropic's `content_block_delta` envelope,
+   which has no top-level `text`, and every question that used a tool returned
+   an empty answer that had actually been generated correctly.
+
+   So there is one function that knows the shape, and every writer goes through
+   it. */
+export const sseText = (text) => `data: ${JSON.stringify({ text })}\n\n`;
+export const sseError = (message) => `data: ${JSON.stringify({ error: message })}\n\n`;
+export const SSE_DONE = "data: [DONE]\n\n";
+
 const LANG_NOTE = {
   ar: "The interface is in Arabic. Answer in Arabic unless the user writes to you in English. Use plain Gulf business Arabic, not formal literary phrasing. Keep numerals in Western digits, the way receipts and invoices are written here.",
   hi: "The interface is in Hindi. Answer in Hindi unless the user writes to you in another language. Use everyday business Hindi — the way a restaurant owner actually speaks — not Sanskritised formal register. Keep numerals in Western digits.",
@@ -190,15 +211,21 @@ export default async function handler(req, res) {
 
           if (!stream) return res.status(200).json({ text });
 
-          /* Delivered as one delta. The answer is already complete by the time
-             we get here, so there is nothing to stream in pieces — and the
-             client's reader handles a single frame the same as many. */
+          /* Delivered as one frame, in this route's own shape.
+
+             That shape matters and is easy to get wrong: this endpoint does
+             not proxy Anthropic's events through: it re-frames them as
+             `{ text }`, and the client accumulates `evt.text` and ignores
+             anything else. Writing the upstream `content_block_delta` envelope
+             here produced a frame with no top-level `text`, so the reader
+             accumulated nothing and every tool-using question came back blank
+             — a working answer, discarded one layer from the screen. */
           res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
           res.setHeader("Cache-Control", "no-cache, no-transform");
           res.setHeader("Connection", "keep-alive");
           res.setHeader("X-Accel-Buffering", "no");
-          res.write(`data: ${JSON.stringify({ type: "content_block_delta", delta: { type: "text_delta", text } })}\n\n`);
-          res.write("data: [DONE]\n\n");
+          res.write(sseText(text));
+          res.write(SSE_DONE);
           return res.end();
         }
 
@@ -226,6 +253,18 @@ export default async function handler(req, res) {
           { role: "user", content: results },
         ];
       }
+
+      /* Everything below this point is the fallback, and it must not offer
+         tools.
+
+         The streaming forwarder understands text deltas and nothing else, so a
+         model that answered with a tool call there would produce no text at
+         all and the question would come back blank — which is exactly the
+         failure the loop above exists to avoid. Reaching here means the loop
+         could not finish: upstream refused, the answer was empty, or four
+         turns went by. In every one of those cases the right next move is to
+         ask for prose. */
+      delete payload.tools;
     }
 
     const upstream = await fetch("https://api.anthropic.com/v1/messages", {
@@ -283,9 +322,9 @@ export default async function handler(req, res) {
         try {
           const event = JSON.parse(raw);
           if (event.type === "content_block_delta" && event.delta?.type === "text_delta") {
-            res.write(`data: ${JSON.stringify({ text: event.delta.text })}\n\n`);
+            res.write(sseText(event.delta.text));
           } else if (event.type === "error") {
-            res.write(`data: ${JSON.stringify({ error: event.error?.message || "Stream failed." })}\n\n`);
+            res.write(sseError(event.error?.message || "Stream failed."));
           }
         } catch {
           /* Partial JSON chunk — the next read completes it. */
@@ -293,7 +332,7 @@ export default async function handler(req, res) {
       }
     }
 
-    res.write("data: [DONE]\n\n");
+    res.write(SSE_DONE);
     return res.end();
   } catch (err) {
     if (err?.code === "notconnected") {
@@ -304,7 +343,7 @@ export default async function handler(req, res) {
     }
     console.error("chat failed:", err);
     if (res.headersSent) {
-      res.write(`data: ${JSON.stringify({ error: "The connection dropped mid-answer." })}\n\n`);
+      res.write(sseError("The connection dropped mid-answer."));
       return res.end();
     }
     return res.status(500).json({ error: "Couldn't reach the assistant. Try again." });
