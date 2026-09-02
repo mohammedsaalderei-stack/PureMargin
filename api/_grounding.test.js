@@ -233,7 +233,10 @@ await test("the brief and the engines cannot disagree — it is the same call", 
 
 await test("the answer contract demands value, period, branches, evidence and actions", () => {
   const c = gr.ANSWER_CONTRACT;
-  for (const word of ["value", "period", "branches", "evidence", "drivers", "confidence", "actions"]) {
+  /* "recommendations" rather than "actions": the contract still has to demand
+     that an answer ends with something to do, only the noun changed when the
+     assistant's register moved to a written business briefing. */
+  for (const word of ["value", "period", "branches", "evidence", "drivers", "confidence", "recommendations"]) {
     assert.ok(c.includes(word), `the contract must require ${word}`);
   }
   assert.ok(/outside their access/.test(c), "an out-of-scope branch must be refused, not guessed");

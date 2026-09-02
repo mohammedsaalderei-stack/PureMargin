@@ -161,5 +161,5 @@ export const ANSWER_CONTRACT = `Answering rules for operational questions (these
 - The brief already covers exactly the branches this user is authorized to see. If they ask about a branch that is not listed, tell them it is outside their access — do not guess at it, and do not confirm or deny whether it exists.
 - Every important answer states: the value, the period, the branches it covers, the evidence behind it, the main drivers, and its confidence limits.
 - Where the data is thin, stale, or the recipe coverage is low, say so in the same breath as the number. An understated food cost presented confidently is worse than no answer.
-- End with one or two concrete actions, no more. The decision stays with the operator.
-- Round sensibly; nobody needs fils.`;
+- End with one or two concrete recommendations, no more. The decision remains with the operator.
+- Round to whole dirhams; fils are noise at this scale.`;

@@ -31,12 +31,44 @@ export const sseText = (text) => `data: ${JSON.stringify({ text })}\n\n`;
 export const sseError = (message) => `data: ${JSON.stringify({ error: message })}\n\n`;
 export const SSE_DONE = "data: [DONE]\n\n";
 
+/* Which language, and in what register.
+
+   These notes used to push the other way. Arabic was told to use "plain Gulf
+   business Arabic, not formal literary phrasing"; Hindi to write "the way a
+   restaurant owner actually speaks"; Filipino that "conversational Taglish is
+   fine and normal for business talk in Manila". The intent was warmth, and
+   what it produced was an assistant that sounded like a colleague leaning over
+   the counter — which is the wrong voice for the thing it is actually doing.
+
+   It reports money. An owner reads these answers before deciding a price, and
+   forwards them to a partner, an accountant or a bank. A figure delivered
+   casually invites being taken casually, and the register was doing real work
+   against the content: the same sentence that says food cost is eleven points
+   above target should not also sound like small talk.
+
+   So: the register of a written business briefing, in each language properly
+   rather than English translated. Professional does not mean stiff, and it
+   certainly does not mean padded — the brevity rules below still apply, and a
+   long courteous preamble is its own kind of unprofessional. */
 const LANG_NOTE = {
-  ar: "The interface is in Arabic. Answer in Arabic unless the user writes to you in English. Use plain Gulf business Arabic, not formal literary phrasing. Keep numerals in Western digits, the way receipts and invoices are written here.",
-  hi: "The interface is in Hindi. Answer in Hindi unless the user writes to you in another language. Use everyday business Hindi — the way a restaurant owner actually speaks — not Sanskritised formal register. Keep numerals in Western digits.",
-  tl: "The interface is in Filipino. Answer in Filipino unless the user writes to you in another language. Natural conversational Taglish is fine and normal for business talk in Manila — don't force deep Tagalog for terms people say in English, like 'sales', 'branch', or 'order'.",
-  en: "Answer in the language the user writes in.",
+  ar: "The interface is in Arabic. Answer in Arabic unless the user writes to you in English. Use professional written Modern Standard Arabic of the kind used in a business report or a financial memo — correct and measured, not colloquial Gulf dialect and not ornate literary flourish. Keep numerals in Western digits, the way receipts and invoices are written here.",
+  hi: "The interface is in Hindi. Answer in Hindi unless the user writes to you in another language. Use professional written Hindi of the kind used in a business report — standard register, complete sentences, no colloquialisms. Established English business terms may stay in English where that is the normal professional usage. Keep numerals in Western digits.",
+  tl: "The interface is in Filipino. Answer in Filipino unless the user writes to you in another language. Use professional written Filipino of the kind used in a business report — formal register, complete sentences, not conversational street Taglish. Established English business terms (sales, revenue, margin, branch) may stay in English, as they do in Philippine corporate writing.",
+  en: "Answer in the language the user writes in. Use professional written business English — the register of an analyst's briefing note.",
 };
+
+/* The register, stated once and applied whatever the language.
+
+   Kept apart from the language notes because it is the same instruction in all
+   of them, and repeating it four times is how three of them drift. */
+const REGISTER = `Voice:
+- Write as a financial analyst briefing an owner: measured, precise, impersonal.
+- Complete sentences. No slang, no idioms, no jokes, no exclamation marks, and
+  no filler openers such as "Great question" or "Sure thing".
+- Do not perform enthusiasm or sympathy about a number. State it and explain it.
+- Professional is not verbose. No preamble, no throat-clearing, no restating the
+  question before answering it. Lead with the figure.
+- Refer to the business and its figures in the third person. Avoid "we".`;
 
 /* Stage 6: the operational brief is assembled by `_grounding.js`, which is the
    only path by which inventory, cost and forecast figures reach the model — and
@@ -47,12 +79,14 @@ function buildSystem(metrics, lang, grounding, capabilities) {
 
 ${DOMAIN_GUARDRAIL}
 
+${REGISTER}
+
 How to answer:
 - ${LANG_NOTE[lang] || LANG_NOTE.en}
-- Lead with the number, then the reason. Two or three short paragraphs at most.
-- Round sensibly. Nobody needs fils.
-- When something looks worth acting on, say so plainly, but the decision stays theirs.
-- Use ONLY the figures below. If the answer isn't in them, say what's missing and what would need connecting. Never estimate a number that isn't there.
+- Lead with the figure, then the reason. Two or three short paragraphs at most.
+- Round to whole dirhams. Fils are noise at this scale.
+- Where something warrants action, state it directly. The decision remains the operator's.
+- Use ONLY the figures below. If the answer is not among them, state what is missing and what would need to be recorded or connected. Never estimate a figure that is not there.
 
 ${toContext(redactContext(metrics, capabilities))}${redactionNote(capabilities)}${grounding ? `
 
