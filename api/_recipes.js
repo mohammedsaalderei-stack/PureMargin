@@ -136,12 +136,33 @@ async function buildLines(orgId, inputs, { required }) {
   return { lines: rows, created };
 }
 
+/* Portions defaults to one and yield to a hundred, and neither is asked for.
+
+   Both were required fields on the form, and both were the wrong question to
+   put in front of somebody writing down a dish. Portions is what a card means
+   by "serves 4" — read off the card when it says so, one when it does not,
+   which makes the quantities per-portion. Yield is trim and cooking loss: it
+   is not written on any card, cannot be seen in a photograph, and asking for
+   it produced a number somebody invented to get past the field.
+
+   100 means "as written", which is what a recipe card is. Recipes saved before
+   this keep whatever yield was set on them — the value is still honoured
+   everywhere it is read, so a dish someone deliberately set to 75% still draws
+   the larger amount from stock. It simply cannot be entered any more.
+
+   The bounds still apply to anything that does arrive: above 100 would mean
+   cooking created matter, and below 1 is a typo that multiplies cost by a
+   hundred and looks like a data problem forever. */
+export const DEFAULT_PORTIONS = 1;
+export const DEFAULT_YIELD_PCT = 100;
+
 function validateVersion({ portions, yieldPct }) {
-  const p = Number(portions);
+  const p = portions === undefined || portions === null || portions === ""
+    ? DEFAULT_PORTIONS : Number(portions);
   if (!Number.isFinite(p) || p <= 0) return "portions";
-  /* A yield above 100% would mean cooking created matter. Below 1% is a typo
-     that would multiply cost by a hundred and look like a data problem forever. */
-  const y = Number(yieldPct);
+
+  const y = yieldPct === undefined || yieldPct === null || yieldPct === ""
+    ? DEFAULT_YIELD_PCT : Number(yieldPct);
   if (!Number.isFinite(y) || y < 1 || y > 100) return "yieldPct";
   return null;
 }
@@ -176,9 +197,10 @@ export async function saveVersion(orgId, input = {}) {
     effectiveFrom: Number(input.effectiveFrom) > 0 ? Number(input.effectiveFrom) : now,
     /* How many sellable portions the quantities below produce. Recipes are
        written at batch scale in real kitchens; per-portion cost is derived. */
-    portions: Number(input.portions),
-    /* Usable output after trim, drain and cooking loss, as a percentage. */
-    yieldPct: Number(input.yieldPct),
+    portions: Number(input.portions) > 0 ? Number(input.portions) : DEFAULT_PORTIONS,
+    /* Usable output after trim, drain and cooking loss, as a percentage.
+       No longer entered anywhere; see validateVersion. */
+    yieldPct: Number(input.yieldPct) >= 1 ? Number(input.yieldPct) : DEFAULT_YIELD_PCT,
     lines: built.lines,
     packaging: packaging.lines,
     note: String(input.note || "").trim(),

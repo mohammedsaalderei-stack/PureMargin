@@ -13,10 +13,9 @@ import { DirhamMark } from "../Dirham.jsx";
    because it comes from the deliveries the authorized branches actually received.
    So the list is the same for everyone and the money on it isn't.
 
-   The cost basis is a control at the top rather than a setting buried elsewhere.
-   Weighted average and last cost are both legitimate and answer different
-   questions, so the screen makes the choice visible and says what each one is
-   for — a single unlabelled "cost" column is how a food-cost argument starts. */
+   The way in is the camera. Photographing a card is the fastest route from
+   nothing to a costed menu, so the scanner sits above the list — on a new
+   account the list is empty and it is the only thing worth doing. */
 
 export default function Recipes({ token, pendingDoc, onDocUsed }) {
   const C = useC();
@@ -24,7 +23,20 @@ export default function Recipes({ token, pendingDoc, onDocUsed }) {
   const s = t.recipes;
 
   const [state, setState] = useState(null);
-  const [method, setMethod] = useState("wavg");
+  /* The cost basis, no longer a control on this screen.
+
+     Weighted average and last cost are both legitimate and answer different
+     questions, and the toggle said so. But the question it asks — how should
+     stock be valued — is not the question this screen is for, which is what a
+     dish is made of. It sat above the list, it changed every figure beneath
+     it, and it was the first thing somebody had to have an opinion about
+     before they could read their own menu.
+
+     Weighted average is the default it always had and the safer of the two:
+     stable, and not whipped around by one odd invoice. The parameter is still
+     sent on every request, so nothing downstream changed and a basis switch
+     can come back as a report-level control where it belongs. */
+  const method = "wavg";
   const [meta, setMeta] = useState(null);
   const [editing, setEditing] = useState(null);   // { recipe } | { recipe: null }
   const [openId, setOpenId] = useState(null);
@@ -96,11 +108,6 @@ export default function Recipes({ token, pendingDoc, onDocUsed }) {
     await openRecipe(id);
   }
 
-  async function switchMethod(next) {
-    setMethod(next);
-    await load(next);
-    if (openId) await openRecipe(openId, next);
-  }
 
   if (!state) return null;
 
@@ -125,23 +132,6 @@ export default function Recipes({ token, pendingDoc, onDocUsed }) {
         <RecipeScan token={token} onSaved={load}
         initial={pendingDoc?.scanner === "recipe" ? pendingDoc.data : null}
         onInitialUsed={onDocUsed} />
-
-        {/* The basis every figure below was produced with. */}
-        <div className="panel p-4">
-          <div className="text-xs font-semibold mb-2" style={{ color: C.slate }}>{s.costMethod}</div>
-          <div className="flex gap-2">
-            {["wavg", "last"].map((id) => (
-              <button key={id} onClick={() => switchMethod(id)}
-                className="px-3 py-1.5 rounded-lg text-xs font-semibold"
-                style={method === id
-                  ? { background: C.iris, color: C.onPrimary }
-                  : { border: `1px solid ${C.hairline}`, color: C.slate }}>
-                {s.methods[id]}
-              </button>
-            ))}
-          </div>
-          <p className="text-[11px] mt-2" style={{ color: C.slate }}>{s.methodHint[method]}</p>
-        </div>
 
         {editing ? (
           <RecipeForm meta={meta} recipe={editing.recipe} busy={busy} error={error}

@@ -21,14 +21,24 @@ export default function RecipeForm({ meta, recipe, busy, error, onSave, onCancel
   const s = t.recipes;
 
   const current = recipe?.effective || null;
+  /* Four fields, and none of them optional-looking-but-load-bearing.
+
+     Three came out. `variant` was a second name beside the dish name, and
+     nothing ever matched a sale on it — a large latte and a regular one are
+     two recipes named the way the till names them. `yieldPct` asked for trim
+     and cooking loss, which is not written on any card and cannot be seen in a
+     photograph, so it collected numbers people invented to get past the field.
+     `note` asked what changed, which has no answer the first time a recipe is
+     written and is rarely answered honestly afterwards.
+
+     Yield still exists in the data and is still honoured: a recipe someone
+     deliberately set to 75% keeps drawing the larger amount from stock. It
+     defaults to 100 — as written — and can no longer be entered. */
   const [head, setHead] = useState({
     menuItem: recipe?.menuItem || "",
-    variant: recipe?.variant || "",
     category: recipe?.category || "",
     sellPrice: recipe?.sellPrice ?? "",
     portions: current?.portions ?? 1,
-    yieldPct: current?.yieldPct ?? 100,
-    note: "",
   });
   /* Existing lines are re-filled by name as well as id: the box a person edits
      shows a name, and a row that arrived with only an id would render blank
@@ -170,7 +180,6 @@ export default function RecipeForm({ meta, recipe, busy, error, onSave, onCancel
       ...head,
       sellPrice: head.sellPrice === "" ? null : Number(head.sellPrice),
       portions: Number(head.portions),
-      yieldPct: Number(head.yieldPct),
       lines: clean(lines),
       packaging: clean(packaging),
     });
@@ -192,11 +201,6 @@ export default function RecipeForm({ meta, recipe, busy, error, onSave, onCancel
             onChange={(e) => setHead({ ...head, menuItem: e.target.value })} />
         </label>
         <label className="block">
-          {label(s.variant)}
-          <input {...field} className={`${field.className} mt-1`} value={head.variant}
-            onChange={(e) => setHead({ ...head, variant: e.target.value })} />
-        </label>
-        <label className="block">
           {label(s.category, s.categoryHint)}
           <input {...field} className={`${field.className} mt-1`} value={head.category}
             onChange={(e) => setHead({ ...head, category: e.target.value })} />
@@ -211,13 +215,7 @@ export default function RecipeForm({ meta, recipe, busy, error, onSave, onCancel
           <input {...field} className={`${field.className} mt-1`} type="number" min="1" step="any" dir="ltr"
             value={head.portions} onChange={(e) => setHead({ ...head, portions: e.target.value })} />
         </label>
-        <label className="block">
-          {label(s.yieldPct, s.yieldHint)}
-          <input {...field} className={`${field.className} mt-1`} type="number" min="1" max="100" step="any" dir="ltr"
-            value={head.yieldPct} onChange={(e) => setHead({ ...head, yieldPct: e.target.value })} />
-        </label>
       </div>
-      <p className="text-[11px] mt-2" style={{ color: C.slate }}>{s.yieldHint}</p>
 
       <div className="mt-5">
         <div className="text-xs font-semibold" style={{ color: C.slate }}>{s.ingredients}</div>
@@ -233,12 +231,6 @@ export default function RecipeForm({ meta, recipe, busy, error, onSave, onCancel
         <LineRows rows={packaging} setRows={setPackaging} addLabel={s.addPackaging} listId="recipe-packaging" />
       </div>
 
-      <label className="block mt-5">
-        {label(s.versionNote)}
-        <input {...field} className={`${field.className} mt-1`} value={head.note}
-          onChange={(e) => setHead({ ...head, note: e.target.value })} />
-      </label>
-      <p className="text-[11px] mt-2" style={{ color: C.slate }}>{s.effectiveHint}</p>
 
       {error && <p className="text-sm mt-3" style={{ color: C.rose }}>{error}</p>}
 

@@ -52,7 +52,11 @@ export function parseQty(raw) {
 }
 
 export function buildRecipe(parsed, ingredients) {
-  const lines = (Array.isArray(parsed?.lines) ? parsed.lines : []).map((line) => {
+  /* One mapper, used for the food lines and the packaging lines alike. They
+     are the same shape and the same matching problem — a box the store already
+     stocks should resolve like a tomato does — and the only difference is which
+     list they end up in on the recipe. */
+  const readLine = (line) => {
     const text = String(line.text || line.name || "").trim();
     const qty = parseQty(line.qty);
     const printed = String(line.unit || "").trim();
@@ -98,12 +102,28 @@ export function buildRecipe(parsed, ingredients) {
          to a form is most discouraging. */
       newItem: hit ? null : proposeItem(line, text, printed),
     };
-  });
+  };
+
+  const asList = (v) => (Array.isArray(v) ? v : []);
+  const lines = asList(parsed?.lines).map(readLine);
+  /* Boxes, cups, lids. Kept apart from the food because a food-cost percentage
+     that includes clamshells is not comparable with anybody's benchmark — the
+     recipe module has always summed the two separately, and the card scanner
+     now feeds both rather than dropping the packaging on the floor. */
+  const packaging = asList(parsed?.packaging).map(readLine);
 
   const matched = lines.filter((l) => l.ingredientId);
 
   return {
     menuItem: String(parsed?.menuItem || parsed?.title || "").trim(),
+    /* What section of the menu it belongs to, as the card said. One free-text
+       field, not a tree: a kitchen writes "Mains" on a card and nobody
+       maintains a taxonomy. */
+    category: String(parsed?.category || "").trim(),
+    /* Only where the card actually printed a price. A recipe card usually does
+       not, and a guessed selling price sets the margin on the dish to a number
+       nobody chose. */
+    sellPrice: num(parsed?.sellPrice),
     /* A card that does not say how many it serves is the common case, and one
        is the honest default: it makes the quantities per-portion, which is
        what a card without a yield line usually means. A person can correct it,
@@ -115,6 +135,7 @@ export function buildRecipe(parsed, ingredients) {
     yieldPct: 100,
     note: String(parsed?.note || "").trim(),
     lines,
+    packaging,
     unmatched: lines.filter((l) => !l.ingredientId).map((l) => l.text).filter(Boolean),
     matchedCount: matched.length,
     complete: lines.length > 0 && matched.length === lines.length,

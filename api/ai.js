@@ -193,12 +193,27 @@ afterwards is built on.
 
 Ignore the method and the cooking steps. Only the ingredient list matters.
 
+Also read, where the card states them and only then:
+
+  category     what section of the menu this belongs to — mains, appetizers,
+               desserts, beverages, sides. Null when the card does not say.
+  sellPrice    the price the dish is sold at, as a number. Null unless the card
+               actually prints one; a recipe card usually does not, and a
+               guessed price silently sets the margin on the dish.
+  packaging    boxes, cups, lids, bags, sleeves — things the dish is served or
+               sent out in, which cost money but are not food. Put them here
+               rather than in lines, and leave the array empty when the card
+               mentions none.
+
 Respond with ONLY this JSON, nothing else:
 {
   "menuItem": "<dish name, or null>",
+  "category": "<menu section, or null>",
+  "sellPrice": <selling price as a number, or null>,
   "portions": <number of portions the card states, or null>,
   "note": "<anything short worth keeping, or null>",
-  "lines": [{ "text": "<ingredient as written>", "qty": "<quantity as written, or null>", "unit": "<g, kg, ml, l, tsp, tbsp, cup, pcs… as written, or null>", "ingredient": "<exact name from the list, or null>", "newItem": { "name": "<short kitchen name>", "stockUnit": "<kg|g|l|ml|ea>", "purchaseUnit": "<how it is sold>", "packSize": <number>, "category": "<produce|meat|dairy|dry|oil|drink|packaging>" } }]
+  "lines": [{ "text": "<ingredient as written>", "qty": "<quantity as written, or null>", "unit": "<g, kg, ml, l, tsp, tbsp, cup, pcs… as written, or null>", "ingredient": "<exact name from the list, or null>", "newItem": { "name": "<short kitchen name>", "stockUnit": "<kg|g|l|ml|ea>", "purchaseUnit": "<how it is sold>", "packSize": <number>, "category": "<produce|meat|dairy|dry|oil|drink|packaging>" } }],
+  "packaging": [{ "text": "<item as written>", "qty": "<quantity, or null>", "unit": "<pcs, ea… as written, or null>", "ingredient": "<exact name from the list, or null>", "newItem": { "name": "<short name>", "stockUnit": "ea", "purchaseUnit": "<how it is sold>", "packSize": <number>, "category": "packaging" } }]
 }
 ${langNote}`;
 }
