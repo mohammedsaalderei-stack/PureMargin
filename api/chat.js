@@ -4,8 +4,9 @@ import { redactContext, redactionNote } from "./_askscope.js";
 import { posTokenFor, noteQuestion, getAccount, activeItems } from "./_accounts.js";
 import { getJSON } from "./_store.js";
 import { groundingFor, ANSWER_CONTRACT } from "./_grounding.js";
-import { parseBranchParam, scopeFor } from "./_org.js";
+import { parseBranchParam, effectiveBranches, scopeFor } from "./_org.js";
 import { listEdits } from "./_saleedits.js";
+import { TOOLS, runTool, DOMAIN_GUARDRAIL } from "./_domains.js";
 
 const MODEL = "claude-sonnet-4-5";
 
@@ -22,6 +23,8 @@ const LANG_NOTE = {
    boundary: a scope it never receives cannot be talked about. */
 function buildSystem(metrics, lang, grounding, capabilities) {
   return `You are PureMargin, an analyst for a food business in the UAE — restaurants, cafés, and cloud kitchens.
+
+${DOMAIN_GUARDRAIL}
 
 How to answer:
 - ${LANG_NOTE[lang] || LANG_NOTE.en}
@@ -117,13 +120,113 @@ export default async function handler(req, res) {
     }
 
     noteQuestion(session.username).catch(() => {});
+    /* Everything a scoped tool is allowed to reach, and nothing else.
+
+       The org, the branch list already intersected with this session's
+       authorization, and the capabilities each tool checks for itself. A tool
+       is never handed the session or the request body, so there is no argument
+       it can be called with that widens what it can see. */
+    const toolCtx = {
+      orgId: askerScope?.org?.id || null,
+      branches: effectiveBranches(parseBranchParam(requestedBranches), askerScope?.authorized || []),
+      capabilities,
+      method: "wavg",
+      metrics,
+    };
+
     const payload = {
       model: MODEL,
       max_tokens: 1200,
       system: buildSystem(metrics, lang, grounding, capabilities),
       messages: clean,
+      /* No organization means no domains to read, so no tools are offered
+         rather than five that would all refuse. */
+      ...(toolCtx.orgId ? { tools: TOOLS } : {}),
       stream: Boolean(stream),
     };
+
+    /* ── The tool loop ──────────────────────────────────────────────────
+
+       Streaming and tool use do not compose simply: a stream that stops to
+       call a function has to be drained, answered and restarted, and text
+       already sent must not be sent twice. So a turn that uses tools runs
+       unstreamed, resolves every call, and sends the finished answer. The
+       tools are local reads against the same store the screens use, so the
+       pause is milliseconds rather than a round trip to anywhere.
+
+       Bounded, because a model that keeps asking for the same tool would
+       otherwise loop until the request times out. Four is more than any real
+       question needs: the deepest is "what is my profit, and why", which is
+       one calculate_net_profit and one get_recipe_details. */
+    const MAX_TOOL_TURNS = 4;
+
+    if (toolCtx.orgId) {
+      const turn = { ...payload, stream: false };
+
+      for (let i = 0; i < MAX_TOOL_TURNS; i++) {
+        const round = await fetch("https://api.anthropic.com/v1/messages", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-api-key": apiKey,
+            "anthropic-version": "2023-06-01",
+          },
+          body: JSON.stringify(turn),
+        });
+
+        /* An upstream failure here falls through to the ordinary path below,
+           which reports it properly rather than swallowing it. */
+        if (!round.ok) break;
+
+        const data = await round.json();
+        const calls = (data.content || []).filter((c) => c.type === "tool_use");
+
+        if (!calls.length) {
+          const text = (data.content || [])
+            .map((c) => (c.type === "text" ? c.text : ""))
+            .join("")
+            .trim();
+          if (!text) break;
+
+          if (!stream) return res.status(200).json({ text });
+
+          /* Delivered as one delta. The answer is already complete by the time
+             we get here, so there is nothing to stream in pieces — and the
+             client's reader handles a single frame the same as many. */
+          res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
+          res.setHeader("Cache-Control", "no-cache, no-transform");
+          res.setHeader("Connection", "keep-alive");
+          res.setHeader("X-Accel-Buffering", "no");
+          res.write(`data: ${JSON.stringify({ type: "content_block_delta", delta: { type: "text_delta", text } })}\n\n`);
+          res.write("data: [DONE]\n\n");
+          return res.end();
+        }
+
+        const results = [];
+        for (const call of calls) {
+          let out;
+          try {
+            out = await runTool(call.name, call.input, toolCtx);
+          } catch (err) {
+            /* One failing lookup must not take the answer down. The model is
+               told this call failed and can say so or work without it. */
+            console.error("tool failed:", call.name, err?.message || err);
+            out = { error: "tool_failed", message: "That lookup could not be completed." };
+          }
+          results.push({
+            type: "tool_result",
+            tool_use_id: call.id,
+            content: JSON.stringify(out),
+          });
+        }
+
+        turn.messages = [
+          ...turn.messages,
+          { role: "assistant", content: data.content },
+          { role: "user", content: results },
+        ];
+      }
+    }
 
     const upstream = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",

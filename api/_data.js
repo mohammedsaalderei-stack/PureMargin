@@ -678,7 +678,7 @@ export function toContext(m) {
 PERIOD: last 30 days, compared with the 30 days before.
 
 Total sales ${money(m.totals.sales)} (${m.totals.salesDelta >= 0 ? "+" : ""}${m.totals.salesDelta}%).
-Cost of goods ${money(m.totals.cost || 0)}. NET PROFIT ${money(m.totals.netProfit || 0)}, a margin of ${m.totals.marginPct ?? 0}%.
+Cost of goods ${money(m.totals.cost || 0)}. GROSS PROFIT ${money(m.totals.netProfit || 0)}, a gross margin of ${m.totals.marginPct ?? 0}%.
 Discounts given ${money(m.totals.discounts || 0)}.
 Cost data covers ${m.costCoverage ?? 0}% of turnover.
 Orders ${m.totals.receipts.toLocaleString()} (${m.totals.receiptsDelta >= 0 ? "+" : ""}${m.totals.receiptsDelta}%).
@@ -704,5 +704,10 @@ These are excluded from net profit, so the margin above is understated. When the
     : "All sold items have a cost, so net profit is complete."
 }
 
-NOT AVAILABLE: staff and labour cost, rent and overheads — "net profit" here means after cost of goods only. Customer-level history.`;
+The figure above is GROSS profit — revenue minus cost of goods, before any
+overhead. It is not net profit and must never be called that. Rent, salaries
+and other overheads are recorded separately, in the OPEX domain; for net profit
+call the calculate_net_profit tool, which subtracts them on the server.
+
+NOT AVAILABLE here: staff and labour cost broken down per person. Customer-level history.`;
 }
