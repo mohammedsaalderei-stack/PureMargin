@@ -40,6 +40,19 @@ export const TAB_ACCESS = {
      putting this line back, which is what it should be if counting the shelf
      ever becomes the primary way leakage is found. */
   // variance: "view:costs",
+  /* Every receipt the till reported, and the corrections made to them.
+
+     It was missing from this map entirely, which is not the same as being
+     switched off. The screen exists, the route exists, the endpoint exists and
+     the nav already lists it — but `allowedTabs` builds the permitted set from
+     the keys here, so a tab absent from this object can never be permitted for
+     anybody. It was unreachable for every role including the owner, and looked
+     from the outside like a feature that had never been built.
+
+     `view:dashboard` rather than `adjust:sales`: reading the day's takings is
+     what everybody with a dashboard already does, and the screen shows no edit
+     controls to somebody who cannot use them. */
+  sales: "view:dashboard",
   watch: "view:profitability",
   menu: "view:profitability",
   forecast: "view:forecast",

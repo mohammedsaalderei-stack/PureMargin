@@ -187,6 +187,10 @@ export default async function handler(req, res) {
       capabilities,
       method: "wavg",
       metrics,
+      /* The till connection, so the receipts tool reads transactions from the
+         same place the Sales screen does rather than from a second copy that
+         would disagree the first time a sale was corrected. */
+      posToken,
     };
 
     const payload = {

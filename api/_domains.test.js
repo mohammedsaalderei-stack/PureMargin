@@ -205,14 +205,46 @@ await test("every advertised tool exists and is reachable by name", async () => 
   const names = dm.TOOLS.map((t) => t.name);
   assert.deepEqual(names.sort(), [
     "calculate_net_profit", "get_fixed_costs", "get_inventory_levels",
-    "get_pos_sales_metrics", "get_recipe_details", "get_stock_movements",
-    "get_suppliers_and_orders",
+    "get_pos_sales_metrics", "get_recent_receipts", "get_recipe_details",
+    "get_stock_movements", "get_suppliers_and_orders",
   ]);
 
   for (const name of names) {
     const out = await dm.runTool(name, {}, ctx());
+    /* The receipts tool reads the till rather than the store, so with no POS
+       attached it refuses — which is the right answer, not a failure. Every
+       other tool must come back clean. */
+    if (name === "get_recent_receipts") {
+      assert.equal(out.error, "notconnected");
+      continue;
+    }
     assert.equal(out.error, undefined, `${name} failed: ${out.message}`);
   }
+});
+
+await test("the receipts tool says there is no till rather than inventing one", async () => {
+  /* The complaint that produced this tool: asked for the last ten sales, the
+     assistant said it could only see aggregates and told the owner to open
+     their POS. It was right — there was no tool. There is now, and when it
+     genuinely cannot read the till it says so instead of falling back to
+     totals and presenting them as transactions. */
+  const out = await dm.getRecentReceipts(ctx(), {});
+  assert.equal(out.error, "notconnected");
+  assert.deepEqual(out.receipts, []);
+});
+
+await test("a role without the sales domain cannot read receipts", async () => {
+  const chef = ctx({ capabilities: ["view:inventory"], posToken: "x" });
+  assert.equal((await dm.getRecentReceipts(chef, {})).error, "forbidden");
+});
+
+await test("the receipts tool is in the sales domain and carries no cost", () => {
+  const tool = dm.TOOLS.find((t) => t.name === "get_recent_receipts");
+  assert.ok(tool, "advertised");
+  /* Letting a receipt carry cost would put the same figure on both sides of
+     the profit calculation, which is what the domain split exists to stop. */
+  assert.ok(/no cost/i.test(tool.description));
+  assert.ok(dm.DOMAIN_GUARDRAIL.includes("get_recent_receipts"));
 });
 
 await test("an unknown tool name is refused rather than defaulted", async () => {

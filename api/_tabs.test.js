@@ -47,8 +47,11 @@ test("the owner sees everything", () => {
 });
 
 test("a cashier sees only the till and the open tabs", () => {
+  /* Sales is the till: the receipts they rang up, as the POS reported them.
+     It rides on view:dashboard for the same reason costs does, and the screen
+     shows no correction controls to somebody without adjust:sales. */
   assert.deepEqual(tabsFor("cashier").sort(),
-    ["ask", "costs", "messages", "settings"],
+    ["ask", "costs", "messages", "sales", "settings"],
     "the dashboard leads with net margin — that is not a till view");
 });
 

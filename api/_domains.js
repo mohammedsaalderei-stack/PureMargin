@@ -57,6 +57,9 @@ import { balances, listMovements } from "./_movements.js";
 import { costBasis, costFrom } from "./_costing.js";
 import { ingestionStatus } from "./_loyversehook.js";
 import { listOrders } from "./_purchasing.js";
+import { rawReceipts } from "./_data.js";
+import { listEdits, applyEdit, receiptIdOf } from "./_saleedits.js";
+import { provider } from "./_pos.js";
 
 /* The tag on every row. Deliberately shouty and deliberately redundant with
    the tool that produced it: a row that travels into a conversation and comes
@@ -68,6 +71,7 @@ export const ENTITY = {
   RECIPE_PACKAGING: "RECIPE_PACKAGING",
   RAW_INVENTORY: "RAW_INVENTORY",
   POS_SALE_ITEM: "POS_SALE_ITEM",
+  POS_RECEIPT: "POS_RECEIPT",
   STOCK_MOVEMENT: "STOCK_MOVEMENT",
   SUPPLIER: "SUPPLIER",
   PURCHASE_ORDER: "PURCHASE_ORDER",
@@ -433,6 +437,101 @@ export async function getPosSalesMetrics(ctx, { } = {}) {
   };
 }
 
+/* ── POS_SALES: the transactions themselves ─────────────────────────────
+
+   Asked for the last ten sales, the assistant answered — correctly — that it
+   had no way to see individual transactions and only held aggregates, and
+   told the owner to open their till instead. It was right, and that is the
+   problem: the receipts were three function calls away the whole time, on the
+   same endpoint the Sales screen reads.
+
+   Aggregates cannot answer the questions people actually ask about a day.
+   "What was that large order?" "Did the void go through?" "What sold at four
+   in the afternoon?" — none of those survive being summed.
+
+   Read live from the till rather than from a store of our own. The POS is the
+   record of what was sold; keeping a second copy to answer questions from
+   would be a second version of every transaction, and the two would disagree
+   the first time a sale was corrected. Corrections are applied on the way
+   through, so what this returns is what the app's own screens show. */
+export async function getRecentReceipts(ctx, { days = 7, limit = 25, dish_name: dishName } = {}) {
+  if (!allowed(ctx, DOMAIN.POS_SALES)) return refuse(DOMAIN.POS_SALES);
+  if (!ctx.posToken) {
+    return {
+      domain: DOMAIN.POS_SALES,
+      error: "notconnected",
+      message: "No point-of-sale connection, so there are no receipts to read.",
+      receipts: [],
+    };
+  }
+
+  let raw;
+  try {
+    raw = await rawReceipts(ctx.posToken, { days: Math.min(Math.max(Number(days) || 7, 1), 31) });
+  } catch {
+    return {
+      domain: DOMAIN.POS_SALES,
+      error: "pos",
+      message: "The till could not be reached just now.",
+      receipts: [],
+    };
+  }
+
+  const edits = await listEdits(ctx.orgId).catch(() => ({}));
+  const branches = new Set(ctx.branches.map(String));
+  const wanted = String(dishName || "").trim().toLowerCase();
+  const rows = [];
+
+  for (const r of raw) {
+    const branchId = String(r.store_id || "unknown");
+    /* The branch intersection, applied here as everywhere: a receipt from a
+       store this person cannot see must not reach the model. */
+    if (branches.size && !branches.has(branchId)) continue;
+
+    const id = receiptIdOf(r);
+    if (!id) continue;
+
+    const edit = edits[id] || null;
+    const corrected = applyEdit(r, edit);
+    const receipt = provider().receipt(corrected);
+
+    if (wanted && !receipt.lines.some((l) => l.name.toLowerCase().includes(wanted))) continue;
+
+    rows.push({
+      type: ENTITY.POS_RECEIPT,
+      domain: DOMAIN.POS_SALES,
+      receipt_number: id,
+      branchId,
+      at: receipt.at,
+      total: Number(corrected.total_money) || 0,
+      /* Both figures where a correction exists, never just the result: a
+         corrected total with no sight of what it was is the one shape that
+         lets money leave the books unnoticed. */
+      voided: Boolean(edit?.voided),
+      correctedFrom: edit ? Number(r.total_money) || 0 : null,
+      correctionReason: edit?.reason || null,
+      lines: receipt.lines.map((l) => ({
+        name: l.name,
+        variant: l.variant || null,
+        quantity: l.qty,
+        revenue: l.revenue,
+      })),
+    });
+  }
+
+  rows.sort((a, b) => b.at - a.at);
+  const capped = rows.slice(0, Math.min(Math.max(Number(limit) || 25, 1), 100));
+
+  return {
+    domain: DOMAIN.POS_SALES,
+    currency: "AED",
+    days: Number(days) || 7,
+    matched: rows.length,
+    receipts: capped,
+    note: "Individual transactions as the till reported them, with any corrections applied. Revenue only — a receipt carries no cost, and dish cost comes from get_recipe_details.",
+  };
+}
+
 /* ── The one calculation ─────────────────────────────────────────────────
 
        Net Profit = Gross POS Revenue
@@ -586,6 +685,23 @@ export const TOOLS = [
     input_schema: { type: "object", properties: {} },
   },
   {
+    name: "get_recent_receipts",
+    description:
+      "Individual transactions from the till: receipt number, time, total, "
+      + "and the items on each one, with any corrections applied. Use this "
+      + "whenever the question is about particular sales rather than totals — "
+      + "the last few orders, a large ticket, whether something was voided, or "
+      + "what sold at a given time. Revenue only; a receipt carries no cost.",
+    input_schema: {
+      type: "object",
+      properties: {
+        days: { type: "number", description: "How far back to look, up to 31. Defaults to 7." },
+        limit: { type: "number", description: "How many receipts to return, up to 100. Defaults to 25." },
+        dish_name: { type: "string", description: "Only receipts containing this item." },
+      },
+    },
+  },
+  {
     name: "calculate_net_profit",
     description:
       "Computes net profit deterministically on the server: gross revenue minus "
@@ -612,6 +728,7 @@ export async function runTool(name, input, ctx) {
     case "get_stock_movements": return getStockMovements(ctx, input || {});
     case "get_suppliers_and_orders": return getSuppliersAndOrders(ctx, input || {});
     case "get_pos_sales_metrics": return getPosSalesMetrics(ctx, input || {});
+    case "get_recent_receipts": return getRecentReceipts(ctx, input || {});
     case "calculate_net_profit": return calculateNetProfit(ctx, input || {});
     default:
       return { error: "unknown_tool", message: `No tool named ${name}.` };
@@ -631,7 +748,8 @@ strictly separate domains, and you must never mix them:
   RAW_INVENTORY stock on the shelf, its ledger, its      → get_inventory_levels
                 suppliers and what is on order              get_stock_movements
                                                             get_suppliers_and_orders
-  POS_SALES     till revenue and quantities sold         → get_pos_sales_metrics
+  POS_SALES     till revenue, quantities sold, and the   → get_pos_sales_metrics
+                individual receipts behind them             get_recent_receipts
 
 Rules:
 - Strictly isolate operational overheads from dish recipe ingredients. An
