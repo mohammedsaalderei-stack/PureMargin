@@ -323,5 +323,75 @@ await test("a pairing pointing at a deleted recipe resolves to nothing", async (
   assert.deepEqual(out.unmatched, ["Cheeseburger"], "reported, not silently skipped");
 });
 
+/* ---------------------- is it actually connected ----------------- */
+
+/* The assistant could not answer "is my webhook connected?" because nothing
+   ever told it. Worse, nothing recorded the only evidence that matters: that
+   a delivery arrived. Issuing a token proves somebody opened Settings. */
+
+await test("no address issued reads as off", async () => {
+  const out = await hook.ingestionStatus("org1");
+  assert.equal(out.state, "off");
+  assert.equal(out.configured, false);
+});
+
+await test("an address with nothing delivered is waiting, not live", async () => {
+  await hook.webhookToken("org1");
+  const out = await hook.ingestionStatus("org1");
+
+  /* The commonest real state: the URL was generated and never pasted into
+     Loyverse. Calling that "connected" would send somebody hunting through
+     their recipes for why stock is not moving. */
+  assert.equal(out.state, "waiting");
+  assert.equal(out.configured, true);
+  assert.ok(/not been added in Loyverse/i.test(out.hint));
+});
+
+await test("one delivery makes it live, and the clock starts", async () => {
+  await hook.webhookToken("org1");
+  const at = Date.now() - 5 * 60000;
+  await hook.noteDelivery("org1", { at, receipts: 3 });
+
+  const out = await hook.ingestionStatus("org1");
+  assert.equal(out.state, "live");
+  assert.equal(out.deliveries, 1);
+  assert.equal(out.receipts, 3);
+  assert.equal(out.lastReceiptAt, at);
+  assert.equal(out.quiet, false);
+  assert.equal(out.quietForMinutes, 5);
+});
+
+await test("a long silence is reported but not called broken", async () => {
+  await hook.webhookToken("org1");
+  const at = Date.now() - 9 * 60 * 60 * 1000;
+  await hook.noteDelivery("org1", { at });
+
+  const out = await hook.ingestionStatus("org1", { now: Date.now() });
+  assert.equal(out.state, "live", "it did work, and the record says when");
+  assert.equal(out.quiet, true);
+  /* Whether nine quiet hours is a fault depends on opening times, which this
+     module does not know — so it reports and does not judge. */
+  assert.ok(out.quietForMinutes >= 540);
+});
+
+await test("deliveries accumulate rather than overwrite", async () => {
+  await hook.webhookToken("org1");
+  await hook.noteDelivery("org1", { at: 1000, receipts: 2 });
+  await hook.noteDelivery("org1", { at: 2000, receipts: 5 });
+
+  const out = await hook.ingestionStatus("org1");
+  assert.equal(out.deliveries, 2);
+  assert.equal(out.receipts, 7);
+  assert.equal(out.firstReceiptAt, 1000, "the first is kept");
+  assert.equal(out.lastReceiptAt, 2000, "the last is what freshness reads");
+});
+
+await test("one organization's ingestion is not another's", async () => {
+  await hook.webhookToken("org1");
+  await hook.noteDelivery("org1", {});
+  assert.equal((await hook.ingestionStatus("org2")).state, "off");
+});
+
+
 console.log(failures ? `\n${failures} failed` : "\nall passed");
 process.exit(failures ? 1 : 0);

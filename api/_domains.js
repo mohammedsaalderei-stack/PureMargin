@@ -55,6 +55,7 @@ import { listRecipes, costedList, costedRecipe, effectiveVersion } from "./_reci
 import { listIngredients } from "./_inventory.js";
 import { balances } from "./_movements.js";
 import { costBasis, costFrom } from "./_costing.js";
+import { ingestionStatus } from "./_loyversehook.js";
 
 /* The tag on every row. Deliberately shouty and deliberately redundant with
    the tool that produced it: a row that travels into a conversation and comes
@@ -265,7 +266,7 @@ export async function getInventoryLevels(ctx, { search } = {}) {
    Revenue and counts as the till reported them. Deliberately no cost: cost
    comes from the recipe domain, and letting this function return one would
    put the same number on both sides of the profit calculation. */
-export function getPosSalesMetrics(ctx, { } = {}) {
+export async function getPosSalesMetrics(ctx, { } = {}) {
   if (!allowed(ctx, DOMAIN.POS_SALES)) return refuse(DOMAIN.POS_SALES);
 
   const metrics = ctx.metrics || {};
@@ -286,7 +287,19 @@ export function getPosSalesMetrics(ctx, { } = {}) {
       quantitySold: i.qty,
       revenue: i.revenue,
     })),
-    note: "Till revenue and sold counts only. Contains no cost of any kind.",
+
+    /* How these sales are reaching us, which the assistant had no way to know.
+
+       Asked "is my webhook connected?" or "why has stock stopped moving?", it
+       could only talk about the figures — it was never told whether live
+       ingestion existed, let alone whether anything had arrived on it. Both
+       questions are really about this, and both were unanswerable.
+
+       It belongs in this domain rather than a fifth one: it is a fact about
+       how POS sales get here, not a new kind of money. */
+    ingestion: await ingestionStatus(ctx.orgId),
+
+    note: "Till revenue and sold counts only. Contains no cost of any kind. `ingestion` says how these sales reach PureMargin — live webhook, or read when someone opens the dashboard.",
   };
 }
 
@@ -316,7 +329,7 @@ export async function calculateNetProfit(ctx, { month } = {}) {
     };
   }
 
-  const sales = getPosSalesMetrics(ctx, {});
+  const sales = await getPosSalesMetrics(ctx, {});
   const opex = await getFixedCosts(ctx, { month });
 
   const revenue = Number(sales.grossRevenue) || 0;
@@ -412,6 +425,9 @@ export const TOOLS = [
     description:
       "Till revenue and what sold: gross revenue, receipts, average ticket, and "
       + "quantity sold per item. Use this for sales, revenue or best sellers. "
+      + "Also reports how sales reach PureMargin, so use it for any question "
+      + "about whether the Loyverse webhook or live sync is connected and "
+      + "working, or why stock has stopped updating. "
       + "Contains NO cost of any kind — cost comes from get_recipe_details.",
     input_schema: { type: "object", properties: {} },
   },
@@ -475,4 +491,8 @@ Rules:
   your own reading of the name. A row tagged FIXED_COST is an overhead even if
   it is called "packaging".
 - If a tool returns an error or a refusal, say what you cannot see. Do not fill
-  the gap from another domain.`;
+  the gap from another domain.
+- Questions about the Loyverse connection, the webhook, or why stock is not
+  moving are answered from get_pos_sales_metrics, whose ingestion field says
+  whether live receipts are arriving and when the last one did. Do not guess at
+  the state of an integration.`;

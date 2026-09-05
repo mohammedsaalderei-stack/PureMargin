@@ -118,7 +118,7 @@ await test("the inventory tool returns stock, not recipe quantities", async () =
 });
 
 await test("the sales tool carries revenue and never a cost", async () => {
-  const out = dm.getPosSalesMetrics(ctx(), {});
+  const out = await dm.getPosSalesMetrics(ctx(), {});
 
   assert.equal(out.domain, "POS_SALES");
   assert.equal(out.grossRevenue, 100000);

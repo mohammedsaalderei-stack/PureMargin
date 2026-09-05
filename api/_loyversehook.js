@@ -95,6 +95,75 @@ export async function rotateWebhookToken(orgId) {
   return webhookToken(orgId);
 }
 
+/* ── Whether receipts are actually arriving ──────────────────────────────
+
+   Issuing a token is not the same as being connected. Somebody can open
+   Settings, generate the address, and never paste it into Loyverse — and
+   nothing about the token would say so. The only honest evidence that live
+   ingestion works is that a delivery arrived.
+
+   So each successful delivery is recorded, and the three states it separates
+   are the three somebody actually asks about:
+
+     "off"      no address has even been issued
+     "waiting"  an address exists, nothing has ever been delivered — almost
+                always a webhook that was never added at the Loyverse end
+     "live"     receipts are arriving, and here is when the last one did
+
+   Kept small on purpose: a timestamp and a count, not a log. This exists to
+   answer "is it working", and a history of every delivery would be a second
+   copy of the ledger that already holds them. */
+
+const SEEN = (orgId) => `poshook:seen:${orgId}`;
+
+export async function noteDelivery(orgId, { at = Date.now(), receipts = 1 } = {}) {
+  if (!orgId) return;
+  const row = (await getJSON(SEEN(orgId))) || {};
+  await setJSON(SEEN(orgId), {
+    firstAt: row.firstAt || at,
+    lastAt: at,
+    deliveries: (row.deliveries || 0) + 1,
+    receipts: (row.receipts || 0) + receipts,
+  });
+}
+
+/* Six hours. Long enough that a quiet night, a closed Monday or a slow
+   afternoon does not read as a fault, short enough that a webhook Loyverse
+   disabled two days ago does not still look healthy. */
+const STALE_MS = 6 * 60 * 60 * 1000;
+
+export async function ingestionStatus(orgId, { now = Date.now() } = {}) {
+  if (!orgId) return { state: "off", configured: false };
+
+  const secret = await getJSON(SECRET(orgId));
+  const seen = (await getJSON(SEEN(orgId))) || null;
+
+  if (!secret?.token) return { state: "off", configured: false };
+  if (!seen?.lastAt) {
+    return {
+      state: "waiting",
+      configured: true,
+      /* Named so an answer can be specific about what to do rather than
+         saying it is not working. */
+      hint: "A webhook address exists but no receipt has ever arrived on it. It has probably not been added in Loyverse yet.",
+    };
+  }
+
+  const quietFor = now - seen.lastAt;
+  return {
+    state: "live",
+    configured: true,
+    lastReceiptAt: seen.lastAt,
+    firstReceiptAt: seen.firstAt,
+    deliveries: seen.deliveries,
+    receipts: seen.receipts,
+    /* Reported rather than judged: whether six quiet hours is a problem
+       depends on opening times, which this module does not know. */
+    quietForMinutes: Math.round(quietFor / 60000),
+    quiet: quietFor > STALE_MS,
+  };
+}
+
 export async function orgForToken(token) {
   const clean = String(token || "").trim();
   if (!clean) return null;

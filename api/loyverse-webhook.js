@@ -34,7 +34,8 @@
    the sender did nothing wrong and repeating the delivery would not help. */
 
 import {
-  orgForToken, verifySignature, receiptsFromEvent, drawsStock, eventNameOf, RECEIPT_EVENTS,
+  orgForToken, verifySignature, receiptsFromEvent, drawsStock, eventNameOf,
+  noteDelivery, RECEIPT_EVENTS,
 } from "./_loyversehook.js";
 import { depleteFromSales, postedIds } from "./_salesdepletion.js";
 import { getMeta } from "./_inventory.js";
@@ -108,6 +109,15 @@ export default async function handler(req, res) {
       if (!byStore.has(receipt.branchId)) byStore.set(receipt.branchId, []);
       byStore.get(receipt.branchId).push(receipt);
     }
+
+    /* Recorded before anything else is decided.
+
+       A delivery that arrived and was then skipped — refunds only, or
+       depletion switched off — still proves the webhook is wired up, and that
+       is the question this record exists to answer. Recording it only on a
+       successful deduction would make a correctly configured integration look
+       dead on a day of nothing but refunds. */
+    await noteDelivery(orgId, { at: Date.now(), receipts: parsed.receipts.length });
 
     /* The two settings that mean "do not write stock from sales". Off is a
        legitimate choice — a business keeping stock in the till, or one using
