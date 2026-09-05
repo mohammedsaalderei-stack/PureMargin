@@ -33,7 +33,9 @@
    turned automatic depletion off are all acknowledged, because in each case
    the sender did nothing wrong and repeating the delivery would not help. */
 
-import { orgForToken, verifySignature, receiptFromEvent, eventNameOf, RECEIPT_EVENTS } from "./_loyversehook.js";
+import {
+  orgForToken, verifySignature, receiptsFromEvent, drawsStock, eventNameOf, RECEIPT_EVENTS,
+} from "./_loyversehook.js";
 import { depleteFromSales, postedIds } from "./_salesdepletion.js";
 import { getMeta } from "./_inventory.js";
 import { recordAudit } from "./_audit.js";
@@ -72,28 +74,39 @@ export default async function handler(req, res) {
 
     const body = req.body || {};
     const event = eventNameOf(body);
-    /* An unnamed event is accepted: some senders post the receipt bare, and
-       refusing those would mean refusing the common case on a technicality. */
+    /* An unnamed event is accepted: the dashboard's test notification and a
+       hand-made setup call both post a bare receipt. */
     if (event && !RECEIPT_EVENTS.has(event)) {
       return res.status(200).json({ status: "ignored", event });
     }
 
-    const parsed = receiptFromEvent(body);
+    const parsed = receiptsFromEvent(body);
     if (parsed.error) {
-      return res.status(400).json({ error: `Missing or unreadable ${parsed.error}.` });
-    }
-    const { receipt } = parsed;
-    if (!receipt.branchId || receipt.branchId === "unknown") {
-      return res.status(400).json({ error: "Missing store_id." });
+      /* 200, not 400, and this is Loyverse-specific rather than sloppy: a
+         non-2xx is a delivery failure, retried 200 times over 48 hours, after
+         which the webhook is DISABLED and the merchant stops receiving sales
+         entirely. A payload this endpoint cannot read will not become readable
+         on the two-hundredth attempt, so it is acknowledged and logged rather
+         than retried into an outage. */
+      console.error("loyverse webhook: unreadable payload —", parsed.error);
+      return res.status(200).json({ status: "unprocessable", reason: parsed.error });
     }
 
-    /* Already seen — by an earlier delivery of the same event, or by the
-       poller getting there first. The specification asks for exactly this
-       answer, and it is also what stops a retry storm doubling a day's
-       consumption. */
-    const seen = await postedIds(orgId, receipt.branchId);
-    if (seen.has(receipt.id)) {
-      return res.status(200).json({ status: "already_processed", receipt_number: receipt.id });
+    /* One notification can carry up to a hundred receipts, and they may span
+       stores, so they are grouped and each store's batch posted together. */
+    const byStore = new Map();
+    const skipped = [];
+    for (const receipt of parsed.receipts) {
+      if (!receipt.branchId || receipt.branchId === "unknown") {
+        skipped.push({ receipt_number: receipt.id, reason: "no_store" });
+        continue;
+      }
+      if (!drawsStock(receipt)) {
+        skipped.push({ receipt_number: receipt.id, reason: receipt.cancelledAt ? "cancelled" : "refund" });
+        continue;
+      }
+      if (!byStore.has(receipt.branchId)) byStore.set(receipt.branchId, []);
+      byStore.get(receipt.branchId).push(receipt);
     }
 
     /* The two settings that mean "do not write stock from sales". Off is a
@@ -102,36 +115,57 @@ export default async function handler(req, res) {
        different places — so this is acknowledged rather than refused. */
     const meta = await getMeta(orgId);
     if (meta.stockSource === "pos" || !meta.autoDepleteFromSales) {
-      return res.status(200).json({ status: "depletion_disabled", receipt_number: receipt.id });
+      return res.status(200).json({ status: "depletion_disabled", received: parsed.receipts.length });
     }
 
-    const out = await depleteFromSales(orgId, receipt.branchId, [receipt], {
-      at: receipt.at,
-      actor: "loyverse-webhook",
-    });
+    let posted = 0;
+    let movements = 0;
+    const unmatched = new Set();
 
-    if (out.movements) {
-      await recordAudit(orgId, {
+    for (const [branchId, receipts] of byStore) {
+      /* Already seen — an earlier delivery of the same event, a retry, or the
+         poller getting there first. Filtered before posting so the response can
+         say so, though `depleteFromSales` would refuse them anyway. */
+      const seen = await postedIds(orgId, branchId);
+      const fresh = receipts.filter((r) => !seen.has(r.id));
+      if (!fresh.length) continue;
+
+      const out = await depleteFromSales(orgId, branchId, fresh, {
+        at: fresh[0].at,
         actor: "loyverse-webhook",
-        action: "stock.autoDeplete",
-        detail: {
-          branchId: receipt.branchId,
-          receipts: out.posted,
-          lines: out.movements,
-          source: "webhook",
-          receiptNumber: receipt.id,
-        },
       });
+      posted += out.posted;
+      movements += out.movements;
+      for (const name of out.unmatched) unmatched.add(name);
+
+      if (out.movements) {
+        await recordAudit(orgId, {
+          actor: "loyverse-webhook",
+          action: "stock.autoDeplete",
+          detail: {
+            branchId,
+            receipts: out.posted,
+            lines: out.movements,
+            source: "webhook",
+            receiptNumber: fresh.map((r) => r.id).join(","),
+          },
+        });
+      }
     }
 
     return res.status(200).json({
       success: true,
-      receipt_number: receipt.id,
-      movements: out.movements,
+      received: parsed.receipts.length,
+      posted,
+      movements,
+      /* Refunds and cancellations, named. "My refunds do not affect stock" is
+         a reasonable thing to be surprised by, so it is said rather than left
+         to be inferred from a total that did not move. */
+      skipped,
       /* Named rather than counted: a dish selling steadily with no recipe
          behind it is the single commonest reason stock stops depleting, and it
          is invisible unless something says so. */
-      unmatched: out.unmatched,
+      unmatched: [...unmatched],
     });
   } catch (err) {
     /* A 500 asks the sender to retry, which is right: the receipt is real and

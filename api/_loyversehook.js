@@ -33,15 +33,27 @@
    so an unauthenticated one would let anybody on the internet empty a
    restaurant's inventory a receipt at a time.
 
-   ── On signatures ────────────────────────────────────────────────────────
+   ── On signatures, per Loyverse's own specification ─────────────────────
 
-   The specification says to validate the payload signature "if configured",
-   and that is how it is implemented: when `LOYVERSE_WEBHOOK_SECRET` is set,
-   the body must carry a matching HMAC and is refused otherwise. The header
-   name and digest scheme are configurable because they are Loyverse's to
-   define and this has not been run against their signer — inventing a fixed
-   scheme here and calling it verified would be worse than a token in the URL,
-   which is at least honestly what it is. */
+   From the API reference (developer.loyverse.com/docs, "Validate
+   notifications"), and worth stating precisely because a signature check that
+   is subtly wrong is worse than none:
+
+   - The header is `X-Loyverse-Signature`.
+   - Its value is a **lowercase hex-encoded HMAC-SHA1** of the raw request
+     body, keyed with the OAuth application's **Client Secret**. SHA-1, not
+     SHA-256 — this was implemented as SHA-256 first, from a guess, and every
+     genuine notification would have been refused.
+   - It is present **only** on webhooks created by an OAuth2 application.
+     Webhooks added through the Loyverse dashboard or with a Personal Access
+     Token are unsigned, and for those the token in the URL is the only
+     authentication there is.
+
+   So the secret stays optional. Set `LOYVERSE_CLIENT_SECRET` when the webhook
+   was registered by an OAuth2 app and every request is verified; leave it
+   unset for a dashboard-registered webhook and the URL token carries the
+   weight. What is not offered is a middle position where a signature is
+   checked incorrectly and reported as verified. */
 
 import crypto from "node:crypto";
 import { getJSON, setJSON, del } from "./_store.js";
@@ -99,8 +111,12 @@ function sameDigest(a, b) {
   return crypto.timingSafeEqual(left, right);
 }
 
-export const SIGNATURE_HEADER =
-  (process.env.LOYVERSE_WEBHOOK_SIGNATURE_HEADER || "x-loyverse-signature").toLowerCase();
+export const SIGNATURE_HEADER = "x-loyverse-signature";
+
+/* The OAuth application's Client Secret, which is the HMAC key. The older
+   name is still read so an existing deployment does not go quiet on upgrade. */
+const clientSecret = () =>
+  process.env.LOYVERSE_CLIENT_SECRET || process.env.LOYVERSE_WEBHOOK_SECRET || "";
 
 /* Refuses when a secret is configured and the body does not match it.
 
@@ -108,7 +124,7 @@ export const SIGNATURE_HEADER =
    is in, because "no secret configured" and "signature wrong" want different
    handling and different log lines. */
 export function verifySignature(rawBody, headers = {}) {
-  const secret = process.env.LOYVERSE_WEBHOOK_SECRET;
+  const secret = clientSecret();
   if (!secret) return { ok: true, checked: false };
 
   /* The exact bytes, or nothing.
@@ -127,25 +143,25 @@ export function verifySignature(rawBody, headers = {}) {
     return { ok: false, checked: true, reason: "norawbody" };
   }
 
-  const sent = String(headers[SIGNATURE_HEADER] || "").trim().replace(/^sha256=/i, "");
+  const sent = String(headers[SIGNATURE_HEADER] || "").trim().toLowerCase();
   if (!sent) return { ok: false, checked: true, reason: "missing" };
 
-  const digest = crypto.createHmac("sha256", secret).update(rawBody).digest("hex");
+  /* SHA-1, hex, lowercase, keyed with the Client Secret used as it is given —
+     it looks base64 but is not decoded first. All four details are Loyverse's,
+     and getting any one of them wrong refuses every genuine notification. */
+  const digest = crypto.createHmac("sha1", secret).update(rawBody, "utf8").digest("hex");
 
   return sameDigest(sent, digest)
     ? { ok: true, checked: true }
     : { ok: false, checked: true, reason: "mismatch" };
 }
 
-/* One pushed event, in the shape the depletion engine already takes.
+/* One receipt, in the shape the depletion engine already takes.
 
-   Loyverse wraps a receipt in an envelope on some event types and sends it
-   bare on others, so both are accepted. Everything past that goes through
-   `provider().receipt`, which is the same function the poller uses — the point
-   being that a receipt cannot mean one thing when pushed and another when
-   fetched. */
-export function receiptFromEvent(body) {
-  const payload = body?.receipt || body?.data?.receipt || body?.data || body;
+   Everything past the field checks goes through `provider().receipt`, the same
+   function the poller uses, so a receipt cannot mean one thing when pushed and
+   another when fetched. */
+function oneReceipt(payload) {
   if (!payload || typeof payload !== "object") return { error: "payload" };
 
   const receiptNumber = String(payload.receipt_number || payload.id || "").trim();
@@ -153,7 +169,6 @@ export function receiptFromEvent(body) {
   if (!Array.isArray(payload.line_items)) return { error: "line_items" };
 
   const normalised = provider().receipt(payload);
-  const at = Number.isFinite(normalised.at) ? normalised.at : Date.now();
 
   return {
     receipt: {
@@ -162,18 +177,80 @@ export function receiptFromEvent(body) {
          again by the poller is recognised as the same sale. */
       id: receiptNumber,
       branchId: normalised.branchId,
-      at,
+      at: Number.isFinite(normalised.at) ? normalised.at : Date.now(),
       lines: normalised.lines,
       total: Number(payload.total_money) || null,
+      /* Carried so the caller can decide what not to deduct. */
+      receiptType: String(payload.receipt_type || "SALE").toUpperCase(),
+      cancelledAt: payload.cancelled_at || null,
+      refundFor: payload.refund_for || null,
     },
   };
 }
 
-/* Which events carry a receipt worth acting on. Anything else is acknowledged
-   and ignored rather than refused: a 4xx to a webhook makes the sender retry
-   an event we will never want, and some senders disable an endpoint that keeps
-   refusing. */
-export const RECEIPT_EVENTS = new Set(["receipt.created", "receipts.update", "receipt.updated"]);
+/* Receipts that must not draw stock, and why.
+
+   A REFUND receipt lists the same items as the sale it reverses, with the same
+   positive quantities. Deducting it would take the food out of stock a second
+   time for one meal that left the kitchen once — the original sale already
+   deducted it. Adding it back would be the opposite claim, that a served
+   burger returned to the shelf, which is not true either.
+
+   Neither is right, so neither is done: a refund is money, and this ledger is
+   food. A cancelled receipt is skipped on the same reasoning — nothing was
+   made, so nothing left the store.
+
+   Stated rather than silent, because "my refunds do not affect stock" is a
+   reasonable thing to be surprised by. */
+export function drawsStock(receipt) {
+  if (!receipt) return false;
+  if (receipt.cancelledAt) return false;
+  return receipt.receiptType !== "REFUND";
+}
+
+/* Every receipt in one notification.
+
+   Loyverse's envelope is `{ merchant_id, type, created_at, receipts: [...] }`
+   and the array holds **up to 100** objects — a batch, not a single event. The
+   first version of this read `body.receipt` and would have found nothing in
+   every real delivery.
+
+   A bare receipt is still accepted, because the dashboard's "send test
+   notification" and hand-made calls during setup send one. */
+export function receiptsFromEvent(body) {
+  if (!body || typeof body !== "object") return { error: "payload" };
+
+  const batch = Array.isArray(body.receipts) ? body.receipts
+    : Array.isArray(body.data?.receipts) ? body.data.receipts
+      : null;
+
+  if (batch) {
+    const receipts = [];
+    const rejected = [];
+    for (const row of batch) {
+      const out = oneReceipt(row);
+      if (out.error) rejected.push(out.error);
+      else receipts.push(out.receipt);
+    }
+    /* A batch where nothing at all could be read is a malformed delivery; one
+       where some rows read is a partial success worth committing. */
+    if (!receipts.length) return { error: rejected[0] || "receipts" };
+    return { receipts, rejected };
+  }
+
+  const single = oneReceipt(body.receipt || body.data?.receipt || body.data || body);
+  if (single.error) return { error: single.error };
+  return { receipts: [single.receipt], rejected: [] };
+}
+
+/* The event this endpoint acts on.
+
+   `receipts.update` is the only receipt event Loyverse defines, and it fires
+   on creation as well as update — there is no `receipt.created`, despite both
+   specifications naming one. Anything else is acknowledged and ignored rather
+   than refused, because a non-2xx is a delivery failure to Loyverse and enough
+   of them disable the webhook. */
+export const RECEIPT_EVENTS = new Set(["receipts.update"]);
 
 export function eventNameOf(body) {
   return String(body?.type || body?.event || body?.event_type || "").trim();

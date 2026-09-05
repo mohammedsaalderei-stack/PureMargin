@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { CheckCircle2, AlertCircle, RefreshCw, Plug, Loader2 as Spin, Loader2, Send, LifeBuoy, Instagram, Mail, Phone } from "lucide-react";
+import { CheckCircle2, AlertCircle, RefreshCw, Plug, Loader2 as Spin, Loader2, Send, LifeBuoy, Instagram, Mail, Phone, Webhook, Copy, Eye, EyeOff } from "lucide-react";
 import { useC } from "../theme.jsx";
 import { useLang, fill, localeFor, formatDate } from "../i18n.jsx";
 import { contactRows } from "../contact.js";
@@ -105,6 +105,32 @@ export default function Settings({ data, user, onRefresh, refreshing, token, con
   const [posBusy, setPosBusy] = useState(false);
   const [posNote, setPosNote] = useState("");
   const posConnected = Boolean(account?.account?.posConnected);
+
+  /* The inbound webhook address. The server returns it only to whoever owns
+     the POS connection and null to everyone else, so there is no permission
+     check to repeat here — an absent URL is the answer. Withheld until the
+     till is connected, because a webhook with no POS behind it is a URL for
+     nothing. */
+  const webhookUrl = posConnected ? account?.webhookUrl || "" : "";
+  const [showWebhook, setShowWebhook] = useState(false);
+  const [copiedWebhook, setCopiedWebhook] = useState(false);
+
+  /* Enough of the URL to recognise, none of the token. The path is the same
+     for everybody; the query string is the credential. */
+  const maskedWebhook = webhookUrl.replace(/(\?t=).*/, "$1••••••••••••");
+
+  const copyWebhook = async () => {
+    try {
+      await navigator.clipboard.writeText(webhookUrl);
+      setCopiedWebhook(true);
+      setTimeout(() => setCopiedWebhook(false), 2000);
+    } catch {
+      /* Clipboard refused — an insecure origin, or a browser that asks. Reveal
+         it instead so it can be selected by hand rather than failing silently
+         with no way forward. */
+      setShowWebhook(true);
+    }
+  };
   const serverToken = Boolean(account?.serverToken);
 
   const savePos = async (value) => {
@@ -320,6 +346,71 @@ export default function Settings({ data, user, onRefresh, refreshing, token, con
             <p className="text-[11px] mt-3 leading-relaxed" style={{ color: C.slate }}>
               {t.connect.posNote}
             </p>
+
+            {/* The address receipts arrive on.
+
+                Shown only once the till is connected, because a webhook with
+                no POS behind it is a URL for nothing — and only to whoever
+                owns the connection, which is what the server already decides
+                by returning null to everybody else.
+
+                It is a credential in URL form: anyone holding it can post
+                receipts into this business's ledger. So it is masked until
+                asked for, and copying it is one press rather than a select-
+                and-drag that half-selects on a phone. */}
+            {webhookUrl && (
+              <div className="mt-5 pt-5" style={{ borderTop: `1px solid ${C.hairline}` }}>
+                <div className="flex items-start gap-3 mb-3">
+                  <Webhook size={18} className="mt-0.5 shrink-0" style={{ color: C.iris }} />
+                  <div className="min-w-0">
+                    <div className="text-sm font-bold">{t.connect.webhookTitle}</div>
+                    <p className="text-xs mt-1 leading-relaxed" style={{ color: C.slate }}>
+                      {t.connect.webhookLead}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 rounded-lg px-3 py-2"
+                  style={{ background: C.bone, border: `1px solid ${C.hairline}` }}>
+                  <code className="flex-1 min-w-0 text-[11px] break-all" dir="ltr"
+                    style={{ color: showWebhook ? C.ink : C.slate }}>
+                    {showWebhook ? webhookUrl : maskedWebhook}
+                  </code>
+                  <button
+                    type="button"
+                    onClick={() => setShowWebhook((v) => !v)}
+                    className="shrink-0 p-1.5 rounded-lg"
+                    style={{ color: C.slate }}
+                    aria-label={showWebhook ? t.connect.webhookHide : t.connect.webhookShow}
+                  >
+                    {showWebhook ? <EyeOff size={15} /> : <Eye size={15} />}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={copyWebhook}
+                    className="shrink-0 p-1.5 rounded-lg"
+                    style={{ color: copiedWebhook ? C.mint : C.slate }}
+                    aria-label={t.connect.webhookCopy}
+                  >
+                    {copiedWebhook ? <CheckCircle2 size={15} /> : <Copy size={15} />}
+                  </button>
+                </div>
+
+                {/* The steps, because "paste this into Loyverse" is not enough
+                    to act on — the event name is the part people get wrong,
+                    and there is only one that carries a receipt. */}
+                <ol className="text-[11px] mt-3 space-y-1 leading-relaxed ps-4"
+                  style={{ color: C.slate, listStyle: "decimal" }}>
+                  <li>{t.connect.webhookStep1}</li>
+                  <li>{t.connect.webhookStep2}</li>
+                  <li>{t.connect.webhookStep3}</li>
+                </ol>
+
+                <p className="text-[11px] mt-3 leading-relaxed" style={{ color: C.slate }}>
+                  {t.connect.webhookNote}
+                </p>
+              </div>
+            )}
           </Panel>
         )}
 
