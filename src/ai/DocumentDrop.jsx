@@ -2,6 +2,7 @@ import { useState, useRef } from "react";
 import { FileUp, Loader2, ArrowRight, HelpCircle, Lock } from "lucide-react";
 import { useC } from "../theme.jsx";
 import { useLang, fill } from "../i18n.jsx";
+import { prepareFile, scanErrorMessage, AttachError } from "./attach.js";
 
 /* Dropping a document into Ask.
 
@@ -33,34 +34,34 @@ export default function DocumentDrop({ token, onRoute }) {
   const [error, setError] = useState("");
   const input = useRef(null);
 
-  const read = (file) => new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result);
-    reader.onerror = () => reject(new Error("read"));
-    reader.readAsDataURL(file);
-  });
-
+  /* The same preparation the scanners use, for the same reason: this sent the
+     chosen file untouched, so a photograph rode the request at full 12MP and a
+     PDF over about 3 MB was bounced by the platform before the route saw it.
+     Both came back as "the photo couldn't be read", and one of the two error
+     codes this checked for — "image" — had stopped being returned at all. */
   async function classify(file) {
     setBusy(true);
     setError("");
     setVerdict(null);
+    let isPdf = false;
     try {
-      const image = await read(file);
+      const prepared = await prepareFile(file);
+      isPdf = prepared.isPdf;
       const res = await fetch("/api/ai", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ kind: "auto", image, lang }),
+        body: JSON.stringify({ kind: "auto", images: prepared.dataUrls, lang }),
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError(json.error === "quota" ? t.aiscan.quotaOut
-          : json.error === "image" ? s.errType
-          : t.aiscan.failed);
+        setError(scanErrorMessage(t.aiscan, { status: res.status, ...json, isPdf }));
         return;
       }
       setVerdict({ ...json.result, name: file.name });
-    } catch {
-      setError(t.aiscan.failed);
+    } catch (err) {
+      setError(err instanceof AttachError
+        ? scanErrorMessage(t.aiscan, { ...err, isPdf })
+        : (isPdf ? t.aiscan.pdfFailed : t.aiscan.failed));
     } finally {
       setBusy(false);
     }

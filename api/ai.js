@@ -43,14 +43,25 @@ import { classifyPrompt, normaliseVerdict, routeFor } from "./_docroute.js";
 /* Overridable without a deploy, so a model rename doesn't take the scanner
    down until somebody ships a commit. */
 const MODEL = process.env.ANTHROPIC_MODEL || "claude-sonnet-4-5";
-/* A photograph is downscaled to 1600px in the browser before it is sent, so
-   eight megabytes is generous for one. A PDF is not downscaled — it is sent
-   whole, deliberately, because its text layer is what makes it more accurate
-   than a photograph of the same page — and a scanned multi-page invoice is
-   routinely bigger than that. One cap for both meant those were refused, and
-   refused with a message about lighting. */
-const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
-const MAX_PDF_BYTES = 20 * 1024 * 1024;
+/* The real ceiling, and where it comes from.
+
+   This is a Vercel function, and a Vercel function may be handed a request
+   body of at most 4.5 MB — over that the platform answers 413 itself and this
+   file is never invoked. So a cap written here larger than that is fiction: it
+   describes requests the platform already refused on our behalf, without our
+   wording, which is exactly how a 6 MB scanned invoice came to be reported as
+   a document that needed better lighting.
+
+   The browser is therefore where the limit is enforced (see `src/ai/attach.js`,
+   which renders an oversized PDF to page images rather than refusing it). This
+   remains as a backstop, set to what can actually arrive, so that if one ever
+   does the answer says "too big" and names a number that is true. */
+const MAX_UPLOAD_BYTES = Math.floor(4.5 * 1024 * 1024);
+
+/* A rendered PDF arrives as one image per page. Sixty is above anything the
+   browser will produce and below the hundred pages the model reads per
+   request, so it can only ever catch a hand-made payload. */
+const MAX_ATTACHMENTS = 60;
 
 /* What can be scanned.
 
@@ -95,21 +106,47 @@ export function parseDataUrl(url) {
   const bytes = Buffer.byteLength(data, "base64");
 
   /* "%PDF" is 0x25 0x50 0x44 0x46, and those four bytes always encode to
-     "JVBERi" whatever follows them. Cheaper and safer than decoding twenty
-     megabytes of string to look at the first four bytes of it. */
+     "JVBERi" whatever follows them. Cheaper and safer than decoding megabytes
+     of string to look at the first four bytes of it. */
   const isPdf = data.startsWith("JVBERi") || declared === PDF_TYPE;
 
-  if (isPdf) {
-    if (bytes > MAX_PDF_BYTES) return { error: "toolarge", limitMb: MAX_PDF_BYTES / 1048576 };
-    return { kind: "document", mediaType: PDF_TYPE, data };
-  }
-
-  if (IMAGE_TYPES.test(declared)) {
-    if (bytes > MAX_IMAGE_BYTES) return { error: "toolarge", limitMb: MAX_IMAGE_BYTES / 1048576 };
-    return { kind: "image", mediaType: declared, data };
-  }
+  if (isPdf) return { kind: "document", mediaType: PDF_TYPE, data, bytes };
+  if (IMAGE_TYPES.test(declared)) return { kind: "image", mediaType: declared, data, bytes };
 
   return { error: "unsupported", declared };
+}
+
+/* Everything attached to one request.
+
+   `images` is an array because a PDF too large to send whole is rendered to
+   one image per page in the browser; `image` is the single-file form every
+   caller used before that, and both are accepted so neither end has to change
+   in step with the other.
+
+   The size check belongs to the request rather than to any one file: the limit
+   that actually bites is the platform's, and the platform counts the whole
+   body. Checking each attachment against its own cap would let sixty of them
+   through together. */
+export function parseAttachments({ image, images } = {}) {
+  const urls = Array.isArray(images) && images.length
+    ? images
+    : (image ? [image] : []);
+
+  if (!urls.length) return { error: "unreadable" };
+  if (urls.length > MAX_ATTACHMENTS) return { error: "toomany", limit: MAX_ATTACHMENTS };
+
+  const files = [];
+  let total = 0;
+  for (const url of urls) {
+    const file = parseDataUrl(url);
+    if (file.error) return file;
+    total += file.bytes;
+    if (total > MAX_UPLOAD_BYTES) {
+      return { error: "toolarge", limitMb: Math.round(MAX_UPLOAD_BYTES / 1048576) };
+    }
+    files.push(file);
+  }
+  return { files };
 }
 
 /* The content block this file becomes in the request. A document and an image
@@ -299,14 +336,15 @@ export default async function handler(req, res) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return res.status(500).json({ error: "noai" });
 
-  const { kind, image, lang } = req.body || {};
-  const file = parseDataUrl(image);
+  const { kind, lang } = req.body || {};
+  const attached = parseAttachments(req.body);
   /* Named rather than collapsed: "too big" and "not a kind we read" need
      different things from the person holding the file, and neither of them is
      better lighting. */
-  if (file.error) {
-    return res.status(400).json({ error: file.error, limitMb: file.limitMb });
+  if (attached.error) {
+    return res.status(400).json({ error: attached.error, limitMb: attached.limitMb });
   }
+  const files = attached.files;
   if (!["inventory", "supplier", "recipe", "classify", "auto"].includes(kind)) return res.status(400).json({ error: "kind" });
 
   try {
@@ -363,7 +401,7 @@ export default async function handler(req, res) {
           model: MODEL,
           max_tokens: 2000,
           temperature: 0,
-          messages: [{ role: "user", content: [contentBlock(file), { type: "text", text }] }],
+          messages: [{ role: "user", content: [...files.map(contentBlock), { type: "text", text }] }],
         }),
       });
       if (!res.ok) {
@@ -436,8 +474,11 @@ export default async function handler(req, res) {
         temperature: 0,
         messages: [{
           role: "user",
+          /* Every page first, then the instruction. A rendered PDF arrives as
+             several images and they are one document — sent in page order, so
+             a line continued across a page break still reads as one line. */
           content: [
-            contentBlock(file),
+            ...files.map(contentBlock),
             { type: "text", text: prompt },
           ],
         }],
