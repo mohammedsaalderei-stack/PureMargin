@@ -1369,7 +1369,7 @@ export const STRINGS = {
     },
 
     connect: {
-      webhookHow: "In Loyverse, add a webhook, paste the link, and choose the event receipts.update. Keep the link private.",
+      webhookHow: "In Loyverse, add a webhook, paste the link, and pick the receipts event — the one about a receipt being created or updated. Keep the link private.",
       webhookOpen: "Open Loyverse",
       webhookCopied: "Copied",
       webhookTitle: "Live sales",
@@ -3037,7 +3037,7 @@ export const STRINGS = {
     },
 
     connect: {
-      webhookHow: "في Loyverse أضف webhook، الصق الرابط، واختر الحدث receipts.update. واحتفظ بالرابط خاصًا.",
+      webhookHow: "في Loyverse أضف webhook، الصق الرابط، واختر «تم إنشاء الإيصال أو تحديثه». واحتفظ بالرابط خاصًا.",
       webhookOpen: "فتح Loyverse",
       webhookCopied: "تم النسخ",
       webhookTitle: "المبيعات الفورية",
@@ -4701,7 +4701,7 @@ export const STRINGS = {
     },
 
     connect: {
-      webhookHow: "Loyverse में webhook जोड़ें, लिंक पेस्ट करें और इवेंट receipts.update चुनें। लिंक निजी रखें।",
+      webhookHow: "Loyverse में webhook जोड़ें, लिंक पेस्ट करें, और रसीद वाला इवेंट चुनें — जो रसीद बनने या बदलने के बारे में है। लिंक निजी रखें।",
       webhookOpen: "Loyverse खोलें",
       webhookCopied: "कॉपी हो गया",
       webhookTitle: "लाइव बिक्री",
@@ -5583,7 +5583,7 @@ export const STRINGS = {
       errServer: "یہ نہیں ہو سکا۔ دوبارہ کوشش کیجیے۔",
     },
     connect: {
-      webhookHow: "Loyverse میں webhook شامل کریں، لنک پیسٹ کریں اور ایونٹ receipts.update منتخب کریں۔ لنک نجی رکھیں۔",
+      webhookHow: "Loyverse میں webhook شامل کریں، لنک پیسٹ کریں، اور رسید والا ایونٹ منتخب کریں — جو رسید بننے یا بدلنے کا ہے۔ لنک نجی رکھیں۔",
       webhookOpen: "Loyverse کھولیں",
       webhookCopied: "کاپی ہو گیا",
       webhookTitle: "فوری فروخت",
@@ -8202,7 +8202,7 @@ export const STRINGS = {
     },
 
     connect: {
-      webhookHow: "Sa Loyverse, magdagdag ng webhook, i-paste ang link, at piliin ang event na receipts.update. Panatilihing pribado ang link.",
+      webhookHow: "Sa Loyverse, magdagdag ng webhook, i-paste ang link, at piliin ang event tungkol sa resibo — ang tungkol sa resibong nagawa o binago. Panatilihing pribado ang link.",
       webhookOpen: "Buksan ang Loyverse",
       webhookCopied: "Nakopya",
       webhookTitle: "Live na benta",
