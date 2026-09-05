@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { CheckCircle2, AlertCircle, RefreshCw, Plug, Loader2 as Spin, Loader2, Send, LifeBuoy, Instagram, Mail, Phone, Webhook, Copy, Eye, EyeOff } from "lucide-react";
+import { CheckCircle2, AlertCircle, RefreshCw, Plug, Loader2 as Spin, Loader2, Send, LifeBuoy, Instagram, Mail, Phone, Webhook, Copy, ExternalLink } from "lucide-react";
 import { useC } from "../theme.jsx";
 import { useLang, fill, localeFor, formatDate } from "../i18n.jsx";
 import { contactRows } from "../contact.js";
@@ -370,45 +370,70 @@ export default function Settings({ data, user, onRefresh, refreshing, token, con
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 rounded-lg px-3 py-2"
-                  style={{ background: C.bone, border: `1px solid ${C.hairline}` }}>
-                  <code className="flex-1 min-w-0 text-[11px] break-all" dir="ltr"
-                    style={{ color: showWebhook ? C.ink : C.slate }}>
-                    {showWebhook ? webhookUrl : maskedWebhook}
-                  </code>
-                  <button
-                    type="button"
-                    onClick={() => setShowWebhook((v) => !v)}
-                    className="shrink-0 p-1.5 rounded-lg"
-                    style={{ color: C.slate }}
-                    aria-label={showWebhook ? t.connect.webhookHide : t.connect.webhookShow}
-                  >
-                    {showWebhook ? <EyeOff size={15} /> : <Eye size={15} />}
-                  </button>
+                {/* Two buttons, in the order they are pressed.
+
+                    This was a paragraph, a masked URL with two icon buttons,
+                    three numbered steps and a warning — five blocks of text
+                    for a job that is: copy this, paste it there. A restaurant
+                    owner reading that decides to do it later.
+
+                    Copy is the primary action and says so. The second button
+                    opens the exact Loyverse page, which removes the whole
+                    navigation instruction — there is nothing to describe if
+                    the link goes there. What is left is one sentence naming
+                    the event, because that is the only part somebody can
+                    actually get wrong, and there is no way to work it out from
+                    the Loyverse screen. */}
+                <div className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
                     onClick={copyWebhook}
-                    className="shrink-0 p-1.5 rounded-lg"
-                    style={{ color: copiedWebhook ? C.mint : C.slate }}
-                    aria-label={t.connect.webhookCopy}
+                    className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-sm font-bold"
+                    style={copiedWebhook
+                      ? { background: "color-mix(in srgb, var(--mint) 12%, transparent)",
+                          border: "1px solid color-mix(in srgb, var(--mint) 40%, transparent)",
+                          color: C.mint }
+                      : { background: C.iris, color: C.onPrimary }}
                   >
                     {copiedWebhook ? <CheckCircle2 size={15} /> : <Copy size={15} />}
+                    {copiedWebhook ? t.connect.webhookCopied : t.connect.webhookCopy}
                   </button>
+
+                  <a
+                    href="https://r.loyverse.com/dashboard/#/webhooks"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-sm font-semibold"
+                    style={{ border: `1px solid ${C.hairline}`, color: C.ink }}
+                  >
+                    {t.connect.webhookOpen} <ExternalLink size={14} />
+                  </a>
                 </div>
 
-                {/* The steps, because "paste this into Loyverse" is not enough
-                    to act on — the event name is the part people get wrong,
-                    and there is only one that carries a receipt. */}
-                <ol className="text-[11px] mt-3 space-y-1 leading-relaxed ps-4"
-                  style={{ color: C.slate, listStyle: "decimal" }}>
-                  <li>{t.connect.webhookStep1}</li>
-                  <li>{t.connect.webhookStep2}</li>
-                  <li>{t.connect.webhookStep3}</li>
-                </ol>
-
-                <p className="text-[11px] mt-3 leading-relaxed" style={{ color: C.slate }}>
-                  {t.connect.webhookNote}
+                <p className="text-xs mt-3 leading-relaxed" style={{ color: C.slate }}>
+                  {t.connect.webhookHow}
                 </p>
+
+                {/* The address itself, for anybody who wants to see it or
+                    cannot use the clipboard. Behind a toggle rather than on
+                    screen, because it is the one thing here that must not be
+                    read aloud in a busy kitchen. */}
+                <button
+                  type="button"
+                  onClick={() => setShowWebhook((v) => !v)}
+                  className="text-[11px] font-semibold mt-2"
+                  style={{ color: C.slate }}
+                >
+                  {showWebhook ? t.connect.webhookHide : t.connect.webhookShow}
+                </button>
+
+                {showWebhook && (
+                  <code className="block mt-2 text-[11px] break-all rounded-lg px-3 py-2"
+                    dir="ltr"
+                    style={{ background: C.bone, border: `1px solid ${C.hairline}`, color: C.ink }}>
+                    {webhookUrl}
+                  </code>
+                )}
               </div>
             )}
           </Panel>
