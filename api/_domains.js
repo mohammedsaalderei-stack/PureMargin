@@ -52,10 +52,11 @@
 import { monthlyTotal as fixedMonthlyTotal, listCosts } from "./_fixedcosts.js";
 import { listVarCosts, totalOf as varTotalOf, monthOf } from "./_varcosts.js";
 import { listRecipes, costedList, costedRecipe, effectiveVersion } from "./_recipes.js";
-import { listIngredients } from "./_inventory.js";
-import { balances } from "./_movements.js";
+import { listIngredients, listSuppliers, getMeta } from "./_inventory.js";
+import { balances, listMovements } from "./_movements.js";
 import { costBasis, costFrom } from "./_costing.js";
 import { ingestionStatus } from "./_loyversehook.js";
+import { listOrders } from "./_purchasing.js";
 
 /* The tag on every row. Deliberately shouty and deliberately redundant with
    the tool that produced it: a row that travels into a conversation and comes
@@ -67,6 +68,9 @@ export const ENTITY = {
   RECIPE_PACKAGING: "RECIPE_PACKAGING",
   RAW_INVENTORY: "RAW_INVENTORY",
   POS_SALE_ITEM: "POS_SALE_ITEM",
+  STOCK_MOVEMENT: "STOCK_MOVEMENT",
+  SUPPLIER: "SUPPLIER",
+  PURCHASE_ORDER: "PURCHASE_ORDER",
 };
 
 export const DOMAIN = {
@@ -257,7 +261,133 @@ export async function getInventoryLevels(ctx, { search } = {}) {
         stockValue: perBase === null ? null : round2(r.qtyBase * perBase),
       };
     }),
+    /* The two switches that decide whether stock moves at all.
+
+       "My stock is not going down" has three causes, and the assistant could
+       only see one of them. Either no sales are arriving — which the sales
+       domain now reports — or the dish has no recipe, or depletion is simply
+       switched off for this account. The third was invisible, so the answer
+       was always a hunt through recipes. */
+    settings: await (async () => {
+      const meta = await getMeta(ctx.orgId);
+      return {
+        stockSource: meta.stockSource,
+        autoDepleteFromSales: meta.autoDepleteFromSales,
+        deductsFromSales: meta.stockSource !== "pos" && meta.autoDepleteFromSales,
+      };
+    })(),
     note: "Warehouse stock only. Not recipe quantities and not operating costs.",
+  };
+}
+
+/* ── RAW_INVENTORY: what happened, not just what is left ─────────────────
+
+   `get_inventory_levels` answers "how much is there". It could not answer
+   "why is there that much", which is the question people actually bring: the
+   beef is down four kilos and nobody knows whether that was sales, a delivery
+   that never arrived, waste, or a correction.
+
+   The ledger has always held the answer — every entry, append-only, with its
+   type, its quantity and what caused it — and the assistant simply had no way
+   to read it. Same domain as the balances, because a movement and a balance
+   are the same fact at two levels of detail. */
+export async function getStockMovements(ctx, { ingredient_name: name, days = 14, limit = 60 } = {}) {
+  if (!allowed(ctx, DOMAIN.RAW_INVENTORY)) return refuse(DOMAIN.RAW_INVENTORY);
+
+  const ingredients = await listIngredients(ctx.orgId, { includeArchived: true });
+  const wanted = String(name || "").trim().toLowerCase();
+  const match = wanted
+    ? ingredients.find((i) => i.name.trim().toLowerCase() === wanted)
+      || ingredients.find((i) => i.name.trim().toLowerCase().includes(wanted))
+    : null;
+
+  if (wanted && !match) {
+    return {
+      domain: DOMAIN.RAW_INVENTORY,
+      error: "notfound",
+      message: `No ingredient named "${name}".`,
+      items: ingredients.map((i) => i.name),
+    };
+  }
+
+  const from = Date.now() - Math.max(1, Number(days) || 14) * 86400000;
+  const rows = [];
+
+  for (const branchId of ctx.branches) {
+    const ledger = await listMovements(ctx.orgId, branchId, {
+      ingredientId: match?.id, from, limit: Infinity,
+    });
+    for (const m of ledger) {
+      rows.push({
+        type: ENTITY.STOCK_MOVEMENT,
+        domain: DOMAIN.RAW_INVENTORY,
+        branchId,
+        at: m.at,
+        ingredient_name: m.ingredientName,
+        movement: m.type,
+        quantity: m.qty,
+        unit: m.unit,
+        /* Written by a sale rather than entered by a person. Worth knowing:
+           it is the difference between "the kitchen used it" and "somebody
+           says the kitchen used it". */
+        automatic: Boolean(m.auto),
+        reference: m.ref || null,
+        reason: m.reason || null,
+        reversed: Boolean(m.reversedBy),
+        isReversal: Boolean(m.reverses),
+      });
+    }
+  }
+
+  rows.sort((a, b) => b.at - a.at);
+
+  return {
+    domain: DOMAIN.RAW_INVENTORY,
+    currency: "AED",
+    ingredient: match?.name || null,
+    days: Number(days) || 14,
+    movements: rows.slice(0, Math.max(1, Number(limit) || 60)),
+    truncated: rows.length > limit,
+    note: "Stock ledger entries only. Positive quantities came in, negative went out. Not recipe quantities and not operating costs.",
+  };
+}
+
+/* ── RAW_INVENTORY: who supplies it and what is on order ────────────────
+
+   "What have I got coming?" had no answer. Both of these are facts about raw
+   materials — the same domain as the shelf they land on — and neither is a
+   recipe or an overhead. */
+export async function getSuppliersAndOrders(ctx, { } = {}) {
+  if (!allowed(ctx, DOMAIN.RAW_INVENTORY)) return refuse(DOMAIN.RAW_INVENTORY);
+
+  const suppliers = await listSuppliers(ctx.orgId);
+  const orders = await listOrders(ctx.orgId, ctx.branches);
+
+  return {
+    domain: DOMAIN.RAW_INVENTORY,
+    currency: "AED",
+    suppliers: suppliers.map((s) => ({
+      type: ENTITY.SUPPLIER,
+      domain: DOMAIN.RAW_INVENTORY,
+      id: s.id,
+      name: s.name,
+      leadTimeDays: s.leadTimeDays ?? null,
+    })),
+    /* Open and partial first: a received order is history, and what somebody
+       asks about is what has not arrived yet. */
+    orders: orders
+      .filter((o) => o.status !== "cancelled")
+      .map((o) => ({
+        type: ENTITY.PURCHASE_ORDER,
+        domain: DOMAIN.RAW_INVENTORY,
+        id: o.id,
+        branchId: o.branchId,
+        supplierId: o.supplierId || null,
+        status: o.status,
+        expectedAt: o.expectedAt || null,
+        createdAt: o.createdAt,
+      })),
+    note: "Suppliers and purchase orders only. Contains no recipe components and no operating costs.",
   };
 }
 
@@ -421,6 +551,30 @@ export const TOOLS = [
     },
   },
   {
+    name: "get_stock_movements",
+    description:
+      "The stock ledger: what came in, what went out, when, and what caused "
+      + "it. Use this for any question about why a balance changed, when "
+      + "something was last delivered, or what a sale consumed. Entries are "
+      + "raw material quantities, NOT recipe quantities and NOT costs.",
+    input_schema: {
+      type: "object",
+      properties: {
+        ingredient_name: { type: "string", description: "Narrow to one ingredient. Omit for everything." },
+        days: { type: "number", description: "How far back to look. Defaults to 14." },
+      },
+    },
+  },
+  {
+    name: "get_suppliers_and_orders",
+    description:
+      "Suppliers on file and purchase orders that have been placed, with "
+      + "their status. Use this for who supplies something, lead times, or "
+      + "what is on order and not yet arrived. Contains NO recipe components "
+      + "and NO operating costs.",
+    input_schema: { type: "object", properties: {} },
+  },
+  {
     name: "get_pos_sales_metrics",
     description:
       "Till revenue and what sold: gross revenue, receipts, average ticket, and "
@@ -455,6 +609,8 @@ export async function runTool(name, input, ctx) {
     case "get_fixed_costs": return getFixedCosts(ctx, input || {});
     case "get_recipe_details": return getRecipeDetails(ctx, input || {});
     case "get_inventory_levels": return getInventoryLevels(ctx, input || {});
+    case "get_stock_movements": return getStockMovements(ctx, input || {});
+    case "get_suppliers_and_orders": return getSuppliersAndOrders(ctx, input || {});
     case "get_pos_sales_metrics": return getPosSalesMetrics(ctx, input || {});
     case "calculate_net_profit": return calculateNetProfit(ctx, input || {});
     default:
@@ -472,7 +628,9 @@ strictly separate domains, and you must never mix them:
 
   OPEX          rent, salaries, licences, overheads      → get_fixed_costs
   RECIPE        what a dish is made of, food cost        → get_recipe_details
-  RAW_INVENTORY stock on the shelf and its value         → get_inventory_levels
+  RAW_INVENTORY stock on the shelf, its ledger, its      → get_inventory_levels
+                suppliers and what is on order              get_stock_movements
+                                                            get_suppliers_and_orders
   POS_SALES     till revenue and quantities sold         → get_pos_sales_metrics
 
 Rules:

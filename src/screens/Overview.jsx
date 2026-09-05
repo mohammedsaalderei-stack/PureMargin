@@ -225,11 +225,18 @@ function SalesTrendChart({ data, range }) {
 }
 
 /* ─── Quick actions ──────────────────────────────────────── */
-function QuickActions({ onAsk, onOpenCosts, onGo }) {
+/* The row of shortcuts. Every one of these opens a screen — including Ask.
+
+   Ask used to fire a question: it sent the first of the suggested prompts
+   straight to the assistant, so pressing a tile labelled "Ask" produced an
+   answer to something nobody had asked. The suggestions exist on the Ask
+   screen itself, where they are visible, optional, and chosen. A shortcut
+   that commits you to a question before you have seen it is not a shortcut. */
+function QuickActions({ onOpenCosts, onGo }) {
   const C = useC();
   const { t } = useLang();
   const actions = [
-    { icon: MessageSquare, label: t.ask.tab, onClick: () => onAsk?.(t.ask.suggested?.[0] || ""), color: "#8B5CF6" },
+    { icon: MessageSquare, label: t.ask.tab, onClick: () => onGo?.("ask"), color: "#8B5CF6" },
     { icon: BarChart3, label: t.watch.tab, onClick: () => onGo?.("watch"), color: "#06B6D4" },
     { icon: LineChart, label: t.forecast.tab, onClick: () => onGo?.("forecast"), color: "#10B981" },
     { icon: UtensilsCrossed, label: t.menu.tab, onClick: () => onOpenCosts?.(), color: "#F472B6" },
@@ -404,7 +411,7 @@ export default function Overview({ data, dateRange, onDateRangeChange, onAsk, on
         </div>
 
         {/* Quick actions */}
-        <QuickActions onAsk={onAsk} onOpenCosts={onOpenCosts} onGo={onGo} />
+        <QuickActions onOpenCosts={onOpenCosts} onGo={onGo} />
 
         {/* Primary financials */}
         <div className="grid gap-4 lg:gap-5 lg:grid-cols-[1.3fr_1fr_auto]">

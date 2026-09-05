@@ -476,11 +476,15 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
   } else if (!data) { body = <Skeleton />; }
   else if (tab === "overview") {
     body = <Overview data={data} dateRange={dateRange} onDateRangeChange={setDateRange}
-      onAsk={(q) => { startNewChat(); setPending(q); }} onOpenCosts={() => go("menu")} onGo={go} />;
+      /* go("ask") as well as queueing it: without the navigation this set a
+         question on a screen the person was not looking at, and the answer
+         appeared later when they happened to open Ask. */
+      onAsk={(q) => { startNewChat(); setPending(q); go("ask"); }}
+      onOpenCosts={() => go("menu")} onGo={go} />;
   } else if (tab === "watch") { body = <Watch data={data} dateRange={dateRange} onDateRangeChange={setDateRange} />; }
   else if (tab === "menu") { body = <Menu data={data} token={token} onSaved={() => load({ fresh: true })} />; }
   else if (tab === "forecast") { body = <Forecast data={data} />; }
-  else if (tab === "advice") { body = <Advice data={data} onAsk={(q) => { startNewChat(); setPending(q); }} />; }
+  else if (tab === "advice") { body = <Advice data={data} onAsk={(q) => { startNewChat(); setPending(q); go("ask"); }} />; }
 
   const content = (
     <Transition screenKey={tab} direction={direction}>

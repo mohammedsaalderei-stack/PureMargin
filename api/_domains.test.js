@@ -205,7 +205,8 @@ await test("every advertised tool exists and is reachable by name", async () => 
   const names = dm.TOOLS.map((t) => t.name);
   assert.deepEqual(names.sort(), [
     "calculate_net_profit", "get_fixed_costs", "get_inventory_levels",
-    "get_pos_sales_metrics", "get_recipe_details",
+    "get_pos_sales_metrics", "get_recipe_details", "get_stock_movements",
+    "get_suppliers_and_orders",
   ]);
 
   for (const name of names) {
@@ -235,6 +236,99 @@ await test("the guardrail names every tool it claims to govern", () => {
       `guardrail does not mention ${tool.name}`);
   }
 });
+
+/* ---------------- what happened, not just what is left ---------- */
+
+/* "How much is there" was answerable; "why is there that much" was not, and
+   it is the question people actually bring. */
+
+await test("the ledger is readable, and says what caused each change", async () => {
+  await seed();
+  await mv.recordMovement("org1", "b1", {
+    ingredientId: "beef-mince", type: "consume", qty: 300, unit: "g",
+    auto: true, ref: "1-1043",
+  });
+
+  const out = await dm.getStockMovements(ctx(), { ingredient_name: "Beef mince" });
+  assert.equal(out.domain, "RAW_INVENTORY");
+  assert.equal(out.ingredient, "Beef mince");
+
+  for (const row of out.movements) {
+    assert.equal(row.type, "STOCK_MOVEMENT");
+    assert.equal(row.domain, "RAW_INVENTORY");
+  }
+
+  const sale = out.movements.find((m) => m.movement === "consume");
+  assert.equal(sale.automatic, true, "a sale-driven deduction is distinguishable from a typed one");
+  assert.equal(sale.reference, "1-1043", "and traceable to the receipt that caused it");
+
+  const delivery = out.movements.find((m) => m.movement === "receive");
+  assert.ok(delivery, "the delivery that put it there is in the same answer");
+});
+
+await test("an ingredient nobody has is named, not guessed at", async () => {
+  await seed();
+  const out = await dm.getStockMovements(ctx(), { ingredient_name: "Truffle" });
+  assert.equal(out.error, "notfound");
+  assert.ok(out.items.includes("Beef mince"), "the real names are offered instead");
+});
+
+await test("the ledger carries no overheads and no recipe quantities", async () => {
+  await seed();
+  const out = await dm.getStockMovements(ctx(), {});
+  const text = JSON.stringify(out.movements).toLowerCase();
+  assert.ok(!text.includes("rent"));
+  assert.ok(!text.includes("fixed_cost"));
+  assert.ok(!text.includes("recipe_ingredient"));
+});
+
+/* ---------------- why stock is not moving ----------------------- */
+
+await test("the inventory tool says whether sales deduct at all", async () => {
+  await seed();
+  const out = await dm.getInventoryLevels(ctx());
+
+  /* Three things stop stock falling: no sales arriving, no recipe on the
+     dish, or depletion switched off. The third was invisible, so the answer
+     was always a hunt through recipes. */
+  assert.equal(typeof out.settings.deductsFromSales, "boolean");
+  assert.equal(out.settings.deductsFromSales, true, "on by default");
+
+  await inv.saveMeta("org1", { autoDepleteFromSales: false });
+  const off = await dm.getInventoryLevels(ctx());
+  assert.equal(off.settings.deductsFromSales, false);
+});
+
+await test("a till that keeps its own stock also stops deduction", async () => {
+  await seed();
+  await inv.saveMeta("org1", { stockSource: "pos" });
+  const out = await dm.getInventoryLevels(ctx());
+  assert.equal(out.settings.stockSource, "pos");
+  assert.equal(out.settings.deductsFromSales, false,
+    "both sides deducting the same sale would double it");
+});
+
+/* ---------------- suppliers and what is on order ---------------- */
+
+await test("suppliers and open orders are readable and tagged", async () => {
+  await seed();
+  await inv.saveSupplier("org1", { name: "Gulf Fresh", leadTimeDays: 2 });
+
+  const out = await dm.getSuppliersAndOrders(ctx());
+  assert.equal(out.domain, "RAW_INVENTORY");
+  assert.equal(out.suppliers[0].type, "SUPPLIER");
+  assert.equal(out.suppliers[0].name, "Gulf Fresh");
+  assert.equal(out.suppliers[0].leadTimeDays, 2);
+  assert.ok(Array.isArray(out.orders));
+});
+
+await test("a role without inventory cannot read either of the new tools", async () => {
+  await seed();
+  const cashier = ctx({ capabilities: ["view:dashboard"] });
+  assert.equal((await dm.getStockMovements(cashier, {})).error, "forbidden");
+  assert.equal((await dm.getSuppliersAndOrders(cashier)).error, "forbidden");
+});
+
 
 console.log(failures ? `\n${failures} failed` : "\nall passed");
 process.exit(failures ? 1 : 0);
