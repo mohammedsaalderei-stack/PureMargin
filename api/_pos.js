@@ -65,9 +65,26 @@ const loyverse = {
   storesOf: (page) => page?.stores || [],
 
   receipt: (r) => ({
+    /* The till's own number for this sale. Idempotency keys on it, so a
+       receipt re-read by the poller and pushed by the webhook in the same
+       minute is one sale rather than two. */
+    receiptNumber: String(r.receipt_number || r.id || ""),
     branchId: String(r.store_id || "unknown"),
-    at: new Date(r.receipt_date).getTime(),
+    /* `receipt_date` is when the sale happened; a webhook payload calls the
+       same instant `created_at`. Either is accepted so a pushed receipt and a
+       polled one carry the same timestamp. */
+    at: new Date(r.receipt_date || r.created_at).getTime(),
     lines: (r.line_items || []).map((li) => ({
+      /* The catalogue ids, carried so a dish can be matched by what the till
+         calls it internally rather than only by its printed name.
+
+         A name is edited — a seasonal rename, a typo fixed, a translation —
+         and every rename silently stops a recipe matching its own sales, which
+         shows up weeks later as stock that never depletes. The id does not
+         move. Both are kept: the id is the reliable key once it is known, and
+         the name is what makes it knowable the first time. */
+      itemId: String(li.item_id || ""),
+      variantId: String(li.variant_id || ""),
       name: li.item_name || "",
       variant: li.variant_name || "",
       qty: num(li.quantity),

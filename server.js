@@ -34,16 +34,23 @@ function decorateRes(res) {
   return res;
 }
 
+/* Returns the parsed body and keeps the exact bytes it came from.
+
+   The raw text matters for webhooks. A signature is an HMAC over what the
+   sender transmitted, and re-serialising the parsed object does not reproduce
+   it — key order, spacing and number formatting are all free to differ, so the
+   digest would never match and a correctly signed request would be refused.
+   The caller reads it from `req.rawBody`. */
 async function readBody(req) {
-  if (!["POST", "PUT", "DELETE", "PATCH"].includes(req.method)) return null;
+  if (!["POST", "PUT", "DELETE", "PATCH"].includes(req.method)) return { body: null, raw: "" };
   const chunks = [];
   for await (const chunk of req) chunks.push(chunk);
   const raw = Buffer.concat(chunks).toString("utf-8");
-  if (!raw) return null;
+  if (!raw) return { body: null, raw: "" };
   try {
-    return JSON.parse(raw);
+    return { body: JSON.parse(raw), raw };
   } catch {
-    return null;
+    return { body: null, raw };
   }
 }
 
@@ -61,7 +68,10 @@ const server = http.createServer(async (rawReq, rawRes) => {
   }
 
   const req = rawReq;
-  req.body = await readBody(rawReq);
+  const read = await readBody(rawReq);
+  req.body = read.body;
+  /* The bytes as sent, for anything verifying a signature over them. */
+  req.rawBody = read.raw;
   req.query = Object.fromEntries(url.searchParams);
   const res = decorateRes(rawRes);
 

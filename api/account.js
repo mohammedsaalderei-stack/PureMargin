@@ -13,6 +13,41 @@ import { sendMail, shell, row } from "./_mail.js";
    backfills one. Without this an older account's changes would go unlogged. */
 const orgIdFor = async (account) => account?.orgId || (account ? (await orgFor(account))?.id : null);
 
+/* The inbound webhook URL for this organization, or null.
+
+   Built from the request rather than configured, so it is right on every
+   deployment — localhost in development, the real host in production —
+   without an environment variable that goes stale the first time a domain
+   changes. `x-forwarded-proto` and `x-forwarded-host` are what a platform
+   proxy sets; the direct values are the fallback for running the server on
+   its own.
+
+   Withheld from anybody who does not own the POS connection. It is a
+   credential in URL form: whoever holds it can post receipts into this
+   business's ledger. */
+async function webhookUrlFor(session, req) {
+  /* `canConnect` is the owner test — the same one that decides who may attach
+     a POS token at all, which is exactly the right gate for the URL receipts
+     arrive on. */
+  const ownership = await posOwnership(session.username);
+  if (!ownership?.canConnect) return null;
+
+  const account = await getAccount(session.username);
+  const orgId = await orgIdFor(account);
+  if (!orgId) return null;
+
+  const { webhookToken } = await import("./_loyversehook.js");
+  const token = await webhookToken(orgId);
+  if (!token) return null;
+
+  const proto = String(req.headers?.["x-forwarded-proto"] || "").split(",")[0]
+    || (req.socket?.encrypted ? "https" : "http");
+  const host = String(req.headers?.["x-forwarded-host"] || req.headers?.host || "").split(",")[0];
+  if (!host) return null;
+
+  return `${proto}://${host}/api/loyverse-webhook?t=${token}`;
+}
+
 export default async function handler(req, res) {
   const session = await requireAuth(req, res);
   if (!session) return;
@@ -48,6 +83,14 @@ export default async function handler(req, res) {
            connection. Never the token itself — not even to the owner, who set
            it and has no use for it back. */
         pos: await posOwnership(session.username),
+        /* The address to paste into Loyverse so receipts arrive as they are
+           rung up rather than when somebody next opens the dashboard.
+
+           Only for whoever owns the POS connection: it is the org's own
+           inbound URL, and anybody holding it can post receipts into this
+           business's ledger. Everyone else gets null and no explanation,
+           because a team member has no use for it and nothing to do with it. */
+        webhookUrl: await webhookUrlFor(session, req),
       });
     }
 

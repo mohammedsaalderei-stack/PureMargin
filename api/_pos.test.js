@@ -75,8 +75,38 @@ test("loyverse reads a real receipt shape", () => {
   assert.equal(out.branchId, "77", "a numeric store id must survive as a string");
   assert.equal(out.at, Date.parse("2026-08-01T10:00:00.000Z"));
   assert.equal(out.lines.length, 2);
-  assert.deepEqual(out.lines[0], { name: "Shawarma", variant: "Large", qty: 2, revenue: 24, cost: null });
+  assert.deepEqual(out.lines[0], {
+    itemId: "", variantId: "",
+    name: "Shawarma", variant: "Large", qty: 2, revenue: 24, cost: null,
+  });
   assert.equal(out.lines[1].variant, "", "a missing variant is empty, not undefined");
+});
+
+test("catalogue ids are carried so a renamed dish still matches its recipe", () => {
+  const out = loyverse.receipt({
+    store_id: 77,
+    receipt_number: "1-1043",
+    receipt_date: "2026-08-01T10:00:00.000Z",
+    line_items: [
+      { item_id: "itm_1", variant_id: "var_2", item_name: "Shawarma", quantity: 1, total_money: 12 },
+    ],
+  });
+  assert.equal(out.receiptNumber, "1-1043", "idempotency keys on this");
+  assert.equal(out.lines[0].itemId, "itm_1");
+  assert.equal(out.lines[0].variantId, "var_2");
+});
+
+test("a webhook payload dates itself the same as a polled one", () => {
+  /* The poller sees `receipt_date`; a pushed event calls the same instant
+     `created_at`. Both must land on one timestamp, or a receipt would be
+     costed against a different day depending on how it arrived. */
+  const polled = loyverse.receipt({
+    store_id: 1, receipt_date: "2026-08-01T10:00:00.000Z", line_items: [],
+  });
+  const pushed = loyverse.receipt({
+    store_id: 1, created_at: "2026-08-01T10:00:00.000Z", line_items: [],
+  });
+  assert.equal(pushed.at, polled.at);
 });
 
 test("a receipt with no lines does not crash", () => {
