@@ -137,7 +137,22 @@ export async function recordMovement(orgId, branchId, input, { policy, dryRun } 
 
   const ingredient = await getIngredient(orgId, String(input.ingredientId || ""));
   const error = validateMovement({ ...input, ingredient });
-  if (error) return { error, ingredientId: String(input.ingredientId || "") };
+  /* The name and the shelf's own unit ride along with the refusal.
+
+     They were left off, and every caller that could only say "the unit of one
+     of the lines does not suit that ingredient" was left saying exactly that —
+     about a delivery of forty-eight lines, with no way to tell which. The
+     ingredient has already been read by this point, so naming it costs
+     nothing; `stockUnit` is here for the same reason, because "you wrote
+     pieces, this is kept in kilograms" is the entire explanation. */
+  if (error) {
+    return {
+      error,
+      ingredientId: String(input.ingredientId || ""),
+      ingredientName: ingredient?.name || "",
+      stockUnit: ingredient?.stockUnit || "",
+    };
+  }
 
   const { allowNegative } = policy || (await getPolicy(orgId));
   const qty = Math.abs(Number(input.qty));

@@ -3,6 +3,7 @@ import { ChefHat, Loader2, Check, AlertTriangle, Trash2, Plus, Save, X } from "l
 import { useC } from "../theme.jsx";
 import { useLang, fill } from "../i18n.jsx";
 import PhotoScan from "./PhotoScan.jsx";
+import { unitNote } from "./unitnote.js";
 
 /* A recipe card, photographed, and the screen that reviews it.
 
@@ -140,9 +141,8 @@ export default function RecipeScan({ token, onSaved, initial, onInitialUsed }) {
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
         setFailed(true);
-        setNote(json.error === "unit" ? s.errUnit
-          : json.error === "duplicate" ? s.errDuplicate
-            : s.errServer);
+        setNote(json.error === "duplicate" ? s.errDuplicate
+          : unitNote(s, json) || s.errServer);
         return;
       }
 

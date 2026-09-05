@@ -4,6 +4,7 @@ import { useC } from "../theme.jsx";
 import { useLang, fill } from "../i18n.jsx";
 import { Money } from "../Dirham.jsx";
 import PhotoScan from "./PhotoScan.jsx";
+import { unitNote, nameList } from "./unitnote.js";
 
 /* A supplier invoice, photographed or uploaded, turned into stock.
 
@@ -47,7 +48,7 @@ function Row({ label, children }) {
 
 export default function SupplierScan({ token, onReceived, initial, onInitialUsed }) {
   const C = useC();
-  const { t } = useLang();
+  const { t, lang } = useLang();
   const s = t.supplierscan;
 
   const [result, setResult] = useState(null);
@@ -143,15 +144,29 @@ export default function SupplierScan({ token, onReceived, initial, onInitialUsed
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
         setFailed(true);
-        setNote(json.error === "unit" ? s.errUnit
-          : json.error === "branch" ? s.pickBranch
+        setNote(json.error === "branch" ? s.pickBranch
           : json.error === "line" || json.error === "empty" ? s.errNothing
-          : s.errServer);
+          : unitNote(s, json.refused?.[0]) || s.errServer);
         return;
       }
 
       setFailed(false);
       onReceived?.(json.movements || []);
+      /* Some lines went in and some did not, which is now a possible outcome
+         rather than an all-or-nothing refusal. Saying "took 46 of 48, left out
+         Brioche buns" is the difference between knowing what to fix and
+         wondering what happened to the delivery. */
+      if (json.refused?.length) {
+        setFailed(true);
+        setNote(fill(s.errPartly, {
+          count: json.movements?.length || 0,
+          total: (json.movements?.length || 0) + json.refused.length,
+          names: nameList(json.refused.map((r) => r.name), lang) || "—",
+        }));
+        setResult(null);
+        setLines([]);
+        return;
+      }
       /* Saved and gone. Leaving the card on screen after a successful commit
          invited pressing save again, and the only thing standing between that
          and a doubled delivery was somebody noticing. */

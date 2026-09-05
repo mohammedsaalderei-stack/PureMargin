@@ -34,7 +34,8 @@ import { recordAudit } from "./_audit.js";
 import { listIngredients, saveIngredient } from "./_inventory.js";
 import { learnAliases } from "./_aliases.js";
 import { costBasis, costFrom, evidenceFor } from "./_costing.js";
-import { unitsByDimension, toBase } from "./_units.js";
+import { unitsByDimension, toBase, unitLabel } from "./_units.js";
+import { resolveUnit, isPackaging } from "./_unitwords.js";
 import {
   MOVEMENT_KEYS, recordMovement, recordTransfer, reverseMovement,
   listMovements, balances, getPolicy, savePolicy,
@@ -149,11 +150,23 @@ export default async function handler(req, res) {
         const branch = permitted(body.branchId);
         if (!branch.length) return res.status(403).json({ error: "branch" });
 
-        const out = await recordMovement(orgId, branch[0], { ...body, actor: session.username });
+        /* The unit as written, read into the one the ledger keeps. Typed by
+           hand here, so "Kg" and "كجم" arrive as often as "kg" does. */
+        const typed = String(body.unit || "");
+        const out = await recordMovement(orgId, branch[0], {
+          ...body, unit: resolveUnit(typed).unit || typed, actor: session.username,
+        });
         if (out.error === "negative") {
           return res.status(409).json({ error: out.error, onHand: out.onHand, short: out.short });
         }
-        if (out.error) return res.status(400).json({ error: out.error });
+        if (out.error) {
+          return res.status(400).json({
+            error: out.error === "unit" && isPackaging(typed) ? "packaging" : out.error,
+            name: out.ingredientName || null,
+            unit: typed || null,
+            stockUnit: unitLabel(out.stockUnit) || null,
+          });
+        }
 
         await recordAudit(orgId, {
           actor: session.username, action: "stock.movement", target: out.movement.ingredientId,
@@ -271,7 +284,22 @@ export default async function handler(req, res) {
            own unit, the printed pair otherwise. Never the printed quantity
            beside a restated cost — see the note in `_purchase.js`. */
         const qtyOf = (r) => Number(r.receiveQty ?? r.qty);
-        const unitOf = (r) => String(r.receiveUnit || r.unit || "");
+        /* Read rather than matched literally.
+
+           The word arriving here is either what a supplier printed or what
+           somebody typed to correct it, and neither comes out as a ledger key.
+           "Kg", "L", "Pcs", "كجم" and "piraso" were all refused as "the unit
+           of one of the lines does not suit that ingredient", every one of
+           them a spelling `_unitwords.js` already knew.
+
+           Spelling only: the number is untouched, so the unit cost that was
+           quoted against it stays true. A word this still cannot place is left
+           exactly as it came and refused by the ledger, which is the one place
+           that should be strict about it. */
+        const unitOf = (r) => {
+          const printed = String(r.receiveUnit || r.unit || "");
+          return resolveUnit(printed).unit || printed;
+        };
 
         const receivable = resolved.filter((r) =>
           r.ingredientId && qtyOf(r) > 0 && unitOf(r));
@@ -288,19 +316,51 @@ export default async function handler(req, res) {
           note,
         }));
 
+        /* One line the ledger will not take must not cost the other forty-seven.
+
+           This used to answer 400 for the whole invoice on the first refusal,
+           so a forty-eight-line delivery with one unplaceable unit received
+           nothing at all — and the message named no line, which made finding it
+           a hunt through the list. It also contradicted the rule this same
+           handler follows two blocks up, where an ingredient the master refuses
+           is skipped so that "one unreadable line out of nine must not cost the
+           other eight".
+
+           It was not atomic either: the write loop below breaks on the first
+           error and leaves whatever it had already written. So the choice was
+           never all-or-nothing — it was between a partial commit nobody was
+           told about and a partial commit that says what it left behind. */
         const dry = await Promise.all(prepared.map((r) =>
           recordMovement(orgId, branch[0], { ...r, actor: session.username, dryRun: true })));
-        const refused = dry.find((d) => d.error);
-        if (refused) {
-          return res.status(400).json({
-            error: refused.error,
-            ingredientId: refused.ingredientId || null,
-            ingredientName: refused.ingredientName || null,
-          });
+
+        const takeable = prepared.filter((_, i) => !dry[i].error);
+        const refused = prepared
+          .map((r, i) => (dry[i].error
+            ? {
+                ingredientId: r.ingredientId,
+                name: dry[i].ingredientName || receivable[i]?.text || "",
+                /* "3 SACK" and "pieces where kilos are kept" both reach the
+                   ledger as `unit`, and only one of them is answerable by
+                   choosing a different unit. Told apart here, where the word
+                   is still in hand, so the screen can ask the right question. */
+                reason: dry[i].error === "unit" && isPackaging(r.unit) ? "packaging" : dry[i].error,
+                stockUnit: unitLabel(dry[i].stockUnit),
+                /* What was actually on the line, so the screen can quote "3
+                   SACK" back rather than saying "one of the lines". */
+                qty: r.qty,
+                unit: unitLabel(r.unit),
+              }
+            : null))
+          .filter(Boolean);
+
+        /* Nothing survived. The one case still worth a 400: there is no
+           delivery to record, and the first reason is the whole story. */
+        if (!takeable.length) {
+          return res.status(400).json({ error: refused[0]?.reason || "line", refused });
         }
 
         const written = [];
-        for (const r of prepared) {
+        for (const r of takeable) {
           const out = await recordMovement(orgId, branch[0], { ...r, actor: session.username });
           if (out.error) break;
           written.push(out.movement);
@@ -337,6 +397,10 @@ export default async function handler(req, res) {
             .filter((r) => !receivable.includes(r))
             .map((r) => r.text || r.newItem?.name || "")
             .filter(Boolean),
+          /* Lines the ledger itself turned down, each with which one and why,
+             so the screen can name them instead of reporting "the unit of one
+             of the lines" about a delivery of forty-eight. */
+          refused,
         });
       }
 
@@ -350,7 +414,7 @@ export default async function handler(req, res) {
         const prepared = rows.map((row) => ({
           ingredientId: String(row.ingredientId || ""),
           qty: Number(row.qty),
-          unit: String(row.unit || ""),
+          unit: resolveUnit(String(row.unit || "")).unit || String(row.unit || ""),
           unitCost: Number.isFinite(Number(row.unitCost)) && Number(row.unitCost) > 0
             ? Number(row.unitCost)
             : undefined,
@@ -411,7 +475,7 @@ export default async function handler(req, res) {
         const prepared = rows.map((row) => ({
           ingredientId: String(row.ingredientId || ""),
           qty: Number(row.qty),
-          unit: String(row.unit || ""),
+          unit: resolveUnit(String(row.unit || "")).unit || String(row.unit || ""),
           type: "consume",
           note: String(body.note || "").slice(0, 200),
         }));

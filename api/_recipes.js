@@ -35,7 +35,8 @@
 import { getJSON, setJSON } from "./_store.js";
 import { getIngredient, listIngredients, ensureIngredient, slug } from "./_inventory.js";
 import { baseUnitOf } from "./_movements.js";
-import { convert, isUnit, sameDimension, baseUnitFor } from "./_units.js";
+import { convert, sameDimension, baseUnitFor } from "./_units.js";
+import { resolveUnit } from "./_unitwords.js";
 import { costBasis, costFrom, evidenceFor, DEFAULT_COST_METHOD } from "./_costing.js";
 
 const RECIPES = (orgId) => `inv:${orgId}:recipes`;
@@ -90,9 +91,18 @@ async function buildLines(orgId, inputs, { required }) {
 
     /* The unit is read before the ingredient exists, because it is what the
        ingredient gets created with. Unstated, it falls back to grams inside
-       `ensureIngredient` rather than refusing the line. */
-    const stated = input.unit;
-    if (stated && !isUnit(stated)) return { error: "unit" };
+       `ensureIngredient` rather than refusing the line.
+
+       Read rather than matched literally: a recipe card says "L" and a chef
+       correcting one types "Kg", and both used to be refused as not suiting the
+       ingredient. This is spelling — the quantity is untouched — so it cannot
+       change what a line means, only whether the line is understood. */
+    const written = input.unit;
+    const read = written ? resolveUnit(written) : { unit: null };
+    if (written && read.error) {
+      return { error: read.error, unit: String(written), name: String(input.name || "") };
+    }
+    const stated = read.unit || null;
 
     let ingredient = await getIngredient(orgId, String(input.ingredientId || ""));
 
@@ -121,7 +131,12 @@ async function buildLines(orgId, inputs, { required }) {
     if (rows.some((r) => r.ingredientId === ingredient.id)) return { error: "duplicate" };
 
     const unit = stated || ingredient.stockUnit;
-    if (!sameDimension(unit, ingredient.stockUnit)) return { error: "unit" };
+    /* A count offered where a weight is kept is the one refusal a person
+       genuinely has to answer, and it is named with the line so the screen can
+       say which ingredient rather than "one of the lines". */
+    if (!sameDimension(unit, ingredient.stockUnit)) {
+      return { error: "unit", name: ingredient.name, unit, stockUnit: ingredient.stockUnit };
+    }
 
     rows.push({
       ingredientId: ingredient.id,
@@ -181,11 +196,14 @@ export async function saveVersion(orgId, input = {}) {
   const invalid = validateVersion(input);
   if (invalid) return { error: invalid };
 
+  /* The whole refusal travels, not just its code. buildLines names the line
+     it stopped on and the two units that disagreed, and dropping that here is
+     what left the screen saying "one line" about a recipe of thirty. */
   const built = await buildLines(orgId, input.lines, { required: true });
-  if (built.error) return { error: built.error };
+  if (built.error) return built;
 
   const packaging = await buildLines(orgId, input.packaging, { required: false });
-  if (packaging.error) return { error: packaging.error };
+  if (packaging.error) return packaging;
 
   const map = await readAll(orgId);
   const id = String(input.id || "").trim() || slug(menuItem);

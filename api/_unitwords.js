@@ -106,6 +106,47 @@ export function isPackaging(raw) {
   return Boolean(text) && PACKAGING.has(text);
 }
 
+/* The unit a written word means, or why it cannot be settled.
+
+   ── Why this exists ──────────────────────────────────────────────────────
+
+   The ledger keys on "kg", "l" and "ea", and the routes used to compare what
+   arrived against that set literally. So "Kg" was refused. So was "L", "Pcs",
+   "كجم" and "piraso" — all of which this file has known how to read since it
+   was written, because the scanners run every printed unit through
+   `normaliseUnit` before they propose anything.
+
+   What nothing ran through it was the commit. A scanned line whose unit the
+   parser could not convert kept its printed word, and a unit corrected by hand
+   in the review screen was taken exactly as typed — so both arrived at the
+   ledger as raw text and were refused with "the unit of one of the lines does
+   not suit that ingredient". Every one of those was a spelling the app already
+   understood, three files away.
+
+   ── Why it says which of two failures, and not three ─────────────────────
+
+   `validateMovement` answers "unit" both to a word it has never seen and to a
+   unit that measures the wrong kind of thing, and those want opposite
+   responses. This settles the ones that are about the word:
+
+     a spelling — read, and never reaches a person.
+     a pack     — "3 SACK" is not an unknown word, it is a quantity of
+                  packaging, and what is missing is how much one holds. Saying
+                  so turns a shrug into a question with an answer.
+
+   The third — pieces offered where kilograms are kept — is deliberately not
+   decided here. It is a fact about the ingredient, not about the word, and it
+   is already checked everywhere the ingredient is in hand: `validateMovement`,
+   `buildLines` in _recipes.js, the three paths in _purchasing.js. Taking a
+   stock unit here as well would mean returning a resolved `unit` beside an
+   error, and every caller writing the natural `resolveUnit(x).unit || x` would
+   then quietly accept the one thing that must not pass. One job, one answer. */
+export function resolveUnit(raw) {
+  const unit = normaliseUnit(raw);
+  if (unit) return { unit };
+  return { error: isPackaging(raw) ? "packaging" : "unitword", printed: String(raw ?? "") };
+}
+
 /* A quantity read off a page, expressed in the unit the shelf is kept in.
 
    Returns null rather than a number whenever the two cannot be reconciled — a

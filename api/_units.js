@@ -50,6 +50,15 @@ export function isUnit(unit) {
   return Object.prototype.hasOwnProperty.call(UNITS, unit);
 }
 
+/* What to call a unit when a person is going to read it.
+
+   "ea" is a key, and a key is what the ledger stores; "each" is what a message
+   should say. An unknown key comes back untouched, because an error that
+   quotes what somebody actually wrote is more use than one that blanks it. */
+export function unitLabel(unit) {
+  return UNITS[unit]?.label || String(unit ?? "");
+}
+
 export function dimensionOf(unit) {
   return UNITS[unit]?.dimension || null;
 }

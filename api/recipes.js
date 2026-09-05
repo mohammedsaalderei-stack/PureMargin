@@ -17,6 +17,7 @@
 */
 
 import { requireAuth } from "./_auth.js";
+import { unitLabel } from "./_units.js";
 import { scopeFor, effectiveBranches, parseBranchParam } from "./_org.js";
 import { posTokenFor } from "./_accounts.js";
 import { branchList } from "./_data.js";
@@ -107,7 +108,18 @@ export default async function handler(req, res) {
 
       if (what === "save") {
         const out = await saveVersion(orgId, { ...body, actor: session.username });
-        if (out.error) return res.status(400).json({ error: out.error });
+        /* Which line, and what about it. A recipe can carry thirty ingredients,
+           and "a unit on one line doesn't fit that ingredient" left somebody
+           reading all thirty to find the one. `saveVersion` names it now, so
+           the name and the two units are passed straight through. */
+        if (out.error) {
+          return res.status(400).json({
+            error: out.error,
+            name: out.name || null,
+            unit: unitLabel(out.unit) || null,
+            stockUnit: unitLabel(out.stockUnit) || null,
+          });
+        }
         /* A recipe change moves every future cost of sales, which is why the
            document names it among the sensitive actions. The version number goes
            on the record so an owner can see which figures changed with it. */

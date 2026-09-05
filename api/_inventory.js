@@ -20,6 +20,7 @@
 
 import { getJSON, setJSON, del } from "./_store.js";
 import { isUnit, dimensionOf, UNITS, convert as convertUnits } from "./_units.js";
+import { resolveUnit } from "./_unitwords.js";
 import { resetAliases } from "./_aliases.js";
 
 const ING = (orgId) => `inv:${orgId}:ingredients`;
@@ -89,6 +90,26 @@ function convertTypedFigures(record, fromUnit, toUnit) {
 }
 
 export async function saveIngredient(orgId, input) {
+  /* Read the units before validating them.
+
+     The ledger keys on "kg", "l" and "ea", and this compared against that set
+     literally — so an ingredient proposed as "Kg", "L" or "Pcs" was refused,
+     and on the invoice path a refused ingredient means its line silently goes
+     unreceived. The words come from a scanner reading somebody's paperwork or
+     from somebody typing, and neither produces ledger keys.
+
+     Spelling only, and only for the two unit fields: nothing else about the
+     input is touched, and a word `_unitwords.js` cannot place still falls
+     through to `validateIngredient` and is refused by name. */
+  const read = {
+    ...input,
+    stockUnit: resolveUnit(input.stockUnit).unit || input.stockUnit,
+    ...(input.purchaseUnit
+      ? { purchaseUnit: resolveUnit(input.purchaseUnit).unit || input.purchaseUnit }
+      : {}),
+  };
+  input = read;
+
   const error = validateIngredient(input);
   if (error) return { error };
 

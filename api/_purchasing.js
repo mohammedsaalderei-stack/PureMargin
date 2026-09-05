@@ -32,7 +32,8 @@
 import { getJSON, setJSON } from "./_store.js";
 import { getIngredient, listSuppliers } from "./_inventory.js";
 import { recordMovement, baseUnitOf } from "./_movements.js";
-import { convert, isUnit, sameDimension } from "./_units.js";
+import { convert, sameDimension } from "./_units.js";
+import { resolveUnit } from "./_unitwords.js";
 
 const ORDERS = (orgId) => `inv:${orgId}:purchases`;
 
@@ -80,8 +81,12 @@ async function buildLines(orgId, inputs) {
 
     /* Ordering happens in the purchase unit — a case, a sack — which is rarely
        the stock unit. Either is accepted so long as they measure the same thing. */
-    const unit = input.unit || ingredient.purchaseUnit || ingredient.stockUnit;
-    if (!isUnit(unit) || !sameDimension(unit, ingredient.stockUnit)) return { error: "unit" };
+    /* Read, not matched literally: "Kg" and "كجم" are the kilogram this
+       ingredient is already kept in, and refusing them taught nobody anything. */
+    const unit = resolveUnit(input.unit || ingredient.purchaseUnit || ingredient.stockUnit).unit;
+    if (!unit || !sameDimension(unit, ingredient.stockUnit)) {
+      return { error: "unit", name: ingredient.name, stockUnit: ingredient.stockUnit };
+    }
 
     const unitPrice = Number(input.unitPrice);
     if (!Number.isFinite(unitPrice) || unitPrice < 0) return { error: "unitPrice" };
@@ -231,8 +236,10 @@ export async function receiveOrder(orgId, id, input = {}) {
 
     /* A delivery can be measured differently from the order — 20 kg loose
        against 2 sacks ordered — so long as it measures the same thing. */
-    const unit = entry.unit || line.unit;
-    if (!isUnit(unit) || !sameDimension(unit, line.stockUnit)) return { error: "unit" };
+    const unit = resolveUnit(entry.unit || line.unit).unit;
+    if (!unit || !sameDimension(unit, line.stockUnit)) {
+      return { error: "unit", name: line.name, stockUnit: line.stockUnit };
+    }
 
     const qtyBase = convert(qty, unit, line.baseUnit);
     /* Refused rather than recorded: over-receipt at this scale is a typo, and the
@@ -345,8 +352,10 @@ export async function returnToSupplier(orgId, id, input = {}) {
   const qty = Number(input.qty);
   if (!Number.isFinite(qty) || qty <= 0) return { error: "qty" };
 
-  const unit = input.unit || line.unit;
-  if (!isUnit(unit) || !sameDimension(unit, line.stockUnit)) return { error: "unit" };
+  const unit = resolveUnit(input.unit || line.unit).unit;
+  if (!unit || !sameDimension(unit, line.stockUnit)) {
+    return { error: "unit", name: line.name, stockUnit: line.stockUnit };
+  }
 
   const qtyBase = convert(qty, unit, line.baseUnit);
   const heldBase = line.receivedBase - line.returnedBase;
