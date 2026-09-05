@@ -203,6 +203,16 @@ export async function saveVersion(orgId, input = {}) {
     yieldPct: Number(input.yieldPct) >= 1 ? Number(input.yieldPct) : DEFAULT_YIELD_PCT,
     lines: built.lines,
     packaging: packaging.lines,
+    /* The food cost the card declared, if it declared one. Kept on the version
+       rather than the recipe because it belongs to this statement of the dish:
+       a later version with different quantities is a different cost, and a
+       figure that outlived the recipe it described would be worse than none.
+
+       Accepted per portion or per batch, because cards say both. */
+    statedCostPerPortion: Number(input.statedCostPerPortion) > 0
+      ? Number(input.statedCostPerPortion) : null,
+    statedCostPerBatch: Number(input.statedCostPerBatch) > 0
+      ? Number(input.statedCostPerBatch) : null,
     note: String(input.note || "").trim(),
     createdAt: now,
     createdBy: String(input.actor || ""),
@@ -292,6 +302,16 @@ export function effectiveVersion(recipe, at = Date.now()) {
 export function costVersion(version, basis, { method = DEFAULT_COST_METHOD } = {}) {
   const yieldFactor = version.yieldPct / 100;
 
+  /* Per portion, whichever way the card expressed it. A card that says "food
+     cost 18.60" for a batch of four means 4.65 a portion, and storing the
+     batch figure as if it were per portion would overstate every dish on the
+     menu by the batch size. */
+  const statedCost = Number(version.statedCostPerPortion) > 0
+    ? round(Number(version.statedCostPerPortion), 4)
+    : Number(version.statedCostPerBatch) > 0
+      ? round(Number(version.statedCostPerBatch) / version.portions, 4)
+      : null;
+
   const priceLines = (lines, applyYield) =>
     lines.map((line) => {
       const costPerBase = costFrom(basis, line.ingredientId, method);
@@ -351,6 +371,41 @@ export function costVersion(version, basis, { method = DEFAULT_COST_METHOD } = {
     /* Complete, but resting on estimates rather than invoices. */
     estimatedCount: estimated.length,
     estimated: estimated.map((r) => ({ ingredientId: r.ingredientId, name: r.name })),
+
+    /* The cost the card itself declared, and which figure to actually use.
+
+       A recipe card very often prints its own food cost — the kitchen worked
+       it out once and wrote it on the card — while the ingredients on it are
+       things this system has never bought and has no price for. Before this,
+       such a recipe reported no cost at all: every line unpriced, coverage
+       zero, margin null. The number was sitting on the page and the software
+       refused to use it, and the only way forward was to go and price a dozen
+       ingredients before the dish could be costed at all.
+
+       The rule, in order:
+
+         measured  every line priced from real deliveries — always preferred,
+                   because it is the only figure that moves when a supplier
+                   raises a price
+         stated    the card's own number, used when the lines cannot produce
+                   a complete one
+         partial   neither: some lines priced, no declaration. A lower bound,
+                   reported as one, exactly as before
+
+       Stated never overrides measured. A declaration is what somebody believed
+       when they wrote the card; a measured cost is what the invoices say now,
+       and the second is the one that notices the price of beef going up. Where
+       both exist they are both reported, because the gap between them is worth
+       seeing — a card claiming 4.10 against a measured 6.30 is a menu priced on
+       last year's costs. */
+    statedPerPortion: statedCost,
+    costBasis: statedCost !== null && unpriced.length > 0 ? "stated"
+      : unpriced.length === 0 ? "measured"
+        : "partial",
+    /* The single figure everything downstream should quote. */
+    effectivePerPortion: statedCost !== null && unpriced.length > 0
+      ? statedCost
+      : round((foodCost + packagingCost) / version.portions, 4),
   };
 }
 
@@ -391,7 +446,7 @@ export async function costedRecipe(orgId, id, branchIds, { at = Date.now(), meth
     at,
     effective: version,
     costing,
-    margin: costing ? marginFor(recipe.sellPrice, costing.perPortion.total) : null,
+    margin: costing ? marginFor(recipe.sellPrice, costing.effectivePerPortion) : null,
   };
 }
 
@@ -424,7 +479,11 @@ export async function costedList(orgId, branchIds, { at = Date.now(), method, in
         coverage: costing?.coverage ?? 0,
         unpriced: costing?.unpriced || [],
         estimatedCount: costing?.estimatedCount ?? 0,
-        margin: costing ? marginFor(recipe.sellPrice, costing.perPortion.total) : null,
+        /* Which figure the row is quoting, so a list can say that a dish is
+           costed from its card rather than from invoices. */
+        costBasis: costing?.costBasis || null,
+        effectivePerPortion: costing?.effectivePerPortion ?? null,
+        margin: costing ? marginFor(recipe.sellPrice, costing.effectivePerPortion) : null,
       };
     });
 }

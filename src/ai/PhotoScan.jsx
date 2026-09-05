@@ -92,11 +92,23 @@ export default function PhotoScan({ token, kind, onResult, buttonLabel }) {
 
   return (
     <div>
+      {/* No `capture` attribute, deliberately.
+
+          It used to say `capture="environment"`, which on a phone does not
+          mean "offer the camera" — it means "the camera is the only source".
+          iOS and Android both drop the Photo Library and Files entries from
+          the sheet when it is present, so on mobile there was no way to send
+          the PDF a supplier had emailed or a recipe card already saved to the
+          camera roll. The button offered an upload the operating system then
+          refused to allow.
+
+          Without it the sheet lists Take Photo alongside Photo Library and
+          Browse, so the camera is still one tap away and everything else is
+          reachable. On a desktop it was never anything but a file dialog. */}
       <input
         ref={inputRef}
         type="file"
         accept="image/*,application/pdf"
-        capture="environment"
         className="hidden"
         onChange={(e) => {
           const file = e.target.files?.[0];

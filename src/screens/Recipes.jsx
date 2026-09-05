@@ -175,7 +175,10 @@ export default function Recipes({ token, pendingDoc, onDocUsed }) {
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-semibold truncate-safe">{recipe.menuItem}</span>
-                        {!recipe.complete && (
+                        {/* The warning is about a cost nobody can produce, not
+                            about where it came from. A dish costed from its
+                            card has a cost, so it is not flagged. */}
+                        {!recipe.complete && recipe.costBasis !== "stated" && (
                           <AlertTriangle size={12} className="shrink-0" style={{ color: C.rose }} />
                         )}
                       </div>
@@ -184,12 +187,14 @@ export default function Recipes({ token, pendingDoc, onDocUsed }) {
                           recipe.category,
                           fill(s.version, { n: recipe.version }),
                           recipe.margin ? `${recipe.margin.costPct}% ${s.costPct}` : null,
+                          recipe.costBasis === "stated" ? s.costFromCardShort : null,
                         ].filter(Boolean).join(" · ")}
                       </div>
                     </div>
                     <div className="text-sm font-bold shrink-0 inline-flex items-baseline gap-[0.22em] tabular-nums" dir="ltr">
                       <DirhamMark />
-                      {(recipe.perPortion?.total || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                      {(recipe.effectivePerPortion ?? recipe.perPortion?.total ?? 0)
+                        .toLocaleString(undefined, { maximumFractionDigits: 2 })}
                     </div>
                   </button>
                 ))}

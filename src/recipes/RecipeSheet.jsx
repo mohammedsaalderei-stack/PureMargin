@@ -78,9 +78,13 @@ export default function RecipeSheet({ token, recipe, method, canManage, onClose,
         <>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
             {[
+              /* The headline total is the effective one, so a dish costed from
+                 its card shows that cost rather than the zero its unpriced
+                 ingredients add up to. Food and packaging stay as summed —
+                 a card states one number and does not split it. */
               [s.foodCost, costing.perPortion.foodCost, C.ink],
               [s.packagingCost, costing.perPortion.packagingCost, C.ink],
-              [s.totalCost, costing.perPortion.total, C.ink],
+              [s.totalCost, costing.effectivePerPortion ?? costing.perPortion.total, C.ink],
               ...(recipe.margin
                 ? [[s.costPct, `${recipe.margin.costPct}%`, recipe.margin.costPct > 35 ? C.rose : C.iris]]
                 : []),
@@ -101,7 +105,7 @@ export default function RecipeSheet({ token, recipe, method, canManage, onClose,
 
           {/* Data quality first, because a total that is missing prices is a
               different claim from one that isn't. */}
-          {!costing.complete && (
+          {!costing.complete && costing.costBasis !== "stated" && (
             <div className="flex gap-2.5 p-3 rounded-lg mb-4" style={{ border: `1px solid ${C.rose}` }}>
               <AlertTriangle size={15} className="shrink-0 mt-0.5" style={{ color: C.rose }} />
               <div>
@@ -114,6 +118,17 @@ export default function RecipeSheet({ token, recipe, method, canManage, onClose,
                 </p>
               </div>
             </div>
+          )}
+
+          {/* Costed from the card the kitchen wrote, because the ingredients
+              cannot yet produce a figure. Said plainly: it is a real cost and
+              a usable one, and it is not the same claim as a cost derived from
+              what the invoices actually charged. */}
+          {costing.costBasis === "stated" && (
+            <p className="text-[11px] mb-4 flex items-start gap-1.5" style={{ color: C.iris }}>
+              <AlertTriangle size={12} className="shrink-0 mt-0.5" />
+              {s.costFromCard}
+            </p>
           )}
 
           {/* Complete, but resting on estimates rather than invoices. A

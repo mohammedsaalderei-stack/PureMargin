@@ -200,6 +200,13 @@ Also read, where the card states them and only then:
   sellPrice    the price the dish is sold at, as a number. Null unless the card
                actually prints one; a recipe card usually does not, and a
                guessed price silently sets the margin on the dish.
+  foodCost     the total food or ingredient cost the card states for the dish,
+               as a number — cards often print one, worked out by the kitchen.
+               Read the printed figure only; never add the lines up yourself.
+  foodCostBasis whether that figure is "portion" or "batch". A card saying
+               "cost per portion" is portion; one giving a total for a recipe
+               that serves four is batch. Null when the card does not say and
+               it cannot be told from the wording.
   packaging    boxes, cups, lids, bags, sleeves — things the dish is served or
                sent out in, which cost money but are not food. Put them here
                rather than in lines, and leave the array empty when the card
@@ -210,6 +217,8 @@ Respond with ONLY this JSON, nothing else:
   "menuItem": "<dish name, or null>",
   "category": "<menu section, or null>",
   "sellPrice": <selling price as a number, or null>,
+  "foodCost": <food cost the card states, as a number, or null>,
+  "foodCostBasis": "<portion|batch, or null>",
   "portions": <number of portions the card states, or null>,
   "note": "<anything short worth keeping, or null>",
   "lines": [{ "text": "<ingredient as written>", "qty": "<quantity as written, or null>", "unit": "<g, kg, ml, l, tsp, tbsp, cup, pcs… as written, or null>", "ingredient": "<exact name from the list, or null>", "newItem": { "name": "<short kitchen name>", "stockUnit": "<kg|g|l|ml|ea>", "purchaseUnit": "<how it is sold>", "packSize": <number>, "category": "<produce|meat|dairy|dry|oil|drink|packaging>" } }],

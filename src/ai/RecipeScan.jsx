@@ -76,6 +76,13 @@ export default function RecipeScan({ token, onSaved, initial, onInitialUsed }) {
       menuItem: r?.menuItem || "",
       category: r?.category || "",
       sellPrice: r?.sellPrice ?? "",
+      /* The cost the card stated, if it stated one. Per portion after this
+         point — a batch figure read off the card is divided here, once, so
+         everything downstream deals in one basis. */
+      statedCost: r?.statedCost == null ? ""
+        : r.statedCostBasis === "batch" && Number(r?.portions) > 0
+          ? String(Math.round((r.statedCost / Number(r.portions)) * 100) / 100)
+          : String(r.statedCost),
       /* Read off the card where it said so, one where it did not — which makes
          the quantities per portion, what a card without a batch line means. */
       portions: r?.portions || 1,
@@ -124,6 +131,7 @@ export default function RecipeScan({ token, onSaved, initial, onInitialUsed }) {
           menuItem: draft.menuItem.trim(),
           category: draft.category.trim() || undefined,
           sellPrice: Number(draft.sellPrice) > 0 ? Number(draft.sellPrice) : undefined,
+          statedCostPerPortion: Number(draft.statedCost) > 0 ? Number(draft.statedCost) : undefined,
           portions: Number(draft.portions) > 0 ? Number(draft.portions) : 1,
           lines: asPayload(lines),
           packaging: asPayload(usable(draft.packaging)),
@@ -245,6 +253,22 @@ export default function RecipeScan({ token, onSaved, initial, onInitialUsed }) {
                 value={draft.sellPrice} placeholder="0.00"
                 onChange={(e) => patch({ sellPrice: e.target.value })} />
             </div>
+          </div>
+
+          {/* The card's own food cost.
+
+              Optional, and worth having even when the ingredients below are
+              complete: a dish whose components this system has never bought
+              has no cost at all without it, and a card that already states one
+              is the fastest way to a costed menu. It is only used while the
+              ingredients cannot produce a figure — once real invoices cover
+              them, the measured cost wins on its own. */}
+          <div>
+            {label(s.statedCost)}
+            <input {...field} type="number" min="0" step="any" inputMode="decimal" dir="ltr"
+              value={draft.statedCost} placeholder="0.00"
+              onChange={(e) => patch({ statedCost: e.target.value })} />
+            <p className="text-[11px] mt-1.5" style={{ color: C.slate }}>{s.statedCostHint}</p>
           </div>
 
           {/* Shown only when the card actually stated a batch size. A dish that

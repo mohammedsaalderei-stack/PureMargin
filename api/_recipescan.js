@@ -124,6 +124,24 @@ export function buildRecipe(parsed, ingredients) {
        not, and a guessed selling price sets the margin on the dish to a number
        nobody chose. */
     sellPrice: num(parsed?.sellPrice),
+    /* The food cost the card printed for itself.
+
+       Very often a card states its cost while naming ingredients this system
+       has never bought and has no price for. Carried through so the dish can
+       be costed from what the kitchen already worked out, rather than
+       reporting nothing until a dozen ingredients have been priced.
+
+       Only where the card said it. Nothing is summed or inferred here — a
+       derived figure presented as the card's own is the one mistake that
+       cannot be spotted later. */
+    statedCost: num(parsed?.foodCost),
+    /* Per portion or per batch. A card giving one total for four servings
+       means a quarter of it per dish, and reading a batch figure as a portion
+       figure overstates every margin on the menu by the batch size. Unstated
+       basis is treated as per portion, which is what a card without a
+       "serves" line means. */
+    statedCostBasis: String(parsed?.foodCostBasis || "").toLowerCase() === "batch"
+      ? "batch" : "portion",
     /* A card that does not say how many it serves is the common case, and one
        is the honest default: it makes the quantities per-portion, which is
        what a card without a yield line usually means. A person can correct it,

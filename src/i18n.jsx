@@ -439,6 +439,8 @@ export const STRINGS = {
       basis: "Cost basis",
     },
     recipes: {
+      costFromCard: "Costed from the card, not from invoices.",
+      costFromCardShort: "from the card",
       ingredientsHint: "Type any ingredient. Anything not already on file is created when you save, with the unit and estimate you give here.",
       estCost: "Est. cost",
       estCostHint: "Roughly what one of the unit above costs. Used only until a real invoice prices it.",
@@ -973,6 +975,8 @@ export const STRINGS = {
       errServer: "Couldn't add those. Nothing was created.",
     },
     recipescan: {
+      statedCost: "Food cost on the card (AED, optional)",
+      statedCostHint: "If the card states a cost per portion, put it here and the dish is costed from it — no need to price every ingredient first. Real invoice costs take over automatically once they cover the recipe.",
       title: "Scan a recipe card",
       scan: "Photograph or upload a recipe card",
       lead: "Photograph a card, a notebook page or a PDF. The dish, its ingredients and its packaging are read for you.",
@@ -2104,6 +2108,8 @@ export const STRINGS = {
       basis: "أساس التكلفة",
     },
     recipes: {
+      costFromCard: "محسوبة من البطاقة لا من الفواتير.",
+      costFromCardShort: "من البطاقة",
       ingredientsHint: "اكتب أي مكوّن. ما ليس مسجلًا سيُنشأ عند الحفظ بالوحدة والتقدير المكتوبين هنا.",
       estCost: "تكلفة تقديرية",
       estCostHint: "تقريبًا كم تكلّف وحدة واحدة أعلاه. تُستخدم فقط حتى تُسعّرها فاتورة حقيقية.",
@@ -2638,6 +2644,8 @@ export const STRINGS = {
       errServer: "تعذّرت الإضافة. لم يُنشأ شيء.",
     },
     recipescan: {
+      statedCost: "تكلفة الطعام المكتوبة في البطاقة (درهم، اختياري)",
+      statedCostHint: "إذا ذكرت البطاقة تكلفة الحصة، أدخلها هنا وتُحتسب تكلفة الطبق منها — دون الحاجة لتسعير كل مكوّن أولًا. وتحل تكاليف الفواتير الفعلية محلها تلقائيًا عند توفرها.",
       title: "امسح بطاقة وصفة",
       scan: "تصوير أو رفع بطاقة وصفة",
       lead: "صوّر بطاقة أو صفحة أو ملف PDF. يُقرأ الطبق ومكوّناته ومواد تغليفه تلقائيًا.",
@@ -3748,6 +3756,8 @@ export const STRINGS = {
       basis: "लागत आधार",
     },
     recipes: {
+      costFromCard: "कार्ड से गणना, चालान से नहीं।",
+      costFromCardShort: "कार्ड से",
       ingredientsHint: "कोई भी सामग्री लिखें। जो पहले से दर्ज नहीं है वह सहेजते समय यहाँ दी गई इकाई और अनुमान के साथ बन जाएगी।",
       estCost: "अनुमानित लागत",
       estCostHint: "ऊपर दी इकाई की एक मात्रा की मोटी लागत। असली चालान आने तक ही इस्तेमाल होती है।",
@@ -4308,6 +4318,8 @@ export const STRINGS = {
       errServer: "जोड़ा नहीं जा सका। कुछ नहीं बना।",
     },
     recipescan: {
+      statedCost: "कार्ड पर लिखी फ़ूड कॉस्ट (AED, वैकल्पिक)",
+      statedCostHint: "अगर कार्ड पर प्रति सर्विंग लागत लिखी है तो यहाँ डालें — हर सामग्री का दाम पहले डालने की ज़रूरत नहीं। असली चालान की लागत उपलब्ध होते ही अपने आप इसकी जगह ले लेगी।",
       title: "रेसिपी कार्ड स्कैन करें",
       scan: "रेसिपी कार्ड की फ़ोटो लें या अपलोड करें",
       lead: "कार्ड, नोटबुक पन्ना या PDF की फ़ोटो लें। व्यंजन, उसकी सामग्री और पैकेजिंग अपने आप पढ़ ली जाती है।",
@@ -6109,6 +6121,8 @@ export const STRINGS = {
       errServer: "درج نہیں ہو سکا۔ کچھ نہیں لکھا گیا۔",
     },
     recipescan: {
+      statedCost: "کارڈ پر درج فوڈ کاسٹ (درہم، اختیاری)",
+      statedCostHint: "اگر کارڈ پر فی حصہ لاگت درج ہے تو یہاں لکھیں — پہلے ہر جزو کی قیمت درج کرنے کی ضرورت نہیں۔ اصل رسیدوں کی لاگت دستیاب ہوتے ہی خود بخود اس کی جگہ لے لے گی۔",
       title: "ریسیپی کارڈ اسکین کریں",
       scan: "ریسیپی کارڈ کی تصویر لیں یا اپ لوڈ کریں",
       lead: "کارڈ، نوٹ بک کا صفحہ یا PDF کی تصویر لیں۔ ڈش، اجزاء اور پیکیجنگ خود پڑھ لی جاتی ہے۔",
@@ -6370,6 +6384,8 @@ export const STRINGS = {
       basis: "لاگت کی بنیاد",
     },
     recipes: {
+      costFromCard: "کارڈ سے محسوب، رسیدوں سے نہیں۔",
+      costFromCardShort: "کارڈ سے",
       ingredientsHint: "کوئی بھی جزو لکھیں۔ جو پہلے سے درج نہیں، وہ محفوظ کرتے وقت یہاں دی گئی اکائی اور تخمینے کے ساتھ بن جائے گا۔",
       estCost: "تخمینی لاگت",
       estCostHint: "اوپر دی گئی اکائی کی ایک مقدار کی تقریبی لاگت۔ صرف اُس وقت تک جب تک اصل رسید قیمت نہ دے۔",
@@ -7243,6 +7259,8 @@ export const STRINGS = {
       basis: "Batayan ng gastos",
     },
     recipes: {
+      costFromCard: "Batay sa card, hindi sa invoice.",
+      costFromCardShort: "mula sa card",
       ingredientsHint: "Mag-type ng kahit anong sangkap. Ang wala pang record ay gagawin sa pag-save, gamit ang unit at tantiyang ibibigay dito.",
       estCost: "Tantiyang halaga",
       estCostHint: "Tantiyang halaga ng isang unit sa itaas. Gagamitin lang hanggang may totoong invoice na magpresyo.",
@@ -7803,6 +7821,8 @@ export const STRINGS = {
       errServer: "Hindi naidagdag. Walang nagawa.",
     },
     recipescan: {
+      statedCost: "Food cost na nakasulat sa card (AED, opsyonal)",
+      statedCostHint: "Kung may nakasulat na halaga kada serving sa card, ilagay dito at doon ibabatay ang halaga ng putahe — hindi na kailangang presyuhan muna ang bawat sangkap. Papalitan ito ng totoong halaga mula sa invoice kapag kumpleto na.",
       title: "I-scan ang recipe card",
       scan: "Kunan o mag-upload ng recipe card",
       lead: "Kunan ang card, pahina ng notebook o PDF. Babasahin ang putahe, sangkap at packaging nito para sa iyo.",

@@ -515,5 +515,94 @@ await test("a recipe reviving an archived ingredient does not duplicate it", asy
   assert.strictEqual((await inv.listIngredients("org1", { includeArchived: true })).length, 1);
 });
 
+/* ---- a cost the card stated, rather than one derived ------------ */
+
+/* Cards very often print their own food cost while naming ingredients this
+   system has never bought. Before this such a recipe reported nothing: every
+   line unpriced, coverage zero, margin null — the number was on the page and
+   the software refused to use it. */
+
+await test("a card's own cost is used when the ingredients cannot produce one", async () => {
+  await rc.saveVersion("org1", {
+    menuItem: "Lasagne", portions: 1, yieldPct: 100, sellPrice: 48,
+    statedCostPerPortion: 12.4,
+    lines: [{ name: "Beef ragu", qty: 250, unit: "g" }, { name: "Pasta sheets", qty: 90, unit: "g" }],
+  });
+
+  const out = await rc.costedRecipe("org1", "lasagne", ["b1"]);
+  assert.strictEqual(out.costing.costBasis, "stated");
+  near(out.costing.effectivePerPortion, 12.4);
+  /* The margin quotes the figure the screen quotes. */
+  near(out.margin.cost, 12.4);
+  near(out.margin.profit, 35.6);
+});
+
+await test("a measured cost always beats a stated one", async () => {
+  await seed();
+  await receive("beef-mince", 10, "kg", 40);
+  await receive("burger-bun", 100, "ea", 1);
+  await receive("takeaway-box", 100, "ea", 0.5);
+
+  await rc.saveVersion("org1", burger({ statedCostPerPortion: 99 }));
+  const out = await rc.costedRecipe("org1", "cheeseburger", ["b1"]);
+
+  /* Every line priced from real deliveries, so the card's number is ignored —
+     a declaration is what somebody believed once; the invoices are what the
+     supplier charged this month. */
+  assert.strictEqual(out.costing.costBasis, "measured");
+  near(out.costing.effectivePerPortion, out.costing.perPortion.total);
+  assert.notStrictEqual(out.costing.effectivePerPortion, 99);
+  /* Kept and reported, so the gap between claim and reality stays visible. */
+  near(out.costing.statedPerPortion, 99);
+});
+
+await test("a batch figure off the card is divided by the portions", async () => {
+  /* A card giving one total for four servings means a quarter of it per dish,
+     and reading it as a portion figure would overstate the menu fourfold. */
+  await rc.saveVersion("org1", {
+    menuItem: "Tray bake", portions: 4, yieldPct: 100, sellPrice: 20,
+    statedCostPerBatch: 18.6,
+    lines: [{ name: "Potato", qty: 1, unit: "kg" }],
+  });
+
+  const out = await rc.costedRecipe("org1", "tray-bake", ["b1"]);
+  near(out.costing.statedPerPortion, 4.65);
+  near(out.costing.effectivePerPortion, 4.65);
+});
+
+await test("no card cost and no prices is still an honest gap", async () => {
+  await rc.saveVersion("org1", {
+    menuItem: "Mystery two", portions: 1, yieldPct: 100,
+    lines: [{ name: "Saffron threads", qty: 1, unit: "g" }],
+  });
+
+  const out = await rc.costedRecipe("org1", "mystery-two", ["b1"]);
+  assert.strictEqual(out.costing.costBasis, "partial");
+  assert.strictEqual(out.costing.complete, false);
+  /* Nothing invented to fill the hole. */
+  near(out.costing.effectivePerPortion, 0);
+  assert.strictEqual(out.margin, null);
+});
+
+await test("a stated cost belongs to its version, not to the recipe", async () => {
+  /* A later version with different quantities is a different cost, and a
+     figure that outlived the recipe it described would be worse than none. */
+  const now = Date.now();
+  await rc.saveVersion("org1", {
+    menuItem: "Soup", portions: 1, yieldPct: 100, effectiveFrom: now - 10 * DAY,
+    statedCostPerPortion: 3,
+    lines: [{ name: "Stock base", qty: 200, unit: "ml" }],
+  });
+  await rc.saveVersion("org1", {
+    menuItem: "Soup", portions: 1, yieldPct: 100, effectiveFrom: now - DAY,
+    statedCostPerPortion: 5,
+    lines: [{ name: "Stock base", qty: 300, unit: "ml" }],
+  });
+
+  near((await rc.costedRecipe("org1", "soup", ["b1"], { at: now })).costing.effectivePerPortion, 5);
+  near((await rc.costedRecipe("org1", "soup", ["b1"], { at: now - 5 * DAY })).costing.effectivePerPortion, 3);
+});
+
+
 console.log(failures ? `\n${failures} failed` : "\nall passed");
 process.exit(failures ? 1 : 0);
