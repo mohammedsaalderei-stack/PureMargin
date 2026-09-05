@@ -34,10 +34,27 @@ async function test(name, fn) {
   }
 }
 
+/* When the fixture receipt was rung up.
+
+   It matters, and it used to be a bare literal buried in the payload. Recipes
+   are version-dated and `consumptionOf` picks the version effective at the
+   moment of the sale, so a receipt pinned to a wall-clock instant depletes
+   nothing until a recipe exists that predates it. The seeded recipe was
+   created at `Date.now()`, which was after this instant from 18:20 UTC on 5
+   September 2026 onwards — so three tests here passed for as long as the date
+   was in the future and began failing, permanently, the minute it was not.
+
+   The date stays fixed, because one test asserts exactly how it parses. What
+   changes is that `seed()` now back-dates the recipe to before it, which is
+   also the truthful arrangement: a kitchen writes the recipe first and sells
+   the dish afterwards. */
+const SOLD_AT = "2026-09-05T18:20:00.000Z";
+const RECIPE_WRITTEN_AT = Date.parse(SOLD_AT) - 24 * 60 * 60 * 1000;
+
 /* A Loyverse receipt as the webhook delivers it. */
 const payload = (over = {}) => ({
   receipt_number: "1-1043",
-  created_at: "2026-09-05T18:20:00.000Z",
+  created_at: SOLD_AT,
   store_id: "b1",
   total_money: 64,
   line_items: [
@@ -247,6 +264,11 @@ async function seed() {
   await rc.saveVersion("org1", {
     menuItem: "Cheeseburger Single", portions: 1, sellPrice: 32,
     lines: [{ ingredientId: "beef-mince", qty: 150, unit: "g" }],
+    /* Written before the sale, which is the only order in which a sale can
+       deplete anything. Left at the default it was written at Date.now(),
+       and the fixture receipt is dated to a fixed instant — so the test
+       depended on that instant still being in the future. */
+    effectiveFrom: RECIPE_WRITTEN_AT,
   });
 }
 

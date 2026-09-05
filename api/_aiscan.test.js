@@ -19,6 +19,7 @@
    what can actually arrive. */
 
 import assert from "node:assert/strict";
+import fs from "node:fs";
 import { parseDataUrl, parseAttachments, contentBlock } from "./ai.js";
 
 let failures = 0;
@@ -147,6 +148,80 @@ test("an implausible number of attachments is refused before it is decoded", () 
 test("a bad page in the middle names its own fault", () => {
   const out = parseAttachments({ images: [JPEG_URL, url("application/zip", "PK"), JPEG_URL] });
   assert.equal(out.error, "unsupported");
+});
+
+/* ── The output ceiling ──────────────────────────────────────────────────
+
+   The second failure, found on a real document: a 21 KB, six-page stock
+   report with a perfect text layer, refused as "this document couldn't be
+   read — try a clearer copy".
+
+   Nothing was wrong with it. The schemas in this route are verbose — every
+   purchased line carries its text, quantity, unit, amount, matched ingredient
+   and a five-field newItem — so a line costs roughly sixty tokens to write.
+   The ceiling was two thousand, which is about thirty lines. The document had
+   forty-eight. The model was cut off mid-object, extractJSON threw on the
+   half-written JSON, and running out of room was reported as a file that could
+   not be read.
+
+   These read the constant out of the source rather than importing it: exporting
+   a number only for a test invites somebody to treat it as part of the route's
+   interface. */
+const SOURCE = fs.readFileSync(new URL("./ai.js", import.meta.url), "utf8");
+
+function constant(name) {
+  const m = new RegExp(`const ${name} = ([0-9_]+)`).exec(SOURCE);
+  return m ? Number(m[1].replace(/_/g, "")) : null;
+}
+
+/* One purchased line, as the supplier schema obliges the model to write it. */
+const LINE = JSON.stringify({
+  text: "Beef Tenderloin / Ribeye Steak",
+  qty: 3, unit: "kg", amount: null, ingredient: null,
+  newItem: { name: "Beef tenderloin", stockUnit: "kg", purchaseUnit: "kg", packSize: 1, category: "meat" },
+});
+/* JSON of this shape runs about 3.3 characters to the token. */
+const TOKENS_PER_LINE = LINE.length / 3.3;
+
+test("the model may describe a whole document, not a third of one", () => {
+  const ceiling = constant("MAX_OUTPUT_TOKENS");
+  assert.ok(ceiling, "MAX_OUTPUT_TOKENS is declared");
+
+  /* The document that exposed this: six pages, eight ingredients a page. */
+  const REAL = 48;
+  assert.ok(
+    ceiling > REAL * TOKENS_PER_LINE * 1.3,
+    `${REAL} lines need ~${Math.round(REAL * TOKENS_PER_LINE)} tokens; ceiling is ${ceiling}`,
+  );
+
+  /* With room to spare, because the next document is always longer than the
+     one that made somebody report a bug. */
+  assert.ok(
+    ceiling > 150 * TOKENS_PER_LINE,
+    "a long stock sheet should fit too, not only the one that failed",
+  );
+});
+
+test("running out of room is not the same as failing to read", () => {
+  /* A truncated answer also fails to parse, so checking the parse first would
+     keep reporting the old, wrong thing. The stop reason has to be looked at
+     before the JSON is. */
+  assert.ok(/stop_reason === "max_tokens"/.test(SOURCE), "the route checks why the model stopped");
+  assert.ok(/error: "truncated"/.test(SOURCE), "and says so in its own words");
+
+  const stopAt = SOURCE.indexOf('data.stop_reason === "max_tokens"');
+  const parseAt = SOURCE.indexOf('return res.status(502).json({ error: "parse" })');
+  assert.ok(stopAt > -1 && parseAt > -1 && stopAt < parseAt,
+    "truncation is checked before the parse failure it would be mistaken for");
+});
+
+test("no call site is left on the old ceiling", () => {
+  /* Two request shapes live in this file — the single read and the two-stage
+     auto path — and raising one is the kind of half-fix that leaves the bug
+     alive on whichever route nobody happened to try. */
+  const used = [...SOURCE.matchAll(/max_tokens: ([A-Za-z_0-9]+)/g)].map((m) => m[1]);
+  assert.ok(used.length >= 2, `expected both call sites, found ${used.length}`);
+  for (const v of used) assert.equal(v, "MAX_OUTPUT_TOKENS", `a call site still hardcodes ${v}`);
 });
 
 test("a document and an image become different content blocks", () => {

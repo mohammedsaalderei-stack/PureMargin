@@ -113,6 +113,8 @@ const S = {
   pdfFailed: "the document could not be read",
   failed: "the photo could not be read, try better light",
   tooMuch: "too much to read at once, send fewer pages",
+  unexpected: "came back in a form we could not use",
+  aiDown: "the reader did not answer",
 };
 
 test("the platform's own 413 is answered in pages, not megabytes", () => {
@@ -139,13 +141,41 @@ test("each refusal says what it is", () => {
   assert.equal(scanErrorMessage(S, { error: "toolarge", limitMb: 5 }), "too big, 5 MB is the limit");
 });
 
+test("a document with more on it than fits says so", () => {
+  /* The 21 KB six-page stock report. The model ran out of output room around
+     line thirty-two of forty-eight, the half-written JSON failed to parse, and
+     the screen said the document couldn't be read and to find a clearer copy —
+     of a file whose text layer was perfect. Both halves of that are answered
+     here: the ceiling is raised in the route, and if a document ever does
+     exceed it the wording sends somebody to split it rather than to rescan it. */
+  assert.equal(scanErrorMessage(S, { error: "truncated", isPdf: true }), S.tooMuch);
+  assert.ok(!scanErrorMessage(S, { error: "truncated", isPdf: true }).includes("light"));
+});
+
+test("our own faults are not blamed on the document", () => {
+  /* "parse" means the model answered in a shape we could not use, and "ai"
+     means it did not answer at all. Neither says anything about the file, and
+     both used to arrive as "try a clearer copy" — which is how a document that
+     scanned perfectly gets rescanned four times. */
+  assert.equal(scanErrorMessage(S, { error: "parse", isPdf: true }), S.unexpected);
+  assert.equal(scanErrorMessage(S, { error: "parse", isPdf: false }), S.unexpected);
+  assert.equal(scanErrorMessage(S, { error: "ai", isPdf: true }), S.aiDown);
+  assert.equal(scanErrorMessage(S, { error: "noai", isPdf: false }), S.aiDown);
+  for (const code of ["parse", "ai", "noai", "truncated"]) {
+    const msg = scanErrorMessage(S, { error: code, isPdf: false });
+    assert.ok(!msg.includes("light"), `${code} must not mention the lighting`);
+  }
+});
+
 test("only a photograph is ever told about the light", () => {
-  assert.equal(scanErrorMessage(S, { error: "ai", isPdf: true }), S.pdfFailed);
-  assert.equal(scanErrorMessage(S, { error: "ai", isPdf: false }), S.failed);
   assert.equal(scanErrorMessage(S, { error: "photo", isPdf: false }), S.failed);
   /* A file that is not an image and not a PDF is a wrong type, not a dark
      room — a .docx does not improve under a lamp. */
   assert.equal(scanErrorMessage(S, { error: "unsupported", isPdf: false }), S.unsupported);
+  /* The fallback stays: an unrecognised code on a photograph may genuinely be
+     a bad photograph, and on a document it never is. */
+  assert.equal(scanErrorMessage(S, { error: "something-new", isPdf: true }), S.pdfFailed);
+  assert.equal(scanErrorMessage(S, { error: "something-new", isPdf: false }), S.failed);
 });
 
 test("an unrecognised code still produces a sentence", () => {

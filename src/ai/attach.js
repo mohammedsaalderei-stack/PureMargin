@@ -277,6 +277,18 @@ export function scanErrorMessage(s, { status, error, limitMb, isPdf } = {}) {
     case "unsupported": return s.unsupported;
     case "unreadable": return s.unreadable;
     case "photo": return s.failed;
+    /* The model ran out of room before it ran out of document. Same answer as
+       the platform's 413, because it is the same thing from the far end: there
+       was more here than one reading holds, and fewer pages fixes it. */
+    case "truncated": return s.tooMuch;
+    /* The model answered, but not in a shape we could use. That is a fault at
+       our end or a bad roll, not a fault of the document — telling somebody to
+       find a clearer copy of a file that scanned perfectly is how a working
+       document ends up being rescanned four times. */
+    case "parse": return s.unexpected;
+    /* No answer at all: the API refused or was down. Nothing about the file. */
+    case "ai": return s.aiDown;
+    case "noai": return s.aiDown;
     default: return isPdf ? s.pdfFailed : s.failed;
   }
 }

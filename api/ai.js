@@ -63,6 +63,29 @@ const MAX_UPLOAD_BYTES = Math.floor(4.5 * 1024 * 1024);
    request, so it can only ever catch a hand-made payload. */
 const MAX_ATTACHMENTS = 60;
 
+/* How much the model is allowed to write back.
+
+   This was 2000, and 2000 was not enough to describe a document of any size.
+   The schemas here are verbose by design — every purchased line carries its
+   text, quantity, unit, amount, the ingredient it matched, and a five-field
+   `newItem` for when it matched nothing — which runs about 200 characters, or
+   60 tokens, per line. Two thousand tokens is therefore roughly thirty lines.
+
+   A six-page stock report with eight ingredients a page needs about 2,900. The
+   model was cut off around line thirty-two, mid-object; `extractJSON` found an
+   opening brace and a closing one belonging to a half-written `newItem`, threw,
+   and the route answered "parse". The screen turned that into "this document
+   couldn't be read — try a clearer copy", about a 21 KB PDF with a perfect text
+   layer. Nothing about the document was wrong and nothing the reader could do
+   would have helped.
+
+   Sixteen thousand covers roughly two hundred lines, which is more than any
+   invoice or stock sheet anybody photographs. It costs nothing to raise: output
+   is billed per token produced, not per token allowed. Past that the answer is
+   truncation — detected below and named, rather than left to look like an
+   unreadable file. */
+const MAX_OUTPUT_TOKENS = 16000;
+
 /* What can be scanned.
 
    Photographs were the only accepted input, which assumed every bill and every
@@ -388,7 +411,11 @@ export default async function handler(req, res) {
     else if (kind === "inventory") prompt = inventoryPrompt(langNote);
 
     /* One request to the model, so the two-stage `auto` path below can ask
-       twice without a second copy of the request shape drifting from this one. */
+       twice without a second copy of the request shape drifting from this one.
+
+       Returns `{ json }` on success, or `{ error }` naming what went wrong, so
+       a document the model ran out of room on is not reported as a document it
+       could not read. */
     async function askModel(text) {
       const res = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
@@ -399,17 +426,22 @@ export default async function handler(req, res) {
         },
         body: JSON.stringify({
           model: MODEL,
-          max_tokens: 2000,
+          max_tokens: MAX_OUTPUT_TOKENS,
           temperature: 0,
           messages: [{ role: "user", content: [...files.map(contentBlock), { type: "text", text }] }],
         }),
       });
       if (!res.ok) {
         console.error("AI call failed:", res.status, (await res.text().catch(() => "")).slice(0, 300));
-        return null;
+        return { error: "ai" };
       }
       const body = await res.json();
-      return extractJSON((body.content || []).map((c) => c.text || "").join("\n"));
+      if (body.stop_reason === "max_tokens") {
+        console.error("ai analysis truncated: document needs more than", MAX_OUTPUT_TOKENS, "tokens");
+        return { error: "truncated" };
+      }
+      const json = extractJSON((body.content || []).map((c) => c.text || "").join("\n"));
+      return json ? { json } : { error: "parse" };
     }
 
     /* Drop a document in and have it land where it belongs.
@@ -425,9 +457,9 @@ export default async function handler(req, res) {
        read as a customer bill produces a confident page of wrong numbers. */
     if (kind === "auto") {
       const sorted = await askModel(classifyPrompt(langNote));
-      if (!sorted) { await refundScan(spend); return res.status(502).json({ error: "ai" }); }
+      if (sorted.error) { await refundScan(spend); return res.status(502).json({ error: sorted.error }); }
 
-      const verdict = normaliseVerdict(sorted);
+      const verdict = normaliseVerdict(sorted.json);
       const scope = account ? await scopeFor(account, []) : null;
       const route = routeFor(verdict.kind, scope?.capabilities || []);
 
@@ -444,9 +476,10 @@ export default async function handler(req, res) {
         recipe: (note) => recipePrompt(note, stockForMatching),
         inventory: inventoryPrompt,
       };
-      const raw = await askModel(prompts[verdict.kind](langNote));
-      if (!raw) { await refundScan(spend); return res.status(502).json({ error: "parse" }); }
+      const read = await askModel(prompts[verdict.kind](langNote));
+      if (read.error) { await refundScan(spend); return res.status(502).json({ error: read.error }); }
 
+      const raw = read.json;
       let extracted = raw;
       if (verdict.kind === "supplier") extracted = await matchPurchase(org?.id, raw);
       else if (verdict.kind === "recipe") extracted = await matchRecipe(org?.id, raw);
@@ -467,7 +500,7 @@ export default async function handler(req, res) {
       },
       body: JSON.stringify({
         model: MODEL,
-        max_tokens: 2000,
+        max_tokens: MAX_OUTPUT_TOKENS,
         /* Reading a bill has one right answer. At the default temperature the
            same photo produced different numbers on consecutive scans, which is
            indistinguishable from the feature being broken. */
@@ -495,6 +528,21 @@ export default async function handler(req, res) {
     }
 
     const data = await upstream.json();
+
+    /* The model ran out of room rather than out of document.
+
+       Checked before the JSON is parsed, because a truncated answer fails to
+       parse and the two are not the same thing: "there was more here than
+       fitted in one reading" is something a person can act on by sending fewer
+       pages, and it is the honest description of what happened. Left as a parse
+       failure it surfaced as "this document couldn't be read, try a clearer
+       copy" — sending somebody to re-scan a file that was never the problem. */
+    if (data.stop_reason === "max_tokens") {
+      console.error("ai analysis truncated:", kind, "needs more than", MAX_OUTPUT_TOKENS, "tokens");
+      await refundScan(spend);
+      return res.status(502).json({ error: "truncated" });
+    }
+
     const text = (data.content || []).map((b) => b.text || "").join("");
     const parsed = extractJSON(text);
     if (!parsed) {
