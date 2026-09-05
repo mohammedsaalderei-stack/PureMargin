@@ -5,6 +5,22 @@ import { ADMIN_STRINGS } from "./i18n-admin.js";
    Arabic is written for a Gulf business audience: plain, direct, no formal padding. */
 export const STRINGS = {
   en: {
+    deliveries: {
+      title: "Live from the till",
+      liveNow: "Receiving",
+      quietFor: "Nothing for {minutes} min",
+      waitingShort: "Not receiving",
+      offShort: "Not set up",
+      deducted: "Stock deducted · {n} ingredients",
+      norecipe: "Nothing deducted — no recipe for {names}",
+      theseItems: "these items",
+      andMore: "and {n} more",
+      emptyOff: "Live sales are not set up yet.",
+      emptyWaiting: "Nothing has arrived yet.",
+      emptyQuiet: "No sales have come in recently.",
+      emptyHow: "Settings → Point of sale has the link to add in Loyverse.",
+      outcomes: { duplicate: "Already counted", refund: "A refund — stock unchanged", cancelled: "Cancelled — stock unchanged", disabled: "Automatic deduction is off", nostore: "No branch on the receipt", deducted: "Stock deducted", norecipe: "Nothing deducted" },
+    },
     dir: "ltr",
     name: "PureMargin",
     tagline: "Know what you actually keep",
@@ -1673,6 +1689,22 @@ export const STRINGS = {
   },
 
   ar: {
+    deliveries: {
+      title: "الوارد مباشرة من الكاشير",
+      liveNow: "يستقبل",
+      quietFor: "لا شيء منذ {minutes} دقيقة",
+      waitingShort: "لا يستقبل",
+      offShort: "غير مُعد",
+      deducted: "خُصم المخزون · {n} مكوّنات",
+      norecipe: "لم يُخصم شيء — لا توجد وصفة لـ {names}",
+      theseItems: "هذه الأصناف",
+      andMore: "و{n} غيرها",
+      emptyOff: "لم تُفعّل المبيعات الفورية بعد.",
+      emptyWaiting: "لم يصل شيء حتى الآن.",
+      emptyQuiet: "لم ترد مبيعات مؤخرًا.",
+      emptyHow: "الإعدادات ← نظام نقاط البيع فيه الرابط لإضافته في Loyverse.",
+      outcomes: { duplicate: "محسوبة مسبقًا", refund: "مرتجع — لا يتغيّر المخزون", cancelled: "ملغاة — لا يتغيّر المخزون", disabled: "الخصم التلقائي متوقف", nostore: "لا يوجد فرع في الفاتورة", deducted: "خُصم المخزون", norecipe: "لم يُخصم شيء" },
+    },
     dir: "rtl",
     name: "PureMargin",
     tagline: "اعرف ما يبقى لك فعلًا",
@@ -3341,6 +3373,22 @@ export const STRINGS = {
   },
 
   hi: {
+    deliveries: {
+      title: "टिल से लाइव",
+      liveNow: "आ रहा है",
+      quietFor: "{minutes} मिनट से कुछ नहीं",
+      waitingShort: "कुछ नहीं आ रहा",
+      offShort: "सेट नहीं है",
+      deducted: "स्टॉक घटाया · {n} सामग्री",
+      norecipe: "कुछ नहीं घटा — {names} की रेसिपी नहीं है",
+      theseItems: "ये आइटम",
+      andMore: "और {n}",
+      emptyOff: "लाइव बिक्री अभी सेट नहीं है।",
+      emptyWaiting: "अभी तक कुछ नहीं आया।",
+      emptyQuiet: "हाल में कोई बिक्री नहीं आई।",
+      emptyHow: "सेटिंग्स → पॉइंट ऑफ़ सेल में Loyverse में जोड़ने का लिंक है।",
+      outcomes: { duplicate: "पहले ही गिना गया", refund: "रिफ़ंड — स्टॉक अपरिवर्तित", cancelled: "रद्द — स्टॉक अपरिवर्तित", disabled: "स्वचालित कटौती बंद है", nostore: "रसीद पर कोई शाखा नहीं", deducted: "स्टॉक घटाया", norecipe: "कुछ नहीं घटा" },
+    },
     dir: "ltr",
     name: "PureMargin",
     wordmark: "PureMargin",
@@ -5026,6 +5074,22 @@ export const STRINGS = {
      through withFallback below. That is a visible gap, and a smaller lie than
      machine-translating a thousand lines of advisory prose nobody has read. */
   ur: {
+    deliveries: {
+      title: "کاؤنٹر سے براہِ راست",
+      liveNow: "موصول ہو رہا ہے",
+      quietFor: "{minutes} منٹ سے کچھ نہیں",
+      waitingShort: "کچھ نہیں آ رہا",
+      offShort: "ترتیب نہیں دیا",
+      deducted: "اسٹاک کم ہوا · {n} اجزاء",
+      norecipe: "کچھ کم نہیں ہوا — {names} کی ریسیپی نہیں",
+      theseItems: "یہ اشیاء",
+      andMore: "اور {n}",
+      emptyOff: "فوری فروخت ابھی ترتیب نہیں دی گئی۔",
+      emptyWaiting: "ابھی تک کچھ نہیں آیا۔",
+      emptyQuiet: "حال ہی میں کوئی فروخت نہیں آئی۔",
+      emptyHow: "ترتیبات ← پوائنٹ آف سیل میں Loyverse میں شامل کرنے کا لنک ہے۔",
+      outcomes: { duplicate: "پہلے ہی شمار", refund: "ریفنڈ — اسٹاک وہی", cancelled: "منسوخ — اسٹاک وہی", disabled: "خودکار کٹوتی بند ہے", nostore: "رسید پر کوئی برانچ نہیں", deducted: "اسٹاک کم ہوا", norecipe: "کچھ کم نہیں ہوا" },
+    },
     inventory: {
       resetMismatch: "لفظ نہیں ملا، اس لیے کچھ نہیں مٹا۔",
       resetOwnerOnly: "اسٹاک صرف اکاؤنٹ کا مالک مٹا سکتا ہے۔",
@@ -6842,6 +6906,22 @@ export const STRINGS = {
   },
 
   tl: {
+    deliveries: {
+      title: "Live mula sa till",
+      liveNow: "Tumatanggap",
+      quietFor: "Wala nang {minutes} min",
+      waitingShort: "Walang natatanggap",
+      offShort: "Hindi pa naka-set",
+      deducted: "Nabawas ang stock · {n} sangkap",
+      norecipe: "Walang nabawas — walang recipe ang {names}",
+      theseItems: "mga item na ito",
+      andMore: "at {n} pa",
+      emptyOff: "Hindi pa naka-set ang live na benta.",
+      emptyWaiting: "Wala pang dumarating.",
+      emptyQuiet: "Walang benta kamakailan.",
+      emptyHow: "Nasa Settings → Point of sale ang link na idaragdag sa Loyverse.",
+      outcomes: { duplicate: "Nabilang na", refund: "Refund — walang pagbabago sa stock", cancelled: "Kansela — walang pagbabago sa stock", disabled: "Naka-off ang awtomatikong pagbawas", nostore: "Walang branch sa resibo", deducted: "Nabawas ang stock", norecipe: "Walang nabawas" },
+    },
     dir: "ltr",
     name: "PureMargin",
     wordmark: "PureMargin",

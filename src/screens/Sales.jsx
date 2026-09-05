@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Receipt, Loader2, Pencil, AlertTriangle, Ban } from "lucide-react";
 import SaleEditDialog from "../sales/SaleEditDialog.jsx";
+import Deliveries from "../sales/Deliveries.jsx";
 import { useC } from "../theme.jsx";
 import { useLang, fill, localeFor } from "../i18n.jsx";
 import { Money } from "../Dirham.jsx";
@@ -157,6 +158,18 @@ export default function Sales({ token, branches = [] }) {
             <Receipt size={18} style={{ color: C.iris }} /> {s.title}
           </h2>
           <p className="text-sm mt-1" style={{ color: C.slate }}>{s.lead}</p>
+        </div>
+
+        {/* What the webhook brought in, above what the till holds.
+
+            Two lists rather than one, because they answer different questions
+            and neither can be derived from the other: this one is the
+            integration — did it fire, and what did each delivery do to stock —
+            and the one below is the business, everything the till has whether
+            it reached us live or not. */}
+        <Deliveries token={token} branches={branches} />
+
+        <div>
         </div>
 
         <div className="flex gap-1.5">

@@ -40,6 +40,7 @@ import {
 import { depleteFromSales, postedIds } from "./_salesdepletion.js";
 import { getMeta } from "./_inventory.js";
 import { recordAudit } from "./_audit.js";
+import { recordDeliveries } from "./_receiptlog.js";
 
 export default async function handler(req, res) {
   res.setHeader("Cache-Control", "no-store");
@@ -97,13 +98,30 @@ export default async function handler(req, res) {
        stores, so they are grouped and each store's batch posted together. */
     const byStore = new Map();
     const skipped = [];
+
+    /* The delivery log for this notification. Built alongside the deduction
+       rather than after it, because the outcome is the part worth keeping and
+       it is only knowable here. */
+    const receivedAt = Date.now();
+    const log = [];
+    const entryOf = (r) => ({
+      receiptNumber: r.id,
+      branchId: r.branchId,
+      at: r.at,
+      receivedAt,
+      total: r.total,
+      lines: r.lines.map((l) => ({ name: l.name, qty: l.qty })),
+    });
     for (const receipt of parsed.receipts) {
       if (!receipt.branchId || receipt.branchId === "unknown") {
         skipped.push({ receipt_number: receipt.id, reason: "no_store" });
+        log.push({ ...entryOf(receipt), outcome: "nostore" });
         continue;
       }
       if (!drawsStock(receipt)) {
-        skipped.push({ receipt_number: receipt.id, reason: receipt.cancelledAt ? "cancelled" : "refund" });
+        const why = receipt.cancelledAt ? "cancelled" : "refund";
+        skipped.push({ receipt_number: receipt.id, reason: why });
+        log.push({ ...entryOf(receipt), outcome: why });
         continue;
       }
       if (!byStore.has(receipt.branchId)) byStore.set(receipt.branchId, []);
@@ -125,6 +143,12 @@ export default async function handler(req, res) {
        different places — so this is acknowledged rather than refused. */
     const meta = await getMeta(orgId);
     if (meta.stockSource === "pos" || !meta.autoDepleteFromSales) {
+      /* Still logged. The delivery arrived and is proof the integration
+         works; what did not happen is the deduction, and saying which is the
+         whole reason this log exists. */
+      await recordDeliveries(orgId, parsed.receipts.map((r) => ({
+        ...entryOf(r), outcome: "disabled",
+      })));
       return res.status(200).json({ status: "depletion_disabled", received: parsed.receipts.length });
     }
 
@@ -138,6 +162,9 @@ export default async function handler(req, res) {
          say so, though `depleteFromSales` would refuse them anyway. */
       const seen = await postedIds(orgId, branchId);
       const fresh = receipts.filter((r) => !seen.has(r.id));
+      for (const r of receipts) {
+        if (seen.has(r.id)) log.push({ ...entryOf(r), outcome: "duplicate" });
+      }
       if (!fresh.length) continue;
 
       const out = await depleteFromSales(orgId, branchId, fresh, {
@@ -147,6 +174,20 @@ export default async function handler(req, res) {
       posted += out.posted;
       movements += out.movements;
       for (const name of out.unmatched) unmatched.add(name);
+
+      /* One entry per receipt, carrying the batch's outcome. A batch either
+         found recipes or it did not, and splitting the movement count across
+         receipts would be arithmetic nobody asked for — the count is the
+         batch's, the dishes with no recipe are named, and that is what makes
+         a quiet stock balance explainable. */
+      for (const r of fresh) {
+        log.push({
+          ...entryOf(r),
+          outcome: out.movements > 0 ? "deducted" : "norecipe",
+          movements: out.movements,
+          unmatched: out.unmatched,
+        });
+      }
 
       if (out.movements) {
         await recordAudit(orgId, {
@@ -162,6 +203,8 @@ export default async function handler(req, res) {
         });
       }
     }
+
+    await recordDeliveries(orgId, log);
 
     return res.status(200).json({
       success: true,
