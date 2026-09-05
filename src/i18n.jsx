@@ -1413,6 +1413,10 @@ export const STRINGS = {
     },
 
     aiscan: {
+      pdfFailed: "That document couldn't be read. If it is a scan of a photo, try a clearer copy.",
+      tooLarge: "That file is too big — {mb} MB is the limit. Try a smaller copy or fewer pages.",
+      unsupported: "That file type can't be read. Send a photo or a PDF.",
+      unreadable: "That file couldn't be opened. Try sending it again.",
       pdfReady: "Document ready to read",
       quotaLeft: "{n} scans left this month",
       quotaOut: "You've used all 100 scans this month. The allowance resets on the 1st.",
@@ -3097,6 +3101,10 @@ export const STRINGS = {
     },
 
     aiscan: {
+      pdfFailed: "تعذّرت قراءة هذا المستند. إن كان صورة ممسوحة، جرّب نسخة أوضح.",
+      tooLarge: "الملف كبير جدًا — الحد {mb} ميجابايت. جرّب نسخة أصغر أو صفحات أقل.",
+      unsupported: "لا يمكن قراءة هذا النوع من الملفات. أرسل صورة أو ملف PDF.",
+      unreadable: "تعذّر فتح الملف. حاول إرساله مرة أخرى.",
       pdfReady: "المستند جاهز للقراءة",
       quotaLeft: "بقيت {n} عمليات مسح هذا الشهر",
       quotaOut: "استُهلكت المئة عملية مسح لهذا الشهر. تتجدّد في الأول من الشهر.",
@@ -4777,6 +4785,10 @@ export const STRINGS = {
     },
 
     aiscan: {
+      pdfFailed: "यह दस्तावेज़ पढ़ा नहीं जा सका। अगर यह फ़ोटो का स्कैन है, तो साफ़ प्रति भेजें।",
+      tooLarge: "फ़ाइल बहुत बड़ी है — सीमा {mb} MB है। छोटी प्रति या कम पन्ने भेजें।",
+      unsupported: "यह फ़ाइल प्रकार पढ़ा नहीं जा सकता। फ़ोटो या PDF भेजें।",
+      unreadable: "फ़ाइल खोली नहीं जा सकी। दोबारा भेजें।",
       pdfReady: "दस्तावेज़ पढ़ने के लिए तैयार",
       quotaLeft: "इस महीने {n} स्कैन बचे हैं",
       quotaOut: "इस महीने के सभी 100 स्कैन हो चुके। अगली पहली तारीख को नए मिलेंगे।",
@@ -6126,6 +6138,10 @@ export const STRINGS = {
       pickTabs: "ٹیبز",
     },
     aiscan: {
+      pdfFailed: "یہ دستاویز پڑھی نہیں جا سکی۔ اگر یہ تصویر کا اسکین ہے تو صاف نقل بھیجیں۔",
+      tooLarge: "فائل بہت بڑی ہے — حد {mb} MB ہے۔ چھوٹی نقل یا کم صفحات بھیجیں۔",
+      unsupported: "اس قسم کی فائل نہیں پڑھی جا سکتی۔ تصویر یا PDF بھیجیں۔",
+      unreadable: "فائل کھولی نہیں جا سکی۔ دوبارہ بھیجیں۔",
       quotaLeft: "اس مہینے {n} اسکین باقی",
       quotaOut: "اس مہینے کے سو اسکین مکمل ہو چکے۔ اجازت مہینے کی پہلی تاریخ کو تازہ ہوتی ہے۔",
       pdfReady: "دستاویز پڑھنے کے لیے تیار",
@@ -8310,6 +8326,10 @@ export const STRINGS = {
     },
 
     aiscan: {
+      pdfFailed: "Hindi nabasa ang dokumento. Kung scan ito ng litrato, subukan ang mas malinaw na kopya.",
+      tooLarge: "Masyadong malaki ang file — {mb} MB ang limitasyon. Subukan ang mas maliit o mas kaunting pahina.",
+      unsupported: "Hindi mababasa ang uri ng file na ito. Magpadala ng litrato o PDF.",
+      unreadable: "Hindi nabuksan ang file. Subukang ipadala ulit.",
       pdfReady: "Handa nang basahin ang dokumento",
       quotaLeft: "{n} scan na lang ngayong buwan",
       quotaOut: "Naubos na ang 100 scan ngayong buwan. Magre-reset sa ika-1.",

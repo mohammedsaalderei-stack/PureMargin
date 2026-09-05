@@ -43,7 +43,14 @@ import { classifyPrompt, normaliseVerdict, routeFor } from "./_docroute.js";
 /* Overridable without a deploy, so a model rename doesn't take the scanner
    down until somebody ships a commit. */
 const MODEL = process.env.ANTHROPIC_MODEL || "claude-sonnet-4-5";
+/* A photograph is downscaled to 1600px in the browser before it is sent, so
+   eight megabytes is generous for one. A PDF is not downscaled — it is sent
+   whole, deliberately, because its text layer is what makes it more accurate
+   than a photograph of the same page — and a scanned multi-page invoice is
+   routinely bigger than that. One cap for both meant those were refused, and
+   refused with a message about lighting. */
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+const MAX_PDF_BYTES = 20 * 1024 * 1024;
 
 /* What can be scanned.
 
@@ -60,17 +67,49 @@ const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 const IMAGE_TYPES = /^image\/(?:jpeg|png|webp|gif)$/;
 const PDF_TYPE = "application/pdf";
 
+/* Returns the file, or why it was refused.
+
+   It used to return null for every rejection — malformed, wrong type, too
+   big — and the route turned all three into one `{ error: "image" }`, which
+   the screen rendered as "the photo couldn't be read, try again in better
+   light". Told that about a PDF, somebody reasonably concludes the feature is
+   broken: there is no lighting to improve, and nothing on screen suggests the
+   file was simply too large or the wrong kind.
+
+   ── Sniffing the bytes, not trusting the label ─────────────────────────
+
+   A PDF whose media type says something else is still a PDF, and browsers are
+   inconsistent about labelling: several Android file pickers hand over a
+   document with an empty `type`, which becomes `application/octet-stream` by
+   the time it arrives here. Every one of those was refused.
+
+   The first bytes of a PDF are "%PDF-", by specification. That is
+   authoritative in a way the label is not, so it is checked first and the
+   declared type is only a fallback. */
 export function parseDataUrl(url) {
   const m = /^data:([a-z]+\/[a-z0-9.+-]+);base64,(.+)$/i.exec(String(url || ""));
-  if (!m) return null;
+  if (!m) return { error: "unreadable" };
 
-  const mediaType = m[1].toLowerCase();
+  const declared = m[1].toLowerCase();
   const data = m[2];
-  if (Buffer.byteLength(data, "base64") > MAX_IMAGE_BYTES) return null;
+  const bytes = Buffer.byteLength(data, "base64");
 
-  if (IMAGE_TYPES.test(mediaType)) return { kind: "image", mediaType, data };
-  if (mediaType === PDF_TYPE) return { kind: "document", mediaType, data };
-  return null;
+  /* "%PDF" is 0x25 0x50 0x44 0x46, and those four bytes always encode to
+     "JVBERi" whatever follows them. Cheaper and safer than decoding twenty
+     megabytes of string to look at the first four bytes of it. */
+  const isPdf = data.startsWith("JVBERi") || declared === PDF_TYPE;
+
+  if (isPdf) {
+    if (bytes > MAX_PDF_BYTES) return { error: "toolarge", limitMb: MAX_PDF_BYTES / 1048576 };
+    return { kind: "document", mediaType: PDF_TYPE, data };
+  }
+
+  if (IMAGE_TYPES.test(declared)) {
+    if (bytes > MAX_IMAGE_BYTES) return { error: "toolarge", limitMb: MAX_IMAGE_BYTES / 1048576 };
+    return { kind: "image", mediaType: declared, data };
+  }
+
+  return { error: "unsupported", declared };
 }
 
 /* The content block this file becomes in the request. A document and an image
@@ -262,7 +301,12 @@ export default async function handler(req, res) {
 
   const { kind, image, lang } = req.body || {};
   const file = parseDataUrl(image);
-  if (!file) return res.status(400).json({ error: "image" });
+  /* Named rather than collapsed: "too big" and "not a kind we read" need
+     different things from the person holding the file, and neither of them is
+     better lighting. */
+  if (file.error) {
+    return res.status(400).json({ error: file.error, limitMb: file.limitMb });
+  }
   if (!["inventory", "supplier", "recipe", "classify", "auto"].includes(kind)) return res.status(400).json({ error: "kind" });
 
   try {

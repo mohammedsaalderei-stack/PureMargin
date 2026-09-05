@@ -25,8 +25,26 @@ function readAsDataUrl(file) {
   });
 }
 
+/* Whether this is a PDF, decided by looking at it.
+
+   `file.type` was the only test, and several Android pickers hand over a
+   document with that field empty. Such a file went down the photograph path,
+   `createImageBitmap` threw on it, and the screen said the photo could not be
+   read and to try better light — about a PDF, which has none.
+
+   The first five bytes of a PDF are "%PDF-", by specification. The declared
+   type and the file extension are kept as fallbacks, but the bytes decide. */
+async function looksLikePdf(file) {
+  if (file.type === "application/pdf") return true;
+  try {
+    const head = new Uint8Array(await file.slice(0, 5).arrayBuffer());
+    if (String.fromCharCode(...head) === "%PDF-") return true;
+  } catch { /* unreadable slice — fall through to the name */ }
+  return String(file.name || "").toLowerCase().endsWith(".pdf");
+}
+
 async function toDataUrl(file, maxDim = 1600) {
-  if (file.type === "application/pdf") return readAsDataUrl(file);
+  if (await looksLikePdf(file)) return readAsDataUrl(file);
   const bitmap = await createImageBitmap(file);
   const scale = Math.min(1, maxDim / Math.max(bitmap.width, bitmap.height));
   const canvas = document.createElement("canvas");
@@ -43,6 +61,10 @@ export default function PhotoScan({ token, kind, onResult, buttonLabel }) {
   const inputRef = useRef(null);
   const [preview, setPreview] = useState("");
   const [fileName, setFileName] = useState("");
+  /* Follows the sniff rather than the data URL: a PDF handed over with an
+     empty type becomes application/octet-stream, and keying the preview off
+     that rendered a broken image icon over a file that was perfectly fine. */
+  const [previewIsPdf, setPreviewIsPdf] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   /* Read on open, which costs nothing: GET reports the allowance without
@@ -60,7 +82,14 @@ export default function PhotoScan({ token, kind, onResult, buttonLabel }) {
   async function analyze(file) {
     setBusy(true);
     setError("");
+    /* Held so a failure can be described in the right terms. A photograph
+       that cannot be read may genuinely need better light; a document never
+       does, and saying so is what makes the difference between a hint and a
+       dead end. */
+    let isPdf = false;
     try {
+      isPdf = await looksLikePdf(file);
+      setPreviewIsPdf(isPdf);
       const image = await toDataUrl(file);
       setPreview(image);
       setFileName(file?.name || "");
@@ -71,11 +100,20 @@ export default function PhotoScan({ token, kind, onResult, buttonLabel }) {
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
-        /* A spent allowance is not a failure of the photo, and saying "the
-           photo couldn't be read" would send somebody outside to retake it. */
-        setError(json.error === "locked" ? s.locked
-          : json.error === "quota" ? s.quotaOut
-          : s.failed);
+        /* Every refusal used to read "the photo couldn't be read, try again
+           in better light". A spent allowance is not a failure of the photo,
+           a file that is too big is not either, and neither is a PDF — being
+           told to improve the lighting on a document reads as the feature
+           being broken. Each says what it actually is. */
+        setError(
+          json.error === "locked" ? s.locked
+            : json.error === "quota" ? s.quotaOut
+              : json.error === "toolarge" ? fill(s.tooLarge, { mb: json.limitMb || 20 })
+                : json.error === "unsupported" ? s.unsupported
+                  : json.error === "unreadable" ? s.unreadable
+                    : isPdf ? s.pdfFailed
+                      : s.failed,
+        );
         if (json.error === "quota") setScans({ left: 0 });
         return;
       }
@@ -84,7 +122,7 @@ export default function PhotoScan({ token, kind, onResult, buttonLabel }) {
          it is a proposal about stock, not part of what the photo said. */
       onResult(json.result, image, json.depletion || null);
     } catch {
-      setError(s.failed);
+      setError(isPdf ? s.pdfFailed : s.failed);
     } finally {
       setBusy(false);
     }
@@ -121,7 +159,7 @@ export default function PhotoScan({ token, kind, onResult, buttonLabel }) {
         <div className="mb-3 relative rounded-xl overflow-hidden" style={{ border: `1px solid ${C.hairline}` }}>
           {/* A PDF has nothing to show in an <img>, and a broken image icon
               reads as the upload having failed. Name the file instead. */}
-          {preview.startsWith("data:application/pdf")
+          {previewIsPdf
             ? (
               <div className="flex items-center gap-2 px-3 py-4 text-sm"
                 style={{ opacity: busy ? 0.5 : 1, color: C.slate }}>
