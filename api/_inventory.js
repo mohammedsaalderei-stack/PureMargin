@@ -20,7 +20,7 @@
 
 import { getJSON, setJSON, del } from "./_store.js";
 import { isUnit, dimensionOf, UNITS, convert as convertUnits } from "./_units.js";
-import { resolveUnit } from "./_unitwords.js";
+import { resolveUnit, normaliseUnit } from "./_unitwords.js";
 import { normaliseText } from "./_text.js";
 import { resetAliases } from "./_aliases.js";
 
@@ -253,7 +253,7 @@ export async function saveIngredient(orgId, input) {
    `created` is returned so callers can tell somebody what happened. A recipe
    that quietly conjures six ingredients is doing the right thing, but it should
    still say it did. */
-export async function ensureIngredient(orgId, { name, unit, estimatedCostPerBase, category }) {
+export async function ensureIngredient(orgId, { name, unit, estimatedCostPerBase, category, purchaseUnit, packSize }) {
   const wanted = String(name || "").trim();
   const id = slug(wanted);
   if (!id) return { error: "name" };
@@ -271,6 +271,10 @@ export async function ensureIngredient(orgId, { name, unit, estimatedCostPerBase
     if (!(existing.estimatedCostPerBase > 0) && Number(estimatedCostPerBase) > 0) {
       patch.estimatedCostPerBase = Number(estimatedCostPerBase);
     }
+    /* A blank filled in, never a value replaced. */
+    if (!String(existing.category || "").trim() && String(category || "").trim()) {
+      patch.category = String(category).trim();
+    }
     if (!Object.keys(patch).length) return { ingredient: existing, created: false };
 
     map[id] = { ...existing, ...patch, updatedAt: Date.now() };
@@ -284,9 +288,30 @@ export async function ensureIngredient(orgId, { name, unit, estimatedCostPerBase
      correctable on the item, where a refused save would not have been. */
   const stockUnit = isUnit(unit) ? unit : "g";
 
+  /* How the supplier sells it, where the scan could tell — only ever on a
+     genuinely new ingredient, since an existing one already has an answer
+     somebody either chose or lived with.
+
+     Dropped rather than refused when it is not a unit this ledger keeps. The
+     scanner proposes whatever the invoice printed, which for a supplier who
+     sells by the carton is "Carton" — and `validateIngredient` rightly refuses
+     that as a purchase unit, which used to sink the whole record. The
+     ingredient was then never created, so its line was skipped, so a delivery
+     reported "47 of 48 recorded" about a line nothing was wrong with.
+
+     The packaging word is a label, and losing it costs nothing: how many go in
+     one package is `packSize`, which is the part that means anything, and the
+     screen already asks about a package it cannot reconcile. */
+  const buys = normaliseUnit(purchaseUnit);
+  const usableBuys = buys && isUnit(buys) && dimensionOf(buys) === dimensionOf(stockUnit)
+    ? buys
+    : undefined;
+
   return saveIngredient(orgId, {
     name: wanted,
     stockUnit,
+    purchaseUnit: usableBuys,
+    packSize: usableBuys && Number(packSize) > 0 ? Number(packSize) : undefined,
     category: String(category || "").trim(),
     estimatedCostPerBase: Number(estimatedCostPerBase) > 0 ? Number(estimatedCostPerBase) : null,
   });

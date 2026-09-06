@@ -32,7 +32,7 @@ import { receiptsFor } from "./_data.js";
 import { depleteFromSales } from "./_salesdepletion.js";
 import { branchList } from "./_data.js";
 import { recordAudit } from "./_audit.js";
-import { listIngredients, saveIngredient } from "./_inventory.js";
+import { listIngredients, ensureIngredient } from "./_inventory.js";
 import { learnAliases } from "./_aliases.js";
 import { costBasis, costFrom, evidenceFor } from "./_costing.js";
 import { unitsByDimension, toBase, unitLabel } from "./_units.js";
@@ -262,9 +262,23 @@ export default async function handler(req, res) {
         const made = new Map();
 
         for (const row of creating) {
-          const out = await saveIngredient(orgId, {
+          /* Create if missing, and otherwise leave alone.
+
+             This called `saveIngredient` directly, which writes a whole
+             record — so a scan proposing a name that already existed
+             overwrote it. The matcher can fail on a description whose name
+             then slugs to the same id, and when that happened an ingredient
+             somebody had set up came back with its category, reorder point,
+             par level, location and shelf life blanked, and its shelf
+             silently relabelled from kilograms to grams.
+
+             `ensureIngredient` is the same operation the recipe path uses,
+             and already carries the rule this needed: a document mentioning
+             an ingredient is weaker evidence about it than whatever put it in
+             the master. It fills a blank and never replaces a value. */
+          const out = await ensureIngredient(orgId, {
             name: row.newItem.name,
-            stockUnit: row.newItem.stockUnit,
+            unit: row.newItem.stockUnit,
             purchaseUnit: row.newItem.purchaseUnit,
             packSize: row.newItem.packSize,
             category: row.newItem.category || undefined,
