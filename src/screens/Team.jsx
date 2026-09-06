@@ -4,6 +4,7 @@ import TeamActivity from "../TeamActivity.jsx";
 import { useC } from "../theme.jsx";
 import ExtraAccess from "../settings/ExtraAccess.jsx";
 import { useLang } from "../i18n.jsx";
+import { useFresh } from "../useFresh.jsx";
 
 /* Organization members, their roles, and the branches each one may see.
 
@@ -60,6 +61,10 @@ export default function Team({ token }) {
 
   useEffect(() => { load(); // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  /* And again whenever somebody comes back to it, so the same figure on a
+     phone and on a laptop is never quietly two different ages. */
+  useFresh(load);
 
   const save = async () => {
     setBusy(true); setError(""); setInvitedMsg("");

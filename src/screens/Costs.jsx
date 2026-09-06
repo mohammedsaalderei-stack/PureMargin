@@ -8,6 +8,7 @@ import CostRow from "../costs/CostRow.jsx";
 import { useC } from "../theme.jsx";
 import { useLang, fill, localeFor } from "../i18n.jsx";
 import { Money } from "../Dirham.jsx";
+import { useFresh } from "../useFresh.jsx";
 
 /* Cost management — a ledger somebody types into.
 
@@ -97,6 +98,10 @@ export default function Costs({ token }) {
   }, [auth, month, s.failed, s.forbidden]);
 
   useEffect(() => { load(); }, [load]);
+
+  /* And again whenever somebody comes back to it, so the same figure on a
+     phone and on a laptop is never quietly two different ages. */
+  useFresh(load);
 
   const fixedCosts = fixed?.costs || [];
   const variableCosts = variable?.costs || [];

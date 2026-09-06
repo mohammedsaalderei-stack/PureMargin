@@ -178,5 +178,97 @@ test("a line with no bracket still proposes something creatable", () => {
   assert.equal(item.packSize, 1);
 });
 
+/* ── Which line will be refused, said before the save ────────────────────
+
+   A forty-eight line delivery was refused as a whole for one line the ledger
+   would not take, and the message named neither the line nor the reason. The
+   refusal is partial now and names the ingredient — but the review list is
+   closed by default and forty-eight rows long, so being told "Brioche buns" is
+   the start of a hunt rather than the end of one.
+
+   Every fact needed to know this was already in hand when the scan was read.
+   It just was not said. */
+
+const SHELF = [
+  { id: "brioche-buns", name: "Brioche buns", stockUnit: "ea", purchaseUnit: "ea", packSize: 1 },
+  { id: "beef-mince", name: "Beef mince", stockUnit: "kg", purchaseUnit: "kg", packSize: 1 },
+  { id: "whole-milk", name: "Whole milk", stockUnit: "ml", purchaseUnit: "ml", packSize: 1 },
+];
+
+const oneLine = (line) => buildPurchase({ lines: [line] }, SHELF).lines[0];
+
+test("a line that will go in is not flagged", () => {
+  for (const line of [
+    { text: "BEEF MINCE 5KG", qty: 5, unit: "kg", amount: 100, ingredient: "Beef mince" },
+    /* The supplier's own spelling, which af663d8 taught the commit to read. */
+    { text: "BEEF MINCE 5KG", qty: 5, unit: "Kg", amount: 100, ingredient: "Beef mince" },
+    { text: "BUNS x60", qty: 60, unit: "Pcs", amount: 90, ingredient: "Brioche buns" },
+    /* Grams against a shelf kept in kilos still converts. */
+    { text: "MINCE 500G", qty: 500, unit: "g", amount: 12, ingredient: "Beef mince" },
+  ]) {
+    assert.equal(oneLine(line).trouble, null, line.unit);
+  }
+});
+
+test("a unit measuring the wrong kind of thing is flagged, with what the shelf keeps", () => {
+  /* Buns are counted, not weighed. This is the line that held up forty-seven
+     others and was described only as "one of the lines". */
+  const l = oneLine({ text: "BRIOCHE BUNS 2KG", qty: 2, unit: "kg", amount: 30, ingredient: "Brioche buns" });
+  assert.equal(l.trouble, "unit");
+  assert.equal(l.stocksIn, "ea", "so the row can say what it is kept in");
+  assert.equal(l.ingredientName, "Brioche buns", "and which row it is");
+});
+
+test("a package with nothing said about its contents asks that instead", () => {
+  /* A different question with a different answer: not "change the unit" but
+     "how much is in one". */
+  const l = oneLine({ text: "MILK 1 CARTON", qty: 1, unit: "Carton", amount: 24, ingredient: "Whole milk" });
+  assert.equal(l.trouble, "packaging");
+  assert.equal(l.printedUnit, "Carton", "quoted back as the supplier wrote it");
+});
+
+test("a package the invoice described is not flagged at all", () => {
+  /* The bracket answered the question, so nobody is asked it. */
+  const l = oneLine({
+    text: "MILK 1 CARTON (12x1L)", qty: 1, unit: "Carton",
+    pack: { count: 12, size: 1, unit: "L" }, amount: 24, ingredient: "Whole milk",
+  });
+  assert.equal(l.trouble, null);
+  assert.equal(l.receiveQty, 12000);
+});
+
+test("a line creating its own ingredient is judged against the unit it will get", () => {
+  /* No ingredient exists yet, so there is nothing stored to compare with — but
+     the delivery will create one, and it is that unit the line has to suit. */
+  const flour = oneLine({
+    text: "FLOUR 3 SACK", qty: 3, unit: "sack", amount: 60,
+    ingredient: null, newItem: { name: "Flour", stockUnit: "kg" },
+  });
+  assert.equal(flour.trouble, "packaging", "a sack is still a package");
+  assert.equal(flour.stocksIn, "kg", "against the unit it is about to be created in");
+
+  const fine = oneLine({
+    text: "FLOUR 25KG", qty: 25, unit: "kg", amount: 60,
+    ingredient: null, newItem: { name: "Flour", stockUnit: "kg" },
+  });
+  assert.equal(fine.trouble, null);
+});
+
+test("one bad line among many is the only one flagged", () => {
+  /* The shape of the actual complaint: forty-eight lines, one of them a
+     problem, and no way to see which. */
+  const many = buildPurchase({
+    lines: [
+      { text: "A", qty: 5, unit: "kg", amount: 100, ingredient: "Beef mince" },
+      { text: "B", qty: 60, unit: "Pcs", amount: 90, ingredient: "Brioche buns" },
+      { text: "C", qty: 2, unit: "kg", amount: 30, ingredient: "Brioche buns" },
+      { text: "D", qty: 2, unit: "l", amount: 8, ingredient: "Whole milk" },
+    ],
+  }, SHELF);
+  const flagged = many.lines.filter((l) => l.trouble);
+  assert.equal(flagged.length, 1);
+  assert.equal(flagged[0].text, "C");
+});
+
 console.log(failures ? `\n${failures} failed` : "\nall passed");
 process.exit(failures ? 1 : 0);

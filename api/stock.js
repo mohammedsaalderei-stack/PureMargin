@@ -164,7 +164,7 @@ export default async function handler(req, res) {
             error: out.error === "unit" && isPackaging(typed) ? "packaging" : out.error,
             name: out.ingredientName || null,
             unit: typed || null,
-            stockUnit: unitLabel(out.stockUnit) || null,
+            stockUnit: out.stockUnit || null,
           });
         }
 
@@ -344,7 +344,7 @@ export default async function handler(req, res) {
                    choosing a different unit. Told apart here, where the word
                    is still in hand, so the screen can ask the right question. */
                 reason: dry[i].error === "unit" && isPackaging(r.unit) ? "packaging" : dry[i].error,
-                stockUnit: unitLabel(dry[i].stockUnit),
+                stockUnit: dry[i].stockUnit || "",
                 /* What was actually on the line, so the screen can quote "3
                    SACK" back rather than saying "one of the lines". */
                 qty: r.qty,

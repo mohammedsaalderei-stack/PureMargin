@@ -6,6 +6,7 @@ import { useC } from "../theme.jsx";
 import { useLang, fill, localeFor } from "../i18n.jsx";
 import { Money } from "../Dirham.jsx";
 import { scopeQuery, scopeKey } from "../scopeParam.js";
+import { useFresh } from "../useFresh.jsx";
 
 /* Sales, as the till reported them — and what was changed.
 
@@ -70,6 +71,10 @@ export default function Sales({ token, branches = [] }) {
   }, [auth, range, scopeKey(branches)]);
 
   useEffect(() => { load(); }, [load]);
+
+  /* And again whenever somebody comes back to it, so the same figure on a
+     phone and on a laptop is never quietly two different ages. */
+  useFresh(load);
 
   const sales = data?.sales || [];
   const mayAdjust = Boolean(data?.mayAdjust);

@@ -5,6 +5,7 @@ import TargetsForm from "../alerts/TargetsForm.jsx";
 import { useC } from "../theme.jsx";
 import { useLang } from "../i18n.jsx";
 import { scopeQuery, scopeKey } from "../scopeParam.js";
+import { useFresh } from "../useFresh.jsx";
 
 /* The operational list — stage 4, phase 7.
 
@@ -31,6 +32,10 @@ export default function Alerts({ token, branches = [] }) {
 
   useEffect(() => { load(); // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scopeKey(branches)]);
+
+  /* And again whenever somebody comes back to it, so the same figure on a
+     phone and on a laptop is never quietly two different ages. */
+  useFresh(load);
 
   async function saveTargets(targets) {
     const res = await fetch("/api/alerts", {

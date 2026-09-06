@@ -944,6 +944,9 @@ export const STRINGS = {
       errPack: "{unit} is a pack, not a unit. Say how much one holds, or write the amount instead.",
       errPartly: "Took {count} of {total} lines. Left out: {names}.",
       packRead: "{count} × {size} {inner} = {total} {unit}",
+      someWontFit: "{n} of these lines can’t go in as written. The rest still will.",
+      rowKeptIn: "kept in {stockUnit}",
+      rowPackAsk: "how much is in one {unit}?",
       errServer: "Couldn't record that. Nothing was written.",
     },
     notices: {
@@ -2643,6 +2646,9 @@ export const STRINGS = {
       errPack: "{unit} عبوة وليست وحدة. اذكر كم تحوي الواحدة، أو اكتب الكمية مباشرة.",
       errPartly: "سُجّل {count} من {total} سطرًا. لم تُسجَّل: {names}.",
       packRead: "{count} × {size} {inner} = {total} {unit}",
+      someWontFit: "{n} من هذه السطور لا يمكن إدخالها كما هي. الباقي سيُسجَّل.",
+      rowKeptIn: "يُحفظ بـ{stockUnit}",
+      rowPackAsk: "كم تحوي {unit} واحدة؟",
       errServer: "تعذّر التسجيل. لم يُكتب شيء.",
     },
     notices: {
@@ -4347,6 +4353,9 @@ export const STRINGS = {
       errPack: "{unit} एक पैक है, इकाई नहीं। बताइए उसमें कितना आता है, या सीधे मात्रा लिखिए।",
       errPartly: "{total} में से {count} पंक्तियाँ दर्ज हुईं। छूट गईं: {names}।",
       packRead: "{count} × {size} {inner} = {total} {unit}",
+      someWontFit: "इनमें से {n} पंक्तियाँ ऐसे दर्ज नहीं हो सकतीं। बाकी दर्ज होंगी।",
+      rowKeptIn: "{stockUnit} में रखा जाता है",
+      rowPackAsk: "एक {unit} में कितना आता है?",
       errServer: "दर्ज नहीं हो सका। कुछ नहीं लिखा गया।",
     },
     notices: {
@@ -6236,6 +6245,9 @@ export const STRINGS = {
       errPack: "{unit} ایک پیک ہے، اکائی نہیں۔ بتائیں اس میں کتنا آتا ہے، یا مقدار براہِ راست لکھیں۔",
       errPartly: "{total} میں سے {count} سطریں درج ہوئیں۔ رہ گئیں: {names}۔",
       packRead: "{count} × {size} {inner} = {total} {unit}",
+      someWontFit: "ان میں سے {n} سطریں اسی طرح درج نہیں ہو سکتیں۔ باقی درج ہوں گی۔",
+      rowKeptIn: "{stockUnit} میں رکھا جاتا ہے",
+      rowPackAsk: "ایک {unit} میں کتنا آتا ہے؟",
       errServer: "درج نہیں ہو سکا۔ کچھ نہیں لکھا گیا۔",
     },
     recipescan: {
@@ -7910,6 +7922,9 @@ export const STRINGS = {
       errPack: "Ang {unit} ay pakete, hindi yunit. Sabihin kung ilan ang laman, o isulat na lang ang dami.",
       errPartly: "Naitala ang {count} sa {total} linya. Naiwan: {names}.",
       packRead: "{count} × {size} {inner} = {total} {unit}",
+      someWontFit: "{n} sa mga linyang ito ay hindi kasya nang ganito. Papasok pa rin ang iba.",
+      rowKeptIn: "itinatago sa {stockUnit}",
+      rowPackAsk: "ilan ang laman ng isang {unit}?",
       errServer: "Hindi naitala. Walang naisulat.",
     },
     notices: {

@@ -9,6 +9,7 @@ import IngredientIcon from "../inventory/IngredientIcon.jsx";
 import StockSource from "../inventory/StockSource.jsx";
 import { useC } from "../theme.jsx";
 import { useLang, fill } from "../i18n.jsx";
+import { useFresh } from "../useFresh.jsx";
 
 /* Inventory: a way in, and what is on the shelf.
 
@@ -103,9 +104,12 @@ export default function Inventory({ token, pendingDoc, onDocUsed }) {
     } catch { /* the next load will show what actually stuck */ }
   }
 
-
   useEffect(() => { load(); // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showArchived]);
+
+  /* And again whenever somebody comes back to it, so the same figure on a
+     phone and on a laptop is never quietly two different ages. */
+  useFresh(load);
 
   const canManage = state?.canManage;
 

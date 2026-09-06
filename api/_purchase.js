@@ -21,7 +21,24 @@ import { aliasKey, resolveMany } from "./_aliases.js";
    a unit, a line total. Everything after that is arithmetic and lookup, and
    both belong in code. */
 
-const norm = (s) => String(s || "").trim().toLowerCase().replace(/\s+/g, " ");
+const norm = (s) =>
+  String(s || "")
+    .trim()
+    .toLowerCase()
+    /* Arabic-Indic and Persian digits, so ٥ and 5 are the same character to
+       everything downstream. */
+    .replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x0660))
+    .replace(/[۰-۹]/g, (d) => String(d.charCodeAt(0) - 0x06F0))
+    /* Diacritics carry no meaning for matching a name, and a supplier's
+       printout has them where a shelf label does not. */
+    .replace(/[ً-ٰٟ]/g, "")
+    /* Alef spellings vary between a supplier's system and a kitchen's: أ, إ
+       and آ are all written ا by somebody typing quickly. Same for the two
+       ways of ending a word in ه/ة and ى/ي. */
+    .replace(/[أإآ]/g, "ا")
+    .replace(/ة/g, "ه")
+    .replace(/ى/g, "ي")
+    .replace(/\s+/g, " ");
 
 /* Cheap similarity, deliberately not clever.
 
@@ -35,14 +52,32 @@ const norm = (s) => String(s || "").trim().toLowerCase().replace(/\s+/g, " ");
    taken off. Not linguistics — just enough that the commonest mismatch in a
    produce delivery stops costing a manual match. */
 function stem(word) {
+  /* Arabic writes "the" as a prefix, so a supplier's "اللحم المفروم" and a
+     shelf's "لحم مفروم" share no token at all until it comes off — the same
+     failure the plural rules below exist for, in a different language. Only
+     removed when what is left is still a word. */
+  if (/^ال/.test(word) && word.length > 4) return word.slice(2);
+  /* English plural folding. Applied only to Latin words: Arabic does not form
+     plurals by adding an s, and running these rules over it would quietly
+     shorten real words. */
+  if (!/^[a-z0-9]+$/.test(word)) return word;
   if (word.length > 4 && word.endsWith("ies")) return `${word.slice(0, -3)}y`;
   if (word.length > 3 && word.endsWith("es")) return word.slice(0, -2);
   if (word.length > 3 && word.endsWith("s")) return word.slice(0, -1);
   return word;
 }
 
+/* Words, in any script.
+
+   This split on `[^a-z0-9]+`, which does not merely ignore Arabic — it deletes
+   it. Every Arabic description tokenised to the empty set, so `score` returned
+   0 for all of them and the fallback matcher was dead in the language most of
+   this app's users read. An Arabic invoice matched only when the model happened
+   to name the ingredient exactly, or when somebody had already committed that
+   wording once and taught the alias table. Nothing failed loudly; lines simply
+   arrived unmatched, and the screen asked a person, every time. */
 const tokens = (s) =>
-  new Set(norm(s).split(/[^a-z0-9]+/).filter((w) => w.length > 2).map(stem));
+  new Set(norm(s).split(/[^\p{L}\p{N}]+/u).filter((w) => w.length > 2).map(stem));
 
 function score(text, name) {
   const a = tokens(text);
@@ -96,8 +131,14 @@ export function proposeItem(line, text, printedUnit) {
      the shelf as a mass. */
   const inner = normaliseUnit(line.pack?.unit);
 
-  const stockUnit = UNITS_OK.has(String(raw.stockUnit).toLowerCase())
-    ? String(raw.stockUnit).toLowerCase()
+  /* Read rather than matched: the model is asked for one of kg|g|l|ml|ea, and
+     when it is reading an Arabic delivery note it sometimes answers in the
+     document's own words. "كجم" is a kilogram, and treating it as unrecognised
+     sent the proposal to the "kg" default by luck rather than by reading. */
+  const proposed = normaliseUnit(raw.stockUnit);
+
+  const stockUnit = proposed && UNITS_OK.has(proposed)
+    ? proposed
     : (fromPaper && UNITS_OK.has(fromPaper) ? fromPaper
       : (inner && UNITS_OK.has(inner) ? inner : "kg"));
 
@@ -356,6 +397,35 @@ export function buildPurchase(parsed, ingredients, aliases = new Map()) {
     const receiveUnit = asStockUnit.converted ? stockUnit : (unit || printed);
     const receiveQty = asStockUnit.converted ? asStockUnit.qty : qty;
 
+    /* Whether the ledger will take this line, decided here rather than found
+       out on save.
+
+       A forty-eight line delivery used to be refused as a whole for one line
+       the ledger would not accept, and the message named neither the line nor
+       the reason. That refusal is now partial and it names the ingredient —
+       but the review list is closed by default and forty-eight rows long, so
+       "Brioche buns is kept in ea and the line says kg" still starts a hunt.
+
+       Everything needed to know this is already in hand before anybody presses
+       anything: the unit as read, the unit the shelf keeps, and whether any of
+       the three conversion routes above reached the second from the first. So
+       it travels with the line and the row can say so itself.
+
+       Measured against the ingredient that will exist after the commit: a line
+       that matched nothing creates one from `newItem`, and it is that unit the
+       delivery will be received in. */
+    const willBeStockedIn = stockUnit
+      || (hit ? null : normaliseUnit(proposeItem(line, text, printed).stockUnit));
+
+    const trouble = (() => {
+      if (!willBeStockedIn) return null;
+      if (asStockUnit.converted) return null;
+      if (unit && sameDimension(unit, willBeStockedIn)) return null;
+      /* A package word is its own question — how much does one hold — and the
+         invoice may yet answer it in a bracket next time. */
+      return isPackaging(printed) ? "packaging" : "unit";
+    })();
+
     return {
       text,
       qty,
@@ -401,6 +471,17 @@ export function buildPurchase(parsed, ingredients, aliases = new Map()) {
       /* What to create when nothing matched, so the delivery can be received
          in one press rather than sending somebody to fill in a form first. */
       newItem: hit ? null : proposeItem(line, text, printed),
+      /* Null when the line will go in. "unit" when what is written measures a
+         different kind of thing from the shelf, "packaging" when it names a
+         package whose contents nothing has stated. Both are questions for a
+         person; neither is a reason to hold up the other forty-seven lines. */
+      trouble,
+      /* The unit this line will actually be stocked in, for the row to quote.
+         The stock unit as the ledger keeps it, not its long label: the balance
+         list two panels down prints exactly this string under every quantity,
+         and a message saying "kept in each" beside a row reading "ea" makes a
+         reader check whether they are the same thing. */
+      stocksIn: willBeStockedIn || null,
     };
   });
 

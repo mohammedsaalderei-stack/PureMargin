@@ -5,6 +5,7 @@ import BranchRanking from "../plan/BranchRanking.jsx";
 import { useC } from "../theme.jsx";
 import { useLang, fill } from "../i18n.jsx";
 import { scopeQuery, scopeKey } from "../scopeParam.js";
+import { useFresh } from "../useFresh.jsx";
 
 /* Stage 5 — the operational plan.
 
@@ -41,6 +42,10 @@ export default function Plan({ token, branches = [] }) {
 
   useEffect(() => { load(); // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scopeKey(branches)]);
+
+  /* And again whenever somebody comes back to it, so the same figure on a
+     phone and on a laptop is never quietly two different ages. */
+  useFresh(load);
 
   /* A failed request is said plainly, with a retry — never a blank screen. */
   if (!data && failed) {

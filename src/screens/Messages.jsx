@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { AlertTriangle, Send, Loader2, Users, Check, Lock, User } from "lucide-react";
 import { useC } from "../theme.jsx";
 import { useLang, fill, formatDate } from "../i18n.jsx";
+import { useFresh } from "../useFresh.jsx";
 
 /* The team's own board.
 
@@ -64,6 +65,10 @@ export default function Messages({ token }) {
   }, [token, s.errServer]);
 
   useEffect(() => { load(); }, [load]);
+
+  /* And again whenever somebody comes back to it, so the same figure on a
+     phone and on a laptop is never quietly two different ages. */
+  useFresh(load);
 
   /* Mark the board read once it has actually been rendered, not on mount —
      otherwise a failed load would clear the badge without showing anything. */

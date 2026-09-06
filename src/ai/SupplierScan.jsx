@@ -116,7 +116,7 @@ export default function SupplierScan({ token, onReceived, initial, onInitialUsed
   const edit = (i, patch) =>
     setLines((list) => list.map((l, n) => (n === i
       ? { ...l, ...patch, ...("qty" in patch || "unit" in patch
-          ? { receiveQty: undefined, receiveUnit: undefined } : {}) }
+          ? { receiveQty: undefined, receiveUnit: undefined, edited: true } : {}) }
       : l)));
   const drop = (i) => setLines((list) => list.filter((_, n) => n !== i));
 
@@ -125,6 +125,21 @@ export default function SupplierScan({ token, onReceived, initial, onInitialUsed
      invisible from here and that is the point. */
   const willReceive = lines.filter((l) =>
     Number(l.qty) > 0 && (l.ingredientId || l.newItem?.name));
+
+  /* Lines the ledger will not take as written, known before anybody presses
+     anything.
+
+     The scan already worked this out per line — it had to, to restate the
+     costs — and it was the one thing it did not say. So a delivery of
+     forty-eight was refused as a whole for one of them, and once the refusal
+     became partial and named the ingredient, finding that ingredient still
+     meant opening a closed list of forty-eight rows and reading down it.
+
+     A line edited by hand clears the flag rather than keeping a stale one:
+     `trouble` was computed against the unit the scan read, and somebody who
+     has just retyped the unit is answering exactly this. The server checks
+     again on save regardless — this is a signpost, never a gate. */
+  const troubled = lines.filter((l) => l.trouble && !l.edited);
 
   const save = async () => {
     if (!branch && branches.length) { setFailed(true); setNote(s.pickBranch); return; }
@@ -147,6 +162,10 @@ export default function SupplierScan({ token, onReceived, initial, onInitialUsed
         setNote(json.error === "branch" ? s.pickBranch
           : json.error === "line" || json.error === "empty" ? s.errNothing
           : unitNote(s, json.refused?.[0]) || s.errServer);
+        /* A refusal about a line is answered on that line, and the list is
+           closed by default. Naming the ingredient and then leaving somebody
+           to go and find it is half a message. */
+        if (json.refused?.length) setReview(true);
         return;
       }
 
@@ -163,8 +182,13 @@ export default function SupplierScan({ token, onReceived, initial, onInitialUsed
           total: (json.movements?.length || 0) + json.refused.length,
           names: nameList(json.refused.map((r) => r.name), lang) || "—",
         }));
-        setResult(null);
-        setLines([]);
+        /* The received lines are gone from the draft — they are in the ledger
+           now, and leaving them on screen invites a second press and a doubled
+           delivery. What stays is exactly what did not go in, open, so the
+           remainder can be corrected and saved without scanning again. */
+        const left = new Set(json.refused.map((r) => String(r.ingredientId)));
+        setLines((list) => list.filter((l) => left.has(String(l.ingredientId))));
+        setReview(true);
         return;
       }
       /* Saved and gone. Leaving the card on screen after a successful commit
@@ -286,6 +310,26 @@ export default function SupplierScan({ token, onReceived, initial, onInitialUsed
             </p>
           )}
 
+          {/* Said before the press, not after it.
+
+              Amber rather than red, and it opens the list rather than blocking
+              the button: these lines do not stop the delivery — the rest go in
+              regardless — they just will not go in themselves. Telling somebody
+              afterwards that one of forty-eight lines was refused is telling
+              them at the only moment they can do nothing about it. */}
+          {troubled.length > 0 && !note && (
+            <button type="button" onClick={() => setReview(true)}
+              className="mt-3 w-full text-start text-xs flex items-start gap-1.5 rounded-lg px-3 py-2"
+              style={{
+                color: C.amber,
+                background: "color-mix(in srgb, var(--amber) 10%, transparent)",
+                border: `1px solid color-mix(in srgb, var(--amber) 30%, transparent)`,
+              }}>
+              <AlertTriangle size={13} className="shrink-0 mt-0.5" />
+              <span>{fill(s.someWontFit, { n: troubled.length })}</span>
+            </button>
+          )}
+
           {/* Closed, and closed on purpose. The rows are almost always right,
               and opening twelve editable lines to confirm that is exactly the
               work this screen exists to remove. One press away for when it
@@ -303,7 +347,15 @@ export default function SupplierScan({ token, onReceived, initial, onInitialUsed
             <div className="mt-3 space-y-1.5">
               {lines.map((l, i) => (
                 <div key={i} className="flex items-center gap-2 py-2 px-3 rounded-lg text-sm flex-wrap"
-                  style={{ background: "var(--chip-bg)" }}>
+                  style={{
+                    background: "var(--chip-bg)",
+                    /* The row that needs something, findable by scrolling
+                       rather than by reading. A border on the leading edge
+                       flips with the language on its own. */
+                    ...(l.trouble && !l.edited
+                      ? { borderInlineStart: `2px solid ${C.amber}` }
+                      : {}),
+                  }}>
                   <div className="flex-1 min-w-[9rem]">
                     <select
                       value={l.ingredientId || ""}
@@ -345,6 +397,18 @@ export default function SupplierScan({ token, onReceived, initial, onInitialUsed
                           total: l.pack.qty,
                           unit: l.pack.unit,
                         })}
+                      </div>
+                    )}
+
+                    {/* What this row needs, in three or four words, next to the
+                        box that fixes it. A package word is a different
+                        question from a wrong dimension and gets asked as one. */}
+                    {l.trouble && !l.edited && (
+                      <div className="text-[11px] flex items-center gap-1" style={{ color: C.amber }}>
+                        <AlertTriangle size={11} className="shrink-0" />
+                        {l.trouble === "packaging"
+                          ? fill(s.rowPackAsk, { unit: l.printedUnit || l.unit })
+                          : fill(s.rowKeptIn, { stockUnit: l.stocksIn || l.stockUnit })}
                       </div>
                     )}
                   </div>

@@ -6,6 +6,7 @@ import { useC } from "../theme.jsx";
 import { useLang, fill } from "../i18n.jsx";
 import RecipeScan from "../ai/RecipeScan.jsx";
 import { DirhamMark } from "../Dirham.jsx";
+import { useFresh } from "../useFresh.jsx";
 
 /* Recipes and what they cost — stage 4, phase 5.
 
@@ -54,6 +55,10 @@ export default function Recipes({ token, pendingDoc, onDocUsed }) {
 
   useEffect(() => { load(); // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  /* And again whenever somebody comes back to it, so the same figure on a
+     phone and on a laptop is never quietly two different ages. */
+  useFresh(load);
 
   /* The sheet needs the full recipe — versions and priced lines — which the list
      deliberately doesn't carry. */
@@ -107,7 +112,6 @@ export default function Recipes({ token, pendingDoc, onDocUsed }) {
     await load();
     await openRecipe(id);
   }
-
 
   if (!state) return null;
 
