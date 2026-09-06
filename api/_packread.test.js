@@ -172,6 +172,52 @@ test("an ingredient the line invents is described from the bracket", () => {
   assert.equal(item.packSize, 12, "twelve litres to a carton");
 });
 
+test("a new ingredient can always receive the line that created it", () => {
+  /* The line that failed on a real 48-line delivery: "47 of 48 recorded, not
+     recorded: Grilling butter" — about an ingredient the same commit had just
+     created. The model guessed the shelf keeps butter in pieces, the line said
+     half a kilogram, and the ledger refused a weight into a count. Correct of
+     the ledger, and entirely self-inflicted.
+
+     The printed unit is evidence about the delivery; the model's answer is
+     inference about the shelf. Where they disagree the delivery wins, because
+     a shelf unit that cannot accept the line that created it is wrong by
+     construction. */
+  const cases = [
+    [{ name: "Grilling butter", stockUnit: "ea" }, "kg", "kg"],
+    [{ name: "Grilling butter", stockUnit: "l" }, "gm", "g"],
+    [{ name: "Brioche buns", stockUnit: "kg" }, "pcs", "ea"],
+    /* Agreeing on the dimension, the model's is the better shelf unit: kilos
+       where the invoice happened to print grams. */
+    [{ name: "Beef mince", stockUnit: "kg" }, "g", "kg"],
+    /* A real unit no shelf is labelled in keeps its dimension. */
+    [{ name: "Beef mince", stockUnit: "kg" }, "lb", "kg"],
+    [{ name: "Olive oil", stockUnit: "l" }, "gallon", "l"],
+    /* Nothing readable on the line, so the model's answer is all there is. */
+    [{ name: "Flour", stockUnit: "kg" }, "sack", "kg"],
+  ];
+  for (const [newItem, printed, expected] of cases) {
+    assert.equal(proposeItem({ newItem }, newItem.name, printed).stockUnit, expected,
+      `${newItem.name} printed in ${printed}`);
+  }
+});
+
+test("and the line that created it is then not flagged", () => {
+  /* The end of the same story: the delivery goes in rather than being reported
+     as the one line out of forty-eight that did not. */
+  const out = buildPurchase({
+    lines: [{
+      text: "GRILLING BUTTER 0.5 KG", qty: 0.5, unit: "kg", amount: 20,
+      newItem: { name: "Grilling butter", stockUnit: "ea" },
+    }],
+  }, []);
+  const [line] = out.lines;
+  assert.equal(line.newItem.stockUnit, "kg");
+  assert.equal(line.trouble, null, "receivable, because it is kept in what it arrived in");
+  assert.equal(line.receiveQty, 0.5);
+  assert.equal(line.receiveUnit, "kg");
+});
+
 test("a line with no bracket still proposes something creatable", () => {
   const item = proposeItem({ newItem: { name: "Beef mince", stockUnit: "kg" } }, "BEEF MINCE 5KG", "kg");
   assert.equal(item.stockUnit, "kg");

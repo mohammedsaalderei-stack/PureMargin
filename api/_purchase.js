@@ -1,6 +1,6 @@
 import { listIngredients } from "./_inventory.js";
 import { normaliseUnit, isPackaging, toStockUnit } from "./_unitwords.js";
-import { sameDimension, unitLabel } from "./_units.js";
+import { sameDimension, unitLabel, dimensionOf } from "./_units.js";
 import { normaliseText, words } from "./_text.js";
 import { slug } from "./_inventory.js";
 import { aliasKey, resolveMany } from "./_aliases.js";
@@ -131,6 +131,48 @@ const CATEGORIES_OK = new Set(["produce", "meat", "dairy", "dry", "oil", "drink"
    unit outside the set the ledger keeps silently rescales every recipe cost
    built on the ingredient, so anything unrecognised falls back to the unit
    read off the supplier's own word. */
+/* The friendlier shelf unit for each kind of thing. A store counts in kilos
+   and litres; grams and millilitres are what the arithmetic uses underneath. */
+const SHELF_DEFAULT = { mass: "kg", volume: "l", count: "ea" };
+
+/* What unit to keep a brand-new ingredient in.
+
+   ── The bug this fixes ───────────────────────────────────────────────────
+
+   The model's answer used to win outright, and the model is guessing: it sees
+   "GRILLING BUTTER" and answers "ea" because butter often comes in packs. The
+   line said 0.5 kg. So the commit created an ingredient counted in pieces and
+   then, two steps later, tried to receive half a kilogram into it — and the
+   ledger refused, correctly, because a piece is not a weight.
+
+   One line out of forty-eight, self-inflicted, and invisible: the delivery
+   reported "47 of 48 recorded, not recorded: Grilling butter" about an
+   ingredient it had just created itself.
+
+   ── The rule ─────────────────────────────────────────────────────────────
+
+   The printed unit is evidence about the delivery; the model's answer is
+   inference about the shelf. Where they disagree the delivery wins, because a
+   shelf unit that cannot accept the line that created it is wrong by
+   construction. The model's answer is still preferred whenever it measures the
+   same kind of thing — it is the better shelf unit, "kg" where the invoice
+   happened to print grams. */
+export function shelfUnitFor(proposed, measuredIn) {
+  const ok = (u) => Boolean(u) && UNITS_OK.has(u);
+
+  if (measuredIn) {
+    if (ok(proposed) && sameDimension(proposed, measuredIn)) return proposed;
+    if (ok(measuredIn)) return measuredIn;
+    /* A real unit, but not one a shelf is kept in — pounds, ounces, gallons.
+       Keep the dimension and use the unit a store would label with. */
+    return SHELF_DEFAULT[dimensionOf(measuredIn)] || "kg";
+  }
+
+  /* Nothing readable on the line — a packaging word with no contents stated.
+     The model's answer is all there is. */
+  return ok(proposed) ? proposed : "kg";
+}
+
 export function proposeItem(line, text, printedUnit) {
   const raw = line.newItem || {};
   const name = String(raw.name || "").trim();
@@ -148,11 +190,7 @@ export function proposeItem(line, text, printedUnit) {
      document's own words. "كجم" is a kilogram, and treating it as unrecognised
      sent the proposal to the "kg" default by luck rather than by reading. */
   const proposed = normaliseUnit(raw.stockUnit);
-
-  const stockUnit = proposed && UNITS_OK.has(proposed)
-    ? proposed
-    : (fromPaper && UNITS_OK.has(fromPaper) ? fromPaper
-      : (inner && UNITS_OK.has(inner) ? inner : "kg"));
+  const stockUnit = shelfUnitFor(proposed, fromPaper || inner);
 
   /* How many stock units are in one of whatever the supplier sells by. The
      line's own bracket beats the model's guess at it: one is transcription,

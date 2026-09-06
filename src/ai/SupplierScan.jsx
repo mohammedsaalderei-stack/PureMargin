@@ -59,6 +59,21 @@ function unitChoices(units, line) {
    nothing about the ledger depends on which language is being read. */
 const unitName = (t, u) => t.unitNames?.[u.key] || u.label || u.key;
 
+/* The server's refusal for one line, found by id or by name.
+
+   A line whose ingredient the commit created has no id on this side, so id
+   alone would fail to pair a refusal with the row it belongs to — which is the
+   same reason the row was being dropped from the list entirely. */
+function reasonFor(refused, line) {
+  const id = String(line.ingredientId || "");
+  const names = [line.ingredientName, line.newItem?.name, line.text]
+    .filter(Boolean)
+    .map((n) => String(n).trim().toLowerCase());
+  return (refused || []).find((r) =>
+    (id && String(r.ingredientId || "") === id)
+    || names.includes(String(r.name || "").trim().toLowerCase())) || null;
+}
+
 /* One row of the invoice header. Dotted rule between, values ending the line,
    which is how the paper itself is laid out and how it reads in both
    directions. */
@@ -208,17 +223,46 @@ export default function SupplierScan({ token, onReceived, initial, onInitialUsed
          wondering what happened to the delivery. */
       if (json.refused?.length) {
         setFailed(true);
-        setNote(fill(s.errPartly, {
-          count: json.movements?.length || 0,
-          total: (json.movements?.length || 0) + json.refused.length,
-          names: nameList(json.refused.map((r) => r.name), lang) || "—",
-        }));
+        /* One refused line gets its reason, not just its name.
+
+           "47 of 48 recorded. Not recorded: Grilling butter" says which line
+           and nothing about what to do with it — the same half-message this
+           screen kept producing in other forms. Where there is one, there is
+           room to say why; where there are several, the count goes here and
+           each row carries its own reason in the list below. */
+        const why = json.refused.length === 1 ? unitNote(s, json.refused[0]) : "";
+        setNote([
+          fill(s.errPartly, {
+            count: json.movements?.length || 0,
+            total: (json.movements?.length || 0) + json.refused.length,
+            names: nameList(json.refused.map((r) => r.name), lang) || "—",
+          }),
+          why,
+        ].filter(Boolean).join(" "));
+
         /* The received lines are gone from the draft — they are in the ledger
            now, and leaving them on screen invites a second press and a doubled
            delivery. What stays is exactly what did not go in, open, so the
-           remainder can be corrected and saved without scanning again. */
-        const left = new Set(json.refused.map((r) => String(r.ingredientId)));
-        setLines((list) => list.filter((l) => left.has(String(l.ingredientId))));
+           remainder can be corrected and saved without scanning again.
+
+           Matched by name as well as by id, because a line whose ingredient
+           this commit created has no id on this side — the server made it. The
+           id-only filter dropped exactly those lines, so somebody was told
+           "Grilling butter was not recorded" and then handed an empty list to
+           fix it in. */
+        const ids = new Set(json.refused.map((r) => String(r.ingredientId || "")).filter(Boolean));
+        const names = new Set(json.refused.map((r) => String(r.name || "").trim().toLowerCase()).filter(Boolean));
+        const kept = lines.filter((l) => {
+          if (l.ingredientId && ids.has(String(l.ingredientId))) return true;
+          for (const candidate of [l.ingredientName, l.newItem?.name, l.text]) {
+            if (candidate && names.has(String(candidate).trim().toLowerCase())) return true;
+          }
+          return false;
+        });
+        /* Nothing recognisable left to correct — better an empty screen than
+           an empty list pretending to be one. */
+        if (!kept.length) { setResult(null); setLines([]); return; }
+        setLines(kept.map((l) => ({ ...l, refusedReason: reasonFor(json.refused, l) })));
         setReview(true);
         return;
       }
@@ -434,7 +478,18 @@ export default function SupplierScan({ token, onReceived, initial, onInitialUsed
                     {/* What this row needs, in three or four words, next to the
                         box that fixes it. A package word is a different
                         question from a wrong dimension and gets asked as one. */}
-                    {l.trouble && !l.edited && (
+                    {/* What the server actually said, where it has said
+                        anything, and the scan's own guess otherwise. A refusal
+                        that has already happened outranks a prediction of one:
+                        it names the ingredient as the ledger knows it and the
+                        unit it is really kept in, which is what the row needs
+                        to be corrected against. */}
+                    {l.refusedReason ? (
+                      <div className="text-[11px] flex items-start gap-1" style={{ color: C.rose }}>
+                        <AlertTriangle size={11} className="shrink-0 mt-0.5" />
+                        <span>{unitNote(s, l.refusedReason) || s.errServer}</span>
+                      </div>
+                    ) : l.trouble && !l.edited && (
                       <div className="text-[11px] flex items-center gap-1" style={{ color: C.amber }}>
                         <AlertTriangle size={11} className="shrink-0" />
                         {l.trouble === "packaging"
