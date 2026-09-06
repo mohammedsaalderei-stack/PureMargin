@@ -90,6 +90,24 @@ function score(text, name) {
   return hits / b.size;
 }
 
+/* More than half the ingredient's own words, not half of them.
+
+   Half was the rule, and half of a two-word name is one word — so an
+   ingredient called "Tomatoes fresh" was matched by every line containing the
+   word "fresh". A delivery of "ثوم مفروم طازج (Fresh Garlic)" was written
+   against the tomatoes at exactly the floor, and so would parsley, and so
+   would fish. The one word they shared was an adjective about condition, and
+   the word that said what the thing actually was counted for nothing.
+
+   Strictly greater fixes it without a list of stop words in five languages: a
+   single shared modifier can no longer carry a two-word name, while a genuine
+   partial match — two words of a three-word name — still passes.
+
+   Missing a match costs almost nothing here. An unmatched line is not a
+   failure: it arrives as a row with the ingredient list beside it and a
+   proposal to create what the scan described, so a person redirects it in one
+   tap. A wrong match is silent, and this file already says why that is worse —
+   nothing downstream contradicts a delivery filed against the wrong shelf. */
 export function bestMatch(text, ingredients, floor = 0.5) {
   let winner = null;
   let best = 0;
@@ -97,7 +115,7 @@ export function bestMatch(text, ingredients, floor = 0.5) {
     const s = score(text, ing.name);
     if (s > best) { best = s; winner = ing; }
   }
-  return best >= floor ? { ingredient: winner, confidence: Math.round(best * 100) / 100 } : null;
+  return best > floor ? { ingredient: winner, confidence: Math.round(best * 100) / 100 } : null;
 }
 
 const num = (v) => {

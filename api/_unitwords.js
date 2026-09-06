@@ -89,11 +89,39 @@ function tidy(raw) {
     .trim();
 }
 
+/* Every word inside a phrase, in any script.
+
+   A unit column does not always hold a unit. Paperwork written for a bilingual
+   kitchen prints both spellings — "كجم (kg)", "حبة (pcs)", "لتر (L)" — and
+   that is one unit written twice, not an unreadable string. Reading only the
+   whole phrase refused every line on such a document. */
+function wordsIn(text) {
+  return text.split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+}
+
+/* The units named anywhere inside a phrase.
+
+   A set, because agreement is the whole test: "كجم (kg)" names one unit twice
+   and is safe to read, while "kg / L" names two and is not. Returning the
+   first would be guessing, and a wrong unit multiplies a stock balance by the
+   size of the mistake — so a phrase that cannot make up its mind is refused
+   exactly like a word nothing recognises. */
+function unitsIn(text) {
+  const found = new Set();
+  for (const word of wordsIn(text)) {
+    if (UNITS[word]) found.add(word);
+    else if (LOOKUP.has(word)) found.add(LOOKUP.get(word));
+  }
+  return found;
+}
+
 /* The canonical unit key for a word in any of the supported languages, or null
    when it is not a unit this ledger keeps. */
 export function normaliseUnit(raw) {
   const text = tidy(raw);
   if (!text) return null;
+  /* The whole phrase first, so a unit whose name is two words — "fl oz",
+     "ملعقة صغيرة" — is read as itself rather than as its second half. */
   if (UNITS[text]) return text;
   if (LOOKUP.has(text)) return LOOKUP.get(text);
 
@@ -103,12 +131,20 @@ export function normaliseUnit(raw) {
   if (bare && LOOKUP.has(bare)) return LOOKUP.get(bare);
   if (bare && UNITS[bare]) return bare;
 
-  return null;
+  /* Then the words inside it, and only when they agree. */
+  const inside = unitsIn(text);
+  return inside.size === 1 ? [...inside][0] : null;
 }
 
 export function isPackaging(raw) {
   const text = tidy(raw);
-  return Boolean(text) && PACKAGING.has(text);
+  if (!text) return false;
+  if (PACKAGING.has(text)) return true;
+  /* "كيس (sack)" is a sack written twice. Only when the phrase names no unit
+     at all: "1 box of 12 kg" states a quantity in kilograms and reading it as
+     packaging would ask a question the line already answered. */
+  if (unitsIn(text).size > 0) return false;
+  return wordsIn(text).some((w) => PACKAGING.has(w));
 }
 
 /* The unit a written word means, or why it cannot be settled.

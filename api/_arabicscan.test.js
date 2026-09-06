@@ -21,7 +21,7 @@
 
 import assert from "node:assert/strict";
 import { bestMatch, buildPurchase, proposeItem } from "./_purchase.js";
-import { normaliseUnit } from "./_unitwords.js";
+import { normaliseUnit, isPackaging } from "./_unitwords.js";
 
 let failures = 0;
 function test(name, fn) {
@@ -148,6 +148,72 @@ test("an Arabic line the shelf cannot take is flagged like any other", () => {
   }, SHELF);
   assert.equal(out.lines[0].trouble, "unit", "bread is counted, not weighed");
   assert.equal(out.lines[0].stocksIn, "ea");
+});
+
+test("a unit printed in both languages at once is one unit, not an unreadable one", () => {
+  /* Paperwork written for a bilingual kitchen prints both spellings in the
+     same cell — "كجم (kg)", "حبة (pcs)", "لتر (L)". Reading only the whole
+     phrase refused every line on such a document, and the refusal it produced
+     contradicted itself: "Ground beef is kept in kg, and the line is written
+     in كجم (kg). Change one of the two." They were already the same unit. */
+  assert.equal(normaliseUnit("كجم (kg)"), "kg");
+  assert.equal(normaliseUnit("Kg (كجم)"), "kg");
+  assert.equal(normaliseUnit("لتر (L)"), "l");
+  assert.equal(normaliseUnit("حبة (pcs)"), "ea");
+  assert.equal(normaliseUnit("قطعة (piece)"), "ea");
+  assert.equal(normaliseUnit("gm (جم)"), "g");
+});
+
+test("a phrase naming two different units is still refused", () => {
+  /* Agreement is the whole test. Taking the first of "kg / L" would be
+     guessing, and a wrong unit multiplies a stock balance by the size of the
+     mistake. */
+  assert.equal(normaliseUnit("kg / L"), null);
+  assert.equal(normaliseUnit("كجم / لتر"), null);
+});
+
+test("a unit whose own name is two words is not read as its second half", () => {
+  /* The whole phrase is tried before its words, or "fl oz" would come back as
+     ounces and "ملعقة صغيرة" as nothing at all. */
+  assert.equal(normaliseUnit("fl oz"), "floz");
+  assert.equal(normaliseUnit("ملعقة صغيرة"), "tsp");
+  assert.equal(normaliseUnit("ملعقة صغيرة (tsp)"), "tsp");
+});
+
+test("a package named in both languages still asks how much one holds", () => {
+  assert.equal(isPackaging("كيس (sack)"), true);
+  assert.equal(isPackaging("box (12)"), true);
+  /* But not where the phrase names a real unit: "1 box of 12 kg" has already
+     said what the amount is, and asking would be asking twice. */
+  assert.equal(isPackaging("1 box of 12 kg"), false);
+  assert.equal(normaliseUnit("1 box of 12 kg"), "kg");
+});
+
+test("a shared adjective does not file one ingredient as another", () => {
+  /* From a real scan: a line reading "ثوم مفروم طازج (Fresh Garlic)" was
+     received against "Tomatoes fresh". The word they share is "fresh", which
+     is half of that ingredient's two words and so met the old floor exactly.
+     So did parsley, and so did fish. The word saying what the thing actually
+     was counted for nothing. */
+  const shelf = [
+    { id: "tomatoes-fresh", name: "Tomatoes fresh" },
+    { id: "ground-beef", name: "Ground beef" },
+  ];
+  for (const text of [
+    "ثوم مفروم طازج (Fresh Garlic)",
+    "بقدونس طازج (Fresh Parsley)",
+    "سمك طازج (Fresh Fish)",
+  ]) {
+    assert.equal(bestMatch(text, shelf), null, text);
+  }
+
+  /* The line that really is the tomatoes still matches. */
+  assert.equal(bestMatch("طماطم طازجة (Fresh Tomatoes)", shelf)?.ingredient.name, "Tomatoes fresh");
+  /* And a genuine partial — two words of three — is still a match. */
+  assert.equal(
+    bestMatch("MIXED SAUTEED VEG BOX", [{ id: "v", name: "Mixed sauteed veggies" }])?.ingredient.name,
+    "Mixed sauteed veggies",
+  );
 });
 
 test("an Arabic packaging word asks how much one holds", () => {
