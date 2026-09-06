@@ -28,6 +28,8 @@ const ALIASES = {
   g: ["g", "gm", "gms", "gr", "gram", "grams", "gramme", "grammes",
       "جم", "جرام", "غرام", "غ",
       "ग्राम", "ग्रा", "gramo"],
+  mg: ["mg", "mgs", "milligram", "milligrams", "milligramme", "milligrammes",
+       "مجم", "مليجرام", "مليغرام", "मिलीग्राम", "miligramo"],
   oz: ["oz", "ozs", "ounce", "ounces", "أونصة", "اونصة", "औंस", "onsa"],
   lb: ["lb", "lbs", "pound", "pounds", "رطل", "أرطال", "पाउंड", "libra"],
 
@@ -42,6 +44,9 @@ const ALIASES = {
          "बड़ा चम्मच", "बड़ी चम्मच", "kutsara"],
   cup: ["cup", "cups", "كوب", "أكواب", "كاسة", "कप", "प्याला", "tasa"],
   floz: ["floz", "fl oz", "fluid ounce", "fluid ounces", "أونصة سائلة", "फ्लूइड औंस"],
+  /* `gal` resolved because it is the key itself; the word never did, and
+     "gallon" is how a drum of oil is actually written on a delivery note. */
+  gal: ["gal", "gals", "gallon", "gallons", "جالون", "غالون", "जैलन", "गैलन", "galon"],
 
   /* count */
   ea: ["ea", "each", "pc", "pcs", "piece", "pieces", "unit", "units", "no", "nos",

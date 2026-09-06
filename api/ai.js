@@ -234,9 +234,23 @@ newItem for those lines and leave it null for the ones that matched.
 Getting the unit right matters more than the name: a name is corrected in a
 second, and a wrong unit silently distorts every recipe cost built on it.
 
+When a line prices a package and also says what is inside it, read the package
+apart. "1 Carton (12 x 1L Bottles)" is twelve bottles of one litre. "Case of 24
+x 330ml" is twenty-four of 330 ml. "5 kg Bag" is one bag of five kilos.
+
+  pack   { "count": <inner units in one package>, "size": <amount in one inner
+           unit>, "unit": "<that inner unit as printed>" }
+
+Fill it only from what the line actually prints. A line that says "1 Carton"
+and nothing more has a null pack — how much a carton holds is not something to
+infer from the price or from what cartons usually hold, and a wrong pack size
+multiplies a stock balance by the size of the mistake.
+
 Do not convert units and do not calculate a unit price — those are worked out
 afterwards from the business's own records, and a guess would be written into a
-stock balance as though it were measured.
+stock balance as though it were measured. Report the pack as three separate
+numbers for the same reason: the multiplication is arithmetic, and arithmetic
+belongs in code where it can be checked.
 
 If a quantity, a unit or an amount cannot be read, use null. A null is a
 question somebody answers in two seconds; a wrong number is a discrepancy
@@ -247,7 +261,7 @@ Respond with ONLY this JSON, nothing else:
   "supplier": "<supplier or shop name, or null>",
   "invoiceNo": "<invoice or receipt number, or null>",
   "date": "<date as printed, or null>",
-  "lines": [{ "text": "<line as printed>", "qty": <number, or null>, "unit": "<kg, g, l, ml, box, pcs… as printed, or null>", "amount": <line total, or null>, "ingredient": "<exact name from the list, or null>", "newItem": { "name": "<short kitchen name>", "stockUnit": "<kg|g|l|ml|ea>", "purchaseUnit": "<how it is sold>", "packSize": <number>, "category": "<produce|meat|dairy|dry|oil|drink|packaging>" } }],
+  "lines": [{ "text": "<line as printed>", "qty": <number, or null>, "unit": "<kg, g, l, ml, box, pcs… as printed, or null>", "pack": { "count": <number>, "size": <number>, "unit": "<inner unit as printed>" }, "amount": <line total, or null>, "ingredient": "<exact name from the list, or null>", "newItem": { "name": "<short kitchen name>", "stockUnit": "<kg|g|l|ml|ea>", "purchaseUnit": "<how it is sold>", "packSize": <number>, "category": "<produce|meat|dairy|dry|oil|drink|packaging>" } }],
   "subtotal": <total before tax as printed, or null>,
   "tax": <tax or VAT amount as printed, or null>,
   "total": <invoice total as printed, or null>

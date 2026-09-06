@@ -329,6 +329,24 @@ export default function SupplierScan({ token, onReceived, initial, onInitialUsed
                       {l.text}
                       {l.viaAlias && <span className="ms-1" style={{ color: C.iris }}>· {s.remembered}</span>}
                     </div>
+                    {/* Where the number came from.
+
+                        A line reading "1 Carton" beside a cost of 0.002 looks
+                        like a mistake unless the bracket the scan read off the
+                        invoice is shown too. This is the arithmetic stated
+                        back, in the supplier's own figures, so it can be
+                        checked against the paper in a glance. */}
+                    {l.pack && (
+                      <div className="text-[11px] data" dir="ltr" style={{ color: C.cyan }}>
+                        {fill(s.packRead, {
+                          count: l.pack.count,
+                          size: l.pack.size,
+                          inner: l.pack.innerUnit,
+                          total: l.pack.qty,
+                          unit: l.pack.unit,
+                        })}
+                      </div>
+                    )}
                   </div>
 
                   <input type="number" min="0" step="any" inputMode="decimal" dir="ltr"

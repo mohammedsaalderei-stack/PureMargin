@@ -943,6 +943,7 @@ export const STRINGS = {
       errUnitOne: "{name} is kept in {stockUnit}, and the line says {unit}. Change one of the two.",
       errPack: "{unit} is a pack, not a unit. Say how much one holds, or write the amount instead.",
       errPartly: "Took {count} of {total} lines. Left out: {names}.",
+      packRead: "{count} × {size} {inner} = {total} {unit}",
       errServer: "Couldn't record that. Nothing was written.",
     },
     notices: {
@@ -2641,6 +2642,7 @@ export const STRINGS = {
       errUnitOne: "{name} يُحفظ بـ{stockUnit}، والسطر مكتوب بـ{unit}. غيّر أحدهما.",
       errPack: "{unit} عبوة وليست وحدة. اذكر كم تحوي الواحدة، أو اكتب الكمية مباشرة.",
       errPartly: "سُجّل {count} من {total} سطرًا. لم تُسجَّل: {names}.",
+      packRead: "{count} × {size} {inner} = {total} {unit}",
       errServer: "تعذّر التسجيل. لم يُكتب شيء.",
     },
     notices: {
@@ -4344,6 +4346,7 @@ export const STRINGS = {
       errUnitOne: "{name} {stockUnit} में रखा जाता है, और पंक्ति में {unit} है। कोई एक बदलिए।",
       errPack: "{unit} एक पैक है, इकाई नहीं। बताइए उसमें कितना आता है, या सीधे मात्रा लिखिए।",
       errPartly: "{total} में से {count} पंक्तियाँ दर्ज हुईं। छूट गईं: {names}।",
+      packRead: "{count} × {size} {inner} = {total} {unit}",
       errServer: "दर्ज नहीं हो सका। कुछ नहीं लिखा गया।",
     },
     notices: {
@@ -6232,6 +6235,7 @@ export const STRINGS = {
       errUnitOne: "{name} {stockUnit} میں رکھا جاتا ہے، اور سطر میں {unit} ہے۔ کوئی ایک بدلیں۔",
       errPack: "{unit} ایک پیک ہے، اکائی نہیں۔ بتائیں اس میں کتنا آتا ہے، یا مقدار براہِ راست لکھیں۔",
       errPartly: "{total} میں سے {count} سطریں درج ہوئیں۔ رہ گئیں: {names}۔",
+      packRead: "{count} × {size} {inner} = {total} {unit}",
       errServer: "درج نہیں ہو سکا۔ کچھ نہیں لکھا گیا۔",
     },
     recipescan: {
@@ -7905,6 +7909,7 @@ export const STRINGS = {
       errUnitOne: "Ang {name} ay itinatago sa {stockUnit}, at {unit} ang nasa linya. Baguhin ang isa sa dalawa.",
       errPack: "Ang {unit} ay pakete, hindi yunit. Sabihin kung ilan ang laman, o isulat na lang ang dami.",
       errPartly: "Naitala ang {count} sa {total} linya. Naiwan: {names}.",
+      packRead: "{count} × {size} {inner} = {total} {unit}",
       errServer: "Hindi naitala. Walang naisulat.",
     },
     notices: {

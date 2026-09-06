@@ -1,6 +1,6 @@
 import { listIngredients } from "./_inventory.js";
 import { normaliseUnit, isPackaging, toStockUnit } from "./_unitwords.js";
-import { sameDimension } from "./_units.js";
+import { sameDimension, unitLabel } from "./_units.js";
 import { slug } from "./_inventory.js";
 import { aliasKey, resolveMany } from "./_aliases.js";
 
@@ -88,20 +88,82 @@ export function proposeItem(line, text, printedUnit) {
   const raw = line.newItem || {};
   const name = String(raw.name || "").trim();
   const fromPaper = normaliseUnit(printedUnit);
+  /* The unit inside the package, where the line described one. This is the
+     best evidence available for a brand-new ingredient: a line reading
+     "1 Carton (12 x 1L Bottles)" says plainly that the thing is a liquid kept
+     in litres, and nothing else on the line does. Without it the fallback for
+     an unrecognised package word was kilograms — a carton of milk arriving on
+     the shelf as a mass. */
+  const inner = normaliseUnit(line.pack?.unit);
 
   const stockUnit = UNITS_OK.has(String(raw.stockUnit).toLowerCase())
     ? String(raw.stockUnit).toLowerCase()
-    : (fromPaper && UNITS_OK.has(fromPaper) ? fromPaper : "kg");
+    : (fromPaper && UNITS_OK.has(fromPaper) ? fromPaper
+      : (inner && UNITS_OK.has(inner) ? inner : "kg"));
+
+  /* How many stock units are in one of whatever the supplier sells by. The
+     line's own bracket beats the model's guess at it: one is transcription,
+     the other is inference. */
+  const contents = packContents(line.pack, stockUnit);
 
   return {
     name: name || String(text || "").slice(0, 40),
     stockUnit,
     purchaseUnit: String(raw.purchaseUnit || printedUnit || stockUnit).trim() || stockUnit,
-    packSize: Number(raw.packSize) > 0 ? Number(raw.packSize) : 1,
+    packSize: contents?.qty > 0
+      ? contents.qty
+      : (Number(raw.packSize) > 0 ? Number(raw.packSize) : 1),
     category: CATEGORIES_OK.has(String(raw.category).toLowerCase())
       ? String(raw.category).toLowerCase()
       : null,
   };
+}
+
+/* What one package on a line actually contains, in the shelf's own unit.
+
+   ── The gap this closes ──────────────────────────────────────────────────
+
+   A delivery note says "1 Carton (12 x 1L Bottles) @ 24.00". "Carton" is not a
+   unit — it is packaging, and the ledger rightly refuses to guess what one
+   holds. Until now the only way to reconcile that line was for the ingredient
+   to already carry a `purchaseUnit` of "carton" and a `packSize` of 12, set by
+   somebody in advance. A carton nobody had described yet went unreceived, and
+   the screen could only ask how much one holds.
+
+   But the invoice said. It is printed on the line, in brackets, right there.
+
+   ── Why the multiplication is here and not in the model ──────────────────
+
+   The model reports three printed numbers — how many inner units, how big each
+   is, and what unit that is — and this does the arithmetic. Asking it for a
+   finished `totalBaseQuantity` would put a computed figure in the same field
+   as a transcribed one, and once stored the two are indistinguishable: nothing
+   downstream could tell a quantity that was read from one that was worked out,
+   and a slip of a decimal place looks exactly like a large delivery.
+
+   Returns null whenever anything is missing or does not reconcile. A pack size
+   that is wrong multiplies a stock balance by the size of the mistake, so the
+   honest answer to a half-read bracket is no answer. */
+export function packContents(pack, stockUnit) {
+  if (!pack || !stockUnit) return null;
+
+  const count = num(pack.count);
+  const size = num(pack.size);
+  const inner = normaliseUnit(pack.unit);
+  if (!(count > 0) || !(size > 0) || !inner) return null;
+
+  /* A carton of bottles is a volume only if the bottles are measured in one.
+     Twelve bottles against a shelf counted in kilograms is still a question
+     for a person. */
+  if (!sameDimension(inner, stockUnit)) return null;
+
+  const one = toStockUnit(size, inner, stockUnit);
+  if (!one || !(one.qty > 0)) return null;
+
+  /* `size`/`innerUnit` are what the line printed, `each`/`qty` what that
+     comes to on the shelf. Both travel, because "12 × 1 L" is what somebody
+     can check against the paper and "12,000 ml" is what gets received. */
+  return { qty: count * one.qty, unit: stockUnit, count, size, innerUnit: inner, each: one.qty };
 }
 
 const round2 = (n) => (Number.isFinite(n) ? Math.round(n * 100) / 100 : null);
@@ -214,6 +276,13 @@ export function buildPurchase(parsed, ingredients, aliases = new Map()) {
        the ingredient divides by it. Anything else leaves the figure alone and
        flags the line, because a guessed conversion is worse than an obvious
        gap. */
+    /* What one package on this line holds, if the line said. Read before the
+       routes below so the invoice's own statement outranks anything stored:
+       a supplier who changes from twelve-bottle cartons to twenty-four prints
+       the new number on the note, and the ingredient's saved pack size is then
+       last month's answer. */
+    const stated = packContents(line.pack, stockUnit);
+
     const asStockUnit = (() => {
       if (perInvoiceUnit === null || !stockUnit) return { unitCost: perInvoiceUnit, qty };
 
@@ -222,6 +291,16 @@ export function buildPurchase(parsed, ingredients, aliases = new Map()) {
         if (inStock && inStock.qty > 0) {
           return { unitCost: (total || 0) / inStock.qty, qty: inStock.qty, converted: true };
         }
+      }
+
+      /* The bracket on the line. "1 Carton (12 x 1L)" against a shelf kept in
+         millilitres is twelve thousand of them, and the cost of one is the
+         line total over that. */
+      if (stated && stated.qty > 0) {
+        const stockQty = qty * stated.qty;
+        return {
+          unitCost: (total || 0) / stockQty, qty: stockQty, converted: true, viaStatedPack: true,
+        };
       }
 
       const pack = Number(hit?.ingredient?.packSize);
@@ -234,9 +313,23 @@ export function buildPurchase(parsed, ingredients, aliases = new Map()) {
       return { unitCost: perInvoiceUnit, qty, unknown: true };
     })();
 
+    /* Six places, not four.
+
+       Four was enough while a unit cost meant "per kilo" or "per litre" — a
+       hundredth of a fils on a figure around twenty. It stopped being enough
+       the moment costs are stated per gram and per millilitre, which is three
+       orders of magnitude smaller: 100.00 spread over 24,000 ml is 0.00416667
+       each, and at four places that becomes 0.0042 — which multiplies back to
+       100.80. Eight tenths of a percent, added to every converted line, in the
+       direction that quietly overstates what the store is worth.
+
+       Six places brings that to under a hundredth of a dirham on a hundred
+       dirham line, and matches what `_units.js` and `_recipes.js` already
+       round quantities to, so a cost and the quantity it is paired with are
+       carried at the same precision. */
     const unitCost = asStockUnit.unitCost === null
       ? null
-      : Math.round(asStockUnit.unitCost * 10000) / 10000;
+      : Math.round(asStockUnit.unitCost * 1e6) / 1e6;
 
     /* The unit as printed, plus what it actually is. An invoice saying كجم or
        LBS names a unit this ledger keeps; one saying "sack" names a package,
@@ -271,6 +364,20 @@ export function buildPurchase(parsed, ingredients, aliases = new Map()) {
       receiveUnit,
       printedUnit: printed,
       packaging: !unit && isPackaging(printed),
+      /* The package as the line described it, so the screen can show "12 × 1 L"
+         beside a carton rather than leaving somebody to wonder where twelve
+         thousand millilitres came from. Null when the line said nothing, which
+         is still the case a person has to answer. */
+      /* Display only — the receiving uses receiveQty/receiveUnit — so the
+         units come as labels rather than ledger keys. "1 L" is what the
+         supplier printed; "1 l" is what the database calls it. */
+      pack: stated
+        ? {
+            count: stated.count, size: stated.size, each: stated.each, qty: stated.qty,
+            innerUnit: unitLabel(stated.innerUnit), unit: unitLabel(stated.unit),
+          }
+        : null,
+      viaStatedPack: Boolean(asStockUnit.viaStatedPack),
       /* The same quantity in the unit the shelf is kept in, when the two can be
          reconciled. Null when they cannot — a count is not a mass, and a pack
          size is something a person supplies rather than something to guess. */
