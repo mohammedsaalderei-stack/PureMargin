@@ -24,35 +24,36 @@ const ALIASES = {
   kg: ["kg", "kgs", "kilo", "kilos", "kilogram", "kilogramme", "kilograms", "kilogrammes",
        "كجم", "كغ", "كيلو", "كيلوغرام", "كيلوجرام",
        "किलो", "किग्रा", "किलोग्राम",
+       "کلو", "کلوگرام", "کلو گرام",
        "kilo", "kilong", "kg."],
   g: ["g", "gm", "gms", "gr", "gram", "grams", "gramme", "grammes",
       "جم", "جرام", "غرام", "غ",
-      "ग्राम", "ग्रा", "gramo"],
+      "ग्राम", "ग्रा", "gramo", "گرام"],
   mg: ["mg", "mgs", "milligram", "milligrams", "milligramme", "milligrammes",
-       "مجم", "مليجرام", "مليغرام", "मिलीग्राम", "miligramo"],
-  oz: ["oz", "ozs", "ounce", "ounces", "أونصة", "اونصة", "औंस", "onsa"],
-  lb: ["lb", "lbs", "pound", "pounds", "رطل", "أرطال", "पाउंड", "libra"],
+       "مجم", "مليجرام", "مليغرام", "मिलीग्राम", "miligramo", "ملی گرام"],
+  oz: ["oz", "ozs", "ounce", "ounces", "أونصة", "اونصة", "औंस", "onsa", "اونس"],
+  lb: ["lb", "lbs", "pound", "pounds", "رطل", "أرطال", "पाउंड", "libra", "پاؤنڈ"],
 
   /* volume */
   l: ["l", "lt", "ltr", "ltrs", "litre", "litres", "liter", "liters",
-      "لتر", "ل", "لترات", "लीटर", "litro"],
+      "لتر", "ل", "لترات", "लीटर", "litro", "لیٹر", "لٹر"],
   ml: ["ml", "mls", "millilitre", "millilitres", "milliliter", "milliliters",
-       "مل", "ملل", "مللتر", "مليلتر", "ملليلتر", "मिली", "मिलीलीटर", "mililitro"],
+       "مل", "ملل", "مللتر", "مليلتر", "ملليلتر", "मिली", "मिलीलीटर", "mililitro", "ملی لیٹر", "ملی لٹر"],
   tsp: ["tsp", "tsps", "teaspoon", "teaspoons", "ملعقة صغيرة", "ملعقة شاي",
-        "छोटा चम्मच", "छोटी चम्मच", "kutsarita"],
+        "छोटा चम्मच", "छोटी चम्मच", "kutsarita", "چھوٹا چمچ", "چھوٹی چمچ"],
   tbsp: ["tbsp", "tbsps", "tbs", "tablespoon", "tablespoons", "ملعقة كبيرة", "ملعقة طعام",
-         "बड़ा चम्मच", "बड़ी चम्मच", "kutsara"],
-  cup: ["cup", "cups", "كوب", "أكواب", "كاسة", "कप", "प्याला", "tasa"],
+         "बड़ा चम्मच", "बड़ी चम्मच", "kutsara", "بڑا چمچ", "بڑی چمچ"],
+  cup: ["cup", "cups", "كوب", "أكواب", "كاسة", "कप", "प्याला", "tasa", "پیالی", "کپ"],
   floz: ["floz", "fl oz", "fluid ounce", "fluid ounces", "أونصة سائلة", "फ्लूइड औंस"],
   /* `gal` resolved because it is the key itself; the word never did, and
      "gallon" is how a drum of oil is actually written on a delivery note. */
-  gal: ["gal", "gals", "gallon", "gallons", "جالون", "غالون", "जैलन", "गैलन", "galon"],
+  gal: ["gal", "gals", "gallon", "gallons", "جالون", "غالون", "जैलन", "गैलन", "galon", "گیلن"],
 
   /* count */
   ea: ["ea", "each", "pc", "pcs", "piece", "pieces", "unit", "units", "no", "nos",
        "حبة", "حبات", "قطعة", "قطع", "عدد", "وحدة",
-       "नग", "पीस", "अदद", "piraso", "pcs."],
-  dozen: ["dozen", "dozens", "dz", "دزينة", "درزن", "दर्जन", "dosena"],
+       "नग", "पीस", "अदद", "piraso", "pcs.", "دانہ", "دانے", "پیس"],
+  dozen: ["dozen", "dozens", "dz", "دزينة", "درزن", "दर्जन", "dosena", "درجن"],
 };
 
 /* Packaging words are not units. A supplier writing "3 SACK" has told you how
@@ -68,6 +69,7 @@ const PACKAGING_WORDS = new Set([
   "صندوق", "كرتون", "كيس", "أكياس", "علبة", "علب", "تنكة", "زجاجة", "قارورة",
   "डिब्बा", "पैकेट", "बोरी", "बोतल",
   "kahon", "sako", "supot", "lata", "bote",
+  "ڈبہ", "ڈبا", "کارٹن", "تھیلا", "تھیلی", "بوتل", "پیکٹ", "بورا",
 ]);
 
 /* Both tables are folded through `tidy` as they are built, so a word is

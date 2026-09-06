@@ -51,6 +51,14 @@ function unitChoices(units, line) {
   return all;
 }
 
+/* What to call a unit on screen.
+
+   The server sends the key and an English label; this prefers the reader's own
+   word for it and falls back to the label. Somebody counting in حبة should not
+   have to recognise "each" — and the value posted is the key either way, so
+   nothing about the ledger depends on which language is being read. */
+const unitName = (t, u) => t.unitNames?.[u.key] || u.label || u.key;
+
 /* One row of the invoice header. Dotted rule between, values ending the line,
    which is how the paper itself is laid out and how it reads in both
    directions. */
@@ -465,7 +473,7 @@ export default function SupplierScan({ token, onReceived, initial, onInitialUsed
                       <option value={l.unit || ""}>{l.unit || "—"}</option>
                     )}
                     {unitChoices(units, l).map((u) => (
-                      <option key={u.key} value={u.key}>{u.label}</option>
+                      <option key={u.key} value={u.key}>{unitName(t, u)}</option>
                     ))}
                   </select>
 

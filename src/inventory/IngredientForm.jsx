@@ -17,7 +17,7 @@ import { useLang } from "../i18n.jsx";
 
 const EMPTY = {
   name: "", category: "", stockUnit: "g", purchaseUnit: "kg", packSize: 1,
-  sku: "", barcode: "", supplierId: "", location: "",
+  sku: "", barcode: "", supplierId: "", location: "", aliases: "",
   reorderPoint: "", parLevel: "", shelfLifeDays: "",
 };
 
@@ -39,7 +39,12 @@ export default function IngredientForm({ editing, units, suppliers, meta, busy, 
   const [showAll, setShowAll] = useState(Boolean(editing));
 
   useEffect(() => {
-    setForm(editing ? { ...EMPTY, ...editing } : EMPTY);
+    /* The record holds a list; the box holds one per line. Converted at the
+       two edges rather than storing a string on the record, so nothing
+       downstream has to know how the editor happened to render it. */
+    setForm(editing
+      ? { ...EMPTY, ...editing, aliases: (editing.aliases || []).join("\n") }
+      : EMPTY);
   }, [editing]);
 
   const set = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }));
@@ -84,6 +89,8 @@ export default function IngredientForm({ editing, units, suppliers, meta, busy, 
       reorderPoint: form.reorderPoint === "" ? null : Number(form.reorderPoint),
       parLevel: form.parLevel === "" ? null : Number(form.parLevel),
       shelfLifeDays: form.shelfLifeDays === "" ? null : Number(form.shelfLifeDays),
+      /* Blank lines dropped here; the server de-duplicates and caps. */
+      aliases: String(form.aliases || "").split("\n").map((a) => a.trim()).filter(Boolean),
     });
   };
 
@@ -160,6 +167,27 @@ export default function IngredientForm({ editing, units, suppliers, meta, busy, 
         <datalist id="pm-locations">
           {(meta?.locations || []).map((l) => <option key={l} value={l} />)}
         </datalist>
+      </Field>
+
+      {/* The other names this is known by.
+
+          A scan matches a supplier's wording to an ingredient, and learns each
+          new wording after the first time somebody commits it. What it cannot
+          do is know that "لحم مفروم" and "Ground beef" are the same thing —
+          they share no letters, in either direction, and no amount of text
+          processing bridges that. Somebody has to say so once.
+
+          One per line, so a list of five is five lines rather than a comma
+          rule to remember. Stored as typed and compared with the accents,
+          letter forms and spacing folded away. */}
+      <Field label={t.inventory.aliases} hint={t.inventory.aliasHint}>
+        <textarea
+          {...input}
+          rows={3}
+          value={form.aliases}
+          onChange={set("aliases")}
+          placeholder={t.inventory.aliasPlaceholder}
+        />
       </Field>
 
       <Field label={t.inventory.sku}><input {...input} value={form.sku} onChange={set("sku")} dir="ltr" /></Field>

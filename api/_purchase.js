@@ -1,6 +1,7 @@
 import { listIngredients } from "./_inventory.js";
 import { normaliseUnit, isPackaging, toStockUnit } from "./_unitwords.js";
 import { sameDimension, unitLabel } from "./_units.js";
+import { normaliseText, words } from "./_text.js";
 import { slug } from "./_inventory.js";
 import { aliasKey, resolveMany } from "./_aliases.js";
 
@@ -21,24 +22,12 @@ import { aliasKey, resolveMany } from "./_aliases.js";
    a unit, a line total. Everything after that is arithmetic and lookup, and
    both belong in code. */
 
-const norm = (s) =>
-  String(s || "")
-    .trim()
-    .toLowerCase()
-    /* Arabic-Indic and Persian digits, so ٥ and 5 are the same character to
-       everything downstream. */
-    .replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x0660))
-    .replace(/[۰-۹]/g, (d) => String(d.charCodeAt(0) - 0x06F0))
-    /* Diacritics carry no meaning for matching a name, and a supplier's
-       printout has them where a shelf label does not. */
-    .replace(/[ً-ٰٟ]/g, "")
-    /* Alef spellings vary between a supplier's system and a kitchen's: أ, إ
-       and آ are all written ا by somebody typing quickly. Same for the two
-       ways of ending a word in ه/ة and ى/ي. */
-    .replace(/[أإآ]/g, "ا")
-    .replace(/ة/g, "ه")
-    .replace(/ى/g, "ي")
-    .replace(/\s+/g, " ");
+/* One normaliser for the whole app, in _text.js. It lived here too, and the
+   two copies drifted: the unit reader folded Arabic letter forms and this one
+   did not, so "حبه" resolved as a unit while "زبده" failed to find "زبدة" on
+   the shelf. It now also covers Urdu keyboard variants, Devanagari nukta and
+   Latin accents, so every language the app is used in folds the same way. */
+const norm = normaliseText;
 
 /* Cheap similarity, deliberately not clever.
 
@@ -76,8 +65,7 @@ function stem(word) {
    to name the ingredient exactly, or when somebody had already committed that
    wording once and taught the alias table. Nothing failed loudly; lines simply
    arrived unmatched, and the screen asked a person, every time. */
-const tokens = (s) =>
-  new Set(norm(s).split(/[^\p{L}\p{N}]+/u).filter((w) => w.length > 2).map(stem));
+const tokens = (s) => new Set(words(s).filter((w) => w.length > 2).map(stem));
 
 function score(text, name) {
   const a = tokens(text);
@@ -112,8 +100,14 @@ export function bestMatch(text, ingredients, floor = 0.5) {
   let winner = null;
   let best = 0;
   for (const ing of ingredients) {
-    const s = score(text, ing.name);
-    if (s > best) { best = s; winner = ing; }
+    /* The name, and every other name it is known by. An alias is a whole
+       separate name rather than extra words on the existing one — scoring
+       "Ground beef لحم مفروم" as one string would dilute both, so each is
+       scored on its own and the best one stands. */
+    for (const candidate of [ing.name, ...(ing.aliases || [])]) {
+      const s = score(text, candidate);
+      if (s > best) { best = s; winner = ing; }
+    }
   }
   return best > floor ? { ingredient: winner, confidence: Math.round(best * 100) / 100 } : null;
 }

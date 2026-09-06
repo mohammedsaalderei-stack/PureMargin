@@ -602,6 +602,9 @@ export const STRINGS = {
       supplier: "Usually bought from",
       location: "Where it lives",
       sku: "SKU",
+      aliases: "Also called",
+      aliasHint: "Other names this appears under on invoices — any language, one per line.",
+      aliasPlaceholder: "لحم مفروم\nMINCED BEEF 80/20",
       barcode: "Barcode",
       reorderPoint: "Warn me below",
       reorderHint: "When the amount on hand drops to this, an alert appears. Leave it empty for no warning.",
@@ -1421,6 +1424,28 @@ export const STRINGS = {
       usingServer: "Using the deployment-wide token set by your administrator.",
     },
 
+    /* Unit names as a person reads them.
+
+       The keys are the ledger's own and never change — what the API is sent
+       is always the key — so this is only how each one is written on screen.
+       Somebody counting in حبة should not have to recognise "ea". */
+    unitNames: {
+      mg: "mg",
+      g: "g",
+      kg: "kg",
+      oz: "oz",
+      lb: "lb",
+      ml: "ml",
+      cl: "cl",
+      l: "L",
+      tsp: "tsp",
+      tbsp: "tbsp",
+      cup: "cup",
+      floz: "fl oz",
+      gal: "gal",
+      ea: "each",
+      dozen: "dozen",
+    },
     aiscan: {
       pdfFailed: "That document couldn't be read. If it is a scan of a photo, try a clearer copy.",
       tooLarge: "That file is too big — {mb} MB is the limit. Try a smaller copy or fewer pages.",
@@ -2304,6 +2329,9 @@ export const STRINGS = {
       supplier: "يُشترى عادةً من",
       location: "أين يوضع",
       sku: "رمز الصنف",
+      aliases: "يُسمّى أيضًا",
+      aliasHint: "أسماء أخرى يظهر بها في الفواتير — بأي لغة، اسم في كل سطر.",
+      aliasPlaceholder: "لحم مفروم\nMINCED BEEF 80/20",
       barcode: "الباركود",
       reorderPoint: "نبّهني تحت",
       reorderHint: "يظهر تنبيه عند وصول الرصيد إلى هذا الحد. اتركه فارغًا لإلغاء التنبيه.",
@@ -3123,6 +3151,28 @@ export const STRINGS = {
       usingServer: "يُستخدم الرمز العام الذي ضبطه مسؤول النظام.",
     },
 
+    /* Unit names as a person reads them.
+
+       The keys are the ledger's own and never change — what the API is sent
+       is always the key — so this is only how each one is written on screen.
+       Somebody counting in حبة should not have to recognise "ea". */
+    unitNames: {
+      mg: "مجم",
+      g: "جم",
+      kg: "كجم",
+      oz: "أونصة",
+      lb: "رطل",
+      ml: "مل",
+      cl: "سنتيلتر",
+      l: "لتر",
+      tsp: "ملعقة صغيرة",
+      tbsp: "ملعقة كبيرة",
+      cup: "كوب",
+      floz: "أونصة سائلة",
+      gal: "جالون",
+      ea: "حبة",
+      dozen: "دزينة",
+    },
     aiscan: {
       pdfFailed: "تعذّرت قراءة هذا المستند. إن كان صورة ممسوحة، جرّب نسخة أوضح.",
       tooLarge: "الملف كبير جدًا — الحد {mb} ميجابايت. جرّب نسخة أصغر أو صفحات أقل.",
@@ -3985,6 +4035,9 @@ export const STRINGS = {
       supplier: "आमतौर पर किससे",
       location: "कहाँ रखा है",
       sku: "SKU",
+      aliases: "अन्य नाम",
+      aliasHint: "बीजकों में जिन नामों से आता है — किसी भी भाषा में, एक प्रति पंक्ति।",
+      aliasPlaceholder: "कीमा\nMINCED BEEF 80/20",
       barcode: "बारकोड",
       reorderPoint: "इससे नीचे चेतावनी दीजिए",
       reorderHint: "उपलब्ध मात्रा यहाँ तक गिरे तो चेतावनी दिखती है। चेतावनी न चाहिए तो खाली छोड़िए।",
@@ -4821,6 +4874,28 @@ export const STRINGS = {
       usingServer: "आपके एडमिन का सेट किया साझा टोकन इस्तेमाल हो रहा है।",
     },
 
+    /* Unit names as a person reads them.
+
+       The keys are the ledger's own and never change — what the API is sent
+       is always the key — so this is only how each one is written on screen.
+       Somebody counting in حبة should not have to recognise "ea". */
+    unitNames: {
+      mg: "मिग्रा",
+      g: "ग्राम",
+      kg: "किग्रा",
+      oz: "औंस",
+      lb: "पाउंड",
+      ml: "मिली",
+      cl: "सेंटीलीटर",
+      l: "लीटर",
+      tsp: "छोटा चम्मच",
+      tbsp: "बड़ा चम्मच",
+      cup: "कप",
+      floz: "फ्लूइड औंस",
+      gal: "गैलन",
+      ea: "नग",
+      dozen: "दर्जन",
+    },
     aiscan: {
       pdfFailed: "यह दस्तावेज़ पढ़ा नहीं जा सका। अगर यह फ़ोटो का स्कैन है, तो साफ़ प्रति भेजें।",
       tooLarge: "फ़ाइल बहुत बड़ी है — सीमा {mb} MB है। छोटी प्रति या कम पन्ने भेजें।",
@@ -5196,6 +5271,9 @@ export const STRINGS = {
       supplier: "عام طور پر کس سے",
       location: "کہاں رکھا ہے",
       sku: "SKU",
+      aliases: "دیگر نام",
+      aliasHint: "بلوں میں جن ناموں سے آتا ہے — کسی بھی زبان میں، ہر سطر میں ایک۔",
+      aliasPlaceholder: "قیمہ\nMINCED BEEF 80/20",
       barcode: "بار کوڈ",
       reorderPoint: "اس سے نیچے خبردار کیجیے",
       reorderHint: "دستیاب مقدار یہاں تک گرے تو انتباہ ظاہر ہوتا ہے۔ انتباہ نہ چاہیے تو خالی چھوڑ دیجیے۔",
@@ -6178,6 +6256,28 @@ export const STRINGS = {
       saved: "رسائی اپ ڈیٹ ہو گئی۔",
       none: "کوئی اضافی رسائی نہیں دی گئی۔",
       pickTabs: "ٹیبز",
+    },
+    /* Unit names as a person reads them.
+
+       The keys are the ledger's own and never change — what the API is sent
+       is always the key — so this is only how each one is written on screen.
+       Somebody counting in حبة should not have to recognise "ea". */
+    unitNames: {
+      mg: "ملی گرام",
+      g: "گرام",
+      kg: "کلوگرام",
+      oz: "اونس",
+      lb: "پاؤنڈ",
+      ml: "ملی لیٹر",
+      cl: "سینٹی لیٹر",
+      l: "لیٹر",
+      tsp: "چھوٹا چمچ",
+      tbsp: "بڑا چمچ",
+      cup: "کپ",
+      floz: "فلوئد اونس",
+      gal: "گیلن",
+      ea: "عدد",
+      dozen: "درجن",
     },
     aiscan: {
       pdfFailed: "یہ دستاویز پڑھی نہیں جا سکی۔ اگر یہ تصویر کا اسکین ہے تو صاف نقل بھیجیں۔",
@@ -7554,6 +7654,9 @@ export const STRINGS = {
       supplier: "Karaniwang binibili kay",
       location: "Saan nakalagay",
       sku: "SKU",
+      aliases: "Tinatawag ding",
+      aliasHint: "Ibang pangalan sa mga invoice — anumang wika, isa kada linya.",
+      aliasPlaceholder: "giniling na baka\nMINCED BEEF 80/20",
       barcode: "Barcode",
       reorderPoint: "Abisuhan ako kapag bumaba sa",
       reorderHint: "Kapag umabot dito ang natitira, may lalabas na abiso. Iwanang blangko kung ayaw mo ng abiso.",
@@ -8390,6 +8493,28 @@ export const STRINGS = {
       usingServer: "Ginagamit ang pangkalahatang token na itinakda ng admin mo.",
     },
 
+    /* Unit names as a person reads them.
+
+       The keys are the ledger's own and never change — what the API is sent
+       is always the key — so this is only how each one is written on screen.
+       Somebody counting in حبة should not have to recognise "ea". */
+    unitNames: {
+      mg: "mg",
+      g: "g",
+      kg: "kg",
+      oz: "onsa",
+      lb: "libra",
+      ml: "ml",
+      cl: "cl",
+      l: "L",
+      tsp: "kutsarita",
+      tbsp: "kutsara",
+      cup: "tasa",
+      floz: "fl oz",
+      gal: "galon",
+      ea: "piraso",
+      dozen: "dosena",
+    },
     aiscan: {
       pdfFailed: "Hindi nabasa ang dokumento. Kung scan ito ng litrato, subukan ang mas malinaw na kopya.",
       tooLarge: "Masyadong malaki ang file — {mb} MB ang limitasyon. Subukan ang mas maliit o mas kaunting pahina.",

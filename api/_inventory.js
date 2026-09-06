@@ -21,6 +21,7 @@
 import { getJSON, setJSON, del } from "./_store.js";
 import { isUnit, dimensionOf, UNITS, convert as convertUnits } from "./_units.js";
 import { resolveUnit } from "./_unitwords.js";
+import { normaliseText } from "./_text.js";
 import { resetAliases } from "./_aliases.js";
 
 const ING = (orgId) => `inv:${orgId}:ingredients`;
@@ -89,6 +90,33 @@ function convertTypedFigures(record, fromUnit, toUnit) {
   };
 }
 
+/* Alias names, tidied but not translated.
+
+   Trimmed, de-duplicated by what they normalise to — so "لحم مفروم" and
+   "لحم  مفروم " are one alias, not two — and capped, because this is a list
+   somebody types and an unbounded one is a way to make every scan slow. The
+   original spelling is kept: the list is shown back to a person, and folding
+   it to the matcher's form would put "زبده" on screen where they wrote
+   "زبدة". */
+const MAX_ALIASES = 24;
+
+export function cleanAliases(next, existing) {
+  if (next === undefined) return existing || [];
+  if (!Array.isArray(next)) return [];
+  const seen = new Set();
+  const out = [];
+  for (const raw of next) {
+    const name = String(raw ?? "").trim().slice(0, 80);
+    if (!name) continue;
+    const key = normaliseText(name);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push(name);
+    if (out.length >= MAX_ALIASES) break;
+  }
+  return out;
+}
+
 export async function saveIngredient(orgId, input) {
   /* Read the units before validating them.
 
@@ -121,6 +149,21 @@ export async function saveIngredient(orgId, input) {
   const record = {
     id,
     name: String(input.name).trim(),
+    /* The other things this is called.
+
+       An ingredient has one name on the shelf and several on paper: a kitchen
+       labels it "Ground beef", one supplier prints "لحم مفروم", another prints
+       "MINCED BEEF 80/20", and the Filipino chef writing the recipe calls it
+       "giniling". The matcher learns supplier wording after the first commit
+       (`_aliases.js`), which is the right answer for a wording nobody thought
+       to write down — but it cannot help the first time, and it cannot be
+       edited by somebody who already knows.
+
+       So an ingredient carries the names it is known by, in any language, and
+       the matcher checks them alongside the name. Stated rather than inferred:
+       no amount of text processing can know that "لحم مفروم" and "Ground beef"
+       are the same thing, because they share no letters. */
+    aliases: cleanAliases(input.aliases, existing?.aliases),
     category: String(input.category || "").trim(),
     /* The unit stock is held and recipes are written in.
 
