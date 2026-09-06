@@ -32,6 +32,25 @@ import { unitNote, nameList } from "./unitnote.js";
    be wrong and the answer to that must never be "start again". They are just
    not the first thing anybody has to deal with. */
 
+/* Which units this line may be written in.
+
+   The ones that measure the same kind of thing as the shelf, because those are
+   exactly the ones that convert — so a choice from this list can never produce
+   the mismatch this screen spends its time reporting. Where the shelf is not
+   known yet, because the line is creating its own ingredient, every unit is
+   offered and the server decides. */
+function unitChoices(units, line) {
+  if (!units) return [];
+  const all = [...(units.mass || []), ...(units.volume || []), ...(units.count || [])];
+  const shelf = line.stocksIn || line.stockUnit || line.newItem?.stockUnit || "";
+  if (!shelf) return all;
+  for (const dimension of ["mass", "volume", "count"]) {
+    const set = units[dimension] || [];
+    if (set.some((u) => u.key === shelf)) return set;
+  }
+  return all;
+}
+
 /* One row of the invoice header. Dotted rule between, values ending the line,
    which is how the paper itself is laid out and how it reads in both
    directions. */
@@ -54,6 +73,10 @@ export default function SupplierScan({ token, onReceived, initial, onInitialUsed
   const [result, setResult] = useState(null);
   const [lines, setLines] = useState([]);
   const [stock, setStock] = useState([]);
+  /* The units the ledger keeps, by dimension, straight from the server. The
+     endpoint has always returned them and nothing here read them, which is why
+     the unit was a text box somebody could type an unusable word into. */
+  const [units, setUnits] = useState(null);
   const [branches, setBranches] = useState([]);
   const [branch, setBranch] = useState("");
   const [busy, setBusy] = useState(false);
@@ -78,7 +101,7 @@ export default function SupplierScan({ token, onReceived, initial, onInitialUsed
   useEffect(() => {
     fetch("/api/inventory", { headers: { Authorization: `Bearer ${token}` } })
       .then((r) => (r.ok ? r.json() : null))
-      .then((j) => setStock(j?.ingredients || []))
+      .then((j) => { setStock(j?.ingredients || []); setUnits(j?.units || null); })
       .catch(() => {});
 
     fetch("/api/scope", { headers: { Authorization: `Bearer ${token}` } })
@@ -417,8 +440,34 @@ export default function SupplierScan({ token, onReceived, initial, onInitialUsed
                     value={l.qty ?? ""} onChange={(e) => edit(i, { qty: e.target.value })}
                     aria-label={s.qty} {...field} style={{ ...field.style, width: "4.5rem", textAlign: "end" }} />
 
-                  <input value={l.unit || ""} onChange={(e) => edit(i, { unit: e.target.value })}
-                    aria-label={s.unit} {...field} style={{ ...field.style, width: "3.5rem" }} dir="ltr" />
+                  {/* A list, not a text box.
+
+                      It was an input, so what got posted was whatever the scan
+                      had printed or somebody had typed — "كجم (kg)", "Kg", a
+                      word with a stray bracket. Those are all read correctly
+                      now, but the better answer is not to produce them: the
+                      option shows the label and the value stored is the
+                      ledger's own key, so nothing unusable can leave this row.
+
+                      Narrowed to the dimension the shelf is kept in, where
+                      that is known. Offering kilograms for an ingredient
+                      counted in pieces is offering the mistake this whole
+                      screen keeps reporting; the units that remain are the
+                      ones that convert, so choosing any of them is safe.
+
+                      The scan's own word stays as an option when it is not one
+                      of ours, so a line is never silently re-labelled by the
+                      act of rendering it. */}
+                  <select value={l.unit || ""} onChange={(e) => edit(i, { unit: e.target.value })}
+                    aria-label={s.unit} {...field}
+                    style={{ ...field.style, width: "5rem" }} dir="ltr">
+                    {!unitChoices(units, l).some((u) => u.key === (l.unit || "")) && (
+                      <option value={l.unit || ""}>{l.unit || "—"}</option>
+                    )}
+                    {unitChoices(units, l).map((u) => (
+                      <option key={u.key} value={u.key}>{u.label}</option>
+                    ))}
+                  </select>
 
                   <input type="number" min="0" step="any" inputMode="decimal" dir="ltr"
                     value={l.unitCost ?? ""} onChange={(e) => edit(i, { unitCost: Number(e.target.value) })}

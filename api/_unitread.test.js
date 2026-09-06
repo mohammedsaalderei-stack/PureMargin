@@ -20,7 +20,7 @@
    and from the one the app can settle alone. */
 
 import assert from "node:assert/strict";
-import { resolveUnit, normaliseUnit } from "./_unitwords.js";
+import { resolveUnit, normaliseUnit, isPackaging } from "./_unitwords.js";
 import { convert, sameDimension } from "./_units.js";
 
 let failures = 0;
@@ -203,6 +203,102 @@ await asyncTest("a missing ingredient still refuses without inventing a name", a
   });
   assert.equal(out.error, "ingredientId");
   assert.equal(out.ingredientName, "", "nothing to name, and nothing invented");
+});
+
+/* ── The alias table, as a specification ─────────────────────────────────
+
+   Written out rather than sampled, because the point of a vocabulary is that
+   every word in it works and there is no way to tell from the code which ones
+   were tried. */
+
+const CANONICAL = [
+  ["kg", ["kg", "Kg", "KG", "kgs", "kilo", "kilos", "kilogram", "kilograms",
+          "كجم", "كغ", "كيلو", "كيلوغرام", "كيلوجرام", "كجم (kg)", "Kg (كجم)"]],
+  ["g", ["g", "gm", "gr", "gram", "grams", "جم", "جرام", "غرام", "غ", "gm (جم)"]],
+  ["mg", ["mg", "milligram", "milligrams", "مجم"]],
+  ["l", ["l", "L", "lt", "ltr", "liter", "litre", "liters", "litres",
+         "لتر", "ل", "لترات", "لتر (L)"]],
+  ["ml", ["ml", "mls", "millilitre", "milliliter", "مل", "ملل", "مللتر", "مليلتر"]],
+  ["ea", ["ea", "each", "pc", "pcs", "piece", "pieces", "unit", "units",
+          "حبة", "حبه", "قطعة", "قطعه", "عدد", "وحدة", "حبة (pcs)", "Pcs (حبة)"]],
+  ["gal", ["gal", "gallon", "gallons", "جالون"]],
+  ["lb", ["lb", "lbs", "pound", "pounds", "رطل"]],
+  ["dozen", ["dozen", "dz", "دزينة", "درزن"]],
+];
+
+test("every spelling in the vocabulary resolves to its canonical key", () => {
+  for (const [key, words] of CANONICAL) {
+    for (const word of words) {
+      assert.equal(normaliseUnit(word), key, `${JSON.stringify(word)} should read as ${key}`);
+    }
+  }
+});
+
+test("a packaging word is never quietly turned into a piece", () => {
+  /* Asked for twice, and refused twice, for one reason: a carton recorded as
+     one piece is a stock balance wrong by however many things were in the
+     carton, and it looks exactly like a correct one. What a package needs is
+     its contents, which the invoice often prints — see `packContents` — and
+     which the screen asks for when it does not. */
+  for (const word of ["box", "carton", "case", "علبة", "علبه", "كرتون", "صندوق", "sack", "كيس"]) {
+    assert.equal(normaliseUnit(word), null, `${word} is not a unit`);
+    assert.equal(isPackaging(word), true, `${word} is a package`);
+  }
+});
+
+await asyncTest("a unit written any way at all is converted, not blocked", async () => {
+  /* The complaint, exactly: "Ground beef is kept in kg, and the line is
+     written in كجم (kg)." The reading used to happen at each route, so a
+     route that forgot — or a caller added later — was a route where this was
+     refused. It happens in `validateMovement` now, which is the thing that
+     actually decides. */
+  await saveIngredient("org-c", { name: "Ground beef", stockUnit: "kg" });
+  await saveIngredient("org-c", { name: "Olive oil", stockUnit: "ml" });
+
+  const written = [
+    ["ground-beef", 3, "كجم (kg)", 3000],
+    ["ground-beef", 500, "g", 500],
+    ["ground-beef", 2, "كيلو", 2000],
+    ["ground-beef", 1, "Kg (كجم)", 1000],
+    ["olive-oil", 2, "لتر (L)", 2000],
+    ["olive-oil", 1, "gallon", 3785.411784],
+  ];
+  for (const [id, qty, unit, base] of written) {
+    const out = await recordMovement("org-c", "b1", { ingredientId: id, type: "receive", qty, unit });
+    assert.equal(out.error, undefined, `${qty} ${unit} should be accepted`);
+    assert.ok(Math.abs(out.movement.qtyBase - base) < 1e-6,
+      `${qty} ${unit} should be ${base} base units, was ${out.movement.qtyBase}`);
+  }
+});
+
+await asyncTest("the canonical unit is what gets stored, not what was typed", async () => {
+  /* Otherwise "كجم (kg)" and "kg" sit in the ledger as two different units
+     for the same movement, and anything grouping by unit treats them as two
+     different things. */
+  await saveIngredient("org-d", { name: "Ground beef", stockUnit: "kg" });
+  const out = await recordMovement("org-d", "b1", {
+    ingredientId: "ground-beef", type: "receive", qty: 3, unit: "كجم (kg)",
+  });
+  assert.equal(out.movement.unit, "kg");
+  assert.equal(out.movement.qty, 3, "the number is untouched — this is spelling, not arithmetic");
+});
+
+await asyncTest("what must still be refused, still is", async () => {
+  await saveIngredient("org-e", { name: "Ground beef", stockUnit: "kg" });
+  await saveIngredient("org-e", { name: "Buns", stockUnit: "ea" });
+
+  /* A package, which needs its contents, not a unit. */
+  const box = await recordMovement("org-e", "b1", {
+    ingredientId: "ground-beef", type: "receive", qty: 3, unit: "علبة",
+  });
+  assert.equal(box.error, "unit");
+
+  /* A count against a weight, which needs a weight per piece nobody supplied. */
+  const wrong = await recordMovement("org-e", "b1", {
+    ingredientId: "ground-beef", type: "receive", qty: 3, unit: "ea",
+  });
+  assert.equal(wrong.error, "unit");
+  assert.equal(wrong.stockUnit, "kg", "and says what the shelf keeps, so the screen can explain");
 });
 
 console.log(failures ? `\n${failures} failed` : "\nall passed");

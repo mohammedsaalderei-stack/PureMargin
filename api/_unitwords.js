@@ -37,7 +37,7 @@ const ALIASES = {
   l: ["l", "lt", "ltr", "ltrs", "litre", "litres", "liter", "liters",
       "لتر", "ل", "لترات", "लीटर", "litro"],
   ml: ["ml", "mls", "millilitre", "millilitres", "milliliter", "milliliters",
-       "مل", "مللتر", "مليلتر", "मिली", "मिलीलीटर", "mililitro"],
+       "مل", "ملل", "مللتر", "مليلتر", "ملليلتر", "मिली", "मिलीलीटर", "mililitro"],
   tsp: ["tsp", "tsps", "teaspoon", "teaspoons", "ملعقة صغيرة", "ملعقة شاي",
         "छोटा चम्मच", "छोटी चम्मच", "kutsarita"],
   tbsp: ["tbsp", "tbsps", "tbs", "tablespoon", "tablespoons", "ملعقة كبيرة", "ملعقة طعام",
@@ -60,7 +60,7 @@ const ALIASES = {
    a kilo would put a number in the ledger nobody measured. Recognised so the
    screen can say "this is a pack size, tell me what one contains" rather than
    shrugging at a word it has never seen. */
-const PACKAGING = new Set([
+const PACKAGING_WORDS = new Set([
   "box", "boxes", "carton", "cartons", "case", "cases", "crate", "crates",
   "sack", "sacks", "bag", "bags", "tin", "tins", "can", "cans", "jar", "jars",
   "tub", "tubs", "pkt", "pkts", "packet", "packets", "pack", "packs",
@@ -70,10 +70,15 @@ const PACKAGING = new Set([
   "kahon", "sako", "supot", "lata", "bote",
 ]);
 
+/* Both tables are folded through `tidy` as they are built, so a word is
+   spelled the same way on each side of the lookup. Without it, folding only
+   the input would move "حبة" to "حبه" and then fail to find the alias, which
+   is spelled with the ta marbuta. */
 const LOOKUP = new Map();
 for (const [key, words] of Object.entries(ALIASES)) {
-  for (const word of words) LOOKUP.set(word, key);
+  for (const word of words) LOOKUP.set(tidy(word), key);
 }
+const PACKAGING = new Set([...PACKAGING_WORDS].map(tidy));
 
 function tidy(raw) {
   return String(raw ?? "")
@@ -84,6 +89,19 @@ function tidy(raw) {
     .replace(/[\u06F0-\u06F9]/g, (d) => String(d.charCodeAt(0) - 0x06F0))
     /* Arabic diacritics carry no meaning for matching a unit name. */
     .replace(/[\u064B-\u065F\u0670]/g, "")
+    /* Letters that get written more than one way.
+
+       "\u062D\u0628\u0629" and "\u062D\u0628\u0647" are the same word \u2014 a ta marbuta typed as a plain ha,
+       which is how a good share of delivery notes are written. Same for the
+       alef forms and for the two ways a word can end in \u0649 or \u064A. Adding "\u062D\u0628\u0647"
+       to the alias list would have fixed that one word and left the twenty
+       others; folding the letters fixes the class.
+
+       Applied when the alias table is built as well as to what arrives, so
+       both sides of the lookup are spelled the same way. */
+    .replace(/[\u0623\u0625\u0622\u0671]/g, "\u0627")
+    .replace(/\u0629/g, "\u0647")
+    .replace(/\u0649/g, "\u064A")
     .replace(/[.\u060C,;:]/g, " ")
     .replace(/\s+/g, " ")
     .trim();

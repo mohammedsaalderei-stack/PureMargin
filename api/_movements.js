@@ -34,6 +34,7 @@
 import { getJSON, setJSON } from "./_store.js";
 import { getIngredient } from "./_inventory.js";
 import { convert, sameDimension, isUnit, BASE_UNIT, baseUnitFor } from "./_units.js";
+import { normaliseUnit } from "./_unitwords.js";
 
 const MOVES = (orgId, branchId) => `inv:${orgId}:moves:${branchId}`;
 const POLICY = (orgId) => `inv:${orgId}:policy`;
@@ -98,17 +99,36 @@ export async function savePolicy(orgId, { allowNegative }) {
 /* ── Recording ────────────────────────────────────────────── */
 
 /* Validation that doesn't need the store, so it can be unit-tested and reused
-   by the transfer path without a second round of reads. */
+   by the transfer path without a second round of reads.
+
+   ── Why the unit is read here rather than at each caller ─────────────────
+
+   It was read at every route instead — the invoice, the two batch paths, the
+   single movement, recipes, purchasing — and a route that forgot was a route
+   where "كجم (kg)" was refused. That is a guarantee held in six places and
+   therefore held in none: the ledger is what actually decides, so the ledger
+   is where the reading belongs.
+
+   It cannot loosen anything. `normaliseUnit` returns a canonical key or null,
+   so a packaging word — "sack", "علبة" — still fails `isUnit` and is still
+   refused. What changes is only which spellings of a real unit get through,
+   which is the difference between a ledger that speaks one dialect and one
+   that reads the paperwork it is given. */
 export function validateMovement({ type, qty, unit, ingredient }) {
   if (!isMovementType(type)) return "type";
   if (!ingredient) return "ingredientId";
   if (ingredient.archived) return "archived";
-  if (!isUnit(unit)) return "unit";
+
+  const read = normaliseUnit(unit);
+  const stock = normaliseUnit(ingredient.stockUnit) || ingredient.stockUnit;
+  if (!isUnit(read)) return "unit";
 
   /* The entered unit has to measure the same kind of thing as the ingredient's
-     stock unit. Anything else would need a density, which belongs to the
-     ingredient and doesn't exist yet — so this is refused rather than guessed. */
-  if (!sameDimension(unit, ingredient.stockUnit)) return "unit";
+     stock unit — but only the same kind, not the same unit. Grams onto a shelf
+     kept in kilos is a conversion, not a mismatch, and `convert` does it below.
+     A different kind of thing would need a density, which belongs to the
+     ingredient and doesn't exist yet, so that is refused rather than guessed. */
+  if (!sameDimension(read, stock)) return "unit";
 
   const n = Number(qty);
   if (!Number.isFinite(n)) return "qty";
@@ -157,7 +177,12 @@ export async function recordMovement(orgId, branchId, input, { policy, dryRun } 
   const { allowNegative } = policy || (await getPolicy(orgId));
   const qty = Math.abs(Number(input.qty));
   const sign = signOf(input.type, input.qty);
-  const qtyBase = sign * convert(qty, input.unit, baseUnitOf(ingredient));
+  /* The canonical unit, from here on. `validateMovement` has already confirmed
+     it reads as one; storing what somebody typed instead would leave "كجم (kg)"
+     in the ledger beside "kg" for the same movement, and every query that
+     groups by unit would treat them as two things. */
+  const unit = normaliseUnit(input.unit) || input.unit;
+  const qtyBase = sign * convert(qty, unit, baseUnitOf(ingredient));
 
   /* Would this drive the balance below zero? Checked against the ledger as it
      stands, which is the same number the screen was showing. */
@@ -183,7 +208,7 @@ export async function recordMovement(orgId, branchId, input, { policy, dryRun } 
     type: input.type,
     /* As entered, for a human. */
     qty: sign < 0 ? -qty : qty,
-    unit: input.unit,
+    unit,
     /* For arithmetic. Every total in the app reads this one. */
     qtyBase,
     baseUnit: baseUnitOf(ingredient),
