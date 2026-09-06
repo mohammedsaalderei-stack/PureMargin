@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Loader2, Check, Save, Trash2, FileText, AlertTriangle, ChevronDown } from "lucide-react";
 import { useC } from "../theme.jsx";
-import { useLang, fill } from "../i18n.jsx";
+import { useLang, fill, localeFor } from "../i18n.jsx";
 import { Money } from "../Dirham.jsx";
 import PhotoScan from "./PhotoScan.jsx";
 import { unitNote, nameList } from "./unitnote.js";
@@ -57,6 +57,17 @@ function unitChoices(units, line) {
    word for it and falls back to the label. Somebody counting in حبة should not
    have to recognise "each" — and the value posted is the key either way, so
    nothing about the ledger depends on which language is being read. */
+/* When the earlier delivery went in, in the reader's own clock. The bidi
+   marks come out because a time inside an Arabic sentence otherwise reorders
+   around the punctuation. */
+function clockOf(ms, lang) {
+  try {
+    return new Date(ms)
+      .toLocaleTimeString(localeFor(lang), { hour: "2-digit", minute: "2-digit" })
+      .replace(/[‎‏‪-‮⁦-⁩]/g, "");
+  } catch { return ""; }
+}
+
 const unitName = (t, u) => t.unitNames?.[u.key] || u.label || u.key;
 
 /* The server's refusal for one line, found by id or by name.
@@ -106,6 +117,11 @@ export default function SupplierScan({ token, onReceived, initial, onInitialUsed
   const [note, setNote] = useState("");
   const [failed, setFailed] = useState(false);
   const [review, setReview] = useState(false);
+  /* Set when the server recognises this as a delivery already recorded. Holds
+     when, so the question can name the time rather than being a vague warning. */
+  const [repeat, setRepeat] = useState(null);
+  /* The delivery just committed, so it can be taken back in one press. */
+  const [lastDelivery, setLastDelivery] = useState(null);
 
   useEffect(() => {
     if (!branch && branches.length) setBranch(branches[0].id);
@@ -136,6 +152,8 @@ export default function SupplierScan({ token, onReceived, initial, onInitialUsed
   const open = (r) => {
     setResult(r);
     setNote("");
+    setRepeat(null);
+    setLastDelivery(null);
     setFailed(false);
     setReview(false);
     setLines((r?.lines || []).map((l) => ({ ...l })));
@@ -148,6 +166,7 @@ export default function SupplierScan({ token, onReceived, initial, onInitialUsed
     setResult(null);
     setLines([]);
     setNote("");
+    setRepeat(null);
     setFailed(false);
     setReview(false);
   };
@@ -187,7 +206,36 @@ export default function SupplierScan({ token, onReceived, initial, onInitialUsed
      again on save regardless — this is a signpost, never a gate. */
   const troubled = lines.filter((l) => l.trouble && !l.edited);
 
-  const save = async () => {
+  /* Take the whole delivery back.
+
+     The ledger corrects by reversal rather than deletion, so this writes one
+     compensating entry per line and leaves the original visible — the same
+     thing the per-entry undo has always done, minus the forty-eight
+     confirmations that made it unusable on a real invoice. */
+  const undo = async () => {
+    if (!lastDelivery) return;
+    setBusy(true);
+    try {
+      const res = await fetch("/api/stock?what=undo-delivery", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ id: lastDelivery.id, branchId: lastDelivery.branchId }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) { setFailed(true); setNote(s.undoFailed); return; }
+      setFailed(false);
+      setLastDelivery(null);
+      setNote(fill(s.undone, { n: json.reversed || 0 }));
+      onReceived?.([]);
+    } catch {
+      setFailed(true);
+      setNote(s.undoFailed);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const save = async ({ confirm = false } = {}) => {
     if (!branch && branches.length) { setFailed(true); setNote(s.pickBranch); return; }
     setBusy(true);
     setNote("");
@@ -197,12 +245,22 @@ export default function SupplierScan({ token, onReceived, initial, onInitialUsed
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({
           branchId: branch || branches[0]?.id,
+          /* Set only by pressing "record again" on the repeat warning. */
+          confirm,
           supplier: result?.supplier || "",
           invoiceNo: result?.invoiceNo || "",
           lines: willReceive,
         }),
       });
       const json = await res.json().catch(() => ({}));
+      if (res.status === 409 && json.error === "duplicate") {
+        /* Not an error — a question. The delivery is still on screen and one
+           press records it anyway, which is the right answer when a supplier
+           really did bring the same thing twice. */
+        setFailed(false);
+        setRepeat(json);
+        return;
+      }
       if (!res.ok) {
         setFailed(true);
         setNote(json.error === "branch" ? s.pickBranch
@@ -216,6 +274,10 @@ export default function SupplierScan({ token, onReceived, initial, onInitialUsed
       }
 
       setFailed(false);
+      setRepeat(null);
+      /* Kept so the next press can take it back, which is what somebody wants
+         within seconds of an accidental second scan. */
+      setLastDelivery(json.deliveryId ? { id: json.deliveryId, branchId: branch || branches[0]?.id } : null);
       onReceived?.(json.movements || []);
       /* Some lines went in and some did not, which is now a possible outcome
          rather than an all-or-nothing refusal. Saying "took 46 of 48, left out
@@ -305,6 +367,21 @@ export default function SupplierScan({ token, onReceived, initial, onInitialUsed
         </p>
       )}
 
+      {/* One press, within seconds of the mistake it exists for.
+
+          Rendered here rather than inside the draft card, because a successful
+          save clears that card — so an undo living in it vanished at exactly
+          the moment somebody wanted it. Reversal was already possible per
+          entry, which on a forty-eight line delivery is forty-eight
+          confirmations: an undo nobody would reach the end of. */}
+      {lastDelivery && !busy && (
+        <button type="button" onClick={undo}
+          className="text-xs font-semibold underline px-1 text-start"
+          style={{ color: C.slate }}>
+          {s.undo}
+        </button>
+      )}
+
       {result && (
         <div className="panel p-5 md:p-6">
           <div className="flex items-center justify-between gap-3 mb-4">
@@ -366,7 +443,7 @@ export default function SupplierScan({ token, onReceived, initial, onInitialUsed
               <Trash2 size={15} /> {s.cancel}
             </button>
 
-            <button type="button" onClick={save} disabled={busy || !willReceive.length}
+            <button type="button" onClick={() => save()} disabled={busy || !willReceive.length}
               className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-bold disabled:opacity-50"
               style={{
                 background: "color-mix(in srgb, var(--mint) 12%, transparent)",
@@ -377,6 +454,36 @@ export default function SupplierScan({ token, onReceived, initial, onInitialUsed
               {busy ? s.saving : s.save}
             </button>
           </div>
+
+          {/* The same delivery, again.
+
+              Asked rather than refused, because two deliveries of the same
+              things in the same amounts do happen and only the person holding
+              the paperwork knows. Before this, a second scan of one document
+              was received in full and the only sign was a balance that had
+              quietly doubled — which looks exactly like a balance that is
+              right. */}
+          {repeat && (
+            <div className="mt-3 rounded-xl px-3 py-3 text-xs"
+              style={{
+                background: "color-mix(in srgb, var(--amber) 10%, transparent)",
+                border: `1px solid color-mix(in srgb, var(--amber) 35%, transparent)`,
+                color: C.amber,
+              }}>
+              <p className="flex items-start gap-1.5">
+                <AlertTriangle size={13} className="shrink-0 mt-0.5" />
+                <span>
+                  {fill(s.dupTitle, { time: clockOf(repeat.at, lang) })} {s.dupAsk}
+                </span>
+              </p>
+              <button type="button" disabled={busy}
+                onClick={() => { setRepeat(null); save({ confirm: true }); }}
+                className="mt-2 px-3 py-1.5 rounded-lg text-xs font-bold disabled:opacity-50"
+                style={{ background: C.amber, color: C.onPrimary }}>
+                {s.dupYes}
+              </button>
+            </div>
+          )}
 
           {note && (
             <p className="text-xs mt-3 flex items-center gap-1.5"

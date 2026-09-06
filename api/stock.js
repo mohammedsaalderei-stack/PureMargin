@@ -20,6 +20,7 @@
            ?what=movement   — one entry, body { branchId, ingredientId, type, qty, unit, ... }
            ?what=transfer   — two linked entries between branches
            ?what=reverse    — the only correction: body { branchId, id, reason }
+           ?what=undo-delivery — reverse every entry one scanned invoice wrote
            ?what=policy     — negative-stock policy, owner-level (manage:inventory)
 */
 
@@ -36,6 +37,7 @@ import { learnAliases } from "./_aliases.js";
 import { costBasis, costFrom, evidenceFor } from "./_costing.js";
 import { unitsByDimension, toBase, unitLabel } from "./_units.js";
 import { resolveUnit, isPackaging } from "./_unitwords.js";
+import { fingerprint, findRepeat, rememberInvoice, getInvoice, markUndone } from "./_invoicelog.js";
 import {
   MOVEMENT_KEYS, recordMovement, recordTransfer, reverseMovement,
   listMovements, balances, getPolicy, savePolicy,
@@ -359,12 +361,54 @@ export default async function handler(req, res) {
           return res.status(400).json({ error: refused[0]?.reason || "line", refused });
         }
 
+        /* Has this exact delivery already been received?
+
+           The till path has always remembered which receipts it posted, so a
+           retry deducts nothing twice. This path remembered nothing, so
+           scanning one delivery note again received it again — in full, and
+           silently, because a doubled balance looks exactly like a correct one.
+
+           Asked rather than refused: two separate deliveries of the same things
+           in the same amounts are possible, and only the person holding the
+           paperwork knows. One tap either way, against a doubling nobody would
+           otherwise catch. The dry run above has already told us exactly what
+           would be written, so the question is asked before anything is. */
+        const print = fingerprint(
+          dry.filter((d) => d.movement).map((d) => d.movement),
+        );
+        if (!body.confirm) {
+          const already = await findRepeat(orgId, branch[0], print);
+          if (already) {
+            return res.status(409).json({
+              error: "duplicate",
+              at: already.at,
+              lines: already.lines,
+              supplier: already.supplier,
+              invoiceNo: already.invoiceNo,
+            });
+          }
+        }
+
         const written = [];
         for (const r of takeable) {
           const out = await recordMovement(orgId, branch[0], { ...r, actor: session.username });
           if (out.error) break;
           written.push(out.movement);
         }
+
+        /* Kept so this delivery can be taken back as one thing. Reversal was
+           already per entry, which for forty-eight lines is forty-eight
+           confirmations — an undo nobody would ever reach the end of. */
+        const delivery = written.length
+          ? await rememberInvoice(orgId, branch[0], {
+              fingerprint: print,
+              supplier: body.supplier,
+              invoiceNo: body.invoiceNo,
+              actor: session.username,
+              movementIds: written.map((m) => m.id),
+              lines: written.length,
+            })
+          : null;
 
         /* What this supplier calls each thing, remembered. Only for lines that
            were actually received, and only from their printed description. */
@@ -388,6 +432,10 @@ export default async function handler(req, res) {
 
         return res.status(200).json({
           movements: written,
+          /* The handle for taking this delivery back, so the screen can offer an
+             undo the moment it is most wanted — right after an accidental
+             second scan. */
+          deliveryId: delivery?.id || null,
           created: [...made.values()].map((i) => ({ id: i.id, name: i.name })),
           learned: learned.learned,
           /* Lines that could not be received at all, named rather than
@@ -569,6 +617,58 @@ export default async function handler(req, res) {
           detail: { of: out.movement.reverses, type: out.movement.type, branchId: branch[0] },
         });
         return res.status(200).json(out);
+      }
+
+      /* Take back a whole delivery.
+
+         Reversal has always been per entry, which is right for correcting one
+         mistaken count — and useless for the mistake this actually gets made:
+         scanning the same forty-eight line delivery note twice. Undoing that
+         meant forty-eight confirmations, so in practice nobody undid it and the
+         balance stayed doubled.
+
+         Nothing new happens to the ledger. Every entry is reversed by the same
+         function, one compensating entry each, and an entry already reversed is
+         skipped rather than reversed twice. Same permission as a single
+         reversal, for the same reason: unwinding is the owner's to do. */
+      if (what === "undo-delivery") {
+        if (!can(scope.role, "manage:users")) return res.status(403).json({ error: "notowner" });
+
+        const branch = permitted(body.branchId);
+        if (!branch.length) return res.status(403).json({ error: "branch" });
+
+        const delivery = await getInvoice(orgId, branch[0], String(body.id || ""));
+        if (!delivery) return res.status(404).json({ error: "notfound" });
+        if (delivery.undone) return res.status(409).json({ error: "alreadyundone" });
+
+        let reversed = 0;
+        const refused = [];
+        for (const id of delivery.movementIds) {
+          const one = await reverseMovement(orgId, branch[0], id, {
+            actor: session.username,
+            reason: String(body.reason || "").slice(0, 200),
+          });
+          if (one.error) { refused.push({ id, error: one.error }); continue; }
+          reversed += 1;
+        }
+
+        await markUndone(orgId, branch[0], delivery.id, { reversed });
+        await recordAudit(orgId, {
+          actor: session.username,
+          action: "stock.undo-delivery",
+          detail: {
+            branchId: branch[0],
+            delivery: delivery.id,
+            supplier: delivery.supplier,
+            invoiceNo: delivery.invoiceNo,
+            reversed,
+            /* Entries that could not be taken back — already reversed, or gone.
+               Counted rather than hidden, so "43 of 47" is answerable. */
+            refused: refused.length,
+          },
+        });
+
+        return res.status(200).json({ reversed, refused, of: delivery.movementIds.length });
       }
 
       return res.status(400).json({ error: "what" });
