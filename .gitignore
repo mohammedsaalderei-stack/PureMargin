@@ -3,3 +3,12 @@ dist
 .env
 .env.local
 .vercel
+
+# Throwaway verification harnesses. Built to look at a change in a real
+# browser, deleted after — but committed by accident three times, so they
+# are named here rather than remembered.
+*probe*.html
+*probe*.jsx
+*probe*.js
+mframe.html
+.claude/launch.json
