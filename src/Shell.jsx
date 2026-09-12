@@ -31,6 +31,7 @@ import Alerts from "./screens/Alerts.jsx";
 import Plan from "./screens/Plan.jsx";
 import Costs from "./screens/Costs.jsx";
 import Sales from "./screens/Sales.jsx";
+import Employees from "./screens/Employees.jsx";
 import BranchScope from "./BranchScope.jsx";
 import CommandPalette from "./CommandPalette.jsx";
 import LanguagePicker from "./LanguagePicker.jsx";
@@ -98,6 +99,11 @@ const INVENTORY_TAB = { id: "inventory", icon: Package };
 /* Alerts sit with inventory rather than costing: the person acting on a stockout
    is the chef, and `view:inventory` is who that is. */
 const ALERTS_TAB = { id: "alerts", icon: BellRing };
+
+/* Attendance. A permission rather than a plan feature — whoever runs a shift
+   has it — so appended like the others rather than placed in TAB_META, which
+   drives the numeric shortcuts and swipe order for everybody. */
+const EMPLOYEES_TAB = { id: "employees", icon: Users };
 
 /* The operational plan: purchasing needs `view:forecast`, the branch ranking
    `view:profitability`; either one is enough to have something to read. */
@@ -213,7 +219,9 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
      margin. While scope was loading, and permanently if scope failed to load,
      a cashier saw it. A fallback has to be the safe answer rather than the
      convenient one. */
-  const OPEN_TABS = ["ask", "messages", "settings"];
+  /* Messages was here and the board is shelved, so it would have been a
+     fallback to a tab nothing can open. */
+  const OPEN_TABS = ["ask", "settings"];
   const allowedIds = scope?.tabs || OPEN_TABS;
   const allowed = (id) => allowedIds.includes(id);
 
@@ -230,7 +238,7 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
   const byId = Object.fromEntries(TAB_META.map((tb) => [tb.id, tb]));
   const navTabs = [
     byId.overview, SALES_TAB, byId.costs, byId.ask,
-    INVENTORY_TAB, ALERTS_TAB, PLAN_TAB, RECIPES_TAB, VARIANCE_TAB,
+    INVENTORY_TAB, ALERTS_TAB, PLAN_TAB, RECIPES_TAB, VARIANCE_TAB, EMPLOYEES_TAB,
     byId.watch, byId.menu, byId.forecast, byId.advice,
     MESSAGES_TAB, TEAM_TAB,
     byId.billing, byId.settings,
@@ -436,6 +444,7 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
       token={token} conversationCount={conversations.length} account={account} onConnect={() => setConnectOpen(true)}
       onAccountChange={refreshEverything} onSeePlans={() => go("billing")} onSession={onSession} onLogout={onLogout} />;
   } else if (tab === "team") { body = <Team token={token} />; }
+  else if (tab === "employees") { body = <Employees token={token} branches={branches} />; }
   else if (tab === "messages") { body = <Messages token={token} />; }
   else if (locked) { body = <Locked feature={needed} onSeePlans={() => go("billing")} />; }
   /* No `pendingDoc` here any more. The cost screen is a typed ledger and has

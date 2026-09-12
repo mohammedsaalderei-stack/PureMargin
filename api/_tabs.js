@@ -53,12 +53,25 @@ export const TAB_ACCESS = {
      what everybody with a dashboard already does, and the screen shows no edit
      controls to somebody who cannot use them. */
   sales: "view:dashboard",
+  employees: "manage:staff",
   watch: "view:profitability",
   menu: "view:profitability",
   forecast: "view:forecast",
   advice: "view:profitability",
-  messages: null,
-  team: "manage:users",
+  /* The board and team administration are hidden rather than removed.
+
+     Neither is finished enough to be worth the room it takes in the nav: the
+     board is a second inbox nobody reads when the team already has one, and
+     team administration is a screen an owner visits twice — once to add
+     somebody and once to remember they can. Attendance is the staff question
+     that gets asked daily, and it now has its own tab.
+
+     Shelved exactly as leakage is above. The screens, the routes and the
+     endpoints all stay and keep working; `allowedTabs` builds the permitted
+     set from the keys here, so commenting them out takes them off the nav and
+     changes nothing else. Restoring either is putting its line back. */
+  // messages: null,
+  // team: "manage:users",
   billing: "manage:billing",
   settings: null,
 };

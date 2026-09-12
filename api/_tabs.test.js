@@ -39,7 +39,15 @@ const tabsFor = (role, o = org(), who = role) =>
 
 test("every tab is accounted for", () => {
   assert.equal(TAB_KEYS.length, Object.keys(TAB_ACCESS).length);
-  assert.ok(TAB_KEYS.includes("costs") && TAB_KEYS.includes("messages"));
+  assert.ok(TAB_KEYS.includes("costs") && TAB_KEYS.includes("ask"));
+  /* The board and team administration are shelved, like leakage: commented out
+     of TAB_ACCESS so `allowedTabs` can never offer them, with their screens and
+     endpoints left working. Asserted so the shelving is a decision somebody has
+     to undo on purpose rather than something a later edit restores by
+     accident. */
+  for (const shelved of ["messages", "team", "variance"]) {
+    assert.ok(!TAB_KEYS.includes(shelved), `${shelved} is shelved`);
+  }
 });
 
 test("the owner sees everything", () => {
@@ -51,13 +59,13 @@ test("a cashier sees only the till and the open tabs", () => {
      It rides on view:dashboard for the same reason costs does, and the screen
      shows no correction controls to somebody without adjust:sales. */
   assert.deepEqual(tabsFor("cashier").sort(),
-    ["ask", "costs", "messages", "sales", "settings"],
+    ["ask", "costs", "sales", "settings"],
     "the dashboard leads with net margin — that is not a till view");
 });
 
 test("a cashier is kept out of margin data and billing", () => {
   const tabs = tabsFor("cashier");
-  for (const shut of ["overview", "watch", "menu", "advice", "forecast", "billing", "team"]) {
+  for (const shut of ["overview", "watch", "menu", "advice", "forecast", "billing", "employees"]) {
     assert.ok(!tabs.includes(shut), `${shut} must not be open to a cashier`);
   }
 });
@@ -71,7 +79,7 @@ test("a chef gets the kitchen, not the money", () => {
 test("only the owner gets Team and Packages", () => {
   for (const role of ["ops", "branch_manager", "chef", "cashier", "accountant"]) {
     const tabs = tabsFor(role);
-    assert.ok(!tabs.includes("team"), `${role} must not manage users`);
+    assert.ok(!tabs.includes("billing"), `${role} must not manage billing`);
     assert.ok(!tabs.includes("billing"), `${role} must not see billing`);
   }
 });
@@ -79,7 +87,7 @@ test("only the owner gets Team and Packages", () => {
 test("everybody gets the assistant, the board and their own settings", () => {
   for (const role of Object.keys(ROLES)) {
     const tabs = tabsFor(role);
-    for (const open of ["ask", "messages", "settings"]) {
+    for (const open of ["ask", "settings"]) {
       assert.ok(tabs.includes(open), `${role} should have ${open}`);
     }
   }
@@ -111,14 +119,14 @@ test("role and personal grants add rather than replace", () => {
 });
 
 test("Team and Packages can never be granted", () => {
-  const o = org({ roles: { cashier: ["team", "billing"] }, users: { till: ["team"] } });
+  const o = org({ roles: { cashier: ["billing"] }, users: { till: ["billing"] } });
   assert.deepEqual(grantedTabs(o, "till", "cashier"), []);
-  assert.ok(!tabsFor("cashier", o, "till").includes("team"));
+  assert.ok(!tabsFor("cashier", o, "till").includes("billing"));
   for (const id of UNGRANTABLE) assert.ok(!grantable().includes(id));
 });
 
 test("an always-open tab is not offered as a grant", () => {
-  for (const id of ["ask", "messages", "settings"]) {
+  for (const id of ["ask", "settings"]) {
     assert.ok(!grantable().includes(id), `${id} is already open to everyone`);
   }
 });
@@ -149,7 +157,7 @@ test("no grants means base capabilities, unchanged", () => {
 });
 
 test("someone with no capabilities still gets the open tabs", () => {
-  assert.deepEqual(allowedTabs([]).sort(), ["ask", "messages", "settings"]);
+  assert.deepEqual(allowedTabs([]).sort(), ["ask", "settings"]);
 });
 
 
@@ -157,7 +165,7 @@ test("the no-capability fallback does not include the dashboard", () => {
   const open = allowedTabs([]);
   assert.ok(!open.includes("overview"),
     "the dashboard leads with net margin; a fallback has to be the safe answer");
-  assert.deepEqual(open.sort(), ["ask", "messages", "settings"]);
+  assert.deepEqual(open.sort(), ["ask", "settings"]);
 });
 
 

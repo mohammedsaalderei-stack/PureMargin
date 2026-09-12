@@ -32,7 +32,7 @@ async function test(name, fn) {
   }
 }
 
-const ALL = ["view:dashboard", "view:costs", "view:inventory", "view:profitability"];
+const ALL = ["view:dashboard", "view:costs", "view:inventory", "view:profitability", "manage:staff"];
 
 const ctx = (over = {}) => ({
   orgId: "org1",
@@ -206,6 +206,7 @@ await test("every advertised tool exists and is reachable by name", async () => 
   assert.deepEqual(names.sort(), [
     "calculate_net_profit", "get_fixed_costs", "get_inventory_levels",
     "get_pos_sales_metrics", "get_recent_receipts", "get_recipe_details",
+    "get_staff_attendance", "get_stock_alerts",
     "get_stock_movements", "get_suppliers_and_orders",
   ]);
 

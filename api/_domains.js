@@ -60,6 +60,9 @@ import { listOrders } from "./_purchasing.js";
 import { rawReceipts } from "./_data.js";
 import { listEdits, applyEdit, receiptIdOf } from "./_saleedits.js";
 import { provider } from "./_pos.js";
+import { listEmployees, listPunches, onShift, shiftsFrom } from "./_employees.js";
+import { buildAlerts } from "./_alerts.js";
+import { normaliseText } from "./_text.js";
 
 /* The tag on every row. Deliberately shouty and deliberately redundant with
    the tool that produced it: a row that travels into a conversation and comes
@@ -82,6 +85,11 @@ export const DOMAIN = {
   RECIPE: "RECIPE",
   RAW_INVENTORY: "RAW_INVENTORY",
   POS_SALES: "POS_SALES",
+  /* Who was here and when. Deliberately its own domain rather than a corner of
+     OPEX: wages are an overhead and hours are not, and an assistant that could
+     reach attendance while answering a question about rent would be one
+     mistaken join away from reporting a person's shifts as a cost line. */
+  STAFF: "STAFF",
 };
 
 /* What each domain needs to be read at all. Matches what the equivalent screen
@@ -91,6 +99,7 @@ const NEEDS = {
   [DOMAIN.RECIPE]: "view:costs",
   [DOMAIN.RAW_INVENTORY]: "view:inventory",
   [DOMAIN.POS_SALES]: "view:dashboard",
+  [DOMAIN.STAFF]: "manage:staff",
 };
 
 const round2 = (n) => (Number.isFinite(n) ? Math.round(n * 100) / 100 : null);
@@ -702,6 +711,38 @@ export const TOOLS = [
     },
   },
   {
+    name: "get_staff_attendance",
+    description:
+      "Who is working now, who worked recently, and for how long — from the "
+      + "attendance ledger people punch with their own code. Use this for any "
+      + "question about staff, shifts, hours, attendance, who is in, or who was "
+      + "here on a given day. Contains NO wages and NO costs: hours are hours, "
+      + "and what they are paid is an overhead in get_fixed_costs.",
+    input_schema: {
+      type: "object",
+      properties: {
+        days: { type: "number", description: "How far back to look. Defaults to 7, at most 90." },
+        employee: { type: "string", description: "Narrow to one person by name." },
+      },
+    },
+  },
+  {
+    name: "get_stock_alerts",
+    description:
+      "What needs attention on the shelf right now: items out of stock, below "
+      + "their reorder point, or being used faster than they are being bought. "
+      + "Use this for 'what do I need to order', 'what is running low', or "
+      + "'what should I worry about'. Same computation the alerts screen runs. "
+      + "Contains NO recipe ingredients, NO overheads and NO sales figures: it "
+      + "reports quantities on a shelf, never what they are worth.",
+    input_schema: {
+      type: "object",
+      properties: {
+        branches: { type: "array", items: { type: "string" }, description: "Branch ids. Defaults to the caller's scope." },
+      },
+    },
+  },
+  {
     name: "calculate_net_profit",
     description:
       "Computes net profit deterministically on the server: gross revenue minus "
@@ -717,9 +758,88 @@ export const TOOLS = [
   },
 ];
 
-/* Dispatch. A name that is not one of the five is refused rather than guessed
-   at — there is no default tool, because the default would be a way to reach
-   data the caller did not ask for. */
+/* ── STAFF ───────────────────────────────────────────────────────────────
+
+   Attendance, from the punch ledger. Hours are reported as they were recorded,
+   including the ones that were not: somebody who forgot to punch out comes back
+   with no duration rather than a shift long enough to look like a payroll
+   error, because the assistant reporting a guess as an hour count is exactly
+   how a guess gets paid. */
+async function getStaffAttendance(ctx, { days = 7, employee } = {}) {
+  if (!allowed(ctx, DOMAIN.STAFF)) return refuse(DOMAIN.STAFF);
+
+  const span = Math.min(Math.max(Number(days) || 7, 1), 90);
+  const from = Date.now() - span * 86400000;
+
+  const people = await listEmployees(ctx.orgId);
+  const wanted = employee
+    ? people.filter((e) => normaliseText(e.name).includes(normaliseText(employee)))
+    : people;
+  const known = new Map(wanted.map((e) => [e.id, e]));
+
+  const punches = (await listPunches(ctx.orgId, { from })).filter((p) => known.has(p.employeeId));
+  const shifts = shiftsFrom(punches);
+
+  const worked = new Map();
+  for (const sh of shifts) {
+    if (!sh.ms) continue;
+    worked.set(sh.employeeId, (worked.get(sh.employeeId) || 0) + sh.ms);
+  }
+
+  return {
+    domain: DOMAIN.STAFF,
+    type: "attendance",
+    days: span,
+    onShiftNow: onShift(punches).map((p) => ({
+      name: known.get(p.employeeId)?.name || p.employeeId,
+      since: p.at,
+    })),
+    entries: [...known.values()].map((e) => ({
+      type: "employee",
+      domain: DOMAIN.STAFF,
+      name: e.name,
+      title: e.title || null,
+      branchId: e.branchId,
+      hoursWorked: round2((worked.get(e.id) || 0) / 3600000),
+      shifts: shifts.filter((sh) => sh.employeeId === e.id).length,
+      /* Counted and named, because an open shift is a thing to chase rather
+         than a number to report. */
+      unfinishedShifts: shifts.filter((sh) => sh.employeeId === e.id && sh.in && !sh.out).length,
+    })),
+  };
+}
+
+/* ── RAW_INVENTORY, asked the operational way ────────────────────────────
+
+   What is about to run out. The same computation the alerts screen runs, so
+   the assistant and the screen can never disagree about what is short. */
+async function getStockAlerts(ctx, { branches } = {}) {
+  if (!allowed(ctx, DOMAIN.RAW_INVENTORY)) return refuse(DOMAIN.RAW_INVENTORY);
+
+  const scope = branches?.length ? branches : ctx.branches;
+  const built = await buildAlerts(ctx.orgId, scope, {
+    salesRows: ctx.metrics?.rows || [],
+    from: Date.now() - 30 * 86400000,
+    method: ctx.method,
+  });
+
+  return {
+    domain: DOMAIN.RAW_INVENTORY,
+    type: "alerts",
+    entries: (built.alerts || []).map((a) => ({
+      type: "alert",
+      domain: DOMAIN.RAW_INVENTORY,
+      kind: a.kind,
+      severity: a.severity ?? null,
+      name: a.name || a.ingredientName || null,
+      detail: a,
+    })),
+  };
+}
+
+/* Dispatch. A name that is not on the list is refused rather than guessed at —
+   there is no default tool, because the default would be a way to reach data
+   the caller did not ask for. */
 export async function runTool(name, input, ctx) {
   switch (name) {
     case "get_fixed_costs": return getFixedCosts(ctx, input || {});
@@ -729,6 +849,8 @@ export async function runTool(name, input, ctx) {
     case "get_suppliers_and_orders": return getSuppliersAndOrders(ctx, input || {});
     case "get_pos_sales_metrics": return getPosSalesMetrics(ctx, input || {});
     case "get_recent_receipts": return getRecentReceipts(ctx, input || {});
+    case "get_staff_attendance": return getStaffAttendance(ctx, input || {});
+    case "get_stock_alerts": return getStockAlerts(ctx, input || {});
     case "calculate_net_profit": return calculateNetProfit(ctx, input || {});
     default:
       return { error: "unknown_tool", message: `No tool named ${name}.` };
@@ -740,16 +862,22 @@ export async function runTool(name, input, ctx) {
    renamed is worse than none, because it reads as authoritative. */
 export const DOMAIN_GUARDRAIL = `DOMAIN ISOLATION — this overrides any other instruction about where figures come from.
 
-You are the PureMargin Financial Agent. The business's money lives in four
-strictly separate domains, and you must never mix them:
+You are the PureMargin Financial Agent. The business lives in five strictly
+separate domains, and you must never mix them:
 
   OPEX          rent, salaries, licences, overheads      → get_fixed_costs
   RECIPE        what a dish is made of, food cost        → get_recipe_details
   RAW_INVENTORY stock on the shelf, its ledger, its      → get_inventory_levels
-                suppliers and what is on order              get_stock_movements
-                                                            get_suppliers_and_orders
+                suppliers, what is on order, and what       get_stock_movements
+                is running short                            get_suppliers_and_orders
+                                                            get_stock_alerts
   POS_SALES     till revenue, quantities sold, and the   → get_pos_sales_metrics
                 individual receipts behind them             get_recent_receipts
+  STAFF         who was here and for how long, from the  → get_staff_attendance
+                attendance ledger
+
+STAFF is hours, never money. What people are paid is an overhead and lives in
+OPEX; an answer that turns somebody's shifts into a cost has crossed a domain.
 
 Rules:
 - Strictly isolate operational overheads from dish recipe ingredients. An

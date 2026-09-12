@@ -27,6 +27,9 @@ export const ROLES = {
       "manage:recipes", "manage:inventory", "manage:costs",
       "manage:users", "manage:integrations", "manage:billing",
       "manage:purchasing", "adjust:sales",
+      /* Attendance. Whoever runs a shift is who takes it: the person at the
+         pass when somebody arrives, not an administrator in an office. */
+      "manage:staff",
     ],
   },
   ops: {
@@ -39,6 +42,7 @@ export const ROLES = {
       "view:costs", "view:reports", "export",
       "manage:recipes", "manage:inventory", "manage:purchasing",
       "adjust:sales",
+      "manage:staff",
     ],
   },
   branch_manager: {
@@ -51,6 +55,7 @@ export const ROLES = {
          every wrong-price correction to the owner means most are never made,
          and the figures stay wrong in a way everyone on site can see. */
       "adjust:sales",
+      "manage:staff",
     ],
   },
   chef: {
