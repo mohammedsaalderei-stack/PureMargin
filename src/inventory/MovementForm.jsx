@@ -16,11 +16,18 @@ import { useLang } from "../i18n.jsx";
 
 const now = () => new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
 
+/* `min-w-0` is load-bearing, not tidiness.
+
+   A grid item's default `min-width: auto` means it will not shrink below its
+   own min-content — and the min-content of a sentence is its longest word. Put
+   one of these in a grid track that has to give way, and the track refuses:
+   the quantity box was squeezed to a few pixels and its hint rendered one
+   character per line down the page, over the unit beside it. */
 function Field({ label, hint, children }) {
   const C = useC();
   return (
-    <label className="block">
-      <span className="text-xs font-medium" style={{ color: C.slate }}>{label}</span>
+    <label className="block min-w-0">
+      <span className="block text-xs font-medium" style={{ color: C.slate }}>{label}</span>
       {children}
       {hint && <span className="block text-[11px] mt-1" style={{ color: C.slate }}>{hint}</span>}
     </label>
@@ -132,7 +139,20 @@ export default function MovementForm({
         </Field>
       )}
 
-      <div className="grid grid-cols-[1fr_auto] gap-2 items-end">
+      {/* A quantity and the unit it is in, kept together because they are one
+          answer — and sized so they stay that way on a phone.
+
+          This was `[1fr_auto]` with `items-end`. The auto track took whatever
+          the select's widest option asked for, the fr track could not shrink
+          past its own min-content, and in Arabic the result was a quantity box
+          a few pixels wide with its hint set one letter per line down the side
+          of the unit. `minmax(0, …)` is what lets both tracks give way; the cap
+          on the second keeps the select from growing with the longest unit name
+          in whatever language is being read.
+
+          `items-start` rather than end: the two hints are different lengths, so
+          bottom-aligning them put the two labels at different heights. */}
+      <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,7.5rem)] gap-2 items-start">
         <Field label={s.qty} hint={s.qtyHint}>
           <input {...input} type="number" step="any" value={form.qty} onChange={set("qty")} required dir="ltr"
             /* Only an adjustment may be negative; every other type takes its
