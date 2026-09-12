@@ -514,7 +514,7 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
 
   /* Only offered where it means something: more than one authorized branch. */
   const scopePicker = scope?.branches?.length > 1 && (
-    <BranchScope branches={scope.branches} locked={scope.lockedBranches || []} selected={branches} onChange={setBranches} />
+    <BranchScope branches={scope.branches} locked={scope.lockedBranches || []} orgName={scope.organization?.name || ""} selected={branches} onChange={setBranches} />
   );
 
   const logo = (

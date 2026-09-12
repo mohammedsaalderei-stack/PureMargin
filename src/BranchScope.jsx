@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Building2, Check, ChevronDown, Lock } from "lucide-react";
 import { useC } from "./theme.jsx";
-import { useLang } from "./i18n.jsx";
+import { useLang, fill } from "./i18n.jsx";
+import { CONTACT, emailHref } from "./contact.js";
 
 /* The branch scope selector: all branches, a selected group, or one branch.
 
@@ -12,7 +13,28 @@ import { useLang } from "./i18n.jsx";
 
    It renders nothing for a single-branch account. Somebody running one café
    should never have to learn that branches are a concept. */
-export default function BranchScope({ branches = [], locked = [], selected = [], onChange }) {
+
+/* The unlock request, addressed and written.
+
+   Composed in the reader's own language, because they see it before they send
+   it and a message they cannot read is one they will not send. The branch
+   names and the business go in as data, so whoever opens it at the other end
+   can act on it whatever language the scaffolding is in.
+
+   Falls back to a plain address with no prefill if there is nothing to say —
+   an empty mailto is still a working way to reach somebody. */
+function unlockMailto(t, orgName, locked) {
+  const to = emailHref(CONTACT.email);
+  if (!to) return undefined;
+
+  const names = locked.map((b) => b.name).filter(Boolean).join(", ");
+  const subject = fill(t.scope.unlockSubject, { business: orgName || "" }).trim();
+  const body = fill(t.scope.unlockBody, { business: orgName || "—", branches: names || "—" });
+
+  return `${to}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+}
+
+export default function BranchScope({ branches = [], locked = [], orgName = "", selected = [], onChange }) {
   const C = useC();
   const { t } = useLang();
   const [open, setOpen] = useState(false);
@@ -106,9 +128,21 @@ export default function BranchScope({ branches = [], locked = [], selected = [],
                   <span className="flex-1 truncate">{b.name}</span>
                 </div>
               ))}
-              <p className="px-3 py-2 text-[11px]" style={{ color: C.amber }}>
+              {/* A request, already written.
+
+                  The note used to say "ask us" and stop there, which puts the
+                  work of composing it on the person least able to say which
+                  stores they mean. The mail opens with the business named and
+                  the locked branches listed, so sending it is one tap and the
+                  reply does not have to start by asking which branches. */}
+              <a
+                href={unlockMailto(t, orgName, locked)}
+                className="block px-3 py-2 text-[11px] underline"
+                style={{ color: C.amber }}
+                onClick={() => setOpen(false)}
+              >
                 {t.scope.lockedNote}
-              </p>
+              </a>
             </>
           )}
         </div>
