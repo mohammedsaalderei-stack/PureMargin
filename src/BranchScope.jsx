@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Building2, Check, ChevronDown } from "lucide-react";
+import { Building2, Check, ChevronDown, Lock } from "lucide-react";
 import { useC } from "./theme.jsx";
 import { useLang } from "./i18n.jsx";
 
@@ -12,7 +12,7 @@ import { useLang } from "./i18n.jsx";
 
    It renders nothing for a single-branch account. Somebody running one café
    should never have to learn that branches are a concept. */
-export default function BranchScope({ branches = [], selected = [], onChange }) {
+export default function BranchScope({ branches = [], locked = [], selected = [], onChange }) {
   const C = useC();
   const { t } = useLang();
   const [open, setOpen] = useState(false);
@@ -27,7 +27,10 @@ export default function BranchScope({ branches = [], selected = [], onChange }) 
     return () => { document.removeEventListener("mousedown", away); document.removeEventListener("keydown", esc); };
   }, [open]);
 
-  if (branches.length < 2) return null;
+  /* Counting the locked ones too. A five-store business granted one branch
+     has a single usable one, and hiding the picker there would hide the very
+     thing it now has to show. Somebody running one café still sees nothing. */
+  if (branches.length + locked.length < 2) return null;
 
   /* Empty selection means every authorized branch — the same convention the
      server uses, so "all" needs no special value. */
@@ -81,6 +84,33 @@ export default function BranchScope({ branches = [], selected = [], onChange }) 
               </button>
             );
           })}
+
+          {/* Stores the till reports that this business has not been granted.
+
+              Shown, unlike a branch outside somebody's own scope, which stays
+              hidden — this one is theirs and they already know it exists. A
+              locked row is the difference between "where did my other branch
+              go" and a question with an answer.
+
+              Not selectable: the server would refuse the id anyway, and an
+              entry that ticks and then returns nothing is worse than one that
+              plainly cannot be ticked. */}
+          {locked.length > 0 && (
+            <>
+              <div className="my-1" style={{ borderTop: `1px solid ${C.hairline}` }} />
+              {locked.map((b) => (
+                <div key={b.id}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-xs text-start"
+                  style={{ color: C.slate, opacity: 0.65 }}>
+                  <span className="w-3.5 shrink-0"><Lock size={11} /></span>
+                  <span className="flex-1 truncate">{b.name}</span>
+                </div>
+              ))}
+              <p className="px-3 py-2 text-[11px]" style={{ color: C.amber }}>
+                {t.scope.lockedNote}
+              </p>
+            </>
+          )}
         </div>
       )}
     </div>

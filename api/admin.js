@@ -27,6 +27,7 @@ import {
   FEATURES, PLAN_MONTHS, normalise,
 } from "./_accounts.js";
 import { getJSON, setJSON, listKeys } from "./_store.js";
+import { orgFor, getOrg, setBranchAllowance } from "./_org.js";
 
 const ADMINS_KEY = "admins:extra";
 const TOKEN_MINUTES = 30;
@@ -89,6 +90,14 @@ async function listAccounts() {
   const keys = await listKeys("acct:");
   const admins = await adminEmails();
   const accounts = [];
+  /* Members of one business share an organization, so the same record would
+     otherwise be fetched once per person on a page that lists everybody. */
+  const orgCache = new Map();
+  const allowanceOf = async (orgId) => {
+    if (!orgId) return null;
+    if (!orgCache.has(orgId)) orgCache.set(orgId, (await getOrg(orgId))?.branchAllowance ?? null);
+    return orgCache.get(orgId);
+  };
   for (const key of keys) {
     const a = await getJSON(key);
     if (!a?.username) continue;
@@ -104,6 +113,7 @@ async function listAccounts() {
       deleteAfter: a.deleteAfter || null,
       orgId: a.orgId || null,
       isAdmin: admins.includes(String(a.email || "").toLowerCase()),
+      branchAllowance: await allowanceOf(a.orgId),
       plan: {
         items: a.plan?.items || [],
         since: a.plan?.since || null,
@@ -155,6 +165,29 @@ export default async function handler(req, res) {
       const account = await grantPlan(normalise(username), items, Number(months) || 1);
       if (!account) return res.status(404).json({ error: "noaccount" });
       return res.status(200).json({ ok: true, plan: account.plan });
+    }
+
+    /* How many of the till's stores a business may use.
+
+       Granted here rather than by the owner, because it is a commercial
+       decision and a limit the limited party can lift is not a limit. It
+       applies to everybody in the organization including its owner.
+
+       Sent as a number, or null to lift it. Reducing it does not take a branch
+       away retroactively — every ledger entry ever written stays — it stops
+       new ones being recorded at a store that is no longer granted. */
+    if (action === "branches") {
+      const account = await getAccount(normalise(req.body?.username));
+      if (!account) return res.status(404).json({ error: "noaccount" });
+
+      const org = await orgFor(account);
+      if (!org) return res.status(404).json({ error: "noorg" });
+
+      const raw = req.body?.allowance;
+      const out = await setBranchAllowance(org.id, raw === null || raw === "" ? null : Number(raw));
+      if (out.error) return res.status(400).json({ error: out.error });
+
+      return res.status(200).json({ ok: true, branchAllowance: out.org.branchAllowance });
     }
 
     if (action === "cancel") {

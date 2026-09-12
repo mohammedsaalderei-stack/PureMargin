@@ -11,6 +11,13 @@
    scope can't enter a total; every brief states period, branches, coverage and
    confidence; thin or stale data is disclosed; and no other organization appears. */
 
+/* Every organization here is created without a branch allowance.
+
+   These tests are about branch scope — who may read which store — and the
+   allowance is a separate question about what a business has been granted. A
+   new organization now starts at one branch, so leaving it at the default
+   would have every case below quietly testing one branch instead of three,
+   and the failures would read as scope bugs. */
 import assert from "node:assert/strict";
 import { backend, __resetMemory, setJSON } from "./_store.js";
 
@@ -78,7 +85,7 @@ const ground = (acct, over = {}) => gr.groundingFor(acct, {
 /* ------------------------- the boundary -------------------------- */
 
 await test("an owner's brief covers the whole organization and ranks the branches", async () => {
-  const org = await createOrg({ ownerUsername: "owner", name: "Group" });
+  const org = await createOrg({ ownerUsername: "owner", name: "Group", branchAllowance: null });
   await seed(org.id);
   const out = await ground(await account("owner", org.id));
   assert.deepStrictEqual(out.scope.branches, BRANCHES);
@@ -88,7 +95,7 @@ await test("an owner's brief covers the whole organization and ranks the branche
 });
 
 await test("a branch manager's brief contains no other branch, at all", async () => {
-  const org = await createOrg({ ownerUsername: "owner", name: "Group" });
+  const org = await createOrg({ ownerUsername: "owner", name: "Group", branchAllowance: null });
   await setMember(org.id, "sara", { role: "branch_manager", branches: ["b1"] });
   await seed(org.id);
   const out = await ground(await account("sara", org.id));
@@ -99,7 +106,7 @@ await test("a branch manager's brief contains no other branch, at all", async ()
 });
 
 await test("asking for another branch does not widen the brief", async () => {
-  const org = await createOrg({ ownerUsername: "owner", name: "Group" });
+  const org = await createOrg({ ownerUsername: "owner", name: "Group", branchAllowance: null });
   await setMember(org.id, "sara", { role: "branch_manager", branches: ["b1"] });
   await seed(org.id);
   const out = await ground(await account("sara", org.id), { requested: ["b1", "b2"] });
@@ -108,7 +115,7 @@ await test("asking for another branch does not widen the brief", async () => {
 });
 
 await test("sales from outside the scope cannot enter a total", async () => {
-  const org = await createOrg({ ownerUsername: "owner", name: "Group" });
+  const org = await createOrg({ ownerUsername: "owner", name: "Group", branchAllowance: null });
   await setMember(org.id, "sara", { role: "branch_manager", branches: ["b1"] });
   await seed(org.id);
   const mine = await ground(await account("sara", org.id));
@@ -119,8 +126,8 @@ await test("sales from outside the scope cannot enter a total", async () => {
 });
 
 await test("the brief is empty of an organization the user doesn't belong to", async () => {
-  const mine = await createOrg({ ownerUsername: "owner", name: "Group" });
-  const other = await createOrg({ ownerUsername: "rival", name: "Rival" });
+  const mine = await createOrg({ ownerUsername: "owner", name: "Group", branchAllowance: null });
+  const other = await createOrg({ ownerUsername: "rival", name: "Rival", branchAllowance: null });
   await seed(mine.id);
   const out = await gr.groundingFor(await account("rival", other.id), {
     allBranchIds: BRANCHES, branchNames: NAMES, salesRows: sold("b1"), salesFetchedAt: now, from, to: now,
@@ -130,7 +137,7 @@ await test("the brief is empty of an organization the user doesn't belong to", a
 });
 
 await test("a brand-new account starts from its own empty organization", async () => {
-  const mine = await createOrg({ ownerUsername: "owner", name: "Group" });
+  const mine = await createOrg({ ownerUsername: "owner", name: "Group", branchAllowance: null });
   await seed(mine.id);
   /* Signing in without an organization resolves to a fresh one of the account's
      own, never into somebody else's figures. */
@@ -140,7 +147,7 @@ await test("a brand-new account starts from its own empty organization", async (
 });
 
 await test("an owner can narrow the brief to one branch without changing session", async () => {
-  const org = await createOrg({ ownerUsername: "owner", name: "Group" });
+  const org = await createOrg({ ownerUsername: "owner", name: "Group", branchAllowance: null });
   await seed(org.id);
   const out = await ground(await account("owner", org.id), { requested: ["b2"] });
   assert.deepStrictEqual(out.scope.branches, ["b2"]);
@@ -151,7 +158,7 @@ await test("an owner can narrow the brief to one branch without changing session
 /* ---------------------- capability filtering --------------------- */
 
 await test("a chef gets stock and usage but no branch ranking", async () => {
-  const org = await createOrg({ ownerUsername: "owner", name: "Group" });
+  const org = await createOrg({ ownerUsername: "owner", name: "Group", branchAllowance: null });
   await setMember(org.id, "chef", { role: "chef", branches: BRANCHES });
   await seed(org.id);
   const out = await ground(await account("chef", org.id));
@@ -160,7 +167,7 @@ await test("a chef gets stock and usage but no branch ranking", async () => {
 });
 
 await test("an accountant gets cost and leakage without recipe administration", async () => {
-  const org = await createOrg({ ownerUsername: "owner", name: "Group" });
+  const org = await createOrg({ ownerUsername: "owner", name: "Group", branchAllowance: null });
   await setMember(org.id, "acct", { role: "accountant", branches: BRANCHES });
   await seed(org.id);
   const out = await ground(await account("acct", org.id));
@@ -169,7 +176,7 @@ await test("an accountant gets cost and leakage without recipe administration", 
 });
 
 await test("a role without the forecast capability gets no purchasing plan", async () => {
-  const org = await createOrg({ ownerUsername: "owner", name: "Group" });
+  const org = await createOrg({ ownerUsername: "owner", name: "Group", branchAllowance: null });
   await setMember(org.id, "acct", { role: "accountant", branches: BRANCHES });
   await seed(org.id);
   const out = await ground(await account("acct", org.id));
@@ -180,7 +187,7 @@ await test("a role without the forecast capability gets no purchasing plan", asy
 /* -------------------- provenance and honesty --------------------- */
 
 await test("every brief states its role, branches and period", async () => {
-  const org = await createOrg({ ownerUsername: "owner", name: "Group" });
+  const org = await createOrg({ ownerUsername: "owner", name: "Group", branchAllowance: null });
   await seed(org.id);
   const out = await ground(await account("owner", org.id));
   assert.ok(out.brief.startsWith("SCOPE OF THIS ANSWER"));
@@ -189,7 +196,7 @@ await test("every brief states its role, branches and period", async () => {
 });
 
 await test("recipe coverage is disclosed with the food cost, not after it", async () => {
-  const org = await createOrg({ ownerUsername: "owner", name: "Group" });
+  const org = await createOrg({ ownerUsername: "owner", name: "Group", branchAllowance: null });
   await seed(org.id);
   const out = await ground(await account("owner", org.id), {
     salesRows: [...sold("b1"), { branchId: "b1", name: "Mystery wrap", variant: "", qty: 100, revenue: 3000, lines: 100 }],
@@ -199,7 +206,7 @@ await test("recipe coverage is disclosed with the food cost, not after it", asyn
 });
 
 await test("stale sales are stated as such and told to lower confidence", async () => {
-  const org = await createOrg({ ownerUsername: "owner", name: "Group" });
+  const org = await createOrg({ ownerUsername: "owner", name: "Group", branchAllowance: null });
   await seed(org.id);
   const out = await ground(await account("owner", org.id), { salesFetchedAt: now - 3 * DAY });
   assert.strictEqual(out.stale, true);
@@ -207,14 +214,14 @@ await test("stale sales are stated as such and told to lower confidence", async 
 });
 
 await test("figures with no data say so instead of reading as zero achievement", async () => {
-  const org = await createOrg({ ownerUsername: "owner", name: "Group" });
+  const org = await createOrg({ ownerUsername: "owner", name: "Group", branchAllowance: null });
   const out = await ground(await account("owner", org.id), { salesRows: [] });
   assert.ok(out.brief.includes("Recipe coverage 0%"));
   assert.ok(/nothing above the configured thresholds/.test(out.brief));
 });
 
 await test("the leakage the owner is meant to find is in the brief, with its driver", async () => {
-  const org = await createOrg({ ownerUsername: "owner", name: "Group" });
+  const org = await createOrg({ ownerUsername: "owner", name: "Group", branchAllowance: null });
   await seed(org.id);
   const out = await ground(await account("owner", org.id));
   /* 40 kg used against 20 expected, at AED 40 → AED 800 unaccounted. */
@@ -223,7 +230,7 @@ await test("the leakage the owner is meant to find is in the brief, with its dri
 });
 
 await test("the brief and the engines cannot disagree — it is the same call", async () => {
-  const org = await createOrg({ ownerUsername: "owner", name: "Group" });
+  const org = await createOrg({ ownerUsername: "owner", name: "Group", branchAllowance: null });
   await seed(org.id);
   const out = await ground(await account("owner", org.id));
   const ranked = out.evidence.ranking.map((r) => r.branchId);

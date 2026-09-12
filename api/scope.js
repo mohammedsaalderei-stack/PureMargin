@@ -46,6 +46,16 @@ export default async function handler(req, res) {
          rather than marked — a disabled entry still discloses that a branch
          exists and what it's called. */
       branches: branches.filter((b) => allowed.has(String(b.id))),
+      /* Stores the till reports that this business has not been granted.
+         Shown rather than hidden, unlike a branch outside somebody's own
+         scope: this one is theirs, they know it is there, and a locked row
+         with a way to ask is the difference between a missing feature and a
+         conversation. `scopeFor` has already narrowed it to branches this
+         member would hold if the allowance were lifted. */
+      lockedBranches: branches
+        .filter((b) => scope.locked.includes(String(b.id)))
+        .map((b) => ({ id: String(b.id), name: b.name })),
+      branchAllowance: scope.branchAllowance,
     });
   } catch (err) {
     console.error("scope failed:", err);

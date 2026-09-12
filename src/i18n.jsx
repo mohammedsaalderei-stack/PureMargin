@@ -222,6 +222,7 @@ export const STRINGS = {
     scope: {
       title: "Which branches these figures cover",
       all: "All branches",
+      lockedNote: "These branches aren’t switched on for your account yet. Ask us and we’ll open them.",
       one: "One branch",
       branches: "branches",
       showing: "Showing {count} of {total} branches",
@@ -1986,6 +1987,7 @@ export const STRINGS = {
     scope: {
       title: "الفروع التي تشملها هذه الأرقام",
       all: "كل الفروع",
+      lockedNote: "هذه الفروع غير مفعّلة لحسابك بعد. راسلنا لفتحها.",
       one: "فرع واحد",
       branches: "فروع",
       showing: "يُعرض {count} من {total} فرعًا",
@@ -3729,6 +3731,7 @@ export const STRINGS = {
     scope: {
       title: "ये आंकड़े किन ब्रांच के हैं",
       all: "सभी ब्रांच",
+      lockedNote: "ये शाखाएँ अभी आपके खाते में चालू नहीं हैं। हमें बताइए, खोल देंगे।",
       one: "एक ब्रांच",
       branches: "ब्रांच",
       showing: "{total} में से {count} ब्रांच दिख रही हैं",
@@ -5926,6 +5929,7 @@ export const STRINGS = {
       title: "برانچز",
       branches: "برانچز",
       all: "تمام برانچز",
+      lockedNote: "یہ برانچیز ابھی آپ کے اکاؤنٹ میں فعال نہیں۔ ہمیں بتائیں، کھول دیں گے۔",
       one: "ایک برانچ",
       showing: "{total} میں سے {count} برانچز دکھائی جا رہی ہیں",
     },
@@ -7422,6 +7426,7 @@ export const STRINGS = {
     scope: {
       title: "Aling mga branch ang saklaw ng mga numerong ito",
       all: "Lahat ng branch",
+      lockedNote: "Hindi pa nakabukas ang mga branch na ito sa account mo. Sabihan mo kami at bubuksan namin.",
       one: "Isang branch",
       branches: "branch",
       showing: "Ipinapakita ang {count} sa {total} branch",

@@ -273,6 +273,32 @@ export default function AdminPage() {
                         <span className="text-[11px]" style={{ color: C.slate }}>{s.noPlan}</span>
                       )}
 
+                      {/* How many of the till's stores this business may use.
+
+                          Beside the packages because it is the same kind of
+                          decision — what has been paid for — and it applies to
+                          everybody in the organization including its owner. An
+                          empty box means no limit, which is what every account
+                          predating this had and what a customer on an
+                          unlimited arrangement should keep. */}
+                      <label className="flex items-center gap-1.5 text-[11px]" style={{ color: C.slate }}>
+                        {s.branchesAllowed}
+                        <input
+                          type="number" min="0" max="99" inputMode="numeric" dir="ltr"
+                          defaultValue={a.branchAllowance ?? ""}
+                          placeholder={s.noBranchLimit}
+                          disabled={busy}
+                          onBlur={(e) => {
+                            const raw = e.target.value.trim();
+                            const next = raw === "" ? null : Number(raw);
+                            if (next === (a.branchAllowance ?? null)) return;
+                            act({ action: "branches", username: a.username, allowance: next });
+                          }}
+                          className="w-14 px-2 py-1 rounded-lg text-[11px]"
+                          style={{ background: C.surface, border: `1px solid ${C.hairline}`, color: C.ink }}
+                        />
+                      </label>
+
                       <div className="flex gap-1.5 ms-auto">
                         <button onClick={() => setGranting(granting === a.username ? "" : a.username)}
                           className="px-2.5 py-1 rounded-lg text-[11px] font-semibold"

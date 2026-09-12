@@ -62,7 +62,20 @@ export async function getOrg(id) {
   return id ? getJSON(ORG_KEY(id)) : null;
 }
 
-export async function createOrg({ ownerUsername, name = "" }) {
+/* What a business starts with. One store, until somebody grants more. */
+export const DEFAULT_BRANCH_ALLOWANCE = 1;
+
+/* When the allowance started existing.
+
+   `orgFor` creates an organization on two quite different occasions: a
+   business registering today, and an account older than this module being
+   backfilled one. Both arrive at `createOrg`, and they must not be treated
+   the same — a legacy account may have several stores in daily use, and
+   locking them because a deploy happened is not a decision this code gets to
+   make. The account's own `createdAt` is what tells them apart. */
+const ALLOWANCE_FROM = Date.parse("2026-09-12T00:00:00.000Z");
+
+export async function createOrg({ ownerUsername, name = "", branchAllowance }) {
   const owner = normalise(ownerUsername);
   const id = crypto.randomUUID();
   const org = {
@@ -70,6 +83,10 @@ export async function createOrg({ ownerUsername, name = "" }) {
     name: String(name || "").trim().slice(0, 80),
     ownerUsername: owner,
     members: { [owner]: { role: "owner", branches: [], since: Date.now() } },
+    /* Null is meaningful and is not the same as unset: it says an admin has
+       decided this organization has no limit, and it reads the same as an
+       organization that predates the limit. Both are unlimited. */
+    branchAllowance: branchAllowance === undefined ? DEFAULT_BRANCH_ALLOWANCE : branchAllowance,
     createdAt: Date.now(),
   };
   await setJSON(ORG_KEY(id), org);
@@ -111,6 +128,13 @@ export async function orgFor(account) {
   const org = await createOrg({
     ownerUsername: account.username,
     name: account.business || "",
+    /* A business registering now starts with one branch. An account older than
+       the allowance is backfilled without one, because it may already be
+       receiving stock at several stores and this is not the moment to find
+       out. */
+    branchAllowance: Number(account.createdAt) >= ALLOWANCE_FROM
+      ? DEFAULT_BRANCH_ALLOWANCE
+      : null,
   });
   account.orgId = org.id;
   await setJSON(`acct:${normalise(account.username)}`, account);
@@ -201,11 +225,83 @@ export async function removeMember(orgId, username) {
    authorized set is either all of them, or the assigned subset — intersected
    with what actually exists, so a branch that has been removed from the POS
    can't linger in someone's permissions. */
+/* How many of the till's stores this organization may actually use.
+
+   ── Why there is a limit at all ──────────────────────────────────────────
+
+   A branch is not something the app creates: it is a store the POS reports,
+   so connecting a till to a nine-site chain used to hand over nine branches
+   the moment the token was pasted. That is the whole product arriving without
+   anybody agreeing to it, and there was no way to sell the second site or to
+   stage a rollout.
+
+   The allowance is granted per organization from the admin page, beside the
+   packages, and it applies to everybody — the owner included. A limit the
+   owner can lift is not a limit.
+
+   ── Absent means unlimited, deliberately ─────────────────────────────────
+
+   Organizations that already exist have branches in daily use, and shipping a
+   default of one would lock live stores on deploy: stock would stop being
+   receivable at sites where it had been receivable an hour earlier, with
+   nothing on screen explaining why. So an allowance nobody has set yet means
+   no limit, and only a number written by an admin starts enforcing one.
+
+   New organizations start at one, in `createOrg`, which is where the default
+   belongs — a business signing up today has agreed to nothing else. */
+export function unlockedBranches(org, allBranchIds = []) {
+  const all = allBranchIds.map(String);
+  const allowance = org?.branchAllowance;
+  if (allowance === null || allowance === undefined) return all;
+
+  const n = Math.max(0, Math.floor(Number(allowance) || 0));
+  /* In the order the till reports them, which for every POS this has been
+     pointed at is the order the stores were created — so the site somebody
+     opened first is the one that stays unlocked. Not sorted by id: an id is
+     an opaque string and sorting it would pick a site at random. */
+  return all.slice(0, n);
+}
+
+export function lockedBranches(org, allBranchIds = []) {
+  const unlocked = new Set(unlockedBranches(org, allBranchIds));
+  return allBranchIds.map(String).filter((id) => !unlocked.has(id));
+}
+
+/* The locked branches this person may be told about.
+
+   Not the same list. There are two quite different reasons somebody cannot see
+   a store, and only one of them should be visible:
+
+     the allowance   the business has not been granted this site. It is their
+                     own store, they know it exists, and showing it locked is
+                     how they ask for it.
+     their scope     a cashier is assigned one branch of nine. The other eight
+                     are none of their business, and a greyed row still
+                     discloses that a store exists and what it is called —
+                     which is the rule `api/scope.js` has always followed.
+
+   So this returns locked stores the member would already hold if the allowance
+   were lifted, and nothing else. An owner sees every locked one; a branch
+   manager sees only the locked ones assigned to them. */
+export function lockedForMember(org, username, allBranchIds = []) {
+  const member = membership(org, username);
+  if (!member) return [];
+
+  const locked = lockedBranches(org, allBranchIds);
+  if (ROLES[member.role]?.scope === "all") return locked;
+
+  const assigned = new Set((member.branches || []).map(String));
+  return locked.filter((id) => assigned.has(id));
+}
+
 export function authorizedBranches(org, username, allBranchIds = []) {
   const member = membership(org, username);
   if (!member) return [];
 
-  const all = allBranchIds.map(String);
+  /* The allowance first, then the member's own scope. Doing it the other way
+     round would let an owner — whose scope is "all" — see a branch the
+     organization has not been granted. */
+  const all = unlockedBranches(org, allBranchIds);
   if (ROLES[member.role]?.scope === "all") return all;
 
   const assigned = new Set((member.branches || []).map(String));
@@ -253,5 +349,32 @@ export async function scopeFor(account, allBranchIds = []) {
        the nav, and each data route — reads the same list. */
     capabilities: role ? capabilitiesFor(org, account.username, role) : [],
     authorized: role ? authorizedBranches(org, account.username, allBranchIds) : [],
+    /* Stores the till reports that this organization has not been granted.
+       Returned rather than hidden so the branch picker can show them locked:
+       a business that cannot see its second site has no way to ask for it,
+       and "where did my other branch go" is a support ticket either way. */
+    locked: role ? lockedForMember(org, account.username, allBranchIds) : [],
+    branchAllowance: org?.branchAllowance ?? null,
   };
+}
+
+/* Set how many of the till's stores an organization may use.
+
+   Null lifts the limit. A number below what is already in use does not take a
+   branch away retroactively — the ledger keeps every entry ever written — but
+   it does stop new ones being recorded there, which is the honest meaning of
+   a reduced allowance and is why it is an admin action rather than a silent
+   consequence of anything else. */
+export async function setBranchAllowance(orgId, allowance) {
+  const org = await getOrg(orgId);
+  if (!org) return { error: "notfound" };
+
+  const next = allowance === null || allowance === undefined || allowance === ""
+    ? null
+    : Math.max(0, Math.floor(Number(allowance)));
+  if (next !== null && !Number.isFinite(next)) return { error: "allowance" };
+
+  const saved = { ...org, branchAllowance: next, updatedAt: Date.now() };
+  await saveOrg(saved);
+  return { org: saved };
 }

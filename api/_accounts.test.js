@@ -118,7 +118,7 @@ await test("renaming to the same name is a no-op, not an error", async () => {
 
 await test("a rename follows the account through its organization", async () => {
   const { account } = await acc.createAccount({ username: "owner", password: PW });
-  const org = await createOrg({ ownerUsername: "owner", name: "Group" });
+  const org = await createOrg({ ownerUsername: "owner", name: "Group", branchAllowance: null });
   account.orgId = org.id;
   await (await import("./_store.js")).setJSON(`acct:owner`, account);
 

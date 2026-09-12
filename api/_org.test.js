@@ -7,6 +7,13 @@
    The one that matters most is the branch manager: a request body, query
    string or export that names another branch must not widen their scope. */
 
+/* Organizations here are created without a branch allowance.
+
+   These cases are about who may read which branch. What a business has been
+   *granted* is a separate question, tested in _branchallowance.test.js — and a
+   new organization now starts at one branch, so leaving the default would have
+   every case below testing one branch and failing as though scope were
+   broken. */
 import assert from "assert";
 import { __resetMemory, setJSON, backend } from "./_store.js";
 import {
@@ -54,19 +61,19 @@ async function account(username, orgId) {
 console.log("\nStage 1 — organizations, branches, roles, permissions\n");
 
 await test("an owner's scope covers every branch in the organization", async () => {
-  const org = await createOrg({ ownerUsername: "owner", name: "Group" });
+  const org = await createOrg({ ownerUsername: "owner", name: "Group", branchAllowance: null });
   assert.deepStrictEqual(authorizedBranches(org, "owner", BRANCHES), BRANCHES);
 });
 
 await test("a branch manager is limited to assigned branches", async () => {
-  const org = await createOrg({ ownerUsername: "owner" });
+  const org = await createOrg({ ownerUsername: "owner", branchAllowance: null });
   await setMember(org.id, "bm", { role: "branch_manager", branches: ["b2"] });
   const fresh = await orgFor(await account("bm", org.id));
   assert.deepStrictEqual(authorizedBranches(fresh, "bm", BRANCHES), ["b2"]);
 });
 
 await test("a branch manager cannot widen scope through the request", async () => {
-  const org = await createOrg({ ownerUsername: "owner" });
+  const org = await createOrg({ ownerUsername: "owner", branchAllowance: null });
   await setMember(org.id, "bm", { role: "branch_manager", branches: ["b2"] });
   const authorized = authorizedBranches(await orgFor(await account("bm", org.id)), "bm", BRANCHES);
 
@@ -79,21 +86,21 @@ await test("a branch manager cannot widen scope through the request", async () =
 });
 
 await test("a multi-branch user sees the intersection, not the union", async () => {
-  const org = await createOrg({ ownerUsername: "owner" });
+  const org = await createOrg({ ownerUsername: "owner", branchAllowance: null });
   await setMember(org.id, "ops", { role: "ops", branches: ["b1", "b3"] });
   const authorized = authorizedBranches(await orgFor(await account("ops", org.id)), "ops", BRANCHES);
   assert.deepStrictEqual(effectiveBranches(["b1", "b2"], authorized), ["b1"]);
 });
 
 await test("a branch removed from the POS drops out of permissions", async () => {
-  const org = await createOrg({ ownerUsername: "owner" });
+  const org = await createOrg({ ownerUsername: "owner", branchAllowance: null });
   await setMember(org.id, "bm", { role: "branch_manager", branches: ["b2", "gone"] });
   const fresh = await orgFor(await account("bm", org.id));
   assert.deepStrictEqual(authorizedBranches(fresh, "bm", BRANCHES), ["b2"]);
 });
 
 await test("a user with no membership row gets no scope at all", async () => {
-  const org = await createOrg({ ownerUsername: "owner" });
+  const org = await createOrg({ ownerUsername: "owner", branchAllowance: null });
   const outsider = await account("outsider", org.id);
   const scope = await scopeFor(outsider, BRANCHES);
   assert.strictEqual(scope.role, null);
@@ -102,8 +109,8 @@ await test("a user with no membership row gets no scope at all", async () => {
 });
 
 await test("no other organization's branches are reachable", async () => {
-  const a = await createOrg({ ownerUsername: "ownera" });
-  await createOrg({ ownerUsername: "ownerb" });
+  const a = await createOrg({ ownerUsername: "ownera", branchAllowance: null });
+  await createOrg({ ownerUsername: "ownerb", branchAllowance: null });
   // ownerb is not a member of org a, so org a grants them nothing.
   assert.deepStrictEqual(authorizedBranches(a, "ownerb", BRANCHES), []);
 });
@@ -127,14 +134,14 @@ await test("role capabilities match the direction document", async () => {
 });
 
 await test("the owner's own membership cannot be demoted or removed", async () => {
-  const org = await createOrg({ ownerUsername: "owner" });
+  const org = await createOrg({ ownerUsername: "owner", branchAllowance: null });
   assert.strictEqual((await setMember(org.id, "owner", { role: "chef" })).error, "owner");
   assert.strictEqual((await removeMember(org.id, "owner")).error, "owner");
   assert.strictEqual((await orgFor(await account("owner", org.id))).members.owner.role, "owner");
 });
 
 await test("an unknown role is refused", async () => {
-  const org = await createOrg({ ownerUsername: "owner" });
+  const org = await createOrg({ ownerUsername: "owner", branchAllowance: null });
   assert.strictEqual((await setMember(org.id, "x", { role: "superuser" })).error, "role");
 });
 
@@ -149,7 +156,7 @@ await test("accounts predating organizations become their own owner", async () =
 });
 
 await test("someone invited before registering joins that organization", async () => {
-  const org = await createOrg({ ownerUsername: "owner" });
+  const org = await createOrg({ ownerUsername: "owner", branchAllowance: null });
   // Invited while they have no account at all.
   await setMember(org.id, "newhire", { role: "branch_manager", branches: ["b3"] });
 
@@ -161,7 +168,7 @@ await test("someone invited before registering joins that organization", async (
 });
 
 await test("a withdrawn invitation does not resurrect on registration", async () => {
-  const org = await createOrg({ ownerUsername: "owner" });
+  const org = await createOrg({ ownerUsername: "owner", branchAllowance: null });
   await setMember(org.id, "newhire", { role: "ops", branches: ["b1"] });
   await removeMember(org.id, "newhire");
 
