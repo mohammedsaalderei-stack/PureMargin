@@ -49,6 +49,11 @@ export const NOTICE_NEEDS = {
      rather than a bell that cries wolf. */
   alertFirst: "view:reports",
   alertOrder: "view:reports",
+  /* Somebody clocking in is the one notice here that is an event rather than a
+     reading, and the only one gated on staff rather than on figures. A chef
+     does not need telling that the margin slipped; the person who keeps the
+     rota does need telling that the opening shift has not arrived. */
+  alertStaff: "manage:staff",
 };
 
 /* Whether this person can receive anything at all. Used to decide if the bell
@@ -59,7 +64,7 @@ export function noticesApply(capabilities = []) {
 
 export const ALERT_KEYS = [
   "alertEod", "alertSwing", "alertMargin", "alertOrder",
-  "alertTarget", "alertFirst", "alertPeak", "alertWeekly", "alertGoal",
+  "alertTarget", "alertFirst", "alertPeak", "alertWeekly", "alertGoal", "alertStaff",
 ];
 
 /* ── The preferences, and the one place that reads them ──────────────────
@@ -89,6 +94,7 @@ export const PREF_KEYS = { alerts: "sufra_alerts", target: "sufra_target", eod: 
 export const DEFAULT_ALERTS = {
   alertEod: true, alertSwing: true, alertMargin: true, alertOrder: false,
   alertTarget: true, alertFirst: true, alertPeak: true, alertWeekly: true, alertGoal: false,
+  alertStaff: true,
 };
 
 /* Shown in Settings and used by the bell, because they have to be the same
@@ -145,8 +151,18 @@ function pref(prefs, key) {
   return prefs?.[key] !== false;
 }
 
+/* How many arrivals the bell will carry at once.
+
+   A thirty-person venue changing shift produces a run of punches in a few
+   minutes. All of them would bury every other notice under a list that is
+   already on the staff screen in more detail; the most recent few say the
+   thing that matters — the shift is turning over — and the screen is one tap
+   away for the rest. */
+const MAX_STAFF_NOTICES = 5;
+
 export function buildNotices(data, prefs = {}, opts = {}) {
-  if (!data) return [];
+  const punches = opts.staff || [];
+  if (!data && punches.length === 0) return [];
   /* Absent means unrestricted, so a caller that does not know about
      capabilities — a test, a preview — still gets everything. */
   const caps = opts.capabilities;
@@ -154,8 +170,8 @@ export function buildNotices(data, prefs = {}, opts = {}) {
   const target = Number(opts.dailyTarget) || 0;
   const out = [];
 
-  const totals = data.totals || {};
-  const today = data.today || {};
+  const totals = data?.totals || {};
+  const today = data?.today || {};
   const sales = Number(today.sales ?? totals.sales ?? 0);
   const margin = Number(totals.marginPct ?? 0);
   const swing = Number(totals.salesDelta ?? 0);
@@ -169,6 +185,25 @@ export function buildNotices(data, prefs = {}, opts = {}) {
     if (caps && need && !caps.includes(need)) return;
     out.push({ id, key, tone, title, body, ask });
   };
+
+  /* Arrivals and departures, first, because they are the only notices here
+     with a deadline. Everything else in this list is a fact about the day that
+     will still be true in an hour; an opening shift that has not turned up is
+     worth knowing about now.
+
+     One per punch, not a count. "Three people clocked in" cannot be acted on —
+     the useful question is always which three, and whether the one who opens
+     is among them. The punch id makes each notice its own statement, so
+     `noticeKey` marks it read once and it does not come back with the next
+     thirty-second refresh the way a rebuilt figure would. */
+  if (pref(prefs, "alertStaff")) {
+    for (const p of punches.slice(0, MAX_STAFF_NOTICES)) {
+      add(`staff:${p.id}`, "alertStaff", p.kind === "in" ? "good" : "info",
+        opts.fill(p.kind === "in" ? t.notices.staffIn : t.notices.staffOut, { name: p.name }),
+        opts.fill(t.notices.staffAt, { time: p.time }),
+        t.notices.staffAsk);
+    }
+  }
 
   if (pref(prefs, "alertFirst") && Number(today.receipts) > 0) {
     add("first", "alertFirst", "info", t.notices.firstTitle,

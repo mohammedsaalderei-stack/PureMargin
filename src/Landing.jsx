@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
   MessageSquare, BarChart3, LineChart, ArrowRight, Check,
-  Menu, X, Mail, Phone, Instagram, ShieldCheck, BookOpen, Gauge,
+  Menu, X, Mail, Phone, Instagram, ShieldCheck, BookOpen, Gauge, Clock,
 } from "lucide-react";
 import { useC } from "./theme.jsx";
 import BrandMark from "./BrandMark.jsx";
@@ -79,7 +79,7 @@ function HeroLogo() {
 const CAP_ICONS = [MessageSquare, BarChart3, LineChart];
 const DECISION_ICONS = [ShieldCheck, BookOpen, Gauge];
 
-export default function Landing({ onSignIn, onRegister, onPricing }) {
+export default function Landing({ onSignIn, onRegister, onPricing, onAttendance }) {
   const C = useC();
   const { t } = useLang();
   const [menu, setMenu] = useState(false);
@@ -130,6 +130,15 @@ export default function Landing({ onSignIn, onRegister, onPricing }) {
               <button onClick={onPricing} className="hover:opacity-70">{t.pricing.nav}</button>
               <ThemeToggle compact />
               <LanguagePicker />
+              {/* Attendance sits with the sign-in controls and not in the
+                  marketing nav above, because it is a door rather than a
+                  section: the person who wants it is staff arriving for a
+                  shift, and they are looking for a way in, not for a feature
+                  to read about. The clock face is what they scan for. */}
+              <button onClick={onAttendance}
+                className="flex items-center gap-1.5 hover:opacity-70">
+                <Clock size={14} /> {t.attendance.nav}
+              </button>
               <button onClick={onSignIn} className="hover:opacity-70">{t.common.signIn}</button>
               <button
                 onClick={onRegister}
@@ -155,8 +164,14 @@ export default function Landing({ onSignIn, onRegister, onPricing }) {
               <button onClick={() => go("steps")} className="text-start py-1">{t.nav.start}</button>
               <button onClick={onPricing} className="text-start py-1">{t.pricing.nav}</button>
               <button
+                onClick={onAttendance}
+                className="mt-1 gbtn gbtn-ghost px-4 py-2.5 font-semibold text-center flex items-center justify-center gap-2"
+              >
+                <Clock size={15} /> {t.attendance.nav}
+              </button>
+              <button
                 onClick={onRegister}
-                className="mt-1 gbtn gbtn-primary px-4 py-2.5 font-semibold text-center"
+                className="gbtn gbtn-primary px-4 py-2.5 font-semibold text-center"
               >
                 {t.register.nav}
               </button>
@@ -411,6 +426,9 @@ export default function Landing({ onSignIn, onRegister, onPricing }) {
                   </button>
                   <button onClick={onSignIn} className="hover:opacity-80" style={{ color: C.panelMuted }}>
                     {t.common.signIn}
+                  </button>
+                  <button onClick={onAttendance} className="hover:opacity-80" style={{ color: C.panelMuted }}>
+                    {t.attendance.nav}
                   </button>
                 </div>
               </div>

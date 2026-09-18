@@ -1,4 +1,3 @@
-import { createHash, randomInt } from "node:crypto";
 import { getJSON, setJSON } from "./_store.js";
 
 /* Who works here, and when they were actually here.
@@ -15,23 +14,23 @@ import { getJSON, setJSON } from "./_store.js";
    So an employee is a record, not a user. The two are deliberately separate
    and neither is derived from the other.
 
-   ── The PIN, and what it is honestly worth ───────────────────────────────
+   ── There was a PIN here, and it was the wrong idea ──────────────────────
 
-   Attendance recorded by a manager ticking names is a record of what the
-   manager believes. The PIN moves it one step closer to evidence: the code is
-   the employee's, so a punch says somebody who knew it was standing at the
-   device. That is worth having and it is not proof of identity — a code can be
-   passed to a friend, and any attendance system without a camera or a badge
-   has the same hole. It is stated here rather than implied so nobody builds
-   payroll on it believing it is more than it is.
+   Every employee used to be issued a six-digit code and typed it into a pad
+   on a device at the pass. This file said outright what that was worth: it
+   proved somebody who knew the code was standing at the device, and a code
+   can be passed to a friend. It also asked a person arriving for a shift to
+   remember a number, and asked the venue to own a device and leave it signed
+   in all day.
 
-   Stored hashed, which is also worth being honest about: six digits is a
-   million combinations and a machine walks that in no time, so the hash is not
-   protecting a secret the way a password hash does. What it does buy is that a
-   copy of the store is not a working list of everybody's code, and that the
-   screen cannot show one back — which is what forces a lost PIN to be rotated
-   rather than looked up, and rotation is the thing that actually limits how
-   long a passed-around code keeps working.
+   It is gone. A shift is now recorded from `api/attendance.js`: the arriving
+   person, on their own phone, on the open site, with a photograph of the
+   place attached. That is not identity either, and that file says so at the
+   same length — but it is evidence an owner can look at and judge, which a
+   number they could never see was not.
+
+   A manager can still record a punch for somebody who forgot. That path needs
+   `manage:staff` and writes down whose session did it.
 
    ── Attendance is a ledger, like everything else here ────────────────────
 
@@ -43,36 +42,9 @@ import { getJSON, setJSON } from "./_store.js";
 const ROSTER = (orgId) => `staff:${orgId}:employees`;
 const PUNCHES = (orgId) => `staff:${orgId}:punches`;
 
-/* Six digits, not four. Four is ten thousand codes, and a venue with thirty
-   people has a real chance of two colliding — at which point one person's
-   arrival is recorded against another, which is worse than no record. */
-const PIN_DIGITS = 6;
-
 /* Enough for a year of a busy roster. Trimmed oldest-first; an old punch has
    been paid and does not need to stay in the hot path forever. */
 const MAX_PUNCHES = 20000;
-
-export function hashPin(orgId, pin) {
-  return createHash("sha256").update(`${orgId}:${String(pin).trim()}`).digest("hex");
-}
-
-/* A code that is not already somebody's.
-
-   Uniqueness is the whole reason a PIN can identify anybody: two employees
-   sharing one makes a punch ambiguous, and the honest thing to do with an
-   ambiguous punch is refuse it — which would strand whoever arrived second.
-
-   Compared as hashes because that is the only form the stored ones exist in.
-   Archived people count: a punch resolves by hash and does not know whether
-   its owner still works here, so reissuing a leaver's code would attach one
-   person's arrival to another's name. */
-function freshPin(orgId, usedHashes) {
-  for (let tries = 0; tries < 200; tries += 1) {
-    const pin = String(randomInt(0, 10 ** PIN_DIGITS)).padStart(PIN_DIGITS, "0");
-    if (!usedHashes.has(hashPin(orgId, pin))) return pin;
-  }
-  return null;
-}
 
 export async function listEmployees(orgId, { includeArchived = false } = {}) {
   const all = Object.values((await getJSON(ROSTER(orgId))) || {});
@@ -84,11 +56,11 @@ let counter = 0;
 const newId = () =>
   `e${Date.now().toString(36)}${(counter = (counter + 1) % 1e4).toString(36).padStart(3, "0")}`;
 
-/* Add somebody, with a code issued on the spot.
+/* Add somebody.
 
-   The PIN comes back in clear exactly once, here, because this is the one
-   moment it can be handed over. Nothing stores it and no later read can
-   produce it. */
+   A name, a job, and where they work. Nothing is issued and there is nothing
+   to hand over — their name appearing on the clock-in page is what lets them
+   start recording shifts. */
 export async function addEmployee(orgId, { name, title, branchId }) {
   const clean = String(name || "").trim().slice(0, 80);
   if (!clean) return { error: "name" };
@@ -100,10 +72,6 @@ export async function addEmployee(orgId, { name, title, branchId }) {
     return { error: "duplicate" };
   }
 
-  const chosen = freshPin(orgId, new Set(rows.map((e) => e.pinHash).filter(Boolean)));
-  if (!chosen) return { error: "collision" };
-  const hash = hashPin(orgId, chosen);
-
   const record = {
     id: newId(),
     name: clean,
@@ -112,15 +80,13 @@ export async function addEmployee(orgId, { name, title, branchId }) {
        which is the right answer for a floater and for a single-site business
        that should not be asked the question at all. */
     branchId: String(branchId || "").trim() || null,
-    pinHash: hash,
-    pinSetAt: Date.now(),
     archived: false,
     createdAt: Date.now(),
   };
 
   map[record.id] = record;
   await setJSON(ROSTER(orgId), map);
-  return { employee: record, pin: chosen };
+  return { employee: record };
 }
 
 export async function updateEmployee(orgId, id, { name, title, branchId }) {
@@ -141,23 +107,6 @@ export async function updateEmployee(orgId, id, { name, title, branchId }) {
   return { employee: map[existing.id] };
 }
 
-/* A new code for somebody who lost theirs, or whose old one got around.
-
-   The only way back to a working PIN, by design: nothing can read the old one
-   out, so "what was my code" is always answered by issuing another. */
-export async function rotatePin(orgId, id) {
-  const map = (await getJSON(ROSTER(orgId))) || {};
-  const existing = map[String(id)];
-  if (!existing) return { error: "notfound" };
-
-  const chosen = freshPin(orgId, new Set(Object.values(map).map((e) => e.pinHash).filter(Boolean)));
-  if (!chosen) return { error: "collision" };
-
-  map[existing.id] = { ...existing, pinHash: hashPin(orgId, chosen), pinSetAt: Date.now() };
-  await setJSON(ROSTER(orgId), map);
-  return { employee: map[existing.id], pin: chosen };
-}
-
 /* Archived, never deleted, for the reason the stock ledger is: a punch from
    March has to stay resolvable to the person who made it. */
 export async function archiveEmployee(orgId, id, { archived = true } = {}) {
@@ -169,12 +118,14 @@ export async function archiveEmployee(orgId, id, { archived = true } = {}) {
   return { employee: map[existing.id] };
 }
 
-export async function findByPin(orgId, pin) {
-  const clean = String(pin || "").trim();
-  if (!/^\d{4,8}$/.test(clean)) return null;
-  const hash = hashPin(orgId, clean);
-  const rows = Object.values((await getJSON(ROSTER(orgId))) || {});
-  return rows.find((e) => e.pinHash === hash && !e.archived) || null;
+/* One person, by id, whether they still work here or not.
+
+   The clock-in page resolves a chosen name back to a record and has to tell
+   "no such person" apart from "somebody who has left" — the caller decides
+   which of the two it is willing to admit to. */
+export async function getEmployee(orgId, id) {
+  const map = (await getJSON(ROSTER(orgId))) || {};
+  return map[String(id)] || null;
 }
 
 /* ── Punches ──────────────────────────────────────────────── */
@@ -205,7 +156,9 @@ export function onShift(punches) {
    not have to tell the machine which button this is — the machine already
    knows whether they are currently in, and asking invites the wrong answer at
    the end of a long day. */
-export async function punch(orgId, { employeeId, branchId, at = Date.now(), actor = "" }) {
+export async function punch(orgId, {
+  employeeId, branchId, at = Date.now(), actor = "", source = "pad", photo = false,
+}) {
   const all = (await getJSON(PUNCHES(orgId))) || [];
 
   /* Their most recent punch, with ties broken by which was recorded last.
@@ -228,10 +181,26 @@ export async function punch(orgId, { employeeId, branchId, at = Date.now(), acto
     branchId: String(branchId || "") || null,
     kind,
     at,
-    /* Which signed-in account's device this was taken on. Not who punched —
-       that is the PIN — but where the record came from, which is what makes a
-       disputed punch answerable at all. */
+    /* Which signed-in account recorded this, when one did. Not who worked the
+       shift — that is `employeeId` — but who is answerable for the row, which
+       is the thing a disputed punch turns on.
+
+       Empty for a punch made from the clock-in page, where by design there is
+       no session: `source` says so, and the photograph is what makes that one
+       answerable instead. */
     actor: String(actor || "").slice(0, 80),
+    /* "web" — puremargin.ae, on the arriving person's own phone, with a
+       photograph of the place attached.
+       "pad"  — recorded inside the app by a manager, for somebody who forgot.
+
+       Recorded because the two are worth different amounts as evidence, and a
+       manager reading a row deserves to know which one they are looking at. */
+    source: source === "web" ? "web" : "pad",
+    /* Whether a picture was taken with it. Kept on the punch rather than
+       inferred from whether the photo key still resolves, so a row whose
+       photograph the owner has since deleted says exactly that instead of
+       looking like a punch that never had one. */
+    photo: Boolean(photo),
   };
 
   const next = [entry, ...all].slice(0, MAX_PUNCHES);

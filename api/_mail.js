@@ -122,6 +122,27 @@ const MUTED = "#6B6580";
 const IRIS = "#8B5CF6";
 const WASH = "#F7F6FB";
 
+/* The address a link in an email should point at.
+
+   Derived from the request headers, a link carries whatever host the sender
+   happened to be on — a preview deployment, or the project's `*.vercel.app`
+   address — into somebody else's inbox. The link still works, but it doesn't
+   look like the product, and a preview URL stops resolving once that
+   deployment is rotated away.
+
+   APP_URL pins it. Unset, the header-derived behaviour stands, so a deployment
+   that hasn't configured it still sends a working link.
+
+   Lives here rather than in the one route that first needed it: invitations
+   and attendance notices both send links, and a second copy of this is a
+   second place for the two to start disagreeing about where the product is. */
+export function publicOrigin(req) {
+  const configured = String(process.env.APP_URL || "").trim().replace(/\/+$/, "");
+  if (configured) return /^https?:\/\//i.test(configured) ? configured : `https://${configured}`;
+  const host = req?.headers?.host;
+  return host ? `https://${host}` : "";
+}
+
 export function esc(text) {
   return String(text ?? "").replace(/[&<>"']/g, (c) => (
     { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]

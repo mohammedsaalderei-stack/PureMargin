@@ -5,6 +5,7 @@ import Login from "./Login.jsx";
 import ForgotPassword from "./ForgotPassword.jsx";
 import Register from "./Register.jsx";
 import Pricing from "./Pricing.jsx";
+import Attendance from "./Attendance.jsx";
 import Shell from "./Shell.jsx";
 import Splash from "./Splash.jsx";
 import AdminPage from "./AdminPage.jsx";
@@ -16,7 +17,7 @@ import { useRoute, navigate, useBackspaceBack } from "./router.js";
 const OUT_MS = 260;
 
 /* Public screens live at their own URL; the signed-in app is `#/app/<tab>`. */
-const PUBLIC_VIEWS = ["landing", "login", "register", "forgot", "pricing"];
+const PUBLIC_VIEWS = ["landing", "login", "register", "forgot", "pricing", "attendance"];
 
 function Routes() {
   const [token, setToken] = useState(() => sessionStorage.getItem("sufra_token") || "");
@@ -38,6 +39,17 @@ function Routes() {
 
   const adminView = route.name === "admin";
   const view = PUBLIC_VIEWS.includes(route.name) ? route.name : "landing";
+
+  /* The clock-in page belongs to nobody's session.
+
+     Every other public address sends a signed-in visitor back to the app,
+     which is right: an owner who lands on the marketing page while already
+     signed in wanted the dashboard. This one is different. It is the page an
+     employee opens on a phone that may well be the owner's own, and an owner
+     who wants to see what their staff are looking at should be able to. Being
+     bounced to the dashboard for opening it would make it unreachable from the
+     one device most likely to be used to check it. */
+  const standalone = adminView || route.name === "attendance";
 
   /* Carried from sign-in into the reset screen, so an address already typed
      doesn't have to be typed twice. */
@@ -90,12 +102,14 @@ function Routes() {
   /* A signed-in session that lands on a public address is put back on the app,
      without leaving that address behind for the back button to return to. */
   useEffect(() => {
-    if (token && !adminView && route.name !== "app") navigate("app/overview", { replace: true });
-  }, [token, adminView, route.name]);
+    if (token && !standalone && route.name !== "app") navigate("app/overview", { replace: true });
+  }, [token, standalone, route.name]);
 
   let screen;
   if (adminView) {
     screen = <AdminPage />;
+  } else if (view === "attendance") {
+    screen = <Attendance onBack={() => setView("landing")} />;
   } else if (token) {
     screen = (
       <Shell
@@ -147,7 +161,14 @@ function Routes() {
       />
     );
   } else {
-    screen = <Landing onSignIn={() => setView("login")} onRegister={() => setView("register")} onPricing={() => setView("pricing")} />;
+    screen = (
+      <Landing
+        onSignIn={() => setView("login")}
+        onRegister={() => setView("register")}
+        onPricing={() => setView("pricing")}
+        onAttendance={() => setView("attendance")}
+      />
+    );
   }
 
   const cls =
@@ -156,7 +177,7 @@ function Routes() {
   return (
     <>
       {phase !== "idle" && <div className="auth-bar" />}
-      <div className={`${cls} min-h-full`} key={adminView ? "admin" : token ? "app" : view}>
+      <div className={`${cls} min-h-full`} key={standalone ? route.name : token ? "app" : view}>
         {screen}
       </div>
       {splash && (

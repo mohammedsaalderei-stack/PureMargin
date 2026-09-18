@@ -18,24 +18,8 @@ import { normaliseGrants, grantable, grantedTabs } from "./_tabs.js";
 import { recordAudit, readAudit } from "./_audit.js";
 import { readSyncs } from "./_sync.js";
 import { getJSON, setJSON, del } from "./_store.js";
-import { sendMail, shell, row, button } from "./_mail.js";
+import { sendMail, shell, row, button, publicOrigin } from "./_mail.js";
 
-/* The address invitation links point at.
-
-   Derived from the request headers, an invitation carries whatever host the
-   inviter happened to be on — a preview deployment, or the project's
-   `*.vercel.app` address — into somebody else's inbox. The link still works,
-   but it doesn't look like the product, and a preview URL stops resolving
-   once that deployment is rotated away.
-
-   APP_URL pins it. Unset, the old header-derived behaviour stands, so a
-   deployment that hasn't configured it still sends a working link. */
-function publicOrigin(req) {
-  const configured = String(process.env.APP_URL || "").trim().replace(/\/+$/, "");
-  if (configured) return /^https?:\/\//i.test(configured) ? configured : `https://${configured}`;
-  const host = req.headers.host;
-  return host ? `https://${host}` : "";
-}
 
 /* ── Email invitations ────────────────────────────────────────
 

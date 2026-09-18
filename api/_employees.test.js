@@ -1,20 +1,24 @@
-/* Attendance: who was here, worked out from what they typed.
+/* Attendance: who was here, and for how long.
 
-   ── The two things that must hold ────────────────────────────────────────
+   ── What has to hold ─────────────────────────────────────────────────────
 
-   A PIN identifies exactly one person, and a punch decides its own direction.
-   Everything else on the screen is arrangement; those two are what make the
-   record mean anything.
+   A punch decides its own direction, and a record survives the person
+   leaving. Everything else is arrangement.
 
-   The second is the one worth stating. There is no "in" button and no "out"
-   button, because the ledger already knows which a person is due — and a pad
-   that asks is a pad where somebody at the end of a twelve-hour shift taps the
-   wrong one and the hours come out as a minute. */
+   The first is the one worth stating. There is no "in" button and no "out"
+   button anywhere in this product, because the ledger already knows which a
+   person is due — and asking is how somebody at the end of a twelve-hour
+   shift taps the wrong one and the hours come out as a minute.
+
+   There used to be a six-digit PIN here and four tests about it. It is gone,
+   along with the pad it was typed into: a shift is recorded from the public
+   clock-in page now, with a photograph. `_attendance.test.js` and
+   `_directory.test.js` cover what replaced it. */
 
 import assert from "node:assert/strict";
 import {
-  addEmployee, listEmployees, rotatePin, archiveEmployee, updateEmployee,
-  findByPin, punch, listPunches, onShift, shiftsFrom, hashPin,
+  addEmployee, listEmployees, archiveEmployee, updateEmployee, getEmployee,
+  punch, listPunches, onShift, shiftsFrom,
 } from "./_employees.js";
 
 let failures = 0;
@@ -28,72 +32,37 @@ async function test(name, fn) {
   }
 }
 
-await test("adding somebody issues a code, once", async () => {
+await test("adding somebody stores a name and issues nothing", async () => {
   const out = await addEmployee("o1", { name: "Maria Santos", title: "Chef de partie" });
   assert.equal(out.error, undefined);
-  assert.match(out.pin, /^\d{6}$/, "six digits");
   assert.equal(out.employee.name, "Maria Santos");
 
-  /* Nothing stores it in a readable form, so nothing can hand it back. That is
-     what forces a lost code to be rotated rather than looked up — and rotation
-     is the only thing that actually stops a code that has been passed on. */
+  /* There is nothing to hand over any more, and nothing secret on the record.
+     If a `pin` or a `pinHash` ever comes back here again it means the code
+     has been reintroduced without the file that explained why it went. */
+  assert.equal(out.pin, undefined);
   const [stored] = await listEmployees("o1");
+  assert.equal(stored.pinHash, undefined);
   assert.equal(stored.pin, undefined);
-  assert.ok(stored.pinHash, "only the hash is kept");
-  assert.notEqual(stored.pinHash, out.pin);
-  assert.equal(stored.pinHash, hashPin("o1", out.pin));
 });
 
-await test("a code finds its own person and nobody else's", async () => {
-  const a = await addEmployee("o2", { name: "Ali" });
-  const b = await addEmployee("o2", { name: "Bilal" });
-  assert.notEqual(a.pin, b.pin, "two people never share a code");
+await test("somebody who has left is still resolvable by id", async () => {
+  const e = await addEmployee("o6", { name: "Priya" });
+  await archiveEmployee("o6", e.employee.id);
 
-  assert.equal((await findByPin("o2", a.pin)).name, "Ali");
-  assert.equal((await findByPin("o2", b.pin)).name, "Bilal");
-  assert.equal(await findByPin("o2", "000000"), null);
-  assert.equal(await findByPin("o2", ""), null);
-  assert.equal(await findByPin("o2", "abc"), null);
-});
-
-await test("a code is an organization's own", async () => {
-  /* The same digits at another business must not resolve to anybody. The
-     org id is part of the hash for exactly this. */
-  const a = await addEmployee("o3", { name: "Sam" });
-  assert.ok(await findByPin("o3", a.pin));
-  assert.equal(await findByPin("o4", a.pin), null);
+  /* The clock-in page has to tell "no such person" apart from "somebody who
+     has left" — it refuses both, with one answer, and it can only do that if
+     the record is still there to look at. */
+  const found = await getEmployee("o6", e.employee.id);
+  assert.equal(found.name, "Priya");
+  assert.equal(found.archived, true);
+  assert.equal(await getEmployee("o6", "nobody"), null);
 });
 
 await test("the same name twice is refused", async () => {
   await addEmployee("o5", { name: "Ahmed" });
   assert.equal((await addEmployee("o5", { name: "  ahmed  " })).error, "duplicate");
   assert.equal((await addEmployee("o5", { name: "   " })).error, "name");
-});
-
-await test("rotating replaces the code and nothing else", async () => {
-  const first = await addEmployee("o6", { name: "Priya", title: "Server" });
-  const again = await rotatePin("o6", first.employee.id);
-
-  assert.notEqual(again.pin, first.pin);
-  assert.equal(again.employee.name, "Priya");
-  assert.equal(again.employee.title, "Server", "the person is untouched");
-
-  assert.equal(await findByPin("o6", first.pin), null, "the old code stops working");
-  assert.equal((await findByPin("o6", again.pin)).name, "Priya");
-});
-
-await test("an archived person's code stops working, and is not reissued", async () => {
-  const gone = await addEmployee("o7", { name: "Leaver" });
-  await archiveEmployee("o7", gone.employee.id);
-  assert.equal(await findByPin("o7", gone.pin), null);
-
-  /* Their code stays reserved. A punch resolves by hash and cannot tell that
-     its owner left, so handing the same digits to somebody new would file one
-     person's arrival under another's name. */
-  for (let i = 0; i < 40; i += 1) {
-    const fresh = await addEmployee("o7", { name: `New ${i}` });
-    assert.notEqual(fresh.pin, gone.pin);
-  }
 });
 
 await test("archiving keeps the record, because old punches point at it", async () => {
@@ -216,14 +185,31 @@ await test("two people's shifts do not run into each other", () => {
   assert.equal(shifts.find((sh) => sh.employeeId === "e2").ms, 2000);
 });
 
-await test("editing somebody does not disturb their code", async () => {
+await test("editing somebody keeps everything not edited", async () => {
   const e = await addEmployee("o15", { name: "Omar", title: "Runner" });
   await updateEmployee("o15", e.employee.id, { title: "Head waiter", branchId: "b2" });
 
   const [after] = await listEmployees("o15");
+  assert.equal(after.name, "Omar", "a name nobody edited is not blanked");
   assert.equal(after.title, "Head waiter");
   assert.equal(after.branchId, "b2");
-  assert.equal((await findByPin("o15", e.pin)).id, e.employee.id, "same code, same person");
+  assert.equal(after.id, e.employee.id, "and it is the same record");
+});
+
+await test("a punch records which door it came through", async () => {
+  const e = await addEmployee("o16", { name: "Grace" });
+
+  /* A shift somebody photographed and a shift a manager typed are not worth
+     the same, and the row a manager reads has to be able to say which. */
+  const web = await punch("o16", { employeeId: e.employee.id, source: "web", photo: true });
+  assert.equal(web.punch.source, "web");
+  assert.equal(web.punch.photo, true);
+  assert.equal(web.punch.actor, "", "nobody was signed in");
+
+  const byHand = await punch("o16", { employeeId: e.employee.id, actor: "owner" });
+  assert.equal(byHand.punch.source, "pad", "anything not web is a record somebody made");
+  assert.equal(byHand.punch.photo, false);
+  assert.equal(byHand.punch.actor, "owner");
 });
 
 console.log(failures ? `\n${failures} failed` : "\nall passed");

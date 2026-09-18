@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { Bell, Check, X, MessageCircleQuestion } from "lucide-react";
 import { useC } from "./theme.jsx";
-import { useLang, fill } from "./i18n.jsx";
+import { useLang, fill, localeFor } from "./i18n.jsx";
 import {
   buildNotices, pastEod, isWeekEnd, noticesApply, countUnseen, rememberSeen, readPrefs,
 } from "./notices.js";
@@ -31,9 +31,9 @@ import {
 const SEEN_KEY = "puremargin_notices_seen_v2";
 const TONE = { good: "cyan", warn: "rose", info: "iris" };
 
-export default function NotificationBell({ data, onAsk, capabilities }) {
+export default function NotificationBell({ data, staff, onAsk, capabilities }) {
   const C = useC();
-  const { t } = useLang();
+  const { t, lang } = useLang();
   const [open, setOpen] = useState(false);
   const [seen, setSeen] = useState([]);
   const box = useRef(null);
@@ -57,11 +57,28 @@ export default function NotificationBell({ data, onAsk, capabilities }) {
     [open, data],
   );
 
+  /* Punch times are turned into clock faces here rather than on the server or
+     in the Shell, because this is the only place that knows which language the
+     reader is in — and 06:12 in Arabic-Indic digits is a different string from
+     06:12 in Latin ones. The bidi marks a locale adds around a time are
+     stripped for the same reason the rest of the app strips them: they survive
+     into a notice body, and the body is what "already read" is keyed on, so
+     an invisible character would make one notice look like two. */
+  const punches = useMemo(() => (staff || []).map((p) => {
+    let time = "";
+    try {
+      time = new Date(p.at)
+        .toLocaleTimeString(localeFor(lang), { hour: "2-digit", minute: "2-digit" })
+        .replace(/[‎‏‪-‮⁦-⁩]/g, "");
+    } catch { /* an unknown locale — the notice reads without a time */ }
+    return { ...p, time };
+  }), [staff, lang]);
+
   const notices = useMemo(() => buildNotices(data, alerts, {
-    t, fill, dailyTarget: target, capabilities,
+    t, fill, dailyTarget: target, capabilities, staff: punches,
     pastEod: pastEod(eodTime),
     isWeekEnd: isWeekEnd(),
-  }), [data, alerts, target, eodTime, t, capabilities]);
+  }), [data, alerts, target, eodTime, t, capabilities, punches]);
 
   const unseen = countUnseen(notices, seen);
 

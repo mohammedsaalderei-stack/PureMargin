@@ -220,6 +220,7 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
   const [pendingDoc, setPendingDoc] = useState(null);
   const [direction, setDirection] = useState(1);
   const [data, setData] = useState(null);
+  const [staff, setStaff] = useState([]);
   const [error, setError] = useState("");
   const [refreshing, setRefreshing] = useState(false);
   const [needsPos, setNeedsPos] = useState(false);
@@ -407,15 +408,41 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [account, justRegistered]);
 
+  /* Today's arrivals, for the bell.
+
+     Fetched here rather than on the staff screen, because the whole point of a
+     notification is that it reaches somebody who is looking at something else.
+     On the same timer as the dashboard and only for people who can manage
+     staff — for everyone else the request is never made at all, rather than
+     made and thrown away by a capability check in the browser. */
+  async function loadStaff() {
+    if (!scope?.capabilities?.includes("manage:staff")) return;
+    try {
+      const res = await fetch("/api/employees?what=roster", { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) return;
+      const json = await res.json();
+      const names = new Map((json.employees || []).map((e) => [e.id, e.name]));
+      setStaff((json.today || []).map((p) => ({
+        id: p.id, kind: p.kind, at: p.at, name: names.get(p.employeeId) || "",
+      })));
+    } catch { /* the bell simply carries one fewer thing */ }
+  }
+
   useEffect(() => {
     let timer = 0;
-    const tick = () => { if (document.visibilityState === "visible") load({ quiet: true }); timer = setTimeout(tick, POLL_MS); };
+    const both = (opts) => { load(opts); loadStaff(); };
+    const tick = () => { if (document.visibilityState === "visible") both({ quiet: true }); timer = setTimeout(tick, POLL_MS); };
     timer = setTimeout(tick, POLL_MS);
-    const onVisible = () => { if (document.visibilityState === "visible") load({ quiet: true }); };
+    const onVisible = () => { if (document.visibilityState === "visible") both({ quiet: true }); };
     document.addEventListener("visibilitychange", onVisible);
     return () => { clearTimeout(timer); document.removeEventListener("visibilitychange", onVisible); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  /* And once as soon as the capability is known, so the first look at the bell
+     after signing in is not empty until the first tick. */
+  useEffect(() => { loadStaff(); // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scope?.capabilities]);
 
   useEffect(() => { load(); loadAccount(); loadScope(); // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -632,7 +659,7 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
 
             <div className="flex items-center gap-2">
               <LanguagePicker /><ThemeToggle compact />
-              <NotificationBell data={data} capabilities={scope?.capabilities} onAsk={(q) => { startNewChat(); setPending(q); go("ask"); }} />
+              <NotificationBell data={data} staff={staff} capabilities={scope?.capabilities} onAsk={(q) => { startNewChat(); setPending(q); go("ask"); }} />
             </div>
             <div className="flex items-center justify-between gap-2 pt-3" style={{ borderTop: `1px solid ${C.hairline}` }}>
               <span className="text-xs truncate" style={{ color: C.slate }}>
@@ -727,7 +754,7 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
   return (
     <MobileShell tab={tab} go={go} tabIcons={TAB_ICONS} labelFor={labelFor} liveDot={liveDot}
       onOpenChats={() => setChatsOpen(true)} onOpenMenu={() => setMobileMenu((v) => !v)} menuOpen={mobileMenu} sheet={mobileSheet}
-      bell={<NotificationBell data={data} capabilities={scope?.capabilities} onAsk={(q) => { startNewChat(); setPending(q); go("ask"); }} />}
+      bell={<NotificationBell data={data} staff={staff} capabilities={scope?.capabilities} onAsk={(q) => { startNewChat(); setPending(q); go("ask"); }} />}
       /* Shown once there is somewhere to go back to. The landing tab is
          whatever this person's role opens on, so back from there would leave
          the app — which is the browser's job, not a button in our header. */
