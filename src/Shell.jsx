@@ -124,7 +124,38 @@ const VARIANCE_TAB = { id: "variance", icon: Scale };
    controls to somebody who cannot use them. */
 const SALES_TAB = { id: "sales", icon: Receipt };
 
-const TAB_ICONS = Object.fromEntries([...TAB_META, SALES_TAB, INVENTORY_TAB, ALERTS_TAB, PLAN_TAB, RECIPES_TAB, VARIANCE_TAB, TEAM_TAB, MESSAGES_TAB].map((tb) => [tb.id, tb.icon]));
+/* Every tab there is, in the order the nav shows them.
+
+   ── Why this is one list ─────────────────────────────────────────────────
+
+   It was two. The rail read the icon off each tab object; the drawer looked it
+   up in a separate hand-written map — and adding Attendance to the nav without
+   adding it to that map made `TAB_ICONS.employees` undefined, which React
+   renders as an element type of undefined and kills the screen. It only died
+   on a phone, because only the drawer uses the map, so the desktop looked
+   perfectly healthy while the app was unusable on the device most of this is
+   used on.
+
+   `MobileShell` carries a comment about exactly this happening once before,
+   with the hand-written list of five primary tabs that went stale and left
+   Bill scan unreachable on a phone. Two lists of the same thing drift; this is
+   the same bug wearing different clothes, so the fix is not to add the missing
+   line but to stop there being somewhere to miss.
+
+   The nav filters this by permission and renders it in order. Nothing else
+   decides what exists. */
+const ALL_TABS = (() => {
+  const byId = Object.fromEntries(TAB_META.map((tb) => [tb.id, tb]));
+  return [
+    byId.overview, SALES_TAB, byId.costs, byId.ask,
+    INVENTORY_TAB, ALERTS_TAB, PLAN_TAB, RECIPES_TAB, VARIANCE_TAB, EMPLOYEES_TAB,
+    byId.watch, byId.menu, byId.forecast, byId.advice,
+    MESSAGES_TAB, TEAM_TAB,
+    byId.billing, byId.settings,
+  ].filter(Boolean);
+})();
+
+const TAB_ICONS = Object.fromEntries(ALL_TABS.map((tb) => [tb.id, tb.icon]));
 
 function useDesktop() {
   const [big, setBig] = useState(() => typeof window !== "undefined" && window.matchMedia("(min-width: 1024px)").matches);
@@ -235,14 +266,7 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
   /* Importance order: today's numbers, the cost ledger, the assistant, then
      operations, then the analysis screens, then the team, with billing and
      settings last. */
-  const byId = Object.fromEntries(TAB_META.map((tb) => [tb.id, tb]));
-  const navTabs = [
-    byId.overview, SALES_TAB, byId.costs, byId.ask,
-    INVENTORY_TAB, ALERTS_TAB, PLAN_TAB, RECIPES_TAB, VARIANCE_TAB, EMPLOYEES_TAB,
-    byId.watch, byId.menu, byId.forecast, byId.advice,
-    MESSAGES_TAB, TEAM_TAB,
-    byId.billing, byId.settings,
-  ].filter((tb) => tb && allowed(tb.id));
+  const navTabs = ALL_TABS.filter((tb) => allowed(tb.id));
 
   /* Falling back to a fixed "overview" assumed everybody has it. Now that the
      dashboard is a profitability screen, a cashier's fallback has to be the

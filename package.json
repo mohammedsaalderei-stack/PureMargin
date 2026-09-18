@@ -8,7 +8,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "npm run check && node scripts/test.mjs",
-    "check": "node scripts/check-imports.mjs && node scripts/check-cycles.mjs && node scripts/check-scroll.mjs && node scripts/check-i18n.mjs"
+    "check": "node scripts/check-imports.mjs && node scripts/check-cycles.mjs && node scripts/check-scroll.mjs && node scripts/check-i18n.mjs && node scripts/check-tabs.mjs"
   },
   "dependencies": {
     "@vercel/analytics": "^2.0.1",
