@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   Loader2, UserPlus, LogIn, LogOut, AlertTriangle, Archive, Camera,
-  Check, Copy, ExternalLink, ImageOff, Smartphone, Trash2, UserCheck, X,
+  Check, Copy, ExternalLink, ImageOff, KeyRound, Smartphone, Trash2, UserCheck, X,
 } from "lucide-react";
 import { useC } from "../theme.jsx";
 import { useLang, fill, localeFor } from "../i18n.jsx";
@@ -56,6 +56,7 @@ export default function Employees({ token, branches = [] }) {
   const [viewing, setViewing] = useState(null);
   const [confirming, setConfirming] = useState("");
   const [busy, setBusy] = useState("");
+  const [rotating, setRotating] = useState(false);
   const copyTimer = useRef(null);
 
   const load = useCallback(async () => {
@@ -156,6 +157,20 @@ export default function Employees({ token, branches = [] }) {
     }
   }
 
+  /* A new link, with the old one dead the moment it is pressed.
+
+     Behind a confirm because it is the one control on this screen that
+     breaks something for everybody: every person on the rota is holding the
+     old link, and none of them find out it stopped working until they are
+     standing outside at six in the morning. */
+  async function rotateKey() {
+    setBusy("key");
+    const out = await post("rotatekey", {});
+    setBusy("");
+    setRotating(false);
+    if (out?.clockInUrl) setState((prev) => ({ ...prev, clockInUrl: out.clockInUrl }));
+  }
+
   async function removePhoto(id) {
     setBusy(id);
     const out = await post("unphoto", { id });
@@ -233,9 +248,47 @@ export default function Employees({ token, branches = [] }) {
             </div>
           </div>
 
-          <div style={{ borderTop: `1px solid ${C.hairline}` }} className="pt-1">
-            <Toggle on={state?.attendancePublic !== false} label={s.publicTitle} lead={s.publicLead}
-              onChange={(v) => toggle("attendancePublic", v)} />
+          {/* The link is a key, and the card says so.
+
+              Not a footnote: whoever holds it can record a punch against any
+              name in this business, and somebody reading this screen is
+              deciding right now whether to paste it into a group chat. They
+              should know what they are pasting before they do it, not after
+              somebody leaves. */}
+          <p className="text-[11px] mb-3 px-1" style={{ color: C.slate }}>{s.linkLead}</p>
+
+          <div style={{ borderTop: `1px solid ${C.hairline}` }} className="pt-3">
+            <div className="flex items-start justify-between gap-3 flex-wrap">
+              <div className="min-w-0 flex-1">
+                <div className="text-sm font-semibold">{s.rotateTitle}</div>
+                <div className="text-[11px]" style={{ color: C.slate }}>{s.rotateLead}</div>
+              </div>
+              {rotating ? (
+                <span className="flex items-center gap-1.5 shrink-0">
+                  <button type="button" onClick={rotateKey} disabled={busy === "key"}
+                    className="px-3 py-1.5 rounded-lg text-[11px] font-bold"
+                    style={{ background: C.rose, color: "#fff" }}>
+                    {busy === "key" ? <Loader2 size={12} className="animate-spin" /> : s.rotateYes}
+                  </button>
+                  <button type="button" onClick={() => setRotating(false)}
+                    className="px-2 py-1.5 text-[11px]" style={{ color: C.slate }}>
+                    {t.common.cancel}
+                  </button>
+                </span>
+              ) : (
+                <button type="button" onClick={() => setRotating(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold shrink-0"
+                  style={{ border: `1px solid ${C.hairline}`, color: C.ink }}>
+                  <KeyRound size={12} /> {s.rotate}
+                </button>
+              )}
+            </div>
+            {rotating && (
+              <p className="text-[11px] mt-2" style={{ color: C.amber }}>{s.rotateSure}</p>
+            )}
+          </div>
+
+          <div style={{ borderTop: `1px solid ${C.hairline}` }} className="mt-3 pt-1">
             <Toggle on={state?.staffMail !== false} label={s.mailTitle} lead={s.mailLead}
               onChange={(v) => toggle("staffMail", v)} />
           </div>

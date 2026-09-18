@@ -11,9 +11,9 @@
    shift taps the wrong one and the hours come out as a minute.
 
    There used to be a six-digit PIN here and four tests about it. It is gone,
-   along with the pad it was typed into: a shift is recorded from the public
-   clock-in page now, with a photograph. `_attendance.test.js` and
-   `_directory.test.js` cover what replaced it. */
+   along with the pad it was typed into: a shift is recorded from a keyed
+   link now, with a photograph. `_clockkey.test.js` and `_attendance.test.js`
+   cover what replaced it. */
 
 import assert from "node:assert/strict";
 import {

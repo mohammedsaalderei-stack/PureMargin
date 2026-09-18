@@ -109,7 +109,12 @@ function Routes() {
   if (adminView) {
     screen = <AdminPage />;
   } else if (view === "attendance") {
-    screen = <Attendance onBack={() => setView("landing")} />;
+    /* `#/attendance/<key>`. The key is the second path segment of the hash,
+       which the router already parses out as `param` — and a fragment is never
+       sent to a server in a request line nor carried in a Referer header, so
+       the link stays out of access logs and out of whatever site the phone
+       opens next. */
+    screen = <Attendance clockKey={route.param} onBack={() => setView("landing")} />;
   } else if (token) {
     screen = (
       <Shell

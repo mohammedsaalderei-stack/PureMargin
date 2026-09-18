@@ -8,7 +8,8 @@
         ?what=archive  { id, archived }
         ?what=punch    { employeeId, branchId }   — recorded for somebody
         ?what=unphoto  { id }                     — remove a picture, keep the punch
-        ?what=settings { attendancePublic, staffMail }
+        ?what=rotatekey                           — new link, old one dead
+        ?what=settings { staffMail }
 
    ── This is the manager's half ───────────────────────────────────────────
 
@@ -30,7 +31,7 @@ import { scopeFor, effectiveBranches, parseBranchParam, unlockedBranches, saveOr
 import { posTokenFor } from "./_accounts.js";
 import { branchList } from "./_data.js";
 import { recordAudit } from "./_audit.js";
-import { publishStore, unpublishStore } from "./_directory.js";
+import { clockKey, rotateClockKey, publishClockIn } from "./_clockkey.js";
 import { publicOrigin } from "./_mail.js";
 import {
   listEmployees, addEmployee, updateEmployee, archiveEmployee,
@@ -109,36 +110,38 @@ export default async function handler(req, res) {
       const today = (await listPunches(orgId, { from: startOfDay() }))
         .filter((p) => known.has(p.employeeId));
 
-      /* The business as the clock-in page sees it, refreshed by this read.
+      /* What the clock-in link shows, refreshed by this read.
 
-         Publishing here rather than from a button means a business becomes
-         reachable from puremargin.ae by the ordinary act of using the staff
-         screen, and a branch renamed in the till shows up under its new name
-         the next time anyone looks — with no second thing to remember to run.
+         Written here rather than from a button so that a branch renamed in
+         the till shows up under its new name the next time anybody opens
+         this screen, with no second thing to remember to run. The key itself
+         is created on the same call if this is the first time.
 
-         `unlockedBranches` rather than the reader's own scope: this is the
-         organization's public face, and a branch manager opening the screen
-         should not quietly shrink the list of places everyone else can clock
-         in at. */
+         `unlockedBranches` rather than the reader's own scope: this is what
+         everyone on the rota sees, and a branch manager opening the screen
+         should not quietly shrink the list of places the rest of the staff
+         can clock in at. */
       const unlocked = unlockedBranches(scope.org, roster.map((b) => b.id));
-      if (scope.org?.attendancePublic !== false) {
-        await publishStore(orgId, {
-          /* The account's business name as a fallback, because an empty one is
-             not a cosmetic problem here: a store with no name cannot be
-             searched for, so the clock-in page would list the business as
-             unfindable and nobody could record a shift. */
-          name: scope.org?.name || session.account?.business || "",
-          branches: unlocked.map((id) => ({ id, name: branchNames[String(id)] || "" })),
-        });
-      }
+      await publishClockIn(orgId, {
+        name: scope.org?.name || session.account?.business || "",
+        branches: unlocked.map((id) => ({ id, name: branchNames[String(id)] || "" })),
+      });
 
       return res.status(200).json({
         branches,
         branchNames,
-        /* Where the public page lives, built here so the screen can show the
-           address to read out rather than having to guess its own origin. */
-        clockInUrl: `${publicOrigin(req)}/#/attendance`,
-        attendancePublic: scope.org?.attendancePublic !== false,
+        /* The link to hand out, key and all.
+
+           Built here because the browser cannot know its own public origin
+           when the app is behind a custom domain — and because the key is
+           the one thing on this screen that must never be guessable, so it
+           is sent to a session that has already proved `manage:staff`.
+
+           The key rides in the hash. A fragment is never sent to the server
+           in a request line and never appears in a Referer header, so the
+           link does not end up in an access log or get handed to the next
+           site somebody opens. */
+        clockInUrl: `${publicOrigin(req)}/#/attendance/${await clockKey(orgId)}`,
         staffMail: scope.org?.staffMail !== false,
         /* Today's pictures, small, all in one read. The full-size ones are
            fetched one at a time and only when opened. */
@@ -261,24 +264,33 @@ export default async function handler(req, res) {
       return res.status(200).json({ removed: id });
     }
 
-    /* The two switches a business has over this feature.
+    /* A new link, and the old one dead in the same breath.
 
-       `attendancePublic` false takes the business out of the directory, so it
-       stops being findable from puremargin.ae; the pad inside the venue still
-       works, and every punch ever made stays exactly where it is.
+       This is what you press when somebody leaves. The key is a bearer
+       credential — whoever holds the link can record a punch — so a person
+       walking out with it in their phone is the case it exists for, and a
+       link that kept working for another hour would not be a rotation.
 
-       `staffMail` false stops the notifications. Here rather than in the
-       notification preferences in Settings, because those are read in the
-       browser and describe one person's bell — this one is the organization's,
-       it is read on the server, and the screen it belongs to is this one. */
+       Everyone still on the rota needs the new link, which is the real cost
+       and the reason this is a button rather than something automatic. */
+    if (what === "rotatekey") {
+      const key = await rotateClockKey(orgId);
+      await recordAudit(orgId, {
+        actor: session.username, action: "staff.rotatekey", target: orgId, detail: {},
+      });
+      return res.status(200).json({ clockInUrl: `${publicOrigin(req)}/#/attendance/${key}` });
+    }
+
+    /* Whether an arrival is worth an email.
+
+       Here rather than in the notification preferences in Settings, because
+       those are read in the browser and describe one person's bell — this one
+       is the organization's, it is read on the server, and the screen it
+       belongs to is this one. */
     if (what === "settings") {
       const org = scope.org;
       if (!org) return res.status(403).json({ error: "noorg" });
 
-      if (body.attendancePublic !== undefined) {
-        org.attendancePublic = body.attendancePublic !== false;
-        if (!org.attendancePublic) await unpublishStore(orgId);
-      }
       if (body.staffMail !== undefined) org.staffMail = body.staffMail !== false;
       await saveOrg(org);
 
@@ -286,13 +298,10 @@ export default async function handler(req, res) {
         actor: session.username,
         action: "staff.settings",
         target: orgId,
-        detail: { attendancePublic: org.attendancePublic !== false, staffMail: org.staffMail !== false },
+        detail: { staffMail: org.staffMail !== false },
       });
 
-      return res.status(200).json({
-        attendancePublic: org.attendancePublic !== false,
-        staffMail: org.staffMail !== false,
-      });
+      return res.status(200).json({ staffMail: org.staffMail !== false });
     }
 
     if (what === "archive") {

@@ -1,10 +1,9 @@
-/* Clocking in from the open web.
+/* Clocking in, from a link the business handed out.
 
-   GET  ?what=stores&q=            — businesses matching what was typed
-        ?what=people&store=&branch= — who can clock in there
-   POST ?what=punch                — { store, branch, employeeId, photo, thumb }
+   GET  ?what=place&key=          — which business, which branches, who works there
+   POST ?what=punch               — { key, branch, employeeId, photo, thumb }
 
-   ── Why this endpoint has no session ─────────────────────────────────────
+   ── Why this endpoint has no session, and is not public either ───────────
 
    Every other route in this app starts with `requireAuth`. This one cannot.
    The person it serves is a cook arriving for a shift, on their own phone,
@@ -12,41 +11,43 @@
    handing every kitchen porter a login so they can record that they turned up
    is the thing this feature exists to avoid.
 
-   So the honest description is: this is a public write, and everything below
-   is the answer to "then what stops anyone doing it".
+   The first version concluded from that it had to be open to anybody: a public
+   index of every business using attendance, searchable by name, with the staff
+   list one call further in. That was the wrong conclusion. Somebody who is
+   handed a link by their manager on their first day does not need to search
+   for their own restaurant, and the search cost every business the privacy of
+   its staff list.
 
-   ── What actually stops it ───────────────────────────────────────────────
+   So the URL is the authentication, the same way it is for the POS webhook in
+   `_loyversehook.js`. No key, no answer — and there is nothing to enumerate,
+   because there is no longer a list of businesses to enumerate.
 
-   Not much, and saying so plainly is better than implying otherwise.
+   ── What that is worth, stated plainly ───────────────────────────────────
 
-   A stranger who finds a business in the directory can see its staff list and
-   record an arrival against a name. What they cannot do is record one without
-   a photograph, and the photograph is the control: it is taken, it is kept, it
-   is shown to the owner next to the name, and a punch with a picture of
-   somewhere that is not the restaurant is a punch the owner can see is wrong.
-   This does not prevent a false record. It makes one visible, which for
-   attendance is the achievable goal — the PIN it replaces did not manage
-   either, and could be passed to a friend without leaving a trace.
+   A key is a bearer credential. Whoever holds the link can read that one
+   business's branches and staff names and can record a punch against a name.
+   It will be forwarded into a staff group chat, which is fine — that group is
+   the staff — and somebody who leaves keeps it until it is rotated, which is
+   why rotation is one button on the staff screen.
 
-   The rest is about volume rather than truthfulness:
+   What it is not is identity. The photograph is not identity either, and does
+   not claim to be: it is something the owner can look at and judge, next to
+   the name and the time. Between them they make a false record take effort and
+   leave evidence, which for attendance is the achievable goal.
 
-     · a business appears only once it has opened the staff screen
-     · a search needs two characters and returns eight rows, so the directory
-       cannot be walked out a page at a time
-     · a punch within ninety seconds of the same person's last one is treated
-       as the same tap, not as the opposite direction
+   The rest is volume:
+
+     · a punch within ninety seconds of the same person's last one is the same
+       tap, not the opposite direction
      · four hundred punches per business per day, after which the day is full
 
-   ── The three things this deliberately does not say ──────────────────────
+   ── The three things this deliberately does not distinguish ──────────────
 
-   A wrong store id, a wrong branch, and a name that belongs to somebody who
-   has left all come back the same way. The endpoint is open; anything that
-   distinguishes them turns it into a way to ask questions about a business
-   from outside it. */
+   A key that never existed, a key that has been rotated away, and a name that
+   belongs to somebody who has left all come back the same way. Whoever is
+   holding a link that does not work needs to ask their manager either way. */
 
-import {
-  getStore, searchStores, readDirectory, MIN_QUERY,
-} from "./_directory.js";
+import { resolveClockKey } from "./_clockkey.js";
 import { getEmployee, listEmployees, listPunches, punch } from "./_employees.js";
 import { getOrg } from "./_org.js";
 import { recordAudit } from "./_audit.js";
@@ -60,40 +61,37 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 
 export default async function handler(req, res) {
   res.setHeader("Cache-Control", "no-store");
+  /* Nothing here should ever be indexed, and there is no page to index — but
+     the header costs nothing and this is the one address that gets pasted
+     into places that follow links. */
+  res.setHeader("X-Robots-Tag", "noindex, nofollow");
 
   try {
     const what = String(req.query?.what || "");
+    const key = req.method === "POST" ? req.body?.key : req.query?.key;
+    const place = await resolveClockKey(key);
+    if (!place) return res.status(404).json({ error: "nokey" });
 
-    if (req.method === "GET" && what === "stores") {
-      const q = String(req.query?.q || "");
-      if (q.trim().length < MIN_QUERY) return res.status(200).json({ stores: [], short: true });
-      return res.status(200).json({ stores: searchStores(await readDirectory(), q) });
-    }
+    const known = place.branches.map((b) => String(b.id));
 
-    if (req.method === "GET" && what === "people") {
-      const store = await getStore(req.query?.store);
-      /* No such business, and a business that has never switched attendance
-         on, are one answer. */
-      if (!store) return res.status(404).json({ error: "nostore" });
-
+    if (req.method === "GET" && what === "place") {
       const branchId = String(req.query?.branch || "").trim();
-      const known = store.branches.map((b) => String(b.id));
       if (branchId && !known.includes(branchId)) {
         return res.status(400).json({ error: "nobranch" });
       }
 
-      const people = (await listEmployees(store.id))
-        /* A person with no branch works anywhere — a floater, and the right
-           answer for a business that should never have been asked which of
-           its one branch somebody is at. */
+      const people = (await listEmployees(place.orgId))
+        /* Somebody with no branch works anywhere — a floater, and the right
+           answer for a business that should never have been asked which of its
+           one branch a person is at. */
         .filter((e) => !branchId || !e.branchId || String(e.branchId) === branchId);
 
       return res.status(200).json({
-        store: { id: store.id, name: store.name },
-        branch: branchId || null,
-        /* Name and job. Never the hash, never the branch assignment, never
-           when their code was last issued — nothing that says anything about
-           the business to somebody who is not part of it. */
+        name: place.name,
+        branches: place.branches,
+        /* Name and job. Never the branch assignment, never anything about the
+           business itself — the link is a door to one screen, not a read of an
+           organization. */
         people: people.map((e) => ({ id: e.id, name: e.name, title: e.title })),
       });
     }
@@ -103,10 +101,6 @@ export default async function handler(req, res) {
     }
 
     const body = req.body || {};
-    const store = await getStore(body.store);
-    if (!store) return res.status(404).json({ error: "nostore" });
-
-    const known = store.branches.map((b) => String(b.id));
     const branchId = String(body.branch || "").trim();
     /* More than one branch means saying which. Recording a shift against the
        wrong restaurant is worse than asking. */
@@ -126,8 +120,7 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "photo:thumb" });
     }
 
-    const employee = await getEmployee(store.id, body.employeeId);
-    /* Unknown, and belonging to somebody who has left, are one answer. */
+    const employee = await getEmployee(place.orgId, body.employeeId);
     if (!employee || employee.archived) return res.status(404).json({ error: "noperson" });
     if (employee.branchId && branchId && String(employee.branchId) !== branchId) {
       return res.status(400).json({ error: "wrongbranch" });
@@ -139,7 +132,7 @@ export default async function handler(req, res) {
        carrying the punch that already exists, because from where the person is
        standing it did work — twice. Saying "too soon" would read as a refusal
        of the arrival they just made. */
-    const today = await listPunches(store.id, { from: now - DAY_MS });
+    const today = await listPunches(place.orgId, { from: now - DAY_MS });
     const repeat = recentRepeat(today, employee.id, now);
     if (repeat) {
       return res.status(200).json({
@@ -148,10 +141,10 @@ export default async function handler(req, res) {
       });
     }
 
-    const rate = await noteAndCheckRate(store.id, now);
+    const rate = await noteAndCheckRate(place.orgId, now);
     if (!rate.ok) return res.status(429).json({ error: "busy" });
 
-    const out = await punch(store.id, {
+    const out = await punch(place.orgId, {
       employeeId: employee.id,
       branchId: branchId || employee.branchId || known[0] || null,
       at: now,
@@ -159,13 +152,13 @@ export default async function handler(req, res) {
       photo: true,
     });
 
-    await savePhoto(store.id, out.punch.id, {
+    await savePhoto(place.orgId, out.punch.id, {
       full: body.photo, thumb: body.thumb || "", at: now,
     });
 
-    const branchName = store.branches.find((b) => String(b.id) === String(out.punch.branchId))?.name || "";
+    const branchName = place.branches.find((b) => String(b.id) === String(out.punch.branchId))?.name || "";
 
-    await recordAudit(store.id, {
+    await recordAudit(place.orgId, {
       /* No account made this. The record says so rather than borrowing a name
          that would imply somebody signed in did it. */
       actor: "attendance",
@@ -176,14 +169,14 @@ export default async function handler(req, res) {
 
     /* Not awaited. The punch is recorded and the phone should say so now; a
        mail provider having a slow minute is not this person's problem. */
-    getOrg(store.id)
+    getOrg(place.orgId)
       .then((org) => notifyManagers(org, punchMail({
         name: employee.name,
         title: employee.title,
         kind: out.kind,
         at: out.punch.at,
         branchName,
-        business: store.name,
+        business: place.name,
         link: `${publicOrigin(req)}/#/app/employees`,
       })))
       .catch((err) => console.error("[attendance] notify failed:", err.message));
