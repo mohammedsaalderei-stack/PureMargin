@@ -29,29 +29,8 @@ import { fileURLToPath } from "node:url";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const DIR = path.join(ROOT, "migrations");
 
-/* Read from a local .env if one is present.
-
-   Deliberately minimal and deliberately not a dependency: this needs two
-   variables out of a file the developer already has, and `dotenv` would be a
-   package in production for the sake of a script that never runs there.
-   Anything already in the environment wins, so a deployment's real
-   configuration is never overwritten by a stale file. */
-function loadEnv() {
-  for (const name of [".env.local", ".env"]) {
-    const file = path.join(ROOT, name);
-    if (!fs.existsSync(file)) continue;
-    for (const line of fs.readFileSync(file, "utf8").split(/\r?\n/)) {
-      const m = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/.exec(line);
-      if (!m) continue;
-      const key = m[1];
-      let value = m[2].trim();
-      if (/^".*"$/.test(value) || /^'.*'$/.test(value)) value = value.slice(1, -1);
-      if (process.env[key] === undefined && value !== "") process.env[key] = value;
-    }
-  }
-}
-
-loadEnv();
+const { loadLocalEnv } = await import("../api/_env.js");
+loadLocalEnv();
 
 const { directClient, configured } = await import("../api/_db.js");
 
