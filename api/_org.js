@@ -23,6 +23,7 @@
 
 import crypto from "crypto";
 import { getJSON, setJSON, del } from "./_store.js";
+import { normaliseType } from "./_types.js";
 import { capabilitiesFor } from "./_tabs.js";
 import { ROLES, ROLE_KEYS, isRole, can } from "./_roles.js";
 import { getAccount, normalise, normaliseFeatures } from "./_accounts.js";
@@ -87,6 +88,10 @@ export async function createOrg({ ownerUsername, name = "", branchAllowance }) {
        decided this organization has no limit, and it reads the same as an
        organization that predates the limit. Both are unlimited. */
     branchAllowance: branchAllowance === undefined ? DEFAULT_BRANCH_ALLOWANCE : branchAllowance,
+    /* Unanswered, not assumed. A business that has never been asked what kind
+       it is gets the nav order everybody has always had. */
+    type: null,
+    settingsVersion: 1,
     createdAt: Date.now(),
   };
   await setJSON(ORG_KEY(id), org);
@@ -365,6 +370,46 @@ export async function scopeFor(account, allBranchIds = []) {
    it does stop new ones being recorded there, which is the honest meaning of
    a reduced allowance and is why it is an admin action rather than a silent
    consequence of anything else. */
+/* The kind of business this is, and the version that makes a conflict visible.
+
+   ── Why a version rather than last-write-wins ────────────────────────────
+
+   §7 of the specification asks for `expected_version` and a 409, and this is
+   the one place in the app where two people plausibly edit the same record at
+   the same moment: an owner on a laptop and a manager on a phone, both in
+   settings. Last write wins is not wrong there so much as silent — the person
+   whose change vanished is never told, and finds out days later when the nav
+   is not what they set.
+
+   The version counts settings writes, not every change to the organization.
+   Branch allowances are set by an administrator and members by an owner; both
+   already have their own paths and neither is edited concurrently with this.
+
+   Absent means 1, so an organization that predates the field does not have to
+   be migrated before anybody can save. */
+export async function setBusinessType(orgId, type, { expectedVersion } = {}) {
+  const org = await getOrg(orgId);
+  if (!org) return { error: "noorg" };
+
+  const clean = normaliseType(type);
+  if (type !== null && type !== undefined && String(type).trim() !== "" && !clean) {
+    return { error: "type" };
+  }
+
+  const version = Number(org.settingsVersion) || 1;
+  if (expectedVersion !== undefined && Number(expectedVersion) !== version) {
+    /* The current record travels with the refusal. A client told only "you are
+       out of date" has to fetch again to find out what it is out of date with,
+       and in the meantime shows a form it cannot submit. */
+    return { error: "conflict", version, type: normaliseType(org.type) };
+  }
+
+  org.type = clean;
+  org.settingsVersion = version + 1;
+  await saveOrg(org);
+  return { org, type: clean, version: org.settingsVersion };
+}
+
 export async function setBranchAllowance(orgId, allowance) {
   const org = await getOrg(orgId);
   if (!org) return { error: "notfound" };

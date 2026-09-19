@@ -9,6 +9,7 @@
 import { requireAuth } from "./_auth.js";
 import { scopeFor, ROLES } from "./_org.js";
 import { allowedTabs } from "./_tabs.js";
+import { normaliseType, orderTabs, availableFeatures } from "./_types.js";
 import { posTokenFor } from "./_accounts.js";
 import { branchList } from "./_data.js";
 
@@ -39,8 +40,21 @@ export default async function handler(req, res) {
       /* The definitive list of tabs this person may open, resolved from the
          same capabilities the data routes check. The browser renders this
          rather than deciding for itself, so the nav and the API can never
-         disagree about what exists. */
-      tabs: allowedTabs(scope.capabilities),
+         disagree about what exists.
+
+         Ordered by the kind of business this is. The set is unchanged — a
+         type promotes what leads and never adds or removes a tab, which is
+         the line between presentation and permission that `_types.js`
+         exists to hold. */
+      tabs: orderTabs(scope.org?.type, allowedTabs(scope.capabilities)),
+      businessType: normaliseType(scope.org?.type),
+      /* Only modules that exist and that this person can reach. There is no
+         `orders` and no `channel_margin` here because there are neither in
+         this system yet, and naming them would have a client draw a screen
+         with nothing behind it. */
+      availableFeatures: availableFeatures(scope.capabilities, {
+        posConnected: branches.length > 0,
+      }),
       organization: scope.org ? { id: scope.org.id, name: scope.org.name } : null,
       /* Only the branches this user may see. The ones they may not are absent
          rather than marked — a disabled entry still discloses that a branch

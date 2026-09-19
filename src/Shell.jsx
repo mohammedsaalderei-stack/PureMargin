@@ -33,6 +33,7 @@ import Costs from "./screens/Costs.jsx";
 import Sales from "./screens/Sales.jsx";
 import Employees from "./screens/Employees.jsx";
 import BranchScope from "./BranchScope.jsx";
+import BusinessTypePicker from "./BusinessTypePicker.jsx";
 import CommandPalette from "./CommandPalette.jsx";
 import LanguagePicker from "./LanguagePicker.jsx";
 import ThemeToggle from "./ThemeToggle.jsx";
@@ -221,6 +222,11 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
   const [direction, setDirection] = useState(1);
   const [data, setData] = useState(null);
   const [staff, setStaff] = useState([]);
+  /* Dismissed as soon as it is answered, so the picker does not reappear
+     while the fresh scope is still in flight. */
+  const [typeAnswered, setTypeAnswered] = useState(false);
+  const [savingType, setSavingType] = useState(false);
+  const [typeError, setTypeError] = useState("");
   const [error, setError] = useState("");
   const [refreshing, setRefreshing] = useState(false);
   const [needsPos, setNeedsPos] = useState(false);
@@ -267,7 +273,33 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
   /* Importance order: today's numbers, the cost ledger, the assistant, then
      operations, then the analysis screens, then the team, with billing and
      settings last. */
-  const navTabs = ALL_TABS.filter((tb) => allowed(tb.id));
+  /* The nav, in the order the server put it in.
+
+     `scope.tabs` arrives ordered by the kind of business this is — a cafe
+     leads with selling and recipes, a home kitchen with recipes and costing.
+     The set is identical either way; only the order differs, because a type
+     promotes what leads and can never add or remove a tab.
+
+     `ALL_TABS` still supplies the icon and is still the single list of what
+     exists, so a tab the server permits but this build has never heard of is
+     dropped rather than rendered as an undefined icon — which is exactly the
+     crash the comment above that list describes. */
+  /* Whether to ask what kind of business this is before showing anything.
+
+     Every condition has to hold: the scope has loaded (so a null type is an
+     answer and not just an unfinished request), this session is the one that
+     just registered, nobody has answered yet, and this person can actually
+     set it. */
+  const typePrompt = Boolean(
+    scope
+    && justRegistered
+    && !typeAnswered
+    && scope.businessType === null
+    && (scope.capabilities || []).includes("manage:users"),
+  );
+
+  const byId = Object.fromEntries(ALL_TABS.map((tb) => [tb.id, tb]));
+  const navTabs = allowedIds.map((id) => byId[id]).filter(Boolean);
 
   /* Falling back to a fixed "overview" assumed everybody has it. Now that the
      dashboard is a profitability screen, a cashier's fallback has to be the
@@ -360,6 +392,44 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
   }
 
   async function refreshEverything() { await loadAccount(); await loadScope(); await load(); }
+
+  /* Saving carries the version the read came back with, so two people in
+     settings at once produce a 409 rather than one silently overwriting the
+     other. On a conflict the server sends back what the record now says;
+     the scope is reloaded so the screen shows their choice rather than a
+     stale one, and the message explains what happened. */
+  async function saveBusinessType(type) {
+    if (!type) return null;
+    setSavingType(true);
+    setTypeError("");
+    try {
+      const current = await fetch("/api/business", { headers: { Authorization: `Bearer ${token}` } });
+      const before = await current.json().catch(() => ({}));
+
+      const res = await fetch("/api/business", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ type, expectedVersion: before.version }),
+      });
+      const json = await res.json().catch(() => ({}));
+
+      if (res.status === 409) {
+        await loadScope();
+        setTypeError(t.businessType.errConflict);
+        return null;
+      }
+      if (!res.ok) { setTypeError(t.businessType.errServer); return null; }
+
+      setTypeAnswered(true);
+      await loadScope();
+      return json;
+    } catch {
+      setTypeError(t.businessType.errServer);
+      return null;
+    } finally {
+      setSavingType(false);
+    }
+  }
 
   async function loadScope() {
     try {
@@ -574,6 +644,31 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
       <span className="display font-bold text-lg grad-text">{t.name}</span>
     </div>
   );
+
+  /* ---------------- Asked once, on the way in ----------------
+
+     A business that has just registered and has not said what kind it is gets
+     the question before the dashboard, because the answer decides what the
+     dashboard leads with and asking afterwards means rearranging a screen
+     somebody has already started reading.
+
+     Only on the way in, and only for somebody who can actually set it. An
+     existing business is never interrupted — `businessType` is null for every
+     account that predates the question, and the nav keeps the order it has
+     always had until somebody chooses in Settings. A member who cannot edit
+     organization settings is not shown a choice they cannot make. */
+  if (typePrompt) {
+    return (
+      <div className="h-screen overflow-y-auto">
+        <BusinessTypePicker
+          value={scope?.businessType ?? null}
+          busy={savingType}
+          error={typeError}
+          onContinue={saveBusinessType}
+        />
+      </div>
+    );
+  }
 
   /* ---------------- Desktop ---------------- */
   if (desktop) {

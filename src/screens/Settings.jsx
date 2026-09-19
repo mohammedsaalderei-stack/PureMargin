@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { CheckCircle2, AlertCircle, RefreshCw, Plug, Loader2 as Spin, Loader2, Send, LifeBuoy, Instagram, Mail, Phone, Webhook, Copy, ExternalLink } from "lucide-react";
 import { useC } from "../theme.jsx";
+import BusinessTypePicker from "../BusinessTypePicker.jsx";
 import { useLang, fill, localeFor, formatDate } from "../i18n.jsx";
 import { contactRows } from "../contact.js";
 import { BUILD } from "../build.js";
@@ -60,6 +61,62 @@ export default function Settings({ data, user, onRefresh, refreshing, token, con
   const [target, setTarget] = useState(saved.target);
   const [eodTime, setEodTime] = useState(saved.eodTime);
   const [savedAlerts, setSavedAlerts] = useState(false);
+
+  /* The kind of business, loaded on its own rather than read off `data`:
+     the metrics payload is about sales, this is a property of the business,
+     and folding one into the other is how a screen ends up unable to save
+     what it displays. The version comes with it and goes back with the
+     write, so two people in settings at once conflict rather than one
+     silently overwriting the other. */
+  const [business, setBusiness] = useState(null);
+  const [typeBusy, setTypeBusy] = useState(false);
+  const [typeError, setTypeError] = useState("");
+  const [typeSaved, setTypeSaved] = useState(false);
+
+  useEffect(() => {
+    let live = true;
+    (async () => {
+      try {
+        const res = await fetch("/api/business", { headers: { Authorization: `Bearer ${token}` } });
+        if (res.ok && live) setBusiness(await res.json());
+      } catch { /* the panel simply does not appear */ }
+    })();
+    return () => { live = false; };
+  }, [token]);
+
+  async function chooseType(type) {
+    if (!business || type === business.type) return;
+    setTypeBusy(true);
+    setTypeError("");
+    setTypeSaved(false);
+    try {
+      const res = await fetch("/api/business", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ type, expectedVersion: business.version }),
+      });
+      const json = await res.json().catch(() => ({}));
+
+      if (res.status === 409) {
+        /* Somebody else got there first. Their choice is adopted on screen —
+           theirs is the one that is true — and the message says so rather
+           than leaving a form that will not submit. */
+        setBusiness((prev) => ({ ...prev, type: json.type, version: json.version }));
+        setTypeError(t.businessType.errConflict);
+        return;
+      }
+      if (!res.ok) { setTypeError(t.businessType.errServer); return;  }
+
+      setBusiness(json);
+      setTypeSaved(true);
+      /* The nav order comes from `/api/scope`, which the shell holds. */
+      onRefresh?.();
+    } catch {
+      setTypeError(t.businessType.errServer);
+    } finally {
+      setTypeBusy(false);
+    }
+  }
 
   const [ticket, setTicket] = useState({ subject: "", category: "catTechnical", priority: "prioNormal", detail: "" });
   const [sending, setSending] = useState(false);
@@ -435,6 +492,24 @@ export default function Settings({ data, user, onRefresh, refreshing, token, con
                   </code>
                 )}
               </div>
+            )}
+          </Panel>
+        )}
+
+        {/* Only for somebody who can set it. A member shown four cards that
+            refuse to save has been offered a choice that was never theirs. */}
+        {business?.canEdit && (
+          <Panel title={t.businessType.settingsTitle}>
+            <p className="text-xs mb-3" style={{ color: C.slate }}>{t.businessType.settingsLead}</p>
+            <BusinessTypePicker
+              compact
+              value={business.type}
+              busy={typeBusy}
+              error={typeError}
+              onChoose={chooseType}
+            />
+            {typeSaved && !typeError && (
+              <p className="text-xs mt-3" style={{ color: C.mint }}>{t.businessType.saved}</p>
             )}
           </Panel>
         )}
