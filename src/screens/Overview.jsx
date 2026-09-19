@@ -389,6 +389,61 @@ export default function Overview({ data, dateRange, onDateRangeChange, onAsk, on
               </div>
             </div>
           </div>
+
+          {/* What is left after the doors are paid for.
+
+              The card above is gross profit — turnover less the cost of the
+              food — and for a long time this screen called that "net profit",
+              which it is not. The real figure has existed all along in
+              `_domains.js`, reachable only by asking the assistant in words.
+              An owner should not have to know to ask.
+
+              Shown beneath rather than instead: gross margin is the number a
+              kitchen acts on, net is the number a business survives on, and
+              they answer different questions. The components are spelled out
+              because "you kept 31,000" is not checkable and "turnover less
+              food less rent less wages" is.
+
+              Absent entirely when the server withheld it — a branch-scoped
+              view, or a role without `view:profitability`. */}
+          {data.profit && (
+            <div className="relative mt-5 pt-4" style={{ borderTop: `1px solid ${C.hairline}` }}>
+              <div className="flex flex-wrap items-end justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="text-xs" style={{ color: C.slate }}>
+                    {data.profit.hasOperatingCosts ? t.overview.netProfit : t.overview.netProfitNoCosts}
+                  </div>
+                  <div className="display font-bold leading-none mt-1.5 truncate-safe"
+                    style={{ fontSize: "clamp(1.5rem, 5vw, 2.25rem)", color: data.profit.net >= 0 ? C.ink : C.rose }}>
+                    <Money value={Math.round(data.profit.net)} />
+                  </div>
+                </div>
+                {data.profit.netMarginPct !== null && data.profit.hasOperatingCosts && (
+                  <span className="text-xs font-bold px-2.5 py-1 rounded-full"
+                    style={{ background: "var(--chip-bg)", color: C.slate }}>
+                    {fill(t.overview.marginPct, { n: data.profit.netMarginPct })}
+                  </span>
+                )}
+              </div>
+
+              <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2.5 text-[11px]" style={{ color: C.slate }}>
+                <span>{t.overview.lessRent}: <Money value={Math.round(data.profit.fixedCosts)} /></span>
+                <span>{t.overview.lessVariable}: <Money value={Math.round(data.profit.variableCosts)} /></span>
+                <span>{fill(t.overview.overDays, { n: data.profit.period.days })}</span>
+              </div>
+
+              {/* Two caveats that must travel with the number, because both
+                  make it flattering rather than merely imprecise. */}
+              {!data.profit.hasOperatingCosts && (
+                <p className="text-[11px] mt-2" style={{ color: C.amber }}>{t.overview.noCostsYet}</p>
+              )}
+              {data.profit.costCoverage !== null && data.profit.costCoverage < 1 && (
+                <p className="text-[11px] mt-2" style={{ color: C.amber }}>
+                  {fill(t.overview.partialCoverage, { pct: Math.round(data.profit.costCoverage * 100) })}
+                </p>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Summary KPI cards */}

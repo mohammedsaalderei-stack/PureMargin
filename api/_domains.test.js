@@ -165,17 +165,30 @@ await test("net profit subtracts the overheads that gross profit never did", asy
   const out = await dm.calculateNetProfit(ctx());
 
   assert.equal(out.type, "NET_PROFIT_CALCULATION");
-  assert.equal(out.components.grossRevenue, 100000);
+  assert.equal(out.components.netSales, 100000);
   assert.equal(out.components.costOfGoodsSold, 30000);
-  assert.equal(out.components.fixedOperatingCosts, 18700);
   assert.equal(out.components.variableOperatingCosts, 1620);
 
-  /* The figure the dashboard has always called "net profit" is this one. */
+  /* Rent for the window rather than for a calendar month. Thirty days is a
+     little short of an average month, and `_profit.js` says why it is scaled
+     rather than charged whole. Asserted as the arithmetic rather than as a
+     literal, so the day this becomes a real monthly period the test says so
+     instead of quietly agreeing. */
+  assert.equal(out.components.fixedOperatingCosts, Math.round(18700 * (30 / 30.4375) * 100) / 100);
+
+  /* What the dashboard used to call net profit, and now calls gross. */
   assert.equal(out.grossProfit, 70000);
-  /* The figure it actually is. */
-  assert.equal(out.netProfit, 49680);
-  assert.equal(out.netMarginPct, 49.68);
+  /* What it actually is, once the doors cost something to open. */
+  assert.ok(out.netProfit < out.grossProfit - 18000, "overheads are genuinely subtracted");
+  assert.equal(
+    out.netProfit,
+    Math.round((70000 - out.components.fixedOperatingCosts - 1620) * 100) / 100);
   assert.equal(out.grossMarginPct, 70);
+
+  /* The window it covers travels with it. Every component above is measured
+     over this and only this — the mismatch that used to sit here is the
+     reason `_profit.test.js` exists. */
+  assert.equal(out.period.days, 30);
 });
 
 await test("the components come back with the answer so it can be checked", async () => {
@@ -183,10 +196,10 @@ await test("the components come back with the answer so it can be checked", asyn
   const out = await dm.calculateNetProfit(ctx());
   const c = out.components;
   assert.equal(
-    Math.round(c.grossRevenue - c.costOfGoodsSold - c.fixedOperatingCosts - c.variableOperatingCosts),
-    out.netProfit,
+    Math.round(c.netSales - c.costOfGoodsSold - c.fixedOperatingCosts - c.variableOperatingCosts),
+    Math.round(out.netProfit),
     "the stated components must reproduce the stated answer");
-  assert.ok(out.formula.includes("grossRevenue"));
+  assert.ok(out.formula.includes("netSales"));
 });
 
 await test("incomplete cost coverage is stated rather than absorbed", async () => {

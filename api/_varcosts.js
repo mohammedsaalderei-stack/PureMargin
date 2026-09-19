@@ -49,10 +49,23 @@ export function validateVarCost({ title, amount, date }) {
   return null;
 }
 
-export async function listVarCosts(orgId, { month = null } = {}) {
+/* A month, or an arbitrary window.
+
+   `month` answers "what have I spent this month", which is the question the
+   costs screen asks. A window answers "what did this period cost", which is
+   what any profit figure needs — and the two are not interchangeable: month
+   to date on the 3rd covers three days, and setting three days of spending
+   against thirty days of sales makes a business look profitable until the end
+   of the month arrives. Both are offered so neither has to be faked from the
+   other. */
+export async function listVarCosts(orgId, { month = null, from = null, to = null } = {}) {
   const map = (await getJSON(KEY(orgId))) || {};
   const all = Object.values(map);
-  const rows = month ? all.filter((c) => monthOf(c.date) === month) : all;
+  const rows = month
+    ? all.filter((c) => monthOf(c.date) === month)
+    : (from || to)
+      ? all.filter((c) => (!from || c.date >= from) && (!to || c.date <= to))
+      : all;
   /* Newest first. Two spends on the same day fall back to when they were
      entered, so re-typing a forgotten receipt doesn't scramble the order. */
   return rows.sort((a, b) =>

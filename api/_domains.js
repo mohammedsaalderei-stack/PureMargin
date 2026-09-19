@@ -51,6 +51,7 @@
 
 import { monthlyTotal as fixedMonthlyTotal, listCosts } from "./_fixedcosts.js";
 import { listVarCosts, totalOf as varTotalOf, monthOf } from "./_varcosts.js";
+import { netProfit as computeNetProfit } from "./_profit.js";
 import { listRecipes, costedList, costedRecipe, effectiveVersion } from "./_recipes.js";
 import { listIngredients, listSuppliers, getMeta } from "./_inventory.js";
 import { balances, listMovements } from "./_movements.js";
@@ -568,43 +569,53 @@ export async function calculateNetProfit(ctx, { month } = {}) {
   }
 
   const sales = await getPosSalesMetrics(ctx, {});
-  const opex = await getFixedCosts(ctx, { month });
 
-  const revenue = Number(sales.grossRevenue) || 0;
-  /* COGS as the metrics engine already computed it against the same sales —
-     not recomputed here, because a second implementation of cost of sales is
-     exactly how the assistant's number starts disagreeing with the report. */
-  const cogs = Number(ctx.metrics?.totals?.cost) || 0;
-  const fixed = Number(opex.fixedMonthlyTotal) || 0;
-  const variable = Number(opex.variableMonthTotal) || 0;
+  /* One implementation, shared with the dashboard.
 
-  const grossProfit = round2(revenue - cogs);
-  const netProfit = round2(revenue - cogs - fixed - variable);
+     This used to be worked out here, and the periods did not line up: a
+     rolling thirty days of revenue and cost of goods was set against a whole
+     calendar month of rent and a *month-to-date* total of variable spending.
+     On the third of the month that put three days of costs beside thirty days
+     of sales, so the answer was high at the start of every month and fell as
+     the month went on for no reason in the business at all.
 
-  /* Coverage travels with the answer. A COGS figure resting on a menu where
-     half the dishes have no recipe is a lower bound, and a net profit built on
-     it is flattering by an unknown amount. */
-  const coverage = ctx.metrics?.costCoverage ?? null;
+     `_profit.js` measures every component over one window and says which. It
+     is the same call the dashboard makes, so the assistant and the screen
+     cannot disagree about what the business kept. */
+  const out = await computeNetProfit(ctx.orgId, {
+    netSales: Number(sales.grossRevenue) || 0,
+    /* Cost of goods as the metrics engine already computed it against the
+       same sales — never recomputed, for the reason above. */
+    cogs: Number(ctx.metrics?.totals?.cost) || 0,
+    coverage: ctx.metrics?.costCoverage ?? null,
+  });
 
+  /* `month` is still accepted so an existing tool call does not break, and
+     is reported back rather than silently ignored: the answer covers the
+     window in `period`, and a question about a specific month deserves to be
+     told that is not what it got. */
   return {
     type: "NET_PROFIT_CALCULATION",
     currency: "AED",
-    month: opex.month,
-    formula: "netProfit = grossRevenue - costOfGoodsSold - fixedOperatingCosts - variableOperatingCosts",
+    period: out.period,
+    requestedMonth: month || null,
+    formula: out.formula,
     components: {
-      grossRevenue: round2(revenue),
-      costOfGoodsSold: round2(cogs),
-      fixedOperatingCosts: round2(fixed),
-      variableOperatingCosts: round2(variable),
+      netSales: out.netSales,
+      costOfGoodsSold: out.costOfGoods,
+      fixedOperatingCosts: out.fixedCosts,
+      variableOperatingCosts: out.variableCosts,
     },
-    grossProfit,
-    netProfit,
-    netMarginPct: revenue > 0 ? round2((netProfit / revenue) * 100) : null,
-    grossMarginPct: revenue > 0 ? round2((grossProfit / revenue) * 100) : null,
-    costCoverage: coverage,
-    note: coverage !== null && coverage < 1
-      ? "Cost of goods is incomplete — some sold items have no recipe cost, so net profit is overstated by an unknown amount."
-      : "All components present.",
+    grossProfit: out.grossProfit,
+    netProfit: out.net,
+    netMarginPct: out.netMarginPct,
+    grossMarginPct: out.grossMarginPct,
+    costCoverage: out.costCoverage,
+    note: !out.hasOperatingCosts
+      ? "No fixed or variable operating costs are on record, so net profit equals gross profit. Say so rather than presenting this as a business with no overheads."
+      : out.costCoverage !== null && out.costCoverage < 1
+        ? "Cost of goods is incomplete — some sold items have no recipe cost, so net profit is overstated by an unknown amount."
+        : "All components present.",
   };
 }
 

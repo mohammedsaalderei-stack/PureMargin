@@ -7,6 +7,7 @@ import { applyScope } from "./_scope-metrics.js";
 import { provenance } from "./_provenance.js";
 import { noteSync, lastSync } from "./_sync.js";
 import { listEdits } from "./_saleedits.js";
+import { netProfit } from "./_profit.js";
 
 export default async function handler(req, res) {
   const session = await requireAuth(req, res);
@@ -60,10 +61,34 @@ export default async function handler(req, res) {
 
     const { fetch: _fetch, allBranches: _all, ...payload } = scoped;
 
+    /* What the business actually kept, for whoever is allowed to see it.
+
+       Gated on `view:profitability` rather than sent to everyone and hidden in
+       the browser: overheads are rent and wages, and a cashier's device should
+       not be holding the payroll bill in a JSON response it was told not to
+       draw. The same capability already gates the margin screens.
+
+       Computed through `_profit.js`, which the assistant also calls, so the
+       dashboard and an answer to "what did I make last month" cannot come out
+       differently. It is not aggregated per branch: rent belongs to the
+       business, and dividing it between branches is an allocation rule nobody
+       has stated. When the view is narrowed to one branch the sales half would
+       shrink while the overheads did not, so the figure is simply withheld
+       rather than shown wrong. */
+    const wholeBusiness = effective.length === 0 || effective.length === allBranches.length;
+    const profit = scope.capabilities.includes("view:profitability") && wholeBusiness
+      ? await netProfit(scope.org?.id, {
+        netSales: payload.totals?.sales ?? 0,
+        cogs: payload.totals?.cost ?? 0,
+        coverage: payload.costCoverage ?? null,
+      })
+      : null;
+
     // Never cached at the edge: the whole point is that it changes.
     res.setHeader("Cache-Control", "no-store");
     return res.status(200).json({
       ...payload,
+      profit,
       scope: { ...scoped.scope, role: scope.role },
       ageSeconds: cacheAge(posToken) ?? 0,
       provenance: provenance(scoped, {
