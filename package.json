@@ -8,7 +8,9 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "npm run check && node scripts/test.mjs",
-    "check": "node scripts/check-imports.mjs && node scripts/check-cycles.mjs && node scripts/check-scroll.mjs && node scripts/check-i18n.mjs && node scripts/check-tabs.mjs"
+    "check": "node scripts/check-imports.mjs && node scripts/check-cycles.mjs && node scripts/check-scroll.mjs && node scripts/check-i18n.mjs && node scripts/check-tabs.mjs",
+    "migrate": "node scripts/migrate.mjs",
+    "migrate:status": "node scripts/migrate.mjs --status"
   },
   "dependencies": {
     "@vercel/analytics": "^2.0.1",
@@ -16,6 +18,7 @@
     "autoprefixer": "^10.4.20",
     "lucide-react": "^0.454.0",
     "pdfjs-dist": "^5.7.284",
+    "pg": "^8.23.0",
     "postcss": "^8.4.47",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
