@@ -678,7 +678,7 @@ export function toContext(m) {
 PERIOD: last 30 days, compared with the 30 days before.
 
 Total sales ${money(m.totals.sales)} (${m.totals.salesDelta >= 0 ? "+" : ""}${m.totals.salesDelta}%).
-Cost of goods ${money(m.totals.cost || 0)}. GROSS PROFIT ${money(m.totals.netProfit || 0)}, a gross margin of ${m.totals.marginPct ?? 0}%.
+Cost of goods ${money(m.totals.cost || 0)}. GROSS PROFIT ${money(m.totals.grossProfit || 0)}, a gross margin of ${m.totals.marginPct ?? 0}%.
 Discounts given ${money(m.totals.discounts || 0)}.
 Cost data covers ${m.costCoverage ?? 0}% of turnover.
 Orders ${m.totals.receipts.toLocaleString()} (${m.totals.receiptsDelta >= 0 ? "+" : ""}${m.totals.receiptsDelta}%).

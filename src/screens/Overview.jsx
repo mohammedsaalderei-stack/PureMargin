@@ -341,7 +341,7 @@ export default function Overview({ data, dateRange, onDateRangeChange, onAsk, on
   const { totals: filteredTotals, series } = useDateRangeData(data, dateRange);
 
   const sales = useCountUp(filteredTotals.sales || 0);
-  const profit = useCountUp(data.totals?.netProfit ?? 0);
+  const profit = useCountUp(data.totals?.grossProfit ?? 0);
   const up = (filteredTotals.salesDelta ?? 0) >= 0;
   const star = margin.star;
   const champions = margin.champions || [];
@@ -372,7 +372,7 @@ export default function Overview({ data, dateRange, onDateRangeChange, onAsk, on
           <div className="relative flex flex-wrap items-end justify-between gap-4">
             <div className="min-w-0">
               <SectionLabel>{t.overview.pureMargin}</SectionLabel>
-              <div className="text-xs mt-1" style={{ color: C.slate }}>{t.overview.netProfit}</div>
+              <div className="text-xs mt-1" style={{ color: C.slate }}>{t.overview.grossProfit}</div>
               <div className="display font-bold leading-none mt-3 truncate-safe"
                 style={{ fontSize: "clamp(2.5rem, 9vw, 4.25rem)", color: C.cyan }}>
                 <Money value={Math.round(profit)} />
@@ -483,7 +483,7 @@ export default function Overview({ data, dateRange, onDateRangeChange, onAsk, on
                   <div className="display font-bold text-2xl mb-3 truncate-safe reading-lg">{star.name}</div>
                   <div className="space-y-1.5 text-sm">
                     <div style={{ color: C.slate }}>{fill(t.overview.sold, { n: star.qty })}</div>
-                    <div className="font-semibold" style={{ color: C.cyan }}>{t.overview.netProfit}: <Money value={star.profit} /></div>
+                    <div className="font-semibold" style={{ color: C.cyan }}>{t.overview.grossProfit}: <Money value={star.profit} /></div>
                     <div style={{ color: C.slate }} dir="ltr">{fill(t.overview.marginOf, { n: star.marginPct })}</div>
                   </div>
                 </div>

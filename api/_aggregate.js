@@ -57,10 +57,72 @@ export function aggregate({ receipts, limitedHistory, catalogue, storeNames, now
   let currentSales = 0, currentReceipts = 0, priorSales = 0, priorReceipts = 0;
   let totalCost = 0;
   let totalDiscounts = 0;
+  let currentRefunds = 0, priorRefunds = 0;
 
   for (const r of receipts) {
-    if (r.receipt_type === "REFUND" || r.cancelled_at) continue;
+    /* A cancelled receipt is skipped outright: nothing was sold, nothing was
+       refunded, nothing happened. */
+    if (r.cancelled_at) continue;
+
     const ts = new Date(r.receipt_date).getTime();
+
+    /* Money given back.
+
+       ── What this used to do, and why it was wrong ───────────────────────
+
+       Refund receipts were skipped with the same `continue` as cancellations,
+       and `extras.refunds` was the literal `0`. So a refunded sale stayed in
+       the turnover at full value for ever: the original SALE receipt is not
+       modified by a refund — Loyverse writes a separate REFUND receipt
+       pointing back at it through `refund_for` — and skipping that second
+       receipt meant the money was never taken off anything. An owner who
+       refunded a table saw the sale, saw no refund, and the two never met.
+
+       ── On the sign, which is not documented ─────────────────────────────
+
+       Loyverse's API reference and the community typings both leave the sign
+       of `total_money` on a REFUND unstated, and this app has never had a
+       fixture that pins it. So the magnitude is taken and subtracted
+       explicitly, which is correct whichever way the sign arrives rather than
+       correct only if a guess holds. `receipt_type` is what says this is a
+       refund; the sign is not asked to carry that meaning.
+
+       ── The cost deliberately stays ──────────────────────────────────────
+
+       Only the money comes back. `drawsStock` in `_loyversehook.js` already
+       refuses to return the food to the shelf — a served burger does not — and
+       the same reasoning applies here: the ingredients were consumed, so they
+       remain a cost. Netting them off as well would make a refunded meal look
+       free to produce. */
+    if (r.receipt_type === "REFUND") {
+      const refunded = Math.abs(Number(r.total_money) || 0);
+      if (ts < cutoff) priorRefunds += refunded;
+      else {
+        currentRefunds += refunded;
+
+        /* Taken off the day and the branch it was refunded on, so the chart
+           and the branch ranking still add up to the headline figure. */
+        const rk = new Date(ts).toISOString().slice(0, 10);
+        const rd = byDay.get(rk) || { sales: 0, receipts: 0 };
+        rd.sales -= refunded;
+        byDay.set(rk, rd);
+
+        const rsid = r.store_id || "unknown";
+        const rst = byStore.get(rsid) || { sales: 0, receipts: 0 };
+        rst.sales -= refunded;
+        byStore.set(rsid, rst);
+      }
+      /* Not counted as a receipt. A refund is not an order, and folding it
+         into the count would make the average ticket meaningless.
+
+         Item-level attribution is deliberately left alone. A refund receipt
+         lists the items, but which of three identical lines came back is a
+         policy question rather than a fact the receipt states, and guessing it
+         would put a wrong number on a specific dish — worse than a right
+         number on the total. Noted as an open policy item. */
+      continue;
+    }
+
     const value = Number(r.total_money) || 0;
 
     if (ts < cutoff) {
@@ -140,8 +202,25 @@ export function aggregate({ receipts, limitedHistory, catalogue, storeNames, now
     }
   }
 
-  const netProfit = currentSales - totalCost;
-  const marginPct = currentSales > 0 ? (netProfit / currentSales) * 100 : 0;
+  /* Sales after the money given back, which is what every figure below is
+     built on. Both periods are netted, so the comparison is like for like. */
+  const netSales = currentSales - currentRefunds;
+  const priorNetSales = priorSales - priorRefunds;
+
+  /* Turnover less the cost of the goods sold, and nothing else.
+
+     Called gross profit because that is what it is. It was called net profit
+     for a long time, and in Arabic and Urdu it was labelled "what is left
+     after deducting the expenses" — a claim the number cannot support, since
+     rent, wages and every other standing cost in `_fixedcosts.js` are absent
+     from `totalCost`. An owner reading it was being told their business kept
+     more than it does.
+
+     Net profit is a real thing this product could report, and reporting it
+     needs the fixed and variable cost ledgers folded in with an agreed period
+     and no double counting. Until that exists the honest name is this one. */
+  const grossProfit = netSales - totalCost;
+  const marginPct = netSales > 0 ? (grossProfit / netSales) * 100 : 0;
 
   const itemsRaw = [...byItem.entries()]
     .map(([name, v]) => ({ name, ...v }))
@@ -173,7 +252,7 @@ export function aggregate({ receipts, limitedHistory, catalogue, storeNames, now
       topItem: itemsRaw[0]?.name || "—",
       topItemQty: Math.round(itemsRaw[0]?.qty || 0),
     },
-    extras: { discounts: 0, refunds: 0, cost: 0 },
+    extras: { discounts: Math.round(totalDiscounts), refunds: Math.round(currentRefunds), cost: Math.round(totalCost) },
     currency: (receipts[0] && receipts[0].currency) || "AED",
     daily,
     hours,
@@ -217,20 +296,29 @@ export function aggregate({ receipts, limitedHistory, catalogue, storeNames, now
         image: i.image,
       })),
     totals: {
-      sales: Math.round(currentSales),
+      sales: Math.round(netSales),
       receipts: currentReceipts,
-      avgTicket: currentSales / Math.max(currentReceipts, 1),
+      avgTicket: netSales / Math.max(currentReceipts, 1),
       cost: Math.round(totalCost),
-      netProfit: Math.round(netProfit),
+      grossProfit: Math.round(grossProfit),
+      /* The old name, still emitted and carrying the same number it always
+         did. The Flutter client reads it, and renaming a field out from under
+         a shipped app breaks a screen for everybody who has not updated.
+         Nothing in this repository reads it any more; it goes when the mobile
+         client has moved. */
+      netProfit: Math.round(grossProfit),
+      /* Refunds, separately, because the spec is right that netting them away
+         silently leaves nobody able to see how much was handed back. */
+      refunds: Math.round(currentRefunds),
       marginPct: Number(marginPct.toFixed(1)),
       discounts: Math.round(totalDiscounts),
-      salesDelta: limitedHistory ? null : pctChange(currentSales, priorSales),
+      salesDelta: limitedHistory ? null : pctChange(netSales, priorNetSales),
       receiptsDelta: limitedHistory ? null : pctChange(currentReceipts, priorReceipts),
       avgTicketDelta: limitedHistory
         ? null
         : pctChange(
-            currentSales / Math.max(currentReceipts, 1),
-            priorSales / Math.max(priorReceipts, 1)
+            netSales / Math.max(currentReceipts, 1),
+            priorNetSales / Math.max(priorReceipts, 1)
           ),
     },
   };

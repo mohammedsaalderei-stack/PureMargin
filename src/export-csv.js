@@ -48,7 +48,7 @@ function totalsRows(t) {
     ["Sales", t.sales],
     ["Orders", t.receipts],
     ["Avg ticket", t.avgTicket],
-    ["Net profit", t.netProfit],
+    ["Gross profit", t.grossProfit ?? t.netProfit],
     ["Margin %", t.marginPct],
     ["Food cost %", t.foodCostPct],
     ["Peak hour", t.peakHour],

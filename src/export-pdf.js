@@ -79,7 +79,7 @@ function buildHTML({ screen, data, dateRange, business }) {
     { label: "Total Sales", value: moneyText(t.sales), d: t.salesDelta },
     { label: "Orders", value: num(t.receipts), d: t.receiptsDelta },
     { label: "Avg Ticket", value: moneyText(t.avgTicket), d: t.avgTicketDelta },
-    { label: "Net Profit", value: moneyText(t.netProfit), d: null },
+    { label: "Gross profit", value: moneyText(t.grossProfit ?? t.netProfit), d: null },
   ];
 
   /* A second band of the numbers people ask about after the headline four.
