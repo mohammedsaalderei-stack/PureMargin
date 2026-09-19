@@ -39,6 +39,25 @@ const DIRECT =
 
 export const configured = Boolean(POOLED);
 
+/* Verify the server's certificate, stated here rather than left to the URL.
+
+   `pg` currently treats `sslmode=require` as `verify-full`, which is stronger
+   than the name suggests and stronger than libpq means by it. Version 9 will
+   adopt libpq's semantics, at which point `require` silently becomes "encrypt
+   but do not check who you are talking to" — an in-flight downgrade to a
+   man-in-the-middle being possible, introduced by a dependency bump rather
+   than by anybody deciding it.
+
+   Saying it in code closes that off, and closes off the more ordinary version
+   of the same problem: the connection string is managed by Vercel's Neon
+   integration, so it is not ours to guarantee. Somebody re-running the
+   integration, or a colleague pasting a string from the dashboard with a
+   different mode on it, cannot weaken the connection from here.
+
+   `rejectUnauthorized` is the whole of it — Neon serves a publicly trusted
+   certificate, so no bundled CA is needed and none is carried. */
+const VERIFIED_TLS = { rejectUnauthorized: true };
+
 let pool = null;
 
 export function db() {
@@ -51,6 +70,7 @@ export function db() {
   if (!pool) {
     pool = new pg.Pool({
       connectionString: POOLED,
+      ssl: VERIFIED_TLS,
       /* Small on purpose. Every warm function instance holds its own pool, and
          the pooler in front of the database is what actually multiplexes —
          asking each instance for a large pool is how a connection limit is
@@ -70,7 +90,7 @@ export function db() {
    holding it open afterwards would keep a connection the application needs. */
 export async function directClient() {
   if (!DIRECT) throw new Error("No database configured.");
-  const client = new pg.Client({ connectionString: DIRECT });
+  const client = new pg.Client({ connectionString: DIRECT, ssl: VERIFIED_TLS });
   await client.connect();
   return client;
 }
