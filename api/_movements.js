@@ -32,6 +32,7 @@
    justifies it; the shape here does not have to change for that. */
 
 import { getJSON, setJSON } from "./_store.js";
+import { mirrorMovement } from "./_mirror.js";
 import { getIngredient } from "./_inventory.js";
 import { convert, sameDimension, isUnit, BASE_UNIT, baseUnitFor } from "./_units.js";
 import { normaliseUnit } from "./_unitwords.js";
@@ -152,6 +153,49 @@ async function readLedger(orgId, branchId) {
    once: checking the set first means the common failure — one ingredient
    short, one unit mismatched — is caught before anything moves, rather than
    after five entries already have and somebody has to work out which. */
+/* "22 per litre" as "0.022 per millilitre".
+
+   ── The bug this replaces ────────────────────────────────────────────────
+
+   This was one expression at the call site and it divided by
+   `convert(1, input.unit, ...)` — the unit as the person typed it, not the
+   normalised one computed twenty lines above.
+
+   `UNITS` is keyed in lower case, so `convert(1, "L", "ml")` finds no such
+   unit, returns null, and `22 / null` is `Infinity`. JSON has no infinity, so
+   the moment the ledger was written it became **null** — and null means "no
+   cost basis". The delivery was priced, paid for, and contributed nothing to
+   what the ingredient costs.
+
+   Nothing looked broken. The stock arrived, the balance was right, and the
+   ingredient simply read as having no cost, which is indistinguishable from
+   one nobody has ever bought. Anybody typing "L" or "KG" instead of "l" or
+   "kg" lost the cost of that delivery, silently, for as long as this has been
+   here.
+
+   It is a function now rather than an expression because it needs to refuse
+   rather than divide by nothing, and because a thing this easy to get wrong
+   deserves a test of its own. */
+export function costPerBaseOf(unitCost, unit, baseUnit) {
+  /* Absent is not zero. `Number(null)` is 0 and `0 >= 0` is true, so a
+     movement with no price recorded would come out costing nothing — which
+     §6 is explicit about never claiming, because a margin built on a free
+     ingredient is flattering by exactly the amount nobody knows. */
+  if (unitCost === null || unitCost === undefined || unitCost === "") return null;
+
+  const cost = Number(unitCost);
+  if (!(cost >= 0)) return null;
+
+  const perBase = convert(1, unit, baseUnit);
+  /* No conversion means no cost that can be stated per base unit. Null says
+     that; a division by null says Infinity, which survives exactly as far as
+     the next `JSON.stringify` and then silently becomes null anyway. */
+  if (!Number.isFinite(perBase) || perBase === 0) return null;
+
+  const out = cost / perBase;
+  return Number.isFinite(out) ? out : null;
+}
+
 export async function recordMovement(orgId, branchId, input, { policy, dryRun } = {}) {
   if (!branchId) return { error: "branchId" };
 
@@ -220,9 +264,7 @@ export async function recordMovement(orgId, branchId, input, { policy, dryRun } 
     /* The same cost expressed per base unit, computed once here rather than
        re-derived by every reader. "12 per kg" and "0.012 per g" are the same
        fact, and a consumer that divides by the wrong one is out by a thousand. */
-    costPerBase: Number(input.unitCost) >= 0
-      ? Number(input.unitCost) / convert(1, input.unit, baseUnitOf(ingredient))
-      : null,
+    costPerBase: costPerBaseOf(input.unitCost, unit, baseUnitOf(ingredient)),
     reason: String(input.reason || "").trim(),
     note: String(input.note || "").trim(),
     ref: String(input.ref || "").trim(),
@@ -244,6 +286,24 @@ export async function recordMovement(orgId, branchId, input, { policy, dryRun } 
 
   const ledger = await readLedger(orgId, branchId);
   await setJSON(MOVES(orgId, branchId), [movement, ...ledger]);
+
+  /* And into Postgres, where the ledger is going.
+
+     Redis is still the truth: every balance on every screen is summed from
+     what was just written above, and nothing reads the copy yet. This is
+     phase two of three — back-fill, write both and compare, then read the
+     other one — and it exists so that by the time anything switches over,
+     the two have been agreeing for weeks rather than for a test run.
+
+     Deliberately not awaited into the result and deliberately unable to
+     throw. A mirror that can fail a stock movement is worse than no mirror:
+     somebody receiving a delivery at seven in the morning must not be told
+     the save failed because a database in another region is having a
+     minute. `_mirror.js` logs every refusal with the movement's id, and
+     `scripts/ledger.mjs verify` is what actually checks agreement — silence
+     here is not taken as agreement. */
+  await mirrorMovement(orgId, branchId, movement);
+
   return { movement };
 }
 
@@ -314,6 +374,18 @@ export async function reverseMovement(orgId, branchId, id, { actor, reason } = {
   const next = [...ledger];
   next[index] = { ...original, reversedBy: reversal.id };
   await setJSON(MOVES(orgId, branchId), [reversal, ...next]);
+
+  /* The reversing entry is mirrored; the row it reverses is not touched.
+
+     Redis marks the original with `reversedBy`, which is a back-link it can
+     afford because the whole ledger is rewritten on every write. Postgres
+     keeps only the forward link — `reverses_id` on the reversal — because a
+     ledger that is appended to and never edited is the point, and updating
+     a historical row to record that something later undid it is an edit.
+     Both directions are answerable from one link; only one of them needs
+     storing. */
+  await mirrorMovement(orgId, branchId, reversal);
+
   return { movement: reversal, original: next[index] };
 }
 

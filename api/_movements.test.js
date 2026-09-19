@@ -271,5 +271,34 @@ await test("a balance carries the reorder flag so one threshold serves every con
   assert.strictEqual(after.belowReorder, false);
 });
 
+/* ── Cost per base unit ─────────────────────────────────────────────────── */
+
+await test("a delivery priced in an upper-case unit still has a cost", async () => {
+  /* This was a live bug. The conversion used the unit as typed rather than
+     the normalised one, and `UNITS` is keyed in lower case — so
+     `convert(1, "L", "ml")` was null, `22 / null` was Infinity, and
+     `JSON.stringify` turned that into null on the way into the ledger.
+
+     Null means no cost basis. The delivery was priced, paid for, and
+     contributed nothing to what the ingredient costs — while the stock
+     arrived and the balance looked perfectly right. */
+  const { costPerBaseOf } = mv;
+
+  assert.equal(costPerBaseOf(22, "l", "ml"), 0.022);
+  assert.equal(costPerBaseOf(22, "L", "ml"), null, "upper case does not convert");
+  assert.equal(costPerBaseOf(3, "kg", "g"), 0.003);
+
+  /* Never Infinity, whatever it is handed. A cost of infinity survives as far
+     as the next JSON round trip and then silently becomes no cost at all. */
+  for (const [cost, unit, base] of [[22, "KG", "g"], [1, "nonsense", "g"], [1, "g", "ml"]]) {
+    const out = costPerBaseOf(cost, unit, base);
+    assert.ok(out === null || Number.isFinite(out), `${unit} gave ${out}`);
+  }
+
+  assert.equal(costPerBaseOf(null, "kg", "g"), null, "no price is no cost");
+  assert.equal(costPerBaseOf(-5, "kg", "g"), null);
+  assert.equal(costPerBaseOf(0, "kg", "g"), 0, "but free is a price");
+});
+
 console.log(failures ? `\n${failures} failed` : "\nall passed");
 process.exit(failures ? 1 : 0);

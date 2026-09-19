@@ -10,7 +10,9 @@
     "test": "npm run check && node scripts/test.mjs",
     "check": "node scripts/check-imports.mjs && node scripts/check-cycles.mjs && node scripts/check-scroll.mjs && node scripts/check-i18n.mjs && node scripts/check-tabs.mjs",
     "migrate": "node scripts/migrate.mjs",
-    "migrate:status": "node scripts/migrate.mjs --status"
+    "migrate:status": "node scripts/migrate.mjs --status",
+    "ledger:verify": "node scripts/ledger.mjs verify",
+    "ledger:backfill": "node scripts/ledger.mjs backfill"
   },
   "dependencies": {
     "@vercel/analytics": "^2.0.1",

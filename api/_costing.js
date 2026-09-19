@@ -34,8 +34,12 @@ const informsCost = (m) =>
   m.qtyBase > 0 &&
   !m.reversedBy &&
   !m.reverses &&
-  m.costPerBase !== null &&
-  m.costPerBase !== undefined;
+  /* Finite, not merely present. A cost of Infinity or NaN passes a null
+     check and then poisons every average it touches — `value / qtyBase`
+     comes back Infinity and the ingredient reads as costing everything.
+     `_movements.js` no longer produces one; this is so that a record written
+     before it stopped cannot do it either. */
+  Number.isFinite(m.costPerBase);
 
 /* One pass over the branches' ledgers, returning both methods per ingredient plus
    the evidence each rests on. Done in one read because a recipe costing twenty
