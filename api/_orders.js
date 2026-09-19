@@ -205,8 +205,17 @@ export async function completeOrder(client, {
 
   /* ── The stock, out once ──────────────────────────────────────────────
 
-     Negative quantities, reason 'sale', carrying the order id so every
-     deduction can be traced back to what caused it. Sorted by ingredient so
+     Negative quantities, type `consume`, carrying the order id so every
+     deduction can be traced back to what caused it.
+
+     `consume` and not a type of its own, because `_salesdepletion.js` has been
+     writing exactly this for months and a second word for the same event would
+     split every report that groups by type. `auto` is true for the same
+     reason it is there: `_variance.js` excludes system-written consumption,
+     since measuring leakage against figures derived from the same sales is
+     circular and reads as zero however much is being wasted.
+
+     Sorted by ingredient so
      the write order is deterministic — not needed for correctness while this
      is a pure append, and the thing to keep if a non-negative guard is ever
      added here, since that is the order those locks would have to be taken
@@ -216,15 +225,18 @@ export async function completeOrder(client, {
 
   for (const part of sorted) {
     if (!(Number(part.qtyBase) > 0)) continue;
+    const cost = part.costPerBase === null || part.costPerBase === undefined
+      ? null : String(part.costPerBase);
+
     await client.query(
       `INSERT INTO inventory_movements
          (business_id, branch_id, ingredient_id, quantity_signed,
-          unit_cost_snapshot, reason, source_id, occurred_at)
-       VALUES ($1,$2,$3, -$4::numeric, $5, 'sale', $6, COALESCE($7::timestamptz, now()))`,
+          unit_cost_snapshot, cost_per_base, type, auto, source_id, ref,
+          actor, occurred_at)
+       VALUES ($1,$2,$3, -$4::numeric, $5,$5, 'consume', true, $6,$6, $7,
+               COALESCE($8::timestamptz, now()))`,
       [businessId, part.branchId ?? null, part.ingredientId, String(part.qtyBase),
-        part.costPerBase === null || part.costPerBase === undefined
-          ? null : String(part.costPerBase),
-        orderId, at],
+        cost, orderId, actor || null, at],
     );
   }
 

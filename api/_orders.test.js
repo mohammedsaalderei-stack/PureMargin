@@ -95,7 +95,7 @@ const consumptionFor = (order, over = {}) => [
 
 const movementsFor = async (orderId) => {
   const r = await db().query(
-    "SELECT ingredient_id, quantity_signed, unit_cost_snapshot FROM inventory_movements WHERE source_id = $1 AND business_id = $2 ORDER BY ingredient_id",
+    "SELECT ingredient_id, quantity_signed, unit_cost_snapshot, type, auto FROM inventory_movements WHERE source_id = $1 AND business_id = $2 ORDER BY ingredient_id",
     [orderId, BIZ],
   );
   return r.rows;
@@ -134,6 +134,13 @@ await test("completing records the sale, the cost and the stock together", async
   const moves = await movementsFor(order.id);
   assert.equal(moves.length, 2);
   assert.equal(Number(moves[0].quantity_signed), -300, "stock went out, not in");
+
+  /* The same type and flag `_salesdepletion.js` has written for months. A word
+     of its own would split every report that groups by type, and losing `auto`
+     would let sales-derived consumption count as evidence about sales — which
+     makes leakage read zero however much is being wasted. */
+  assert.equal(moves[0].type, "consume");
+  assert.equal(moves[0].auto, true, "variance must be able to exclude it");
 
   /* 300 x 0.03 = 9.00, plus 150 x 0.003 = 0.45. The second is the one that
      would be zero if unit costs were rounded to fils before multiplying. */
