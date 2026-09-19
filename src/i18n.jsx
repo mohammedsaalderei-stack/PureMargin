@@ -1512,7 +1512,6 @@ export const STRINGS = {
       rotateYes: "Replace",
     },
     attendance: {
-      nav: "Clock in",
       title: "Attendance",
       branchTitle: "Which branch?",
       unnamedBranch: "Branch",
@@ -3343,7 +3342,6 @@ export const STRINGS = {
       rotateYes: "استبدل",
     },
     attendance: {
-      nav: "تسجيل الحضور",
       title: "الحضور",
       branchTitle: "أي فرع؟",
       unnamedBranch: "فرع",
@@ -5170,7 +5168,6 @@ export const STRINGS = {
       rotateYes: "बदलें",
     },
     attendance: {
-      nav: "हाज़िरी",
       title: "हाज़िरी",
       branchTitle: "कौन सी शाखा?",
       unnamedBranch: "शाखा",
@@ -6658,7 +6655,6 @@ export const STRINGS = {
       rotateYes: "بدلیں",
     },
     attendance: {
-      nav: "حاضری",
       title: "حاضری",
       branchTitle: "کون سی شاخ؟",
       unnamedBranch: "شاخ",
@@ -8997,7 +8993,6 @@ export const STRINGS = {
       rotateYes: "Palitan",
     },
     attendance: {
-      nav: "Time in",
       title: "Pagdalo",
       branchTitle: "Aling sangay?",
       unnamedBranch: "Sangay",

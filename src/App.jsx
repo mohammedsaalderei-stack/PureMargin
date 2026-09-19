@@ -171,7 +171,6 @@ function Routes() {
         onSignIn={() => setView("login")}
         onRegister={() => setView("register")}
         onPricing={() => setView("pricing")}
-        onAttendance={() => setView("attendance")}
       />
     );
   }
