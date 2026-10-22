@@ -43,6 +43,13 @@
    purpose, so no float can round a price on the way past. That string is
    written to the dump and handed back verbatim. */
 export const SUPPORTED_TYPES = new Set([
+  /* `character` is bpchar — fixed width, blank-padded. `orders.currency` is
+     character(3), and the padding is applied by the column on the way in, so
+     whatever the dump holds is what the column produced and inserting it back
+     produces the same thing. Added only after the round-trip test showed a
+     short value padding identically both times; it was refused before that,
+     which is the behaviour working. */
+  "character",
   "uuid", "text", "character varying", "boolean",
   "numeric", "integer", "bigint", "smallint", "double precision",
   "timestamp with time zone", "timestamp without time zone", "date",
@@ -118,12 +125,33 @@ export function orderTables(tables = [], edges = []) {
    is not something the dump can guarantee. The alternative is deferring the
    constraint, which needs the constraint to have been declared DEFERRABLE and
    it was not. */
-export function selfRefColumns(edges = []) {
+export function selfRefColumns(edges = [], nullable = new Map()) {
   const out = new Map();
-  for (const { child, parent, column } of edges) {
-    if (child !== parent || !column) continue;
+  for (const { child, parent, columns } of edges) {
+    if (child !== parent || !columns?.length) continue;
+
+    /* A composite foreign key declared MATCH SIMPLE — the default, and what
+       migration 002 wrote — is satisfied the moment any one of its
+       referencing columns is null. `inventory_movements` references itself
+       through (reverses_id, business_id); business_id is NOT NULL and must
+       stay set, and nulling reverses_id alone defers the whole link.
+
+       So one nullable column per foreign key, chosen by name so two runs
+       choose the same one. */
+    const can = [...columns].filter((c) => nullable.get(child)?.has(c)).sort();
+    if (!can.length) {
+      /* Nothing can be nulled, so the row cannot be inserted before the row
+         it points at, and the only remaining option would be to order rows
+         within the table by following the links. Said out loud rather than
+         attempted: a restore that quietly reordered a ledger would be worse
+         than one that refused. */
+      throw new Error(
+        `${child} references itself through (${columns.join(", ")}) and none of those`
+        + " columns is nullable, so the link cannot be deferred on restore.",
+      );
+    }
     if (!out.has(child)) out.set(child, new Set());
-    out.get(child).add(column);
+    out.get(child).add(can[0]);
   }
   return new Map([...out].map(([t, cols]) => [t, [...cols].sort()]));
 }

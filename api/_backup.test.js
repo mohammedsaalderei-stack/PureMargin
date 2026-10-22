@@ -25,7 +25,12 @@ function test(name, fn) {
   }
 }
 
-const edge = (child, parent, column) => ({ child, parent, column });
+const edge = (child, parent, ...columns) => ({ child, parent, columns });
+
+/* Which columns a table will allow to be null. Every FK column here is
+   nullable unless a test says otherwise; business_id never is, which is the
+   whole reason a composite self-reference needs thinking about. */
+const nullableAll = (table, ...cols) => new Map([[table, new Set(cols)]]);
 
 test("a parent is always written before its child", () => {
   const order = orderTables(
@@ -89,18 +94,71 @@ test("self-referencing columns are found, and only those", () => {
     edge("inventory_movements", "inventory_movements", "reverses_id"),
     edge("inventory_movements", "businesses", "business_id"),
     edge("orders", "businesses", "business_id"),
-  ]);
+  ], nullableAll("inventory_movements", "reverses_id"));
   assert.deepEqual(found.get("inventory_movements"), ["reverses_id"]);
   assert.equal(found.has("orders"), false, "an ordinary foreign key is not deferred");
   assert.equal(found.size, 1);
 });
 
-test("two self-references on one table are both found", () => {
-  const found = selfRefColumns([
-    edge("t", "t", "b_id"),
-    edge("t", "t", "a_id"),
-  ]);
+test("a composite self-reference defers only the column that may be null", () => {
+  /* The real one. Migration 002 made every cross-table reference carry
+     business_id so a row cannot point at another tenant's, which made this
+     foreign key (reverses_id, business_id) rather than (reverses_id).
+
+     business_id is NOT NULL and must stay set. A composite key declared
+     MATCH SIMPLE — the default — is satisfied as soon as any one referencing
+     column is null, so nulling reverses_id alone defers the link. */
+  const found = selfRefColumns(
+    [edge("inventory_movements", "inventory_movements", "reverses_id", "business_id")],
+    nullableAll("inventory_movements", "reverses_id"),
+  );
+  assert.deepEqual(found.get("inventory_movements"), ["reverses_id"]);
+});
+
+test("a self-reference with nothing nullable is refused, not attempted", () => {
+  /* The remaining option would be to order the rows by following the links,
+     and a restore that quietly reordered a ledger is worse than one that
+     stopped. */
+  assert.throws(
+    () => selfRefColumns(
+      [edge("t", "t", "a_id", "tenant_id")],
+      nullableAll("t"),
+    ),
+    (err) => {
+      assert.match(err.message, /cannot be deferred/);
+      assert.match(err.message, /a_id, tenant_id/, "names the columns");
+      return true;
+    },
+  );
+});
+
+test("two separate self-references on one table are both deferred", () => {
+  const found = selfRefColumns(
+    [edge("t", "t", "b_id"), edge("t", "t", "a_id")],
+    nullableAll("t", "a_id", "b_id"),
+  );
   assert.deepEqual(found.get("t"), ["a_id", "b_id"], "sorted, so the dump is stable");
+});
+
+test("a composite foreign key still orders its tables", () => {
+  /* The bug this replaces: the schema query filtered to single-column keys,
+     so ten of the twenty-three foreign keys in this schema were invisible.
+     Ordering silently degraded to alphabetical, which puts
+     order_line_modifiers before order_lines — a dump that looks correct and
+     will not go back in. */
+  const order = orderTables(
+    ["order_line_modifiers", "order_lines", "orders", "businesses"],
+    [
+      edge("order_line_modifiers", "order_lines", "order_line_id", "business_id"),
+      edge("order_lines", "orders", "order_id", "business_id"),
+      edge("orders", "businesses", "business_id"),
+    ],
+  );
+  assert.deepEqual(order, ["businesses", "orders", "order_lines", "order_line_modifiers"]);
+  assert.ok(
+    order.indexOf("order_lines") < order.indexOf("order_line_modifiers"),
+    "the child comes after the parent, not alphabetically before it",
+  );
 });
 
 test("an unsupported column type is named rather than guessed at", () => {
@@ -119,6 +177,7 @@ test("the types the schema actually uses are all supported", () => {
   for (const t of [
     "uuid", "text", "numeric", "boolean", "jsonb",
     "timestamp with time zone", "integer",
+    "character",
   ]) assert.ok(SUPPORTED_TYPES.has(t), `${t} is supported`);
 
   assert.equal(SUPPORTED_TYPES.has("bytea"), false, "not shown to round-trip");

@@ -70,27 +70,56 @@ const A = "11111111-1111-4111-8111-111111111111";
 const B = "22222222-2222-4222-8222-222222222222";
 const C = "33333333-3333-4333-8333-333333333333";
 
+/* The tenant id every row carries, so the shape here matches the real one. */
+const BIZ = "99999999-9999-4999-8999-999999999999";
+
+/* A and B deliberately carry an identical document.
+
+   Two movements with the same note is ordinary — "spoiled in the walk-in"
+   twice in a week — and it is what stops a wrong key passing by luck. Every
+   row used to hold a distinct `doc`, so a relink keyed on the wrong column
+   still matched exactly one row and the test went green. With these two the
+   same, keying on anything but the real primary key matches two, which the
+   relink refuses; and if it did not refuse, A would come back pointing at C
+   and the null assertion below would fail. */
+const SAME = { note: "spoiled in the walk-in", nested: { of: [1, 2, 3] } };
+
 const ROWS = [
-  { id: A, parent_id: null, doc: { note: "first", nested: { of: [1, 2, 3] } }, amount: "10.500000" },
-  { id: B, parent_id: C, doc: { note: "points at the last one" }, amount: "0.022800" },
-  { id: C, parent_id: null, doc: { note: "مطعم", unicode: true }, amount: "1234567.891234" },
+  { id: A, business_id: BIZ, parent_id: null, doc: SAME, amount: "10.500000", code: "AED" },
+  { id: B, business_id: BIZ, parent_id: C, doc: SAME, amount: "0.022800", code: "US " },
+  { id: C, business_id: BIZ, parent_id: null, doc: { note: "مطعم", unicode: true }, amount: "1234567.891234", code: null },
 ];
 
+/* `id` is deliberately not first. The restore used to take the primary key to
+   be the first column of the table, which is true of every table in this
+   schema and would have gone unnoticed until the one where it is not. */
 const COLUMNS = [
-  { name: "id", type: "uuid" },
-  { name: "parent_id", type: "uuid" },
   { name: "doc", type: "jsonb" },
+  { name: "id", type: "uuid" },
+  { name: "business_id", type: "uuid" },
+  { name: "parent_id", type: "uuid" },
   { name: "amount", type: "numeric" },
+  { name: "code", type: "character" },
 ];
 
 try {
   await db().query(`DROP TABLE IF EXISTS "${TABLE}"`);
+  /* A composite primary key and a composite self-reference, because that is
+     what migration 002 left every referenceable table looking like: every
+     cross-table key carries business_id so a row cannot point at another
+     tenant's. A scratch table with a single-column key tested a shape this
+     database does not contain, and passed while the real one would not have
+     restored at all. */
   await db().query(`
     CREATE TABLE "${TABLE}" (
-      id        uuid PRIMARY KEY,
-      parent_id uuid REFERENCES "${TABLE}"(id),
-      doc       jsonb NOT NULL,
-      amount    numeric(20,6)
+      id          uuid,
+      business_id uuid NOT NULL,
+      parent_id   uuid,
+      doc         jsonb NOT NULL,
+      amount      numeric(20,6),
+      code        character(3),
+      PRIMARY KEY (id, business_id),
+      FOREIGN KEY (parent_id, business_id) REFERENCES "${TABLE}"(id, business_id)
     )`);
 
   /* Written by hand rather than by `dump`, because `dump` writes every table
@@ -99,7 +128,8 @@ try {
   const body = [
     headerLine({ server: "test", tables: [TABLE] }),
     JSON.stringify({ table: TABLE, columns: COLUMNS }),
-    ...ROWS.map((r) => JSON.stringify([r.id, r.parent_id, r.doc, r.amount])),
+    /* Positional to COLUMNS, which deliberately does not start with the key. */
+    ...ROWS.map((r) => JSON.stringify([r.doc, r.id, r.business_id, r.parent_id, r.amount, r.code])),
   ].join("\n") + "\n";
   fs.writeFileSync(file, zlib.gzipSync(body));
 
@@ -145,6 +175,61 @@ try {
        the money. */
     const { rows } = await db().query(`SELECT id, amount FROM "${TABLE}" ORDER BY id`);
     assert.deepEqual(rows.map((r) => r.amount), ["10.500000", "0.022800", "1234567.891234"]);
+  });
+
+  await test("a fixed-width column keeps its padding, and its nulls", async () => {
+    /* `orders.currency` is character(3). The padding is applied by the column
+       on the way in, so a short code is padded identically on the original
+       insert and on the restore — which is what makes it safe to back up, and
+       what the dump refused to assume until it had been shown. */
+    const { rows } = await db().query(`SELECT id, code FROM "${TABLE}" ORDER BY id`);
+    assert.deepEqual(rows.map((r) => r.code), ["AED", "US ", null]);
+  });
+
+  await test("a dump of the real database is in an order it can be restored in", async () => {
+    /* End to end against the live schema, because the bug this replaces was
+       not in the ordering logic — that was always right — but in the query
+       feeding it. It filtered `array_length(conkey, 1) = 1`, and ten of the
+       twenty-three foreign keys here are composite, because migration 002
+       made every cross-table reference carry business_id. With those edges
+       invisible the order quietly degraded to alphabetical, which puts
+       order_line_modifiers before order_lines.
+
+       Nothing failed. The dump looked complete and simply would not have
+       gone back in — which is the failure you find out about on the one day
+       it matters. So the check is made against the database rather than
+       against a fixture, and it keeps working as the schema grows. */
+    const out = path.join(os.tmpdir(), `puremargin-order-${Date.now()}.ndjson.gz`);
+    try {
+      run("dump", out);
+      const header = JSON.parse(
+        zlib.gunzipSync(fs.readFileSync(out)).toString().split("\n")[0],
+      );
+      const at = new Map(header.tables.map((t, i) => [t, i]));
+
+      const { rows: fks } = await db().query(`
+        SELECT c.conrelid::regclass::text AS child,
+               c.confrelid::regclass::text AS parent
+          FROM pg_constraint c
+          JOIN pg_class t     ON t.oid = c.conrelid
+          JOIN pg_namespace n ON n.oid = t.relnamespace
+         WHERE c.contype = 'f' AND n.nspname = 'public'`);
+
+      assert.ok(fks.length > 0, "the schema has foreign keys to check");
+      let composite = 0;
+      for (const { child, parent } of fks) {
+        if (child === parent) continue;
+        if (!at.has(child) || !at.has(parent)) continue;
+        composite += 1;
+        assert.ok(
+          at.get(parent) < at.get(child),
+          `${parent} must be restored before ${child}, but came after it`,
+        );
+      }
+      assert.ok(composite >= 10, `checked ${composite} cross-table keys`);
+    } finally {
+      try { fs.unlinkSync(out); } catch { /* best effort */ }
+    }
   });
 
   await test("restoring onto rows that already exist is refused", () => {

@@ -62,26 +62,57 @@ async function schema() {
   )).rows.map((r) => r.table_name);
 
   const cols = (await db().query(
-    `SELECT table_name, column_name, data_type, ordinal_position
+    `SELECT table_name, column_name, data_type, is_nullable, ordinal_position
        FROM information_schema.columns
       WHERE table_schema = 'public'
       ORDER BY table_name, ordinal_position`,
   )).rows;
 
-  /* `conkey` holds the child column numbers of the constraint; only the
-     single-column self-references matter here, and a composite key cannot
-     point a row at itself in a way this needs to defer. */
+  /* Every foreign key, whatever its width.
+
+     This used to filter `array_length(c.conkey, 1) = 1`, on the assumption
+     that a composite key could not matter here. Ten of the twenty-three
+     foreign keys in this schema are composite — migration 002 made every
+     cross-table reference carry `business_id` so a row cannot point at
+     another tenant's — and excluding them left only the `-> businesses`
+     edges. The ordering silently degraded to alphabetical, which put
+     order_line_modifiers before order_lines, and it also meant
+     inventory_movements' reference to itself was never deferred. The dump
+     looked fine; it simply would not have gone back in. */
   const edges = (await db().query(
     `SELECT c.conrelid::regclass::text  AS child,
             c.confrelid::regclass::text AS parent,
-            (SELECT a.attname FROM pg_attribute a
-              WHERE a.attrelid = c.conrelid AND a.attnum = c.conkey[1]) AS column
+            ARRAY(SELECT a.attname::text FROM unnest(c.conkey) k
+                    JOIN pg_attribute a
+                      ON a.attrelid = c.conrelid AND a.attnum = k) AS columns
        FROM pg_constraint c
        JOIN pg_class t      ON t.oid = c.conrelid
        JOIN pg_namespace n  ON n.oid = t.relnamespace
-      WHERE c.contype = 'f' AND n.nspname = 'public'
-        AND array_length(c.conkey, 1) = 1`,
+      WHERE c.contype = 'f' AND n.nspname = 'public'`,
   )).rows;
+
+  /* Which columns may be nulled, so a self-reference can be deferred, and
+     which columns identify a row, so it can be filled back in afterwards.
+     The primary key was previously assumed to be the first column of the
+     table, which is true of every table here and is not a thing worth
+     relying on. */
+  const nullable = new Map();
+  for (const c of cols) {
+    if (!nullable.has(c.table_name)) nullable.set(c.table_name, new Set());
+    if (c.is_nullable === "YES") nullable.get(c.table_name).add(c.column_name);
+  }
+
+  const pks = new Map();
+  for (const r of (await db().query(
+    `SELECT c.conrelid::regclass::text AS table,
+            ARRAY(SELECT a.attname::text FROM unnest(c.conkey) k
+                    JOIN pg_attribute a
+                      ON a.attrelid = c.conrelid AND a.attnum = k) AS columns
+       FROM pg_constraint c
+       JOIN pg_class t      ON t.oid = c.conrelid
+       JOIN pg_namespace n  ON n.oid = t.relnamespace
+      WHERE c.contype = 'p' AND n.nspname = 'public'`,
+  )).rows) pks.set(r.table, r.columns);
 
   const byTable = new Map(tables.map((t) => [t, []]));
   for (const c of cols) {
@@ -89,7 +120,7 @@ async function schema() {
       byTable.get(c.table_name).push({ name: c.column_name, type: c.data_type });
     }
   }
-  return { tables, byTable, edges };
+  return { tables, byTable, edges, nullable, pks };
 }
 
 /* ── dump ────────────────────────────────────────────────────────────── */
@@ -216,8 +247,8 @@ async function verify(file) {
 
 async function restore(file) {
   const { header, content } = await read(file);
-  const { edges } = await schema();
-  const selfRefs = selfRefColumns(edges);
+  const { edges, nullable, pks } = await schema();
+  const selfRefs = selfRefColumns(edges, nullable);
 
   const existing = [];
   for (const { table } of content) {
@@ -252,7 +283,21 @@ async function restore(file) {
       const names = columns.map((c) => c.name);
       const deferred = selfRefs.get(table) || [];
       const deferredAt = deferred.map((d) => names.indexOf(d)).filter((i) => i >= 0);
-      const pk = names[0];
+
+      /* The real primary key, not the first column. They are the same for
+         every table here, which is exactly why assuming it would have gone
+         unnoticed until the one table where they differ. */
+      const pk = pks.get(table) || [];
+      if (deferredAt.length && !pk.length) {
+        throw new Error(
+          `${table} has a deferred self-reference but no primary key, so there is`
+          + " no way to identify the row to relink.",
+        );
+      }
+      const pkAt = pk.map((c) => names.indexOf(c));
+      if (deferredAt.length && pkAt.some((i) => i < 0)) {
+        throw new Error(`${table}: the backup is missing a primary key column.`);
+      }
 
       const placeholders = names
         .map((n, i) => `$${i + 1}${CAST_TYPES[columns[i].type] || ""}`)
@@ -274,7 +319,10 @@ async function restore(file) {
            dump promises. */
         for (const i of deferredAt) {
           if (row[i] !== null) {
-            pending.push({ table, column: names[i], pk, key: row[0], value: row[i] });
+            pending.push({
+              table, column: names[i], value: row[i],
+              pk, key: pkAt.map((j) => row[j]),
+            });
           }
         }
       }
@@ -282,10 +330,21 @@ async function restore(file) {
     }
 
     for (const p of pending) {
-      await client.query(
-        `UPDATE "${p.table}" SET "${p.column}" = $1 WHERE "${p.pk}" = $2`,
-        [p.value, p.key],
+      /* The key may be composite — `(id, business_id)` is the shape migration
+         002 gave every table that can be referenced across tenants. */
+      const where = p.pk.map((c, i) => `"${c}" = $${i + 2}`).join(" AND ");
+      const r = await client.query(
+        `UPDATE "${p.table}" SET "${p.column}" = $1 WHERE ${where}`,
+        [p.value, ...p.key],
       );
+      /* A relink that matched nothing means the link is silently gone, which
+         is the one failure this whole mechanism exists to prevent. */
+      if (r.rowCount !== 1) {
+        throw new Error(
+          `relinking ${p.table}.${p.column} matched ${r.rowCount} rows for key`
+          + ` ${JSON.stringify(p.key)} — expected exactly one.`,
+        );
+      }
     }
     if (pending.length) console.log(`\n  ${pending.length} self-references relinked`);
   });
