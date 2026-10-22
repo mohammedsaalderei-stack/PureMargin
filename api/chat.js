@@ -124,12 +124,24 @@ export default async function handler(req, res) {
 
   try {
     const account = await getAccount(session.username);
+
+    /* Hoisted, because the grounding needs it too.
+
+       It used to live inside the block below and be used only to decide
+       whether the assistant answers at all. That let an account holding just
+       `assistant` ask the chat for its leakage, alerts, purchasing plan and
+       branch ranking — the whole operations package — because the brief was
+       cut to capability and nothing else. The comment under this one has
+       always said the assistant must not end up with a more generous view
+       than the screens; this is the half of it that was missing. */
+    let features = [];
     if (account) {
       /* The effective plan — a team member inherits the owner's packages. */
       const { effectivePlanFor } = await import("./_org.js");
       const plan = await effectivePlanFor(account);
       const active = plan.items?.length && !(plan.until && plan.until < Date.now());
-      if (!(active ? plan.items : []).includes("assistant")) {
+      features = active ? plan.items : [];
+      if (!features.includes("assistant")) {
         return res.status(402).json({ error: "locked", feature: "assistant" });
       }
     }
@@ -169,6 +181,11 @@ export default async function handler(req, res) {
            branch in the request body cannot widen what the assistant is told. */
         requested: parseBranchParam(requestedBranches),
         from, to,
+        /* What this business has actually bought. Sections outside it are
+           left out of the brief entirely rather than withheld by an
+           instruction — the same reason an out-of-scope branch is absent
+           rather than forbidden. */
+        features,
       });
     } catch (err) {
       console.error("grounding failed, answering from sales only:", err);

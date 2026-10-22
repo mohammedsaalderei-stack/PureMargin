@@ -76,10 +76,19 @@ async function seed(orgId) {
   await mv.recordMovement(orgId, "b2", { ingredientId: "beef-mince", type: "consume", qty: 30, unit: "kg", at: from + 10 * DAY });
 }
 
+/* Every package, unless a test says otherwise.
+
+   These cases are about branch scope and capability, which is a different
+   question from what a business has bought — and the entitlement gate fails
+   closed, so without this every one of them would quietly be testing an
+   empty brief and the failures would read as scope bugs. The cases that are
+   about billing pass their own `features`. */
+const ALL_FEATURES = ["assistant", "operations", "costs"];
+
 const ground = (acct, over = {}) => gr.groundingFor(acct, {
   allBranchIds: BRANCHES, branchNames: NAMES,
   salesRows: [...sold("b1"), ...sold("b2")],
-  salesFetchedAt: now, from, to: now, ...over,
+  salesFetchedAt: now, from, to: now, features: ALL_FEATURES, ...over,
 });
 
 /* ------------------------- the boundary -------------------------- */
@@ -131,6 +140,7 @@ await test("the brief is empty of an organization the user doesn't belong to", a
   await seed(mine.id);
   const out = await gr.groundingFor(await account("rival", other.id), {
     allBranchIds: BRANCHES, branchNames: NAMES, salesRows: sold("b1"), salesFetchedAt: now, from, to: now,
+    features: ALL_FEATURES,
   });
   assert.strictEqual(out.evidence.variance.totals.unexplained, 0);
   assert.ok(!out.brief.includes("Beef mince"));
@@ -248,6 +258,115 @@ await test("the answer contract demands value, period, branches, evidence and ac
   }
   assert.ok(/outside their access/.test(c), "an out-of-scope branch must be refused, not guessed");
 });
+
+/* ------------------- what the business has paid for ------------------- */
+
+/* Capability answers "may this person see it". It does not answer "has this
+   business bought it", and until these existed nothing asked. Every section
+   of the brief belongs to the operations package, so an account holding only
+   `assistant` could read its entire back-of-house by asking the chat instead
+   of opening a tab that was greyed out. */
+
+await test("an unpaid package is absent from the brief, not merely unmentioned", async () => {
+  const org = await createOrg({ ownerUsername: "owner", name: "Group", branchAllowance: null });
+  await seed(org.id);
+  /* An owner: every capability there is. The only thing missing is money. */
+  const out = await ground(await account("owner", org.id), { features: ["assistant"] });
+
+  assert.strictEqual(out.evidence.variance, undefined, "no leakage");
+  assert.strictEqual(out.evidence.alerts, undefined, "no alerts");
+  assert.strictEqual(out.evidence.plan, undefined, "no purchasing plan");
+  assert.strictEqual(out.evidence.ranking, undefined, "no branch ranking");
+  assert.strictEqual(out.sections, 0);
+
+  /* The figures themselves, not just the headings: a section could be
+     dropped while its numbers survived somewhere else in the prose. */
+  assert.ok(!out.brief.includes("FOOD COST AND LEAKAGE"));
+  assert.ok(!out.brief.includes("PURCHASING PLAN"));
+  assert.ok(!out.brief.includes("Beef mince"), "no ingredient from a locked section");
+});
+
+await test("buying the package puts every section back", async () => {
+  const org = await createOrg({ ownerUsername: "owner", name: "Group", branchAllowance: null });
+  await seed(org.id);
+  const out = await ground(await account("owner", org.id), { features: ["assistant", "operations"] });
+
+  assert.ok(out.evidence.variance, "leakage");
+  assert.ok(out.evidence.plan, "purchasing plan");
+  assert.ok(out.brief.includes("BRANCH COMPARISON"));
+  assert.deepStrictEqual(out.entitlements.withheld, [], "nothing held back");
+});
+
+await test("forgetting to pass the packages withholds them, rather than granting them", async () => {
+  /* The default has to fail closed. The cost of the other default is giving
+     a package away silently, every time somebody adds a caller. */
+  const org = await createOrg({ ownerUsername: "owner", name: "Group", branchAllowance: null });
+  await seed(org.id);
+  const out = await gr.groundingFor(await account("owner", org.id), {
+    allBranchIds: BRANCHES, branchNames: NAMES,
+    salesRows: sold("b1"), salesFetchedAt: now, from, to: now,
+  });
+  assert.strictEqual(out.sections, 0);
+  assert.deepStrictEqual(out.entitlements.withheld, ["operations"]);
+});
+
+await test("the brief names the package, so the answer can be useful about it", async () => {
+  /* The packages are on the public pricing page and the owner chose them.
+     "I don't have that information" is unhelpful about a thing they could
+     switch on this afternoon. */
+  const org = await createOrg({ ownerUsername: "owner", name: "Group", branchAllowance: null });
+  await seed(org.id);
+  const out = await ground(await account("owner", org.id), { features: ["assistant"] });
+
+  assert.ok(out.brief.includes("NOT INCLUDED IN THIS BUSINESS'S PACKAGES"));
+  assert.ok(/operations/.test(out.brief), "names the package");
+  assert.ok(/purchasing plan/.test(out.brief), "in words an owner would use");
+});
+
+await test("and forbids estimating the locked figures from the sales it does have", async () => {
+  /* The failure that would hand the package over anyway: a model being
+     helpful by working leakage out from the revenue in front of it, and
+     presenting the guess beside real numbers. */
+  const org = await createOrg({ ownerUsername: "owner", name: "Group", branchAllowance: null });
+  await seed(org.id);
+  const out = await ground(await account("owner", org.id), { features: ["assistant"] });
+  assert.ok(/Do not estimate/.test(out.brief));
+});
+
+await test("a section withheld for capability is not announced as unpaid", async () => {
+  /* The two reasons are different and must not be confused. A chef is inside
+     a team that paid for operations; what they cannot see is a boundary
+     between colleagues, and calling it a billing matter would be wrong and a
+     small leak about what their manager sees. */
+  const org = await createOrg({ ownerUsername: "owner", name: "Group", branchAllowance: null });
+  await setMember(org.id, "chef", { role: "chef", branches: BRANCHES });
+  await seed(org.id);
+  const out = await ground(await account("chef", org.id), { features: ["assistant", "operations", "costs"] });
+
+  assert.strictEqual(out.evidence.ranking, undefined, "a chef gets no branch ranking");
+  assert.deepStrictEqual(out.entitlements.withheld, [], "and it is not a billing matter");
+  assert.ok(!out.brief.includes("NOT INCLUDED"));
+});
+
+await test("every section's package matches the screen it belongs to", async () => {
+  /* A second copy of a decision, so it is asserted rather than remembered —
+     the same reason `_packages.test.js` checks the two legacy maps agree. A
+     section whose package drifts from its screen's is a feature given away
+     or taken back without anybody deciding to. */
+  const src = await import("../src/entitlements.js");
+  const SCREEN = src.SCREEN_FEATURE;
+
+  assert.strictEqual(gr.SECTION_FEATURE.leakage, SCREEN.variance, "leakage is the variance screen");
+  assert.strictEqual(gr.SECTION_FEATURE.alerts, SCREEN.alerts);
+  assert.strictEqual(gr.SECTION_FEATURE.plan, SCREEN.plan);
+  assert.strictEqual(gr.SECTION_FEATURE.branches, SCREEN.plan, "the ranking is rendered on the plan screen");
+
+  const { FEATURES } = await import("./_accounts.js");
+  for (const [section, feature] of Object.entries(gr.SECTION_FEATURE)) {
+    assert.ok(FEATURES.includes(feature), `${section} -> ${feature} is a real package`);
+  }
+});
+
 
 console.log(failures ? `\n${failures} failed` : "\nall passed");
 process.exit(failures ? 1 : 0);

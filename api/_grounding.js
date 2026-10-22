@@ -34,6 +34,35 @@ import { DEFAULT_COST_METHOD } from "./_costing.js";
 
 const DAY = 864e5;
 
+/* Which package each section of the brief belongs to.
+
+   The server mirror of `SCREEN_FEATURE` in `src/entitlements.js`, holding
+   only the sections this file builds. It is a second copy of a decision, so
+   `_grounding.test.js` asserts the two agree the same way `_packages.test.js`
+   asserts the two legacy maps do — a section whose package drifts from its
+   screen's is a feature given away or taken back without anybody deciding to.
+
+   All four are `operations` today, which is the whole back-of-house suite:
+   the leakage screen, the alerts screen and the purchase plan, which is also
+   where the branch ranking is rendered. */
+export const SECTION_FEATURE = {
+  leakage: "operations",
+  alerts: "operations",
+  plan: "operations",
+  branches: "operations",
+};
+
+/* What each package contains, in the words a person would use.
+
+   Only for telling somebody what they have not bought, so it describes the
+   package rather than listing screen names: "the purchasing plan" is what an
+   owner calls it, `plan` is what the router calls it. */
+const PACKAGE_CONTENTS = {
+  operations: "stock leakage, alerts, the purchasing plan and the branch comparison",
+  costs: "the cost ledger, corrections to what the till reported, menu engineering and the forecast",
+  assistant: "this assistant",
+};
+
 const money = (n) => (n === null || n === undefined ? "unknown" : `AED ${Math.round(n).toLocaleString("en-US")}`);
 const pct = (n) => (n === null || n === undefined ? "unknown" : `${n}%`);
 const day = (ms) => new Date(ms).toISOString().slice(0, 10);
@@ -46,6 +75,7 @@ export async function groundingFor(account, {
   allBranchIds = [], branchNames = {}, requested = null,
   salesRows = [], salesFetchedAt = null, from, to = Date.now(),
   method = DEFAULT_COST_METHOD, horizonDays = 7,
+  features = [],
 } = {}) {
   const scope = await scopeFor(account, allBranchIds);
   const orgId = scope.org?.id;
@@ -54,6 +84,29 @@ export async function groundingFor(account, {
   const branches = effectiveBranches(requested, scope.authorized);
   const start = from || to - 30 * DAY;
   const can = (capability) => scope.capabilities.includes(capability);
+
+  /* ── The second gate ───────────────────────────────────────────────────
+
+     Capability answers "may this person see it". It does not answer "has
+     this business bought it", and until now nothing here asked. Every
+     section below belongs to the operations package, which is why an
+     account holding only `assistant` could read its entire back-of-house —
+     leakage, alerts, the purchasing plan, the branch ranking — by asking the
+     chat instead of opening a tab that was greyed out. `chat.js` already
+     says the rule in a comment: the assistant must not end up with a more
+     generous view than the screens. It was only half true.
+
+     `features` defaults to empty, so a caller that forgets to pass it gets
+     the sales figures and nothing else. Failing closed is the only safe
+     default on a billing boundary: the cost of being wrong the other way is
+     giving away a package silently, which is the bug being fixed. */
+  const withheld = new Set();
+  const paidFor = (feature) => {
+    if (!feature) return true;
+    if (features.includes(feature)) return true;
+    withheld.add(feature);
+    return false;
+  };
 
   /* Sales are filtered to the authorized scope before any engine sees them, so a
      branch outside the scope cannot enter a total by the back door. */
@@ -74,7 +127,7 @@ export async function groundingFor(account, {
   };
 
   /* --- Cost and leakage: needs `view:costs`. ----------------------------- */
-  if (can("view:costs")) {
+  if (can("view:costs") && paidFor(SECTION_FEATURE.leakage)) {
     const report = await varianceReport(orgId, branches, { salesRows: scopedSales, from: start, to, method });
     evidence.variance = report;
     const drivers = report.items.slice(0, 5)
@@ -90,7 +143,7 @@ Recipe coverage ${Math.round((report.quality.recipeCoverage || 0) * 100)}% of re
   }
 
   /* --- What needs doing: the alerts a reader can act on. ----------------- */
-  if (can("view:inventory")) {
+  if (can("view:inventory") && paidFor(SECTION_FEATURE.alerts)) {
     const out = await buildAlerts(orgId, branches, { salesRows: scopedSales, from: start, to, method });
     evidence.alerts = out;
     const top = out.alerts.slice(0, 8)
@@ -103,7 +156,7 @@ ${top}`);
   }
 
   /* --- What to buy: needs `view:forecast`. ------------------------------- */
-  if (can("view:forecast")) {
+  if (can("view:forecast") && paidFor(SECTION_FEATURE.plan)) {
     const plan = await purchasePlan(orgId, branches, { from: start, to, horizonDays, stale });
     evidence.plan = plan;
     const lines = plan.lines.filter((l) => l.orderBase > 0).slice(0, 8)
@@ -117,7 +170,7 @@ Overall confidence in this plan: ${plan.confidence || "not applicable"}.`);
 
   /* --- Branch comparison: needs `view:profitability` AND more than one
          authorized branch. A single-branch manager has nothing to compare. --- */
-  if (can("view:profitability") && branches.length > 1) {
+  if (can("view:profitability") && branches.length > 1 && paidFor(SECTION_FEATURE.branches)) {
     const salesByBranch = new Map();
     for (const line of scopedSales) {
       const rows = salesByBranch.get(line.branchId) || [];
@@ -135,12 +188,42 @@ Role: ${scope.role}. Branches you may see: ${branches.map((id) => branchNames[id
     evidence.scope.complete ? " (the whole organization)" : " (a subset of the organization)"}.
 Period: ${day(start)} to ${day(to)}. Sales data ${stale ? "is NOT current — say so and lower your confidence" : "is current"}.`;
 
+  /* ── Saying what is missing, and why ──────────────────────────────────
+
+     A section withheld for *capability* stays silent. That is a boundary
+     inside one team — a chef does not need to be told which figures their
+     manager can see, and naming them would be a small leak for no gain.
+
+     A section withheld for *billing* is the opposite. The packages are on
+     the public pricing page, the owner chose them, and an assistant that
+     answers "I don't have that information" is being unhelpful about a
+     thing the business could simply switch on. Naming it is honest and
+     useful, so it is named.
+
+     The last line is the one that matters most. Without it the model has
+     every incentive to be helpful by estimating leakage from the sales
+     figures it does have — which would hand over the package anyway, worse,
+     as a guess presented beside real numbers. */
+  const lockedLine = withheld.size
+    ? `NOT INCLUDED IN THIS BUSINESS'S PACKAGES
+${[...withheld].map((f) => `- ${f}: ${PACKAGE_CONTENTS[f] || f}`).join("\n")}
+If asked about any of these, say plainly that it is part of that package and
+is not switched on for this business. Do not imply the figures do not exist
+or that you are unable to work them out. Do not estimate them from the sales
+figures above — an estimate presented beside real numbers is worse than a
+clear "that is in another package".`
+    : "";
+
   return {
     scope: { ...evidence.scope, capabilities: scope.capabilities },
     evidence,
+    /* What the business has, and what was kept back because it has not been
+       bought. Exposed so a route or a test can assert on it rather than
+       reading the prose. */
+    entitlements: { features: [...features], withheld: [...withheld] },
     /* Nothing outside the user's authorization appears in this string. That, not
        an instruction in the prompt, is what makes the boundary hold. */
-    brief: [scopeLine, ...sections].join("\n\n"),
+    brief: [scopeLine, ...sections, lockedLine].filter(Boolean).join("\n\n"),
     sections: sections.length,
     stale,
   };
