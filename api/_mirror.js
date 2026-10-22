@@ -1,25 +1,44 @@
 import { db, configured, ensureBusiness } from "./_db.js";
 
-/* Copying a stock movement into Postgres while Redis is still the truth.
+/* Copying a stock movement into the relational ledger.
 
-   ── Why both, for a while ────────────────────────────────────────────────
+   ── Why there are two ────────────────────────────────────────────────────
 
-   The ledger is moving to Postgres so that completing an order can deduct
-   stock in the same transaction that records the sale. It cannot move in one
-   step: there are many live businesses, every balance on every screen is
-   summed from the Redis ledger, and stock is money. A switch that is wrong is
-   wrong silently — a balance does not look broken, it just says a number.
+   A balance today is the sum of a JSON array held under a single key,
+   `inv:<org>:moves:<branch>`, read and rewritten whole on every movement.
+   That shape cannot take part in a transaction: completing an order has to
+   deduct stock in the same breath as recording the sale, and a
+   read-modify-write of one array cannot be made atomic against a concurrent
+   one. `inventory_movements` is where it is going — a row per movement,
+   appended, lockable.
+
+   It cannot move in one step. Every balance on every screen is summed from
+   the array, and stock is money. A switch that is wrong is wrong silently: a
+   balance does not look broken, it just says a number.
 
    So there are three phases, and this file is the middle one.
 
      1. back-fill what exists
-     2. write both, read Redis, and compare the two until they never differ
-     3. read Postgres, and stop writing Redis
+     2. write both, read the array, and compare until they never differ
+     3. read the rows, and stop writing the array
 
-   Redis stays authoritative throughout phase two. That is the point: if this
-   file is broken, or the database is down, or the shape is subtly wrong, the
-   business keeps working on the ledger it has always used and the damage is a
-   report that disagrees rather than stock that is gone.
+   ── What changed underneath this file in October ─────────────────────────
+
+   This used to say "Redis is still the truth", and the safety argument was
+   that the two were separate systems: if the mirror broke, or the database
+   was unreachable, the business carried on against Redis and the damage was
+   a report that disagreed rather than stock that was gone.
+
+   That argument is void. The provider deleted the Redis, the store moved to
+   the `kv` table, and both ledgers now live in the same database — so there
+   is no independent fallback left to fail over to.
+
+   The flip side is that there no longer needs to be one. Two writes to one
+   database can share a transaction, and then they cannot disagree at all.
+   Phase two exists to prove agreement over weeks of comparison; making the
+   pair atomic would make it true by construction instead. **That change has
+   not been made yet.** Until it is, the mirror is still best-effort and the
+   comparison below is still what decides whether the two agree.
 
    ── Which is why nothing here throws ─────────────────────────────────────
 
@@ -34,7 +53,7 @@ import { db, configured, ensureBusiness } from "./_db.js";
 
    ── Idempotent on the ledger's own id ────────────────────────────────────
 
-   Redis mints the id. `legacy_id` carries it, unique per business, so a
+   The ledger mints the id. `legacy_id` carries it, unique per business, so a
    back-fill can be re-run after a partial failure and a mirror that fires
    twice writes once. Without that the safe response to a half-finished
    backfill would be to delete everything and start again, which is not a safe
@@ -60,7 +79,7 @@ const asText = (v) => {
   return s === "" ? null : s;
 };
 
-/* A Redis movement as its Postgres row.
+/* A ledger entry as its relational row.
 
    Exported so the back-fill and the tests read the same translation the live
    mirror does. Two versions of this would be two things to keep in step, and
@@ -71,7 +90,7 @@ export function rowFor(orgId, branchId, m) {
   if (!m.id) return { error: "id" };
   if (!Number.isFinite(Number(m.qtyBase))) return { error: "qtyBase" };
 
-  /* An `adjust` can legitimately be zero in the Redis ledger — it is the type
+  /* An `adjust` can legitimately be zero in the array ledger — it is the type
      whose sign is neither in nor out. The Postgres table refuses zero, because
      a movement of nothing is not a movement, so those are skipped rather than
      forced through. The verifier accounts for it: adding zero changes no
@@ -155,7 +174,7 @@ export async function mirrorMovement(orgId, branchId, movement, { client } = {})
    just says a number.
 
    Kept here rather than in the script that calls it so it can be tested. The
-   comparison is what decides whether it is safe to stop reading Redis, and a
+   comparison is what decides whether it is safe to stop reading the array, and a
    decision that size should not rest on arithmetic nobody has exercised. */
 
 /* Quantities are held to six decimal places on both sides, so a difference

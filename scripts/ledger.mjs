@@ -1,7 +1,7 @@
 /* Move the stock ledger into Postgres, and prove the two agree.
  *
  *   node scripts/ledger.mjs verify     compare both ledgers, change nothing
- *   node scripts/ledger.mjs backfill   copy Redis into Postgres, then verify
+ *   node scripts/ledger.mjs backfill   copy the array ledgers into rows, then verify
  *
  * ── Why verify is the default thing to run ───────────────────────────────
  *
@@ -17,7 +17,7 @@
  *
  * ── Safe to re-run ───────────────────────────────────────────────────────
  *
- * Every row carries the Redis ledger's own id in `legacy_id`, unique per
+ * Every row carries the array ledger's own id in `legacy_id`, unique per
  * business, so a back-fill interrupted halfway is resumed by running it again.
  * Nothing is deleted, ever, by either command.
  */
@@ -37,17 +37,22 @@ if (!configured) {
   process.exit(1);
 }
 if (backend === "memory") {
+  /* This used to say "set REDIS_URL, pointed at the PRODUCTION store". There
+     is no production Redis — the provider deleted it in October and the store
+     moved to the `kv` table in the same database being migrated into. An
+     instruction to go and configure a store that no longer exists is worse
+     than no instruction. */
   console.error(
-    "Redis is not configured, so there is no ledger to read.\n\n"
-    + "  Set REDIS_URL (or KV_REST_API_URL and KV_REST_API_TOKEN) in .env,\n"
-    + "  pointed at the PRODUCTION store. The whole point is the real ledgers.\n",
+    "No store configured, so there is no ledger to read.\n\n"
+    + "  Set DATABASE_URL in .env. The ledgers live in the `kv` table, and\n"
+    + "  `_store.js` reads them from there whenever a database is configured.\n",
   );
   process.exit(1);
 }
 
 /* Every `inv:<orgId>:moves:<branchId>` there is.
 
-   `listKeys` is a Redis KEYS scan, which `_store.js` already flags as fine at
+   `listKeys` is one prefix scan, which `_store.js` already flags as fine at
    this scale. This runs once per migration, not per request. */
 async function ledgers() {
   const keys = await listKeys("inv:");
@@ -118,7 +123,7 @@ async function verify(found) {
 
 const found = await ledgers();
 if (found.length === 0) {
-  console.log("No stock ledgers found in Redis. Nothing to do.");
+  console.log("No stock ledgers found in the store. Nothing to do.");
   await close();
   process.exit(0);
 }
