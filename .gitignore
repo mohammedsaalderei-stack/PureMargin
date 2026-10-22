@@ -12,3 +12,7 @@ dist
 *probe*.js
 mframe.html
 .claude/launch.json
+
+# Backups taken by scripts/backup.mjs — never commit these.
+# They contain every account, every ledger and every customer record.
+backups/

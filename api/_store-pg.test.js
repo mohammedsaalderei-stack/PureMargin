@@ -28,7 +28,20 @@ if (!configured) {
 }
 
 const { getJSON, setJSON, del, listKeys, backend } = await import("./_store.js");
-const { close } = await import("./_db.js");
+const { db, close } = await import("./_db.js");
+
+/* Configured but unreachable is a misconfiguration worth failing on — a
+   silent skip would hide every assertion below behind a stale password. It
+   should read as one sentence, though, not as a driver stack trace. */
+try {
+  await db().query("SELECT 1");
+} catch (err) {
+  console.error(`\n  cannot reach the database: ${err.message}`);
+  console.error("  DATABASE_URL in .env is probably stale — check the Neon dashboard.\n");
+  await close();
+  process.exit(1);
+}
+
 
 if (backend !== "pg") {
   console.error(`Refusing to run: backend is "${backend}", expected "pg".`);

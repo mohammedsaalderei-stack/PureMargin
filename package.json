@@ -12,7 +12,10 @@
     "migrate": "node scripts/migrate.mjs",
     "migrate:status": "node scripts/migrate.mjs --status",
     "ledger:verify": "node scripts/ledger.mjs verify",
-    "ledger:backfill": "node scripts/ledger.mjs backfill"
+    "ledger:backfill": "node scripts/ledger.mjs backfill",
+    "backup": "node scripts/backup.mjs dump",
+    "backup:verify": "node scripts/backup.mjs verify",
+    "backup:restore": "node scripts/backup.mjs restore"
   },
   "dependencies": {
     "@vercel/analytics": "^2.0.1",
