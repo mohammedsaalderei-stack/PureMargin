@@ -15,6 +15,7 @@ const ERRORS = {
   weak: "errWeak",
   taken: "errTaken",
   server: "errServer",
+  storage: "errStorage",
 };
 
 export default function Register({ onBack, onRegistered, onSignIn, inviteToken = "" }) {

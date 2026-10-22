@@ -1,4 +1,5 @@
 import { issueToken } from "./_auth.js";
+import { handledUnavailable } from "./_store.js";
 import { verifyPassword, publicAccount, noteLogin } from "./_accounts.js";
 import {
   lockState, noteFailure, clearFailures, retryAfterSeconds, pause,
@@ -59,6 +60,10 @@ export default async function handler(req, res) {
       account: publicAccount(updated),
     });
   } catch (err) {
+    /* "Wrong credentials" is what this said when the store was unreachable,
+       because `verifyPassword` reads the account and a failed read was null.
+       Only one of those two is the person's own fault. */
+    if (handledUnavailable(res, err)) return undefined;
     console.error("login failed:", err);
     return res.status(500).json({ error: "server" });
   }

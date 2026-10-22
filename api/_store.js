@@ -19,6 +19,61 @@ const TCP_URL = process.env.REDIS_URL || process.env.KV_URL;
 export const persistent = Boolean((REST_URL && REST_TOKEN) || TCP_URL);
 export const backend = REST_URL && REST_TOKEN ? "http" : TCP_URL ? "tcp" : "memory";
 
+/* ── When the store is configured and cannot be reached ──────────────
+
+   Every operation below used to swallow its error: a failed read returned
+   null, a failed write returned false, a failed scan returned []. Null is
+   also what a missing key returns, so a database that had gone away was
+   indistinguishable from an empty one — and nothing in the codebase checks
+   the boolean a write returns.
+
+   That lied in the most expensive direction available. Sign-in read as
+   "wrong password", because `requireAuth` could not tell "no such account"
+   from "could not ask". Every stock balance read as zero. And a delivery
+   typed in at seven in the morning returned 200 and went nowhere, because
+   the fall-through at the bottom of each function put it in a per-invocation
+   Map that dies with the request.
+
+   So a configured backend that fails now throws, and the in-memory Map is
+   reachable only when no backend is configured at all — local development,
+   where losing it on restart is the documented behaviour. A request that
+   fails is a request somebody retries. A request that quietly succeeds is a
+   number nobody questions. */
+export class StorageUnavailable extends Error {
+  constructor(operation, cause) {
+    super(`storage unavailable (${operation}): ${cause?.message || cause}`);
+    this.name = "StorageUnavailable";
+    this.operation = operation;
+    this.cause = cause;
+  }
+}
+
+async function guard(operation, fn) {
+  try {
+    return await fn();
+  } catch (err) {
+    if (err?.name === "StorageUnavailable") throw err;
+    console.error(`[sufra] ${operation} failed: ${err.message}`);
+    throw new StorageUnavailable(operation, err);
+  }
+}
+
+/* Checked by name rather than `instanceof`, so it still answers correctly if
+   two copies of this module are ever loaded — a bundler, or a dynamic import
+   under a different specifier — and the class identities differ. */
+export const unavailable = (err) => err?.name === "StorageUnavailable";
+
+/* The HTTP meaning of it, kept beside the error so no route can invent a
+   different status for the same condition. 503 rather than 500: the request
+   was fine and will work when the store is back, which is also what tells a
+   client it is worth retrying. */
+export function handledUnavailable(res, err) {
+  if (!unavailable(err)) return false;
+  res.setHeader("Retry-After", "30");
+  res.status(503).json({ error: "storage" });
+  return true;
+}
+
 const memory = new Map();
 let warned = false;
 
@@ -80,20 +135,14 @@ async function rest(command) {
 /* ---------------- Public API ---------------- */
 export async function getJSON(key) {
   warnOnce();
-  try {
-    if (backend === "tcp") {
+  if (backend !== "memory") {
+    const raw = await guard("read", async () => {
+      if (backend === "http") return rest(["GET", key]);
       const client = await tcpClient();
-      if (client) {
-        const raw = await client.get(key);
-        return raw ? JSON.parse(raw) : null;
-      }
-    } else if (backend === "http") {
-      const raw = await rest(["GET", key]);
-      return raw ? JSON.parse(raw) : null;
-    }
-  } catch (err) {
-    console.error("[sufra] read failed:", err.message);
-    return null;
+      if (!client) throw new Error("no connection");
+      return client.get(key);
+    });
+    return raw ? JSON.parse(raw) : null;
   }
   const local = memory.get(key);
   return local ? JSON.parse(local) : null;
@@ -102,20 +151,14 @@ export async function getJSON(key) {
 export async function setJSON(key, value) {
   warnOnce();
   const raw = JSON.stringify(value);
-  try {
-    if (backend === "tcp") {
+  if (backend !== "memory") {
+    await guard("write", async () => {
+      if (backend === "http") return rest(["SET", key, raw]);
       const client = await tcpClient();
-      if (client) {
-        await client.set(key, raw);
-        return true;
-      }
-    } else if (backend === "http") {
-      await rest(["SET", key, raw]);
-      return true;
-    }
-  } catch (err) {
-    console.error("[sufra] write failed:", err.message);
-    return false;
+      if (!client) throw new Error("no connection");
+      return client.set(key, raw);
+    });
+    return true;
   }
   memory.set(key, raw);
   return true;
@@ -123,20 +166,14 @@ export async function setJSON(key, value) {
 
 export async function del(key) {
   warnOnce();
-  try {
-    if (backend === "tcp") {
+  if (backend !== "memory") {
+    await guard("delete", async () => {
+      if (backend === "http") return rest(["DEL", key]);
       const client = await tcpClient();
-      if (client) {
-        await client.del(key);
-        return true;
-      }
-    } else if (backend === "http") {
-      await rest(["DEL", key]);
-      return true;
-    }
-  } catch (err) {
-    console.error("[sufra] delete failed:", err.message);
-    return false;
+      if (!client) throw new Error("no connection");
+      return client.del(key);
+    });
+    return true;
   }
   memory.delete(key);
   return true;
@@ -148,16 +185,13 @@ export async function del(key) {
 export async function listKeys(prefix) {
   warnOnce();
   const pattern = `${prefix}*`;
-  try {
-    if (backend === "tcp") {
+  if (backend !== "memory") {
+    return (await guard("listKeys", async () => {
+      if (backend === "http") return rest(["KEYS", pattern]);
       const client = await tcpClient();
-      if (client) return await client.keys(pattern);
-    } else if (backend === "http") {
-      return (await rest(["KEYS", pattern])) || [];
-    }
-  } catch (err) {
-    console.error("[sufra] listKeys failed:", err.message);
-    return [];
+      if (!client) throw new Error("no connection");
+      return client.keys(pattern);
+    })) || [];
   }
   return [...memory.keys()].filter((k) => k.startsWith(prefix));
 }

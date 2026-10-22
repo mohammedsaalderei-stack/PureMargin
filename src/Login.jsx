@@ -38,6 +38,13 @@ export default function Login({ onAuthed, onBack, onRegister, onForgot }) {
         if (res.status === 429) {
           const mins = Math.max(1, Math.round((data?.retryInSeconds || 900) / 60));
           setError(fill(t.login.tooMany, { mins }));
+        } else if (res.status === 503 || data?.error === "storage") {
+          /* Not the password. The store is unreachable, and "check the
+             password" is the sentence that sends somebody off to reset a
+             credential that was never wrong — or to register again, which
+             writes a second account over the real one the moment the store
+             comes back. */
+          setError(t.login.unavailable);
         } else {
           setError(t.login.wrong);
         }

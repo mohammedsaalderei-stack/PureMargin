@@ -198,6 +198,7 @@ export const STRINGS = {
       needPassword: "Enter your password to continue.",
       wrong: "That didn't work. Check the password and try again.",
       offline: "Couldn't reach the server. Check your connection and try again.",
+      unavailable: "We can't reach the database right now, so we can't check your sign-in. This isn't your password — try again in a minute.",
       note: "Trouble signing in? Your administrator can reset it.",
       panelTitle: "Yesterday's service is already a number worth reading.",
       panelLead: "Sign in to see sales, branches, and what's coming next.",
@@ -1444,6 +1445,7 @@ export const STRINGS = {
       errTaken: "That username is taken. Try another.",
       errServer: "Something went wrong our end. Try again.",
       warnNoStore: "This deployment has no database attached yet, so accounts won't survive a restart. Fine for a look around, not for real customers.",
+      errStorage: "We can't reach the database right now, so the account was not created. Nothing was saved — try again in a minute.",
     },
 
     connect: {
@@ -2063,6 +2065,7 @@ export const STRINGS = {
       needPassword: "أدخل كلمة المرور للمتابعة.",
       wrong: "بيانات الدخول غير صحيحة. تحقّق من كلمة المرور وأعد المحاولة.",
       offline: "تعذّر الاتصال بالخادم. تحقّق من الاتصال وأعد المحاولة.",
+      unavailable: "لا نستطيع الوصول إلى قاعدة البيانات الآن، لذا لم نتمكّن من التحقّق من بيانات الدخول. المشكلة ليست في كلمة المرور — أعد المحاولة بعد قليل.",
       note: "لكل موظف حساب مستقل. لا تشارك كلمة المرور مع أحد.",
       panelTitle: "أرقام واحدة، بلغات متعدّدة",
       panelLead: "يقرأ المالك والطاهي الأرقام نفسها، كلٌّ بلغته.",
@@ -3309,6 +3312,7 @@ export const STRINGS = {
       errTaken: "اسم المستخدم محجوز. جرّب غيره.",
       errServer: "حدث خطأ عندنا. حاول مجددًا.",
       warnNoStore: "لا يوجد تخزين دائم مفعّل. قد تُفقد الحسابات عند إعادة التشغيل.",
+      errStorage: "لا نستطيع الوصول إلى قاعدة البيانات الآن، لذا لم يُنشأ الحساب. لم يُحفظ شيء — أعد المحاولة بعد قليل.",
     },
 
     connect: {
@@ -3907,6 +3911,7 @@ export const STRINGS = {
       needPassword: "आगे बढ़ने के लिए पासवर्ड डालें।",
       wrong: "यह काम नहीं आया। पासवर्ड जाँचकर फिर कोशिश करें।",
       offline: "सर्वर तक नहीं पहुँच सके। कनेक्शन जाँचकर फिर कोशिश करें।",
+      unavailable: "हम अभी डेटाबेस तक नहीं पहुँच पा रहे, इसलिए आपका साइन-इन जाँचा नहीं जा सका। यह आपके पासवर्ड की गड़बड़ी नहीं है — एक मिनट बाद फिर कोशिश कीजिए।",
       note: "साइन इन में दिक़्क़त? आपके एडमिन इसे रीसेट कर सकते हैं।",
       panelTitle: "कल की सेवा पहले ही एक ऐसा आँकड़ा है जिसे पढ़ना चाहिए।",
       panelLead: "बिक्री, शाखाएँ और आगे क्या आ रहा है — देखने के लिए साइन इन करें।",
@@ -5170,6 +5175,7 @@ export const STRINGS = {
       errTaken: "यह यूज़रनेम लिया जा चुका है। दूसरा आज़माइए।",
       errServer: "हमारी तरफ़ कुछ गड़बड़ हुई। फिर कोशिश कीजिए।",
       warnNoStore: "इस डिप्लॉयमेंट से अभी कोई डेटाबेस जुड़ा नहीं है, तो खाते रीस्टार्ट के बाद नहीं बचेंगे। देखने के लिए ठीक, असली ग्राहकों के लिए नहीं।",
+      errStorage: "हम अभी डेटाबेस तक नहीं पहुँच पा रहे, इसलिए खाता नहीं बना। कुछ भी सहेजा नहीं गया — एक मिनट बाद फिर कोशिश कीजिए।",
     },
 
     connect: {
@@ -5977,6 +5983,7 @@ export const STRINGS = {
       needPassword: "پاس ورڈ درج کیجیے۔",
       wrong: "یہ کام نہیں آیا۔ پاس ورڈ جانچ کر دوبارہ کوشش کیجیے۔",
       offline: "سرور تک نہیں پہنچ سکے۔ اپنا کنکشن جانچ کر دوبارہ کوشش کیجیے۔",
+      unavailable: "ہم اس وقت ڈیٹابیس تک نہیں پہنچ پا رہے، اس لیے آپ کا سائن اِن جانچا نہیں جا سکا۔ یہ آپ کے پاس ورڈ کا مسئلہ نہیں ہے — ایک منٹ بعد دوبارہ کوشش کیجیے۔",
       note: "ہر شخص کا اپنا اکاؤنٹ ہوتا ہے۔ پاس ورڈ کسی سے مت بانٹیے۔",
       panelTitle: "آپ کے اعداد، آپ کی زبان میں",
       panelLead: "ایک ہی اسکرین پر مالک اور شیف اپنی اپنی زبان میں وہی اعداد پڑھتے ہیں۔",
@@ -6014,6 +6021,7 @@ export const STRINGS = {
       errTaken: "یہ یوزر نیم پہلے سے موجود ہے۔",
       errServer: "اکاؤنٹ نہیں بن سکا۔ دوبارہ کوشش کیجیے۔",
       warnNoStore: "ابھی کوئی مستقل اسٹوریج منسلک نہیں۔ ٹھنڈے آغاز پر اکاؤنٹس ضائع ہو سکتے ہیں۔",
+      errStorage: "ہم اس وقت ڈیٹابیس تک نہیں پہنچ پا رہے، اس لیے اکاؤنٹ نہیں بنا۔ کچھ محفوظ نہیں ہوا — ایک منٹ بعد دوبارہ کوشش کیجیے۔",
     },
     forgot: {
       title: "پاس ورڈ بحال کیجیے",
@@ -7802,6 +7810,7 @@ export const STRINGS = {
       needPassword: "Ilagay ang password para magpatuloy.",
       wrong: "Hindi gumana iyon. Suriin ang password at subukan ulit.",
       offline: "Hindi maabot ang server. Suriin ang koneksyon at subukan ulit.",
+      unavailable: "Hindi namin maabot ang database ngayon, kaya hindi masuri ang sign-in mo. Hindi ito problema sa password mo — subukan ulit maya-maya.",
       note: "May problema sa pag-sign in? Puwedeng i-reset ito ng admin mo.",
       panelTitle: "Ang serbisyo kahapon ay numero nang dapat basahin.",
       panelLead: "Mag-sign in para makita ang benta, sangay, at ang parating.",
@@ -9065,6 +9074,7 @@ export const STRINGS = {
       errTaken: "Kuha na ang username na iyan. Sumubok ng iba.",
       errServer: "May nangyaring mali sa amin. Subukan ulit.",
       warnNoStore: "Wala pang nakakabit na database sa deployment na ito, kaya hindi mananatili ang account pagkatapos ng restart. Ayos para sa tingin-tingin, hindi para sa tunay na customer.",
+      errStorage: "Hindi namin maabot ang database ngayon, kaya hindi nagawa ang account. Walang na-save — subukan ulit maya-maya.",
     },
 
     connect: {

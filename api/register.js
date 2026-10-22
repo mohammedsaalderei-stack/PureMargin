@@ -1,6 +1,6 @@
 import { issueToken } from "./_auth.js";
 import { createAccount, validUsername, validEmail, passwordProblem, publicAccount } from "./_accounts.js";
-import { persistent } from "./_store.js";
+import { persistent, handledUnavailable } from "./_store.js";
 import { orgFor } from "./_org.js";
 
 export default async function handler(req, res) {
@@ -66,6 +66,11 @@ export default async function handler(req, res) {
       persistent,
     });
   } catch (err) {
+    /* Registration is the one that must never look like it worked. The
+       `persistent` flag in the success body warns when no store is
+       configured — but a store that is configured and dead sets it true, so
+       the account vanished behind a cheerful 200 with no warning at all. */
+    if (handledUnavailable(res, err)) return undefined;
     console.error("register failed:", err);
     return res.status(500).json({ error: "server" });
   }

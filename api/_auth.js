@@ -59,7 +59,22 @@ export async function requireAuth(req, res) {
   }
 
   const { getAccount } = await import("./_accounts.js");
-  const account = await getAccount(session.username);
+  const { handledUnavailable } = await import("./_store.js");
+
+  /* A 401 here was a lie worth money. `getAccount` returning null means "no
+     such account", and a store that could not be reached returned the same
+     null — so when the database went away every signed-in user was told
+     their session had expired, and the owner's reasonable conclusion was
+     that their password had stopped working rather than that the data was
+     gone. Which invites re-registering, writing fresh records over the top
+     of the real ones the moment the store comes back. */
+  let account;
+  try {
+    account = await getAccount(session.username);
+  } catch (err) {
+    if (handledUnavailable(res, err)) return null;
+    throw err;
+  }
 
   // No account behind the token — deleted, or never existed.
   if (!account) {
