@@ -7,7 +7,7 @@
    the shelf's is carried through so the screen can flag it. */
 
 import assert from "node:assert/strict";
-import { buildRecipe, parseQty } from "./_recipescan.js";
+import { buildRecipe, buildRecipes, parseQty } from "./_recipescan.js";
 
 let failures = 0;
 function test(name, fn) {
@@ -132,6 +132,45 @@ test("no ingredients on file matches nothing and does not crash", () => {
 test("a dish name is taken from either field the model might use", () => {
   assert.equal(buildRecipe({ title: "Mandi", lines: [] }, STOCK).menuItem, "Mandi");
   assert.equal(buildRecipe({ menuItem: "Mandi", lines: [] }, STOCK).menuItem, "Mandi");
+});
+
+/* A document with a dish to a page — the report that came back as one dish. */
+
+const SHEETS = {
+  recipes: [
+    { menuItem: "Beef steak plate", portions: 1, lines: [{ text: "Beef", qty: "0.2", unit: "kg" }] },
+    { menuItem: "Beef burgers", portions: 1, lines: [{ text: "Ground beef", qty: "0.15", unit: "kg" }, { text: "Brioche buns", qty: "1", unit: "pcs" }] },
+    { menuItem: "Mini sliders", portions: 1, lines: [{ text: "Slider buns", qty: "3", unit: "pcs" }] },
+  ],
+};
+
+test("every dish in a document comes back as its own recipe, in order", () => {
+  const out = buildRecipes(SHEETS, STOCK);
+  assert.deepEqual(out.recipes.map((r) => r.menuItem), ["Beef steak plate", "Beef burgers", "Mini sliders"]);
+});
+
+test("each dish keeps its own ingredients, never another page's", () => {
+  const out = buildRecipes(SHEETS, STOCK);
+  assert.deepEqual(out.recipes.map((r) => r.lines.length), [1, 2, 1]);
+});
+
+test("the first dish is also at the top, for a copy of the app that reads only one", () => {
+  const out = buildRecipes(SHEETS, STOCK);
+  assert.equal(out.menuItem, "Beef steak plate");
+  assert.equal(out.lines.length, 1);
+});
+
+test("an answer in the old one-dish shape is a list of one", () => {
+  const out = buildRecipes({ menuItem: "Mandi", lines: [] }, STOCK);
+  assert.equal(out.recipes.length, 1);
+  assert.equal(out.recipes[0].menuItem, "Mandi");
+  assert.equal(out.menuItem, "Mandi");
+});
+
+test("an empty list of dishes is read as the old shape, not as nothing", () => {
+  const out = buildRecipes({ recipes: [], menuItem: "Mandi", lines: [] }, STOCK);
+  assert.equal(out.recipes.length, 1);
+  assert.equal(out.menuItem, "Mandi");
 });
 
 console.log(failures ? `\n${failures} failed` : "\nall passed");

@@ -302,6 +302,14 @@ export function totalsOf(parsed, lines) {
   };
 }
 
+/* The invoice reader's way of saying it was handed recipe sheets. Only the
+   answer it was told to give counts, and only on its own: a reading that also
+   carries purchased lines is a purchase, whatever else it says. */
+export function notAPurchase(parsed) {
+  if (parsed?.notAPurchase !== "recipe") return false;
+  return !(Array.isArray(parsed?.lines) && parsed.lines.length);
+}
+
 export function buildPurchase(parsed, ingredients, aliases = new Map()) {
   const byId = new Map(ingredients.map((i) => [i.id, i]));
 

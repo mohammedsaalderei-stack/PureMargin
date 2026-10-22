@@ -363,6 +363,9 @@ export function scanErrorMessage(s, { status, error, limitMb, isPdf } = {}) {
     case "unsupported": return s.unsupported;
     case "unreadable": return s.unreadable;
     case "photo": return s.failed;
+    /* Recipe sheets handed to the invoice scanner. Not a failure of the file,
+       a wrong door, and the scan was given back. */
+    case "notinvoice": return s.notInvoice;
     /* The model ran out of room before it ran out of document. Same answer as
        the platform's 413, because it is the same thing from the far end: there
        was more here than one reading holds, and fewer pages fixes it. */

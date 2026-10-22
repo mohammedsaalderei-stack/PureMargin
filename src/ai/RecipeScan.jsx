@@ -54,12 +54,20 @@ export default function RecipeScan({ token, onSaved, initial, onInitialUsed }) {
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState("");
   const [failed, setFailed] = useState(false);
+  /* The dishes still to check, when a document held more than one.
+
+     A report with a dish to a page used to come back as its first dish. All
+     of them come back now, and they are checked and saved one at a time in
+     the same form, so each still gets a person's look before it is costed. */
+  const [queue, setQueue] = useState([]);
+  const [place, setPlace] = useState(null);
+  const [lastSaved, setLastSaved] = useState("");
 
   /* Arrives already read when the card was dropped into Ask rather than
      photographed here. */
   useEffect(() => {
     if (!initial) return;
-    open(initial);
+    begin(initial);
     onInitialUsed?.();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initial]);
@@ -95,7 +103,29 @@ export default function RecipeScan({ token, onSaved, initial, onInitialUsed }) {
     setFailed(false);
   };
 
-  const cancel = () => { setDraft(null); setNote(""); setFailed(false); };
+  /* A scan's answer: one dish, or a list of them (`recipes`). */
+  const begin = (result) => {
+    const dishes = Array.isArray(result?.recipes) && result.recipes.length ? result.recipes : [result];
+    setQueue(dishes.slice(1));
+    setPlace(dishes.length > 1 ? { n: 1, total: dishes.length } : null);
+    setLastSaved("");
+    open(dishes[0]);
+  };
+
+  /* On to the next dish, if there is one. */
+  const next = () => {
+    if (!queue.length) return false;
+    const [head, ...rest] = queue;
+    setQueue(rest);
+    setPlace((p) => (p ? { ...p, n: p.n + 1 } : p));
+    open(head);
+    return true;
+  };
+
+  const cancel = () => {
+    setDraft(null); setNote(""); setFailed(false);
+    setQueue([]); setPlace(null); setLastSaved("");
+  };
 
   const patch = (p) => setDraft((d) => ({ ...d, ...p }));
   const editRow = (key, i, p) => setDraft((d) => ({
@@ -147,12 +177,20 @@ export default function RecipeScan({ token, onSaved, initial, onInitialUsed }) {
       }
 
       onSaved?.(json.recipe);
-      setDraft(null);
-      setFailed(false);
-      setNote(fill(s.done, {
+      const done = fill(s.done, {
         name: draft.menuItem.trim(),
         count: lines.length + usable(draft.packaging).length,
-      }));
+      });
+      /* More dishes to go: say this one was saved, and open the next. */
+      if (next()) {
+        setLastSaved(fill(s.savedName, { name: draft.menuItem.trim() }));
+        return;
+      }
+      setDraft(null);
+      setFailed(false);
+      setPlace(null);
+      setLastSaved("");
+      setNote(done);
     } catch {
       setFailed(true);
       setNote(s.errServer);
@@ -216,7 +254,7 @@ export default function RecipeScan({ token, onSaved, initial, onInitialUsed }) {
 
   return (
     <div className="space-y-4">
-      <PhotoScan token={token} kind="recipe" buttonLabel={s.scan} onResult={open} />
+      <PhotoScan token={token} kind="recipe" buttonLabel={s.scan} onResult={begin} />
 
       {note && !draft && (
         <p className="text-xs flex items-center gap-1.5 px-1"
@@ -234,6 +272,13 @@ export default function RecipeScan({ token, onSaved, initial, onInitialUsed }) {
             </span>
             {s.extracted}
           </h3>
+
+          {place && (
+            <p className="text-[11px] -mt-2" style={{ color: C.slate }}>
+              {fill(s.dishOf, { n: place.n, total: place.total })}
+              {lastSaved && <span style={{ color: C.mint }}> · {lastSaved}</span>}
+            </p>
+          )}
 
           <div>
             {label(s.dish)}
@@ -322,6 +367,15 @@ export default function RecipeScan({ token, onSaved, initial, onInitialUsed }) {
               {busy ? s.saving : s.save}
             </button>
           </div>
+
+          {/* A page that is not worth keeping is passed over, not cancelled:
+              cancelling would drop every dish after it as well. */}
+          {place && queue.length > 0 && (
+            <button type="button" onClick={() => { setLastSaved(""); next(); }} disabled={busy}
+              className="w-full text-center text-xs font-semibold disabled:opacity-50" style={{ color: C.slate }}>
+              {s.skipDish}
+            </button>
+          )}
         </div>
       )}
     </div>

@@ -35,7 +35,7 @@ import { getAccount } from "./_accounts.js";
 import { effectivePlanFor } from "./_org.js";
 import { orgFor, scopeFor } from "./_org.js";
 import { claimScan, refundScan, scanUsage } from "./_scanquota.js";
-import { matchPurchase } from "./_purchase.js";
+import { matchPurchase, notAPurchase } from "./_purchase.js";
 import { listIngredients } from "./_inventory.js";
 import { matchRecipe } from "./_recipescan.js";
 import { classifyPrompt, normaliseVerdict, routeFor } from "./_docroute.js";
@@ -204,6 +204,11 @@ function supplierPrompt(langNote, stock = []) {
   return `You read photos of supplier invoices and delivery notes for a
 restaurant, and of grocery receipts where a restaurant has bought supplies.
 
+If the document is not a purchase at all — recipe cards, or sheets listing the
+ingredients each dish needs per portion, with no supplier and no price on the
+lines — answer with only {"notAPurchase": "recipe"} and nothing else. A supplier
+invoice, delivery note or receipt is a purchase however short or untidy it is.
+
 INGREDIENTS ALREADY ON FILE (one name per line):
 ${stock.map((i) => i.name).join("\n") || "(none on file yet)"}
 
@@ -288,6 +293,15 @@ ingredient quantity written on it. Copy the quantities exactly as written —
 each line to the closest name on that list, copied exactly, or null when
 nothing on it is a plausible match.
 
+A document may hold more than one dish: several cards photographed together,
+or a report with a dish to a page. Read every dish as its own recipe, in the
+order they appear, and never put two dishes' ingredients in one list.
+
+When a sheet prints both a quantity for one portion and a total for a number
+of portions, copy the one-portion column and give portions as 1. Quantities
+for one portion under a portion count of fifteen would cost the dish at a
+fifteenth of what it costs.
+
 When nothing matches, describe the ingredient the business should create, in
 newItem. A recipe card names things a kitchen keeps, so this is usually
 straightforward: "olive oil" is kept in litres, "flour" in kilos, "eggs" each.
@@ -326,8 +340,10 @@ Also read, where the card states them and only then:
                rather than in lines, and leave the array empty when the card
                mentions none.
 
-Respond with ONLY this JSON, nothing else:
+Respond with ONLY this JSON, nothing else, with one entry in "recipes" for every
+dish in the document:
 {
+  "recipes": [{
   "menuItem": "<dish name, or null>",
   "category": "<menu section, or null>",
   "sellPrice": <selling price as a number, or null>,
@@ -337,6 +353,7 @@ Respond with ONLY this JSON, nothing else:
   "note": "<anything short worth keeping, or null>",
   "lines": [{ "text": "<ingredient as written>", "qty": "<quantity as written, or null>", "unit": "<g, kg, ml, l, tsp, tbsp, cup, pcs… as written, or null>", "ingredient": "<exact name from the list, or null>", "newItem": { "name": "<short kitchen name>", "stockUnit": "<kg|g|l|ml|ea>", "purchaseUnit": "<how it is sold>", "packSize": <number>, "category": "<produce|meat|dairy|dry|oil|drink|packaging>" } }],
   "packaging": [{ "text": "<item as written>", "qty": "<quantity, or null>", "unit": "<pcs, ea… as written, or null>", "ingredient": "<exact name from the list, or null>", "newItem": { "name": "<short name>", "stockUnit": "ea", "purchaseUnit": "<how it is sold>", "packSize": <number>, "category": "packaging" } }]
+  }]
 }
 ${langNote}`;
 }
@@ -570,6 +587,14 @@ export default async function handler(req, res) {
     if (!parsed) {
       await refundScan(spend);
       return res.status(502).json({ error: "parse" });
+    }
+
+    /* Recipe sheets brought to the invoice scanner. Read as a purchase they
+       became a delivery of dishes into stock; refused instead, with where to
+       take them, and the scan is given back since nothing came of it. */
+    if (kind === "supplier" && notAPurchase(parsed)) {
+      await refundScan(spend);
+      return res.status(422).json({ error: "notinvoice", suggest: "recipe" });
     }
 
     const scans = { used: claim.used, limit: claim.limit, left: claim.left, resetsAt: claim.resetsAt };

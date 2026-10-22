@@ -160,7 +160,23 @@ export function buildRecipe(parsed, ingredients) {
   };
 }
 
+/* Every dish in a document, each built on its own.
+
+   A scan used to be one dish, so a report with a dish to a page came back as
+   its first dish, or as one list of every page's ingredients under one name.
+   The model now answers `{ recipes: [...] }`; an answer in the old one-dish
+   shape is still accepted, as a list of one.
+
+   The first dish is also spread at the top level. A copy of the app from
+   before this reads only those fields, and gets what it always got: one dish.
+   The current app reads `recipes` and goes through them all. */
+export function buildRecipes(parsed, ingredients) {
+  const dishes = Array.isArray(parsed?.recipes) && parsed.recipes.length ? parsed.recipes : [parsed];
+  const recipes = dishes.map((dish) => buildRecipe(dish, ingredients));
+  return { ...recipes[0], recipes };
+}
+
 export async function matchRecipe(orgId, parsed) {
   const ingredients = orgId ? await listIngredients(orgId) : [];
-  return buildRecipe(parsed, ingredients);
+  return buildRecipes(parsed, ingredients);
 }

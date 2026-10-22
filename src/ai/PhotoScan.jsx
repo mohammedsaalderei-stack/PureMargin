@@ -3,6 +3,7 @@ import { Camera, Loader2, RotateCcw, FileText, Plus, X, ScanLine } from "lucide-
 import { useC } from "../theme.jsx";
 import { useLang, fill } from "../i18n.jsx";
 import { prepareFile, looksLikePdf, scanErrorMessage, AttachError, addPages } from "./attach.js";
+import { navigate } from "../router.js";
 
 /* Take or choose a photo or a document, send it to the AI, hand the parsed
    result up.
@@ -34,6 +35,8 @@ export default function PhotoScan({ token, kind, onResult, buttonLabel }) {
      looks like a hang on a document nobody photographed. */
   const [stage, setStage] = useState("");
   const [error, setError] = useState("");
+  /* Which refusal it was, for the one that comes with somewhere to go. */
+  const [errorCode, setErrorCode] = useState("");
   /* Set when a document was too long to send whole, so the pages that were
      dropped are stated rather than quietly missing from the result. */
   const [clipped, setClipped] = useState(null);
@@ -66,6 +69,7 @@ export default function PhotoScan({ token, kind, onResult, buttonLabel }) {
   async function analyze(file) {
     setBusy(true);
     setError("");
+    setErrorCode("");
     setClipped(null);
     setStage(s.analyzing);
     /* Held so a failure can be described in the right terms. A photograph that
@@ -129,6 +133,7 @@ export default function PhotoScan({ token, kind, onResult, buttonLabel }) {
            actually is now, and the mapping is shared with the other scanner so
            they cannot drift apart again. */
         setError(scanErrorMessage(s, { status: res.status, ...json, isPdf }));
+        setErrorCode(json.error || "");
         if (json.error === "quota") setScans({ left: 0 });
         return false;
       }
@@ -166,6 +171,7 @@ export default function PhotoScan({ token, kind, onResult, buttonLabel }) {
     }
     setBusy(true);
     setError("");
+    setErrorCode("");
     setClipped(null);
     setPreview("");
     setStage(s.addingPages);
@@ -198,6 +204,7 @@ export default function PhotoScan({ token, kind, onResult, buttonLabel }) {
   async function readPages() {
     setBusy(true);
     setError("");
+    setErrorCode("");
     setPreviewIsPdf(false);
     setFileName("");
     try {
@@ -374,6 +381,14 @@ export default function PhotoScan({ token, kind, onResult, buttonLabel }) {
         </p>
       )}
       {error && <p className="text-xs mt-2" style={{ color: C.rose }}>{error}</p>}
+      {/* Recipe sheets brought to the invoice scanner: the way to where they
+          belong, rather than only being told they are in the wrong place. */}
+      {error && errorCode === "notinvoice" && (
+        <button type="button" onClick={() => navigate("app/recipes")}
+          className="mt-2 text-xs font-semibold underline underline-offset-2" style={{ color: C.iris }}>
+          {s.openRecipes}
+        </button>
+      )}
     </div>
   );
 }
