@@ -83,11 +83,38 @@ async function setUpResume(onResume) {
   } catch { /* no resume signal; the polling interval still refreshes */ }
 }
 
+/* Zoom, locked in the app and nowhere else.
+
+   iOS zooms the page in when a field whose text is under 16px takes focus,
+   and inside an app it never zooms back out. Most fields here are 14.9px,
+   so tapping one (the POS token, a sign-in name) left the whole app wider
+   than the screen for the rest of the session: margins gone, the header
+   off the edge, buttons out of reach. Seen in the simulator, and reported
+   from a phone as "the app is too wide".
+
+   A web view honours `maximum-scale`, so capping it stops both that and an
+   accidental pinch, which is what an app is expected to do. The website
+   keeps the zoom: there a person with low vision relies on pinching, and
+   a browser has its own way back out. */
+export function lockedViewport(content = "") {
+  const kept = String(content)
+    .split(",")
+    .map((part) => part.trim())
+    .filter((part) => part && !/^(minimum-scale|maximum-scale|user-scalable)\s*=/i.test(part));
+  return [...kept, "minimum-scale=1", "maximum-scale=1", "user-scalable=no"].join(", ");
+}
+
+function lockZoom(doc) {
+  const meta = doc?.querySelector?.('meta[name="viewport"]');
+  if (meta) meta.setAttribute("content", lockedViewport(meta.getAttribute("content") || ""));
+}
+
 /* Everything, once. Safe to call in a browser, where it does nothing. */
 export async function initNativeShell({ onResume } = {}, scope = globalThis) {
   if (!isNativePlatform(scope)) return { native: false };
 
   document.documentElement.classList.add("is-native");
+  lockZoom(document);
 
   await Promise.allSettled([
     setUpStatusBar(),
