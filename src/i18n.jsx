@@ -1051,6 +1051,9 @@ export const STRINGS = {
       errServer: "Couldn't add those. Nothing was created.",
     },
     recipescan: {
+      dishOf: "Dish {n} of {total}",
+      skipDish: "Skip this dish",
+      savedName: "{name} saved",
       statedCost: "Food cost on the card (AED, optional)",
       statedCostHint: "If the card states a cost per portion, put it here and the dish is costed from it — no need to price every ingredient first. Real invoice costs take over automatically once they cover the recipe.",
       title: "Scan a recipe card",
@@ -1580,6 +1583,8 @@ export const STRINGS = {
       errKey: "This link has been replaced. Ask your manager for the new one.",
     },
     aiscan: {
+      notInvoice: "This looks like recipe sheets, not a purchase invoice. Scan it on Recipes to create the dishes — this scan wasn’t counted.",
+      openRecipes: "Open Recipes",
       pdfFailed: "That document couldn't be read. If it is a scan of a photo, try a clearer copy.",
       tooLarge: "That file is too big — {mb} MB is the limit. Try a smaller copy or fewer pages.",
       unsupported: "That file type can't be read. Send a photo or a PDF.",
@@ -2927,6 +2932,9 @@ export const STRINGS = {
       errServer: "تعذّرت الإضافة. لم يُنشأ شيء.",
     },
     recipescan: {
+      dishOf: "الطبق {n} من {total}",
+      skipDish: "تخطَّ هذا الطبق",
+      savedName: "حُفظ {name}",
       statedCost: "تكلفة الطعام المكتوبة في البطاقة (درهم، اختياري)",
       statedCostHint: "إذا ذكرت البطاقة تكلفة الحصة، أدخلها هنا وتُحتسب تكلفة الطبق منها — دون الحاجة لتسعير كل مكوّن أولًا. وتحل تكاليف الفواتير الفعلية محلها تلقائيًا عند توفرها.",
       title: "امسح بطاقة وصفة",
@@ -3456,6 +3464,8 @@ export const STRINGS = {
       errKey: "جرى استبدال هذا الرابط. اطلب الجديد من مسؤولك.",
     },
     aiscan: {
+      notInvoice: "يبدو هذا أوراق وصفات وليس فاتورة مشتريات. امسحه من شاشة الوصفات لإنشاء الأطباق — لم يُحتسب هذا المسح.",
+      openRecipes: "افتح الوصفات",
       pdfFailed: "تعذّرت قراءة هذا المستند. إن كان صورة ممسوحة، جرّب نسخة أوضح.",
       tooLarge: "الملف كبير جدًا — الحد {mb} ميجابايت. جرّب نسخة أصغر أو صفحات أقل.",
       unsupported: "لا يمكن قراءة هذا النوع من الملفات. أرسل صورة أو ملف PDF.",
@@ -4808,6 +4818,9 @@ export const STRINGS = {
       errServer: "जोड़ा नहीं जा सका। कुछ नहीं बना।",
     },
     recipescan: {
+      dishOf: "व्यंजन {n}/{total}",
+      skipDish: "यह व्यंजन छोड़ें",
+      savedName: "{name} सहेजा गया",
       statedCost: "कार्ड पर लिखी फ़ूड कॉस्ट (AED, वैकल्पिक)",
       statedCostHint: "अगर कार्ड पर प्रति सर्विंग लागत लिखी है तो यहाँ डालें — हर सामग्री का दाम पहले डालने की ज़रूरत नहीं। असली चालान की लागत उपलब्ध होते ही अपने आप इसकी जगह ले लेगी।",
       title: "रेसिपी कार्ड स्कैन करें",
@@ -5328,6 +5341,8 @@ export const STRINGS = {
       errKey: "यह लिंक बदल दिया गया है. मैनेजर से नया लिंक लें.",
     },
     aiscan: {
+      notInvoice: "यह खरीद चालान नहीं, रेसिपी शीट लगती है। व्यंजन बनाने के लिए इसे रेसिपी में स्कैन करें — यह स्कैन गिना नहीं गया।",
+      openRecipes: "रेसिपी खोलें",
       pdfFailed: "यह दस्तावेज़ पढ़ा नहीं जा सका। अगर यह फ़ोटो का स्कैन है, तो साफ़ प्रति भेजें।",
       tooLarge: "फ़ाइल बहुत बड़ी है — सीमा {mb} MB है। छोटी प्रति या कम पन्ने भेजें।",
       unsupported: "यह फ़ाइल प्रकार पढ़ा नहीं जा सकता। फ़ोटो या PDF भेजें।",
@@ -6861,6 +6876,8 @@ export const STRINGS = {
       errKey: "یہ لنک بدل دیا گیا ہے۔ منتظم سے نیا لنک لیں۔",
     },
     aiscan: {
+      notInvoice: "یہ خریداری کی رسید نہیں، ترکیب کی شیٹ لگتی ہے۔ ڈشیں بنانے کے لیے اسے ترکیبوں میں سکین کریں — یہ سکین شمار نہیں ہوا۔",
+      openRecipes: "ترکیبیں کھولیں",
       pdfFailed: "یہ دستاویز پڑھی نہیں جا سکی۔ اگر یہ تصویر کا اسکین ہے تو صاف نقل بھیجیں۔",
       tooLarge: "فائل بہت بڑی ہے — حد {mb} MB ہے۔ چھوٹی نقل یا کم صفحات بھیجیں۔",
       unsupported: "اس قسم کی فائل نہیں پڑھی جا سکتی۔ تصویر یا PDF بھیجیں۔",
@@ -6947,6 +6964,9 @@ export const STRINGS = {
       errServer: "درج نہیں ہو سکا۔ کچھ نہیں لکھا گیا۔",
     },
     recipescan: {
+      dishOf: "ڈش {n}/{total}",
+      skipDish: "یہ ڈش چھوڑیں",
+      savedName: "{name} محفوظ ہو گئی",
       statedCost: "کارڈ پر درج فوڈ کاسٹ (درہم، اختیاری)",
       statedCostHint: "اگر کارڈ پر فی حصہ لاگت درج ہے تو یہاں لکھیں — پہلے ہر جزو کی قیمت درج کرنے کی ضرورت نہیں۔ اصل رسیدوں کی لاگت دستیاب ہوتے ہی خود بخود اس کی جگہ لے لے گی۔",
       title: "ریسیپی کارڈ اسکین کریں",
@@ -8725,6 +8745,9 @@ export const STRINGS = {
       errServer: "Hindi naidagdag. Walang nagawa.",
     },
     recipescan: {
+      dishOf: "Putahe {n} ng {total}",
+      skipDish: "Laktawan ang putaheng ito",
+      savedName: "Na-save ang {name}",
       statedCost: "Food cost na nakasulat sa card (AED, opsyonal)",
       statedCostHint: "Kung may nakasulat na halaga kada serving sa card, ilagay dito at doon ibabatay ang halaga ng putahe — hindi na kailangang presyuhan muna ang bawat sangkap. Papalitan ito ng totoong halaga mula sa invoice kapag kumpleto na.",
       title: "I-scan ang recipe card",
@@ -9245,6 +9268,8 @@ export const STRINGS = {
       errKey: "Napalitan na ang link na ito. Humingi sa manager mo ng bago.",
     },
     aiscan: {
+      notInvoice: "Mukhang mga recipe sheet ito, hindi resibo ng pagbili. I-scan ito sa Recipes para magawa ang mga putahe — hindi nabilang ang scan na ito.",
+      openRecipes: "Buksan ang Recipes",
       pdfFailed: "Hindi nabasa ang dokumento. Kung scan ito ng litrato, subukan ang mas malinaw na kopya.",
       tooLarge: "Masyadong malaki ang file — {mb} MB ang limitasyon. Subukan ang mas maliit o mas kaunting pahina.",
       unsupported: "Hindi mababasa ang uri ng file na ito. Magpadala ng litrato o PDF.",
