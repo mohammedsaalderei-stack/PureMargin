@@ -49,9 +49,11 @@ if already
 end
 
 # The group Xcode shows as "App" — the same folder the Info.plist lives in, so
-# the manifest sits beside it rather than at the root of the navigator.
-group = project.main_group.find_subpath("App/App", true)
-group.set_source_tree("SOURCE_ROOT")
+# the manifest sits beside it rather than at the root of the navigator. Found,
+# never created: `find_subpath("App/App", true)` read that as a group inside
+# the group and made a second "App" to hold one file.
+group = project.main_group.groups.find { |g| g.path == "App" }
+abort "No App group in #{PROJECT}." unless group
 
 ref = group.files.find { |f| f.path.to_s.end_with?(MANIFEST) }
 ref ||= group.new_reference(manifest_path)

@@ -69,8 +69,21 @@ fi
 # Idempotent, and run every time rather than once: `cap sync` and a fresh
 # clone both produce a project where this has not happened, and the symptom
 # is a rejection at upload rather than a failure here.
+#
+# The script needs the xcodeproj gem that comes with CocoaPods, but where it
+# lands depends on how CocoaPods was installed. `sudo gem install` puts it
+# beside the system Ruby. Homebrew keeps it in a directory of its own, run by
+# its own Ruby, where a bare `ruby` cannot see it — so borrow what Homebrew's
+# `pod` launcher sets, which is GEM_HOME and nothing else.
 say "making sure the privacy manifest is in the target"
-ruby scripts/ios/add-privacy-manifest.rb
+if ruby -e 'require "xcodeproj"' 2>/dev/null; then
+  ruby scripts/ios/add-privacy-manifest.rb
+elif command -v brew >/dev/null && [ -d "$(brew --prefix cocoapods)/libexec" ]; then
+  GEM_HOME="$(brew --prefix cocoapods)/libexec" \
+    "$(brew --prefix ruby)/bin/ruby" scripts/ios/add-privacy-manifest.rb
+else
+  die "No Ruby here can load the xcodeproj gem. Install CocoaPods: brew install cocoapods"
+fi
 
 # ── 4. archive ───────────────────────────────────────────────────────────
 # `-allowProvisioningUpdates` is what lets signing happen without a dialog.

@@ -786,6 +786,7 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
       <div className="absolute inset-y-0 w-[82%] max-w-[330px] overflow-y-auto p-4 space-y-4 drawer-in"
         style={{ insetInlineEnd: 0, background: "var(--panel-solid)", backdropFilter: "blur(20px)",
           borderInlineStart: `1px solid ${C.hairline}`,
+          paddingTop: "calc(var(--safe-top) + 16px)",
           paddingBottom: "calc(env(safe-area-inset-bottom) + 16px)" }}
         onClick={(e) => e.stopPropagation()}
         role="menu" aria-label={t.nav.menu}>
