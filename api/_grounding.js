@@ -31,6 +31,8 @@ import { varianceReport } from "./_variance.js";
 import { buildAlerts } from "./_alerts.js";
 import { purchasePlan, branchRanking } from "./_operations.js";
 import { DEFAULT_COST_METHOD } from "./_costing.js";
+import { costedList } from "./_recipes.js";
+import { netProfit } from "./_profit.js";
 
 const DAY = 864e5;
 
@@ -50,6 +52,12 @@ export const SECTION_FEATURE = {
   alerts: "operations",
   plan: "operations",
   branches: "operations",
+  /* The recipes screen, which is where a dish's margin is read. */
+  menu: "operations",
+  /* Net profit is on the Overview, and the Overview is free. It is gated by
+     capability — `view:profitability` — and by nothing else, so the brief
+     must not invent a package for it. */
+  profit: "table",
 };
 
 /* What each package contains, in the words a person would use.
@@ -76,6 +84,10 @@ export async function groundingFor(account, {
   salesRows = [], salesFetchedAt = null, from, to = Date.now(),
   method = DEFAULT_COST_METHOD, horizonDays = 7,
   features = [],
+  /* The dashboard's own totals, for the profit section. Passed rather than
+     recomputed so that the figure in an answer is the figure on the screen,
+     which is the rule `metrics.js` states for the same calculation. */
+  totals = null,
 } = {}) {
   const scope = await scopeFor(account, allBranchIds);
   const orgId = scope.org?.id;
@@ -181,6 +193,74 @@ Overall confidence in this plan: ${plan.confidence || "not applicable"}.`);
     evidence.ranking = rows;
     sections.push(`BRANCH COMPARISON (worst leakage first)
 ${rows.map((r) => `${branchNames[r.branchId] || r.branchId}: food cost ${pct(r.actualCostPct)}, waste ${money(r.waste)}, unaccounted ${money(r.unexplained)}, drivers ${r.drivers.map((d) => d.name).join("/") || "none"}, recipe coverage ${Math.round((r.recipeCoverage || 0) * 100)}%`).join("\n")}`);
+  }
+
+  /* --- Which dishes make money: the recipes screen, as prose. -----------
+
+     "Which dish is losing me money" is the question this product exists to
+     answer and the assistant could not, because the brief carried aggregate
+     food cost and never a single dish. Ranked worst margin first, which is
+     the order somebody would act in.
+
+     The caveat is not decoration. A dish whose costing is incomplete has an
+     understated cost and therefore an *overstated* margin — so an incomplete
+     dish is flattered, and the ranking is wrong in the direction that hides
+     the problem. Said in the brief rather than left for the model to work
+     out, because it cannot: nothing in a margin figure shows that it is
+     missing an ingredient. */
+  if (can("view:costs") && paidFor(SECTION_FEATURE.menu)) {
+    const dishes = await costedList(orgId, branches, { at: to, method });
+    evidence.menu = dishes;
+
+    const priced = dishes.filter((d) => d.margin);
+    const worst = [...priced].sort((a, b) => a.margin.marginPct - b.margin.marginPct).slice(0, 8);
+    const incomplete = priced.filter((d) => !d.complete);
+    const noPrice = dishes.filter((d) => !d.margin);
+
+    const rows = worst
+      .map((d) => `${d.menuItem}${d.variant ? ` (${d.variant})` : ""}: sells ${money(d.margin.sellPrice)}, costs ${money(d.margin.cost)} a portion, margin ${pct(d.margin.marginPct)} (food cost ${pct(d.margin.costPct)})${d.complete ? "" : " — COSTING INCOMPLETE, the real margin is lower"}`)
+      .join("\n") || "no dish has both a price and a cost yet";
+
+    sections.push(`MENU MARGINS, WORST FIRST (${priced.length} of ${dishes.length} dishes costed)
+${rows}${incomplete.length ? `
+${incomplete.length} of these are missing at least one ingredient cost, so their margins are overstated by an unknown amount.` : ""}${noPrice.length ? `
+No sell price or no recipe, so no margin: ${noPrice.slice(0, 8).map((d) => d.menuItem).join(", ")}.` : ""}`);
+  }
+
+  /* --- What is actually left: net profit. -------------------------------
+
+     The brief has always carried gross profit — sales less the cost of the
+     goods — and the model was told it in those words. It was never told what
+     is left after rent and the running costs, which is the Overview's
+     headline and the only figure that answers "am I making money".
+
+     Two rules are inherited from `metrics.js` rather than re-decided, so the
+     dashboard and an answer cannot disagree. The figures are passed in, not
+     recomputed; and it is withheld entirely unless the view is the whole
+     business, because rent belongs to the business and dividing it between
+     branches is an allocation rule nobody has stated. Narrowed to one branch
+     the sales half would shrink while the overheads did not. */
+  if (can("view:profitability") && paidFor(SECTION_FEATURE.profit)
+      && evidence.scope.complete && totals) {
+    const profit = await netProfit(orgId, {
+      netSales: totals.sales ?? 0,
+      cogs: totals.cost ?? 0,
+      coverage: totals.costCoverage ?? null,
+      now: to,
+    });
+    evidence.profit = profit;
+
+    sections.push(`PROFIT (trailing ${profit.period.days} days, whole business)
+Sales ${money(profit.netSales)}, cost of goods ${money(profit.costOfGoods)} → gross profit ${money(profit.grossProfit)} (${pct(profit.grossMarginPct)}).
+Running costs: fixed ${money(profit.fixedCosts)} over the window (${money(profit.fixedMonthly)} a month), variable ${money(profit.variableCosts)}.
+NET PROFIT ${money(profit.net)} (${pct(profit.netMarginPct)}). ${profit.formula}.${
+      profit.hasOperatingCosts
+        ? ""
+        : "\nNo rent or running costs have been entered, so net profit and gross profit are the same number. Say so — it is not a business without overheads, it is a business that has not recorded them."}${
+      profit.costCoverage !== null && profit.costCoverage < 95
+        ? `
+Cost of goods covers only ${profit.costCoverage}% of turnover, so it is a lower bound and this profit is an upper bound — flattering by an unknown amount.`
+        : ""}`);
   }
 
   const scopeLine = `SCOPE OF THIS ANSWER

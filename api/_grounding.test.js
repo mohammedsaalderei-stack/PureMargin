@@ -30,6 +30,7 @@ const { createOrg, setMember } = await import("./_org.js");
 const inv = await import("./_inventory.js");
 const mv = await import("./_movements.js");
 const rc = await import("./_recipes.js");
+const fc = await import("./_fixedcosts.js");
 const gr = await import("./_grounding.js");
 
 let failures = 0;
@@ -83,7 +84,9 @@ async function seed(orgId) {
    closed, so without this every one of them would quietly be testing an
    empty brief and the failures would read as scope bugs. The cases that are
    about billing pass their own `features`. */
-const ALL_FEATURES = ["assistant", "operations", "costs"];
+/* `table` is the free package and is in the list the same way `activeItems`
+   builds it — net profit lives on the Overview, which is free. */
+const ALL_FEATURES = ["table", "assistant", "operations", "costs"];
 
 const ground = (acct, over = {}) => gr.groundingFor(acct, {
   allBranchIds: BRANCHES, branchNames: NAMES,
@@ -289,7 +292,7 @@ await test("an unpaid package is absent from the brief, not merely unmentioned",
 await test("buying the package puts every section back", async () => {
   const org = await createOrg({ ownerUsername: "owner", name: "Group", branchAllowance: null });
   await seed(org.id);
-  const out = await ground(await account("owner", org.id), { features: ["assistant", "operations"] });
+  const out = await ground(await account("owner", org.id), { features: ["table", "assistant", "operations"] });
 
   assert.ok(out.evidence.variance, "leakage");
   assert.ok(out.evidence.plan, "purchasing plan");
@@ -307,7 +310,9 @@ await test("forgetting to pass the packages withholds them, rather than granting
     salesRows: sold("b1"), salesFetchedAt: now, from, to: now,
   });
   assert.strictEqual(out.sections, 0);
-  assert.deepStrictEqual(out.entitlements.withheld, ["operations"]);
+  /* Sorted: the order is the order sections happen to run in, which is not
+     a thing worth pinning a test to. */
+  assert.deepStrictEqual([...out.entitlements.withheld].sort(), ["operations", "table"]);
 });
 
 await test("the brief names the package, so the answer can be useful about it", async () => {
@@ -361,10 +366,131 @@ await test("every section's package matches the screen it belongs to", async () 
   assert.strictEqual(gr.SECTION_FEATURE.plan, SCREEN.plan);
   assert.strictEqual(gr.SECTION_FEATURE.branches, SCREEN.plan, "the ranking is rendered on the plan screen");
 
-  const { FEATURES } = await import("./_accounts.js");
+  const { FEATURES, FREE_FEATURES } = await import("./_accounts.js");
+  const real = [...FREE_FEATURES, ...FEATURES];
   for (const [section, feature] of Object.entries(gr.SECTION_FEATURE)) {
-    assert.ok(FEATURES.includes(feature), `${section} -> ${feature} is a real package`);
+    assert.ok(real.includes(feature), `${section} -> ${feature} is a real package`);
   }
+
+  /* The two added last: a dish margin is the recipes screen, and net profit
+     is the Overview, which is free. */
+  assert.strictEqual(gr.SECTION_FEATURE.menu, SCREEN.recipes, "margins are the recipes screen");
+  assert.strictEqual(gr.SECTION_FEATURE.profit, SCREEN.overview, "net profit is on the Overview");
+});
+
+
+/* ------------------ which dishes make money, and whether ------------------ */
+
+/* "Which dish is losing me money" is the question this product exists to
+   answer, and the brief could not: it carried an aggregate food-cost
+   percentage and never a single dish. */
+
+await test("the brief ranks dishes by margin, worst first", async () => {
+  const org = await createOrg({ ownerUsername: "owner", name: "Group", branchAllowance: null });
+  await seed(org.id);
+  /* A dish that barely washes its face, beside the 30-for-4 burger. */
+  await rc.saveVersion(org.id, {
+    menuItem: "Beef platter", portions: 1, yieldPct: 100, sellPrice: 50, effectiveFrom: from,
+    lines: [{ ingredientId: "beef-mince", qty: 1000, unit: "g" }],
+  });
+  const out = await ground(await account("owner", org.id));
+
+  assert.ok(out.brief.includes("MENU MARGINS"));
+  const platter = out.brief.indexOf("Beef platter");
+  const burger = out.brief.indexOf("Cheeseburger");
+  assert.ok(platter > -1 && burger > -1, "both dishes are named");
+  assert.ok(platter < burger, "the thin margin is listed first — it is what to act on");
+});
+
+await test("a dish whose costing is incomplete says its margin is overstated", async () => {
+  /* The caveat the model cannot work out for itself: a missing ingredient
+     cost understates cost and therefore *overstates* margin, so the worst
+     offender can be flattered into looking fine. */
+  const org = await createOrg({ ownerUsername: "owner", name: "Group", branchAllowance: null });
+  await seed(org.id);
+  await inv.saveIngredient(org.id, { name: "Truffle", stockUnit: "g" });
+  await rc.saveVersion(org.id, {
+    menuItem: "Truffle fries", portions: 1, yieldPct: 100, sellPrice: 40, effectiveFrom: from,
+    lines: [{ ingredientId: "truffle", qty: 5, unit: "g" }],
+  });
+  const out = await ground(await account("owner", org.id));
+
+  assert.ok(/COSTING INCOMPLETE/.test(out.brief), "flagged on the row");
+  assert.ok(/overstated/.test(out.brief), "and explained");
+});
+
+await test("menu margins are part of the operations package", async () => {
+  const org = await createOrg({ ownerUsername: "owner", name: "Group", branchAllowance: null });
+  await seed(org.id);
+  const out = await ground(await account("owner", org.id), { features: ["table", "assistant"] });
+  assert.ok(!out.brief.includes("MENU MARGINS"));
+  assert.strictEqual(out.evidence.menu, undefined);
+});
+
+/* ---------------------- what is actually left over ---------------------- */
+
+const TOTALS = { sales: 100000, cost: 30000, costCoverage: 100 };
+
+await test("net profit is reported, and is not gross profit", async () => {
+  /* The brief has always carried gross profit. Nobody runs a restaurant on
+     gross profit — the rent is the question. */
+  const org = await createOrg({ ownerUsername: "owner", name: "Group", branchAllowance: null });
+  await seed(org.id);
+  await fc.saveCost(org.id, { name: "Rent", amount: 30000, period: "monthly", startedAt: from });
+
+  const out = await ground(await account("owner", org.id), { totals: TOTALS });
+
+  assert.ok(out.brief.includes("NET PROFIT"));
+  assert.ok(out.evidence.profit, "the figures travel with it");
+  assert.ok(
+    out.evidence.profit.net < out.evidence.profit.grossProfit,
+    "rent has actually been taken off",
+  );
+  assert.ok(out.evidence.profit.hasOperatingCosts);
+});
+
+await test("with no overheads recorded it says so, rather than implying there are none", async () => {
+  /* net === gross is the most flattering lie available here: a business that
+     looks like it has no costs, because nobody typed them in. */
+  const org = await createOrg({ ownerUsername: "owner", name: "Group", branchAllowance: null });
+  await seed(org.id);
+  const out = await ground(await account("owner", org.id), { totals: TOTALS });
+
+  assert.strictEqual(out.evidence.profit.hasOperatingCosts, false);
+  assert.strictEqual(out.evidence.profit.net, out.evidence.profit.grossProfit);
+  assert.ok(/has not recorded them/.test(out.brief), "the brief refuses to let that pass as fact");
+});
+
+await test("profit is withheld when the view is one branch, not divided between them", async () => {
+  /* Rent belongs to the business. Narrowed to a branch the sales half shrinks
+     while the overheads do not, so the figure would simply be wrong — the
+     same rule metrics.js applies to the dashboard. */
+  const org = await createOrg({ ownerUsername: "owner", name: "Group", branchAllowance: null });
+  await seed(org.id);
+  const out = await ground(await account("owner", org.id), { totals: TOTALS, requested: ["b1"] });
+
+  assert.ok(!out.scope.complete, "the view really is narrowed");
+  assert.strictEqual(out.evidence.profit, undefined);
+  assert.ok(!out.brief.includes("NET PROFIT"));
+});
+
+await test("profit needs view:profitability, and is not a billing matter", async () => {
+  const org = await createOrg({ ownerUsername: "owner", name: "Group", branchAllowance: null });
+  await setMember(org.id, "chef", { role: "chef", branches: BRANCHES });
+  await seed(org.id);
+  const out = await ground(await account("chef", org.id), { totals: TOTALS });
+
+  assert.strictEqual(out.evidence.profit, undefined);
+  assert.ok(!out.entitlements.withheld.includes("table"), "a capability refusal, not an unpaid one");
+});
+
+await test("without the dashboard's totals no profit is invented", async () => {
+  /* The figures are passed in rather than recomputed so the assistant cannot
+     disagree with the screen. Absent, the honest output is nothing. */
+  const org = await createOrg({ ownerUsername: "owner", name: "Group", branchAllowance: null });
+  await seed(org.id);
+  const out = await ground(await account("owner", org.id));
+  assert.strictEqual(out.evidence.profit, undefined);
 });
 
 

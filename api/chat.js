@@ -140,7 +140,12 @@ export default async function handler(req, res) {
       const { effectivePlanFor } = await import("./_org.js");
       const plan = await effectivePlanFor(account);
       const active = plan.items?.length && !(plan.until && plan.until < Date.now());
-      features = active ? plan.items : [];
+      /* The free package is in the list too, the same way `activeItems` builds
+         it. Net profit lives on the Overview, which is free, so a brief that
+         saw only purchased ids would withhold it from everybody — including
+         an owner whose dashboard shows it on the first screen. */
+      const { FREE_FEATURES } = await import("./_accounts.js");
+      features = [...FREE_FEATURES, ...(active ? plan.items : [])];
       if (!features.includes("assistant")) {
         return res.status(402).json({ error: "locked", feature: "assistant" });
       }
@@ -181,6 +186,11 @@ export default async function handler(req, res) {
            branch in the request body cannot widen what the assistant is told. */
         requested: parseBranchParam(requestedBranches),
         from, to,
+        /* The dashboard's own totals, so the profit the assistant quotes is
+           the profit on the Overview rather than a second calculation free
+           to disagree with it. Org-wide, which is the only scope the figure
+           is emitted for — overheads are not allocated per branch. */
+        totals: { ...(metrics.totals || {}), costCoverage: metrics.costCoverage ?? null },
         /* What this business has actually bought. Sections outside it are
            left out of the brief entirely rather than withheld by an
            instruction — the same reason an out-of-scope branch is absent
