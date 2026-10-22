@@ -12,7 +12,7 @@
    the photographs outright. */
 
 import assert from "node:assert/strict";
-import { resolveApiUrl, installApiOrigin, isNativePlatform } from "./platform.js";
+import { resolveApiUrl, installApiOrigin, isNativePlatform, API_ORIGIN } from "./platform.js";
 
 let failures = 0;
 function test(name, fn) {
@@ -162,6 +162,22 @@ test("native is decided by Capacitor's own answer, not by the global existing", 
 test("a Capacitor that throws is not native, and does not take the app with it", () => {
   const scope = { get Capacitor() { throw new Error("nope"); } };
   assert.equal(isNativePlatform(scope), false);
+});
+
+/* Every test above passes its own origin, so none of them would notice the
+   default being wrong, and it was: the bare domain, which redirects to www.
+   iOS drops the Authorization header on a redirect to another host, so the
+   app could sign in and then saw nothing. This pins the default to the host
+   that serves the site; a 308 from it should never be the first answer. */
+test("the app's default API origin is the host the site is served from", () => {
+  assert.equal(API_ORIGIN, "https://www.puremargin.ae");
+});
+
+test("the default origin is a bare origin the rewrite can use as is", () => {
+  const url = new URL(API_ORIGIN);
+  assert.equal(url.protocol, "https:", "plain http would be refused by App Transport Security");
+  assert.equal(url.pathname, "/");
+  assert.equal(resolveApiUrl("/api/scope", API_ORIGIN), "https://www.puremargin.ae/api/scope");
 });
 
 console.log(failures ? `\n${failures} failed` : "\nall passed");

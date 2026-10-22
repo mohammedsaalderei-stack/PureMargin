@@ -22,7 +22,7 @@ describes the application itself.
 - The app is **bundled**, not hosted: `capacitor.config.json` has no
   `server.url`, so it ships its own copy of the interface. That is deliberate
   — Guideline 4.2 rejects apps that are a website in a frame.
-- `src/platform.js` rewrites relative `/api/…` to `https://puremargin.ae`
+- `src/platform.js` rewrites relative `/api/…` to `https://www.puremargin.ae`
   inside the app and does nothing on the web.
 - `CapacitorHttp` is enabled, so requests use native networking and CORS never
   applies. The API needed no changes. **Do not add CORS headers** on the

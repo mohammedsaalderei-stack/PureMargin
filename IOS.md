@@ -15,7 +15,7 @@ of configuration moves that. Everything up to it is done.
 | | |
 |---|---|
 | Runs from the bundle, not the website | `capacitor.config.json` has no `server.url`. The app ships its own copy of the interface, which is what Guideline 4.2 is about. |
-| API calls reach the API | `src/platform.js` points relative `/api/…` paths at `https://puremargin.ae` inside the app and changes nothing on the web. |
+| API calls reach the API | `src/platform.js` points relative `/api/…` paths at `https://www.puremargin.ae` inside the app (the bare domain redirects to www, and iOS drops the sign-in header on that redirect) and changes nothing on the web. |
 | No CORS problem | `CapacitorHttp` is enabled, so requests go through native networking, which is not subject to CORS. The API needed no changes. |
 | Stays signed in | `src/session.js` uses `localStorage` in the app — iOS kills a backgrounded app without warning, and `sessionStorage` would sign people out at random. |
 | Native camera | `src/native/camera.js` opens a viewfinder for clock-in instead of a file picker. |
