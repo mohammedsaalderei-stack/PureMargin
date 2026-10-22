@@ -32,6 +32,11 @@ export default function DocumentDrop({ token, onRoute }) {
   const [busy, setBusy] = useState(false);
   const [verdict, setVerdict] = useState(null);
   const [error, setError] = useState("");
+  /* Pages that did not fit in one reading. `prepareFile` has always reported
+     this and `PhotoScan` has always shown it; this screen dropped it on the
+     floor, so a long PDF was read in part and sorted on the part — with
+     nothing on screen to say so. */
+  const [clipped, setClipped] = useState(null);
   const input = useRef(null);
 
   /* The same preparation the scanners use, for the same reason: this sent the
@@ -43,10 +48,14 @@ export default function DocumentDrop({ token, onRoute }) {
     setBusy(true);
     setError("");
     setVerdict(null);
+    setClipped(null);
     let isPdf = false;
     try {
       const prepared = await prepareFile(file);
       isPdf = prepared.isPdf;
+      if (prepared.rasterised && prepared.sent < prepared.pageCount) {
+        setClipped({ sent: prepared.sent, total: prepared.pageCount });
+      }
       const res = await fetch("/api/ai", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
@@ -98,6 +107,15 @@ export default function DocumentDrop({ token, onRoute }) {
       {verdict && (
         <div>
           <p className="text-[11px] mb-1 truncate" style={{ color: C.slate }}>{verdict.name}</p>
+
+          {/* Said before the verdict, because it changes how much the verdict
+              is worth: a document sorted on its first twenty pages may well
+              have been something else by page thirty. */}
+          {clipped && (
+            <p className="text-xs mb-2" style={{ color: C.amber }}>
+              {fill(t.aiscan.pagesClipped, { n: clipped.sent, total: clipped.total })}
+            </p>
+          )}
 
           {verdict.kind === "unknown" && (
             <>
