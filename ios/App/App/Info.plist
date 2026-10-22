@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>en</string>
+	<key>CFBundleDisplayName</key>
+	<string>PureMargin</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>$(PRODUCT_NAME)</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>$(MARKETING_VERSION)</string>
+	<key>CFBundleVersion</key>
+	<string>$(CURRENT_PROJECT_VERSION)</string>
+
+	<!-- The five languages the app already speaks. Declaring them is what
+	     makes the App Store listing show as localised, and what makes iOS
+	     hand the web view the right preferred language on first launch. -->
+	<key>CFBundleLocalizations</key>
+	<array>
+		<string>en</string>
+		<string>ar</string>
+		<string>hi</string>
+		<string>ur</string>
+		<string>tl</string>
+	</array>
+
+	<!-- ====================================================================
+	     Permission strings.
+
+	     iOS terminates an app immediately, with no error and no crash log a
+	     user would recognise, if it reaches for the camera without one of
+	     these. The app does not crash so much as vanish, which is why this
+	     is the first thing to get wrong and the hardest to diagnose.
+
+	     Apple reads the wording. "Needs camera access" is rejected as
+	     unhelpful; a sentence saying what the person gets is not.
+	     ==================================================================== -->
+	<key>NSCameraUsageDescription</key>
+	<string>PureMargin uses the camera so staff can photograph the workplace when they clock in and out, and so you can scan a supplier invoice instead of typing it in.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>PureMargin lets you choose a photograph of a supplier invoice you have already taken, so its lines can be read and added to your stock.</string>
+
+	<!-- Export compliance. The app uses HTTPS and nothing else, which is
+	     exempt; declaring it here means App Store Connect stops asking the
+	     same question on every single upload. -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
+
+	<key>LSRequiresIPhoneOS</key>
+	<true/>
+	<key>UILaunchStoryboardName</key>
+	<string>LaunchScreen</string>
+	<key>UIMainStoryboardFile</key>
+	<string>Main</string>
+	<key>UIRequiredDeviceCapabilities</key>
+	<array>
+		<string>armv7</string>
+	</array>
+
+	<!-- Portrait only on iPhone. Every screen here is a column of figures
+	     read one-handed next to a pass; landscape gains nothing and gives
+	     the keyboard most of the display. iPad keeps all four, because a
+	     tablet on a stand is usually in landscape. -->
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+	</array>
+	<key>UISupportedInterfaceOrientations~ipad</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationPortraitUpsideDown</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+	<key>UIViewControllerBasedStatusBarAppearance</key>
+	<true/>
+</dict>
+</plist>

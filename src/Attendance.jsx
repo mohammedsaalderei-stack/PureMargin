@@ -8,6 +8,7 @@ import BrandMark from "./BrandMark.jsx";
 import { useLang, fill, localeFor } from "./i18n.jsx";
 import LanguagePicker from "./LanguagePicker.jsx";
 import { prepareShot, ShotError } from "./attendance/shot.js";
+import { nativeCameraAvailable, captureNative } from "./native/camera.js";
 
 /* Clocking in, from a link the business handed out.
 
@@ -317,7 +318,18 @@ export default function Attendance({ clockKey, onBack }) {
                   }}
                 />
 
-                <button type="button" onClick={() => camera.current?.click()} disabled={busy}
+                {/* In the app this opens a viewfinder; on the web it opens
+                    the hidden file input above, which in mobile Safari is a
+                    sheet offering the photo library first. Same `takePhoto`
+                    either way — only how the bytes arrive differs. A native
+                    capture that returns nothing is a cancellation, not a
+                    failure, and must not fall through to the file picker. */}
+                <button type="button" disabled={busy}
+                  onClick={async () => {
+                    if (!nativeCameraAvailable()) { camera.current?.click(); return; }
+                    const shot = await captureNative();
+                    if (shot) takePhoto(shot);
+                  }}
                   className="w-full rounded-2xl flex flex-col items-center justify-center gap-2 py-8 mb-3 disabled:opacity-50"
                   style={{
                     background: preview ? "transparent" : C.irisWash,

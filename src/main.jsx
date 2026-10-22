@@ -3,6 +3,7 @@ import ReactDOM from "react-dom/client";
 import App from "./App.jsx";
 import ErrorBoundary from "./ErrorBoundary.jsx";
 import { initPlatform } from "./platform.js";
+import { initNativeShell, hideSplash } from "./native/shell.js";
 import "./index.css";
 
 /* Before anything renders, and before any screen can call the API.
@@ -20,3 +21,15 @@ ReactDOM.createRoot(document.getElementById("root")).render(
     </ErrorBoundary>
   </React.StrictMode>
 );
+
+/* The native shell, after the render call rather than before it.
+
+   `createRoot().render()` schedules the work; it does not finish it. Hiding
+   the splash here would still be slightly early, so that waits for the frame
+   after paint — the splash is configured not to hide itself precisely so
+   that this can decide, and a blank web view between the splash leaving and
+   the app arriving is the commonest way a Capacitor app looks broken.
+
+   None of this runs in a browser, and all of it is allowed to fail. */
+initNativeShell();
+requestAnimationFrame(() => requestAnimationFrame(() => { hideSplash(); }));

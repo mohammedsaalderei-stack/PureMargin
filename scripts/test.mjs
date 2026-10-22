@@ -34,22 +34,36 @@ import { fileURLToPath } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
-/* Where test files live, and what they look like. Both directories are listed
-   rather than walked from the root: `node_modules` contains thousands of test
-   files belonging to other people. */
+/* Where test files live, and what they look like. These two directories are
+   named rather than walked from the root, because `node_modules` holds
+   thousands of test files belonging to other people — but inside them the
+   search is recursive.
+
+   It was not, until `src/native/camera.test.mjs` was written and quietly
+   never ran. That is precisely the fault discovery was introduced to kill:
+   the note above about three test files that existed, passed and were never
+   run describes the same thing happening a different way. A rule that only
+   holds at one level is a rule somebody will step over without noticing, and
+   the code under `src/ai/`, `src/inventory/` and `src/recipes/` had no way to
+   be tested beside itself until now. */
 const DIRS = ["api", "src"];
 const IS_TEST = /\.test\.(js|mjs)$/;
 
 const filters = process.argv.slice(2);
 
+function walk(dir, prefix) {
+  if (!fs.existsSync(dir)) return [];
+  const out = [];
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const rel = `${prefix}/${entry.name}`;
+    if (entry.isDirectory()) out.push(...walk(path.join(dir, entry.name), rel));
+    else if (IS_TEST.test(entry.name)) out.push(rel);
+  }
+  return out;
+}
+
 const files = DIRS
-  .flatMap((dir) => {
-    const full = path.join(ROOT, dir);
-    if (!fs.existsSync(full)) return [];
-    return fs.readdirSync(full)
-      .filter((name) => IS_TEST.test(name))
-      .map((name) => `${dir}/${name}`);
-  })
+  .flatMap((dir) => walk(path.join(ROOT, dir), dir))
   .filter((file) => !filters.length || filters.some((f) => file.includes(f)))
   .sort();
 

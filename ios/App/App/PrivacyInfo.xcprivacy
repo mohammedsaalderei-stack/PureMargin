@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+	The privacy manifest. Apple has required one for App Store submission
+	since May 2024, and a build without it is rejected at upload, before a
+	human looks at anything.
+
+	Two rules govern what is written here. It has to match what the app
+	actually does, because App Store Connect cross-checks it against the
+	privacy answers typed into the listing and a disagreement stalls the
+	review. And it has to match what users are told, because the people
+	being photographed by the attendance feature are owed the same account
+	of it that Apple is.
+
+	What this app collects, honestly:
+
+	  · an email address and a username, to sign in and to reset a password
+	  · photographs of a workplace, taken by staff when clocking in or out,
+	    visible to the business owner and deletable by them
+	  · photographs of supplier invoices, read for their line items
+	  · sales and stock figures, which are the product
+
+	What it does not do: no tracking, no advertising, no third-party
+	analytics SDK, no data broker, no device fingerprinting, and nothing is
+	used to follow a person across other companies' apps or websites. The
+	sales figures are a business's own records, not a consumer profile.
+-->
+<plist version="1.0">
+<dict>
+	<key>NSPrivacyTracking</key>
+	<false/>
+
+	<!-- Empty because nothing is used for tracking as Apple defines it:
+	     linking this app's data to data from other companies' apps or sites
+	     for advertising or measurement. -->
+	<key>NSPrivacyTrackingDomains</key>
+	<array/>
+
+	<key>NSPrivacyCollectedDataTypes</key>
+	<array>
+		<dict>
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypeEmailAddress</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<true/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+			</array>
+		</dict>
+		<dict>
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypeUserID</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<true/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+			</array>
+		</dict>
+		<!-- The attendance and invoice photographs. Linked to the member of
+		     staff they are recorded against, which is the entire point of
+		     them, and so declared as linked rather than quietly as not. -->
+		<dict>
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypePhotosorVideos</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<true/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+			</array>
+		</dict>
+		<!-- Sales, stock and cost figures: a business's own records. -->
+		<dict>
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypeOtherDataTypes</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<true/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+			</array>
+		</dict>
+	</array>
+
+	<!-- Required-reason APIs. UserDefaults is reached by Capacitor's own
+	     runtime, and CA92.1 is the code for an app using it to store data
+	     only accessible to the app itself, which is what is happening.
+	     Declaring it is not optional: an undeclared required-reason API is
+	     an automated rejection at upload. -->
+	<key>NSPrivacyAccessedAPITypes</key>
+	<array>
+		<dict>
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategoryUserDefaults</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<string>CA92.1</string>
+			</array>
+		</dict>
+	</array>
+</dict>
+</plist>

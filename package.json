@@ -15,9 +15,20 @@
     "ledger:backfill": "node scripts/ledger.mjs backfill",
     "backup": "node scripts/backup.mjs dump",
     "backup:verify": "node scripts/backup.mjs verify",
-    "backup:restore": "node scripts/backup.mjs restore"
+    "backup:restore": "node scripts/backup.mjs restore",
+    "icons": "node scripts/icons.mjs",
+    "ios": "npm run build && npx cap sync ios",
+    "ios:open": "npx cap open ios"
   },
   "dependencies": {
+    "@capacitor/app": "^6.0.2",
+    "@capacitor/camera": "^6.1.2",
+    "@capacitor/core": "^6.2.1",
+    "@capacitor/ios": "^6.2.1",
+    "@capacitor/keyboard": "^6.0.3",
+    "@capacitor/network": "^6.0.3",
+    "@capacitor/splash-screen": "^6.0.3",
+    "@capacitor/status-bar": "^6.0.2",
     "@vercel/analytics": "^2.0.1",
     "@vitejs/plugin-react": "^4.3.3",
     "autoprefixer": "^10.4.20",
@@ -36,6 +47,7 @@
     "node": ">=18"
   },
   "devDependencies": {
+    "@capacitor/cli": "^6.2.1",
     "puppeteer": "^22.15.0"
   }
 }

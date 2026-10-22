@@ -2,29 +2,41 @@
   "appId": "ae.puremargin.app",
   "appName": "PureMargin",
   "webDir": "dist",
-  "server": {
-    "url": "https://puremargin.ae",
-    "cleartext": false,
-    "allowNavigation": ["puremargin.ae", "*.puremargin.ae"]
-  },
   "ios": {
-    "contentInset": "always",
+    "contentInset": "never",
     "backgroundColor": "#08060E",
     "limitsNavigationsToAppBoundDomains": false,
-    "scrollEnabled": true
+    "scrollEnabled": true,
+    "preferredContentMode": "mobile"
   },
   "android": {
     "backgroundColor": "#08060E"
   },
+  "server": {
+    "androidScheme": "https",
+    "iosScheme": "capacitor",
+    "allowNavigation": ["puremargin.ae", "*.puremargin.ae"]
+  },
   "plugins": {
+    "CapacitorHttp": {
+      "enabled": true
+    },
     "SplashScreen": {
-      "launchShowDuration": 600,
+      "launchShowDuration": 500,
+      "launchAutoHide": false,
       "backgroundColor": "#08060E",
-      "showSpinner": false
+      "showSpinner": false,
+      "androidScaleType": "CENTER_CROP"
     },
     "StatusBar": {
       "style": "DARK",
-      "backgroundColor": "#08060E"
+      "backgroundColor": "#08060E",
+      "overlaysWebView": false
+    },
+    "Keyboard": {
+      "resize": "native",
+      "style": "DARK",
+      "resizeOnFullScreen": true
     }
   }
 }
