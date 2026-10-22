@@ -71,6 +71,15 @@ delete env.REDIS_URL;
 delete env.KV_URL;
 delete env.KV_REST_API_URL;
 delete env.KV_REST_API_TOKEN;
+/* And the database, for the same reason and with more at stake. `_store.js`
+   prefers Postgres when DATABASE_URL is present, so without these two lines a
+   developer who has it exported in their shell would have twenty-six test
+   files writing fixture accounts and fixture ledgers straight into the live
+   `kv` table — silently, because it would all work. A test file that genuinely
+   needs the database calls `loadLocalEnv()` itself and opts back in, which is
+   how `_mirror.test.js` and `_store-pg.test.js` reach it. */
+delete env.DATABASE_URL;
+delete env.POSTGRES_URL;
 
 const run = (file) =>
   new Promise((resolve) => {

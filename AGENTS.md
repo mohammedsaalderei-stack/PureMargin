@@ -30,6 +30,71 @@ Vercel-style serverless API functions in `/api/*.js` (each exports
 Secrets are delivered via `/run/base44/app.env` (listed last in `env_file:` so
 they override the defaults).
 
+## Where durable data lives (and why it moved)
+
+- **The production Redis was deleted by the provider on 17-Oct-2026.** Redis
+  Cloud reclaims a free 30MB database after fourteen consecutive days with no
+  commands reaching it; free databases have no backups and no recovery path,
+  and data-persistence had been off since creation, so there was never a
+  snapshot. Accounts, organizations, the item master, every stock ledger,
+  every recipe, every purchase order and all attendance records went with it.
+  Loyverse was untouched — it holds the sales upstream — so reconnecting a POS
+  token restores the whole dashboard. Nothing else came back.
+- **`_store.js` prefers Postgres whenever `DATABASE_URL` is set**, falling back
+  to Redis and then to an in-process Map. When both are configured Postgres
+  wins outright rather than the two sharing the work: a key with two homes is
+  a key with two answers. Redis remains supported for a deployment that has
+  one and no database.
+- The store's four functions are unchanged, so **no caller was touched**. The
+  values are JSON documents read and written whole, with hand-rolled secondary
+  indexes (`email:<address>` → username) that already work — modelling twenty
+  of those into tables would mean rewriting twenty modules and the twenty-six
+  test files that write fixtures through them, to fix a problem that is
+  entirely about durability. Migration `004_app_state.sql` is the `kv` table:
+  `key text PRIMARY KEY, value jsonb, updated_at`, plus a `text_pattern_ops`
+  index because the primary key's own index cannot serve `LIKE 'inv:%'`.
+  **This is a staging post, not a destination** — any one prefix can be
+  promoted to a real table later without callers noticing.
+- **`listKeys` escapes `%`, `_` and `\` in the prefix.** Unescaped, a prefix
+  carrying a wildcard matches keys it does not name, which on the admin screen
+  means listing somebody else's records. The `ESCAPE` clause needs `'\\'` in
+  JavaScript source; written `'\'` it parses as an escaped quote and hands
+  SQL an *empty* escape character, which silently disables the escaping. Both
+  faults were shipped and caught by `_store-pg.test.js`.
+
+## A configured store that fails must say so
+
+- Every operation used to swallow its error: a failed read returned `null`
+  (which is also what a missing key returns), a failed write returned `false`
+  (which nothing checks), a failed scan returned `[]` — and below each sat a
+  fall-through into the in-process Map. So a dead database presented as an
+  empty, working app: sign-in said "wrong password", balances read as zero,
+  and a delivery typed in at 7am returned 200 into memory belonging to one
+  invocation.
+- Now a configured backend that fails throws `StorageUnavailable`, and **the
+  memory Map is reachable only when nothing is configured at all**.
+  `handledUnavailable(res, err)` lives beside the error so no route can invent
+  a different status — 503 with `Retry-After`, not 500, because the request
+  was fine and will work later. Wired into `requireAuth`, `login` and
+  `register`; the screens say `login.unavailable` / `register.errStorage` in
+  all five languages and say explicitly that it is not the password.
+- `recordAudit` and `noteSync` already catch, so best-effort logs still cannot
+  fail the action they describe. Keep it that way.
+- **Tests never touch the live store.** `scripts/test.mjs` deletes
+  `REDIS_URL`, `KV_URL`, `KV_REST_API_URL`, `KV_REST_API_TOKEN` and now
+  `DATABASE_URL`/`POSTGRES_URL` from the child environment. A file that needs
+  the database calls `loadLocalEnv()` and opts back in — but that one variable
+  also decides `_store.js`'s backend, which is how `_mirror.test.js` began
+  writing olive-oil fixtures into the production `kv` table. It now calls
+  **`__forceMemory()`**, a function rather than an environment variable on
+  purpose: a variable that forces memory is a variable that can be set in
+  production. `_store-pg.test.js` is the one file that exercises a real
+  backend; it writes only under `selftest:` and deletes each key by name.
+- Neon has no documented inactivity deletion and storage persists
+  independently of compute, but the free plan's instant-restore window is only
+  **6 hours** — keep a scheduled `pg_dump`.
+
+
 ## Verify it works
 - `curl -sf -H "Host: external-preview.example.com" http://localhost:3000/`
   returns the HTML (Vite `allowedHosts: true`).

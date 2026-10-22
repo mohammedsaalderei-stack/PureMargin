@@ -28,6 +28,15 @@ if (!configured) {
   process.exit(0);
 }
 
+/* This file wants the database for the Postgres half of the mirror, and the
+   memory store for the Redis half it mirrors *from*. Those used to be the
+   same wish, because `_store.js` only ever spoke Redis. It now prefers
+   Postgres whenever DATABASE_URL is set — which `loadLocalEnv()` above has
+   just done — so without this the ledger fixtures below go into the live
+   `kv` table instead of into a Map that disappears when the process does. */
+const { __forceMemory } = await import("./_store.js");
+__forceMemory();
+
 const { mirrorMovement, mirrorMany, rowFor } = await import("./_mirror.js");
 
 const BIZ = crypto.randomUUID();

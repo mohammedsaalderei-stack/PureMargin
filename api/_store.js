@@ -15,9 +15,47 @@
 const REST_URL = process.env.KV_REST_API_URL;
 const REST_TOKEN = process.env.KV_REST_API_TOKEN;
 const TCP_URL = process.env.REDIS_URL || process.env.KV_URL;
+const PG_URL = process.env.DATABASE_URL || process.env.POSTGRES_URL;
 
-export const persistent = Boolean((REST_URL && REST_TOKEN) || TCP_URL);
-export const backend = REST_URL && REST_TOKEN ? "http" : TCP_URL ? "tcp" : "memory";
+/* Postgres first, when there is one.
+
+   Not a preference about databases. The provider deleted the production
+   Redis on 17-Oct-2026 — free tier, reclaimed after a fortnight idle, no
+   persistence, no backup, nothing to restore — and the replacement sits on
+   the same plan with the same settings. Everything this module holds is
+   durable application state: accounts, organizations, the item master, the
+   stock ledgers, recipes, purchase orders, attendance. None of it is a
+   cache. The POS read, which is the only high-volume thing in the app, is
+   an in-process Map in `_data.js` and never comes near here.
+
+   So when both are configured Postgres wins outright rather than the two
+   sharing the work, because a key with two homes is a key with two answers
+   and no way to tell which is current. Redis stays supported for a
+   deployment that has one and no database. */
+export let backend = PG_URL
+  ? "pg"
+  : REST_URL && REST_TOKEN ? "http" : TCP_URL ? "tcp" : "memory";
+export let persistent = backend !== "memory";
+
+/* Test seam: keep this module on memory even though a database is configured.
+
+   `scripts/test.mjs` deletes DATABASE_URL from the child environment, so the
+   suite cannot reach the live store by accident. But a test file that needs
+   the database for its own sake calls `loadLocalEnv()` to get it back — and
+   that one variable now decides this module's backend too, so `_mirror.test.js`
+   quietly began writing its olive-oil fixtures into the production `kv` table
+   the moment Postgres was preferred here. Two rows, with a random organization
+   id, which nothing would ever have cleaned up or recognised.
+
+   An environment variable would be the obvious fix and is the wrong one: a
+   variable that forces memory is a variable that can be set in production,
+   and discarding every write while reporting success is precisely the failure
+   this file spent a commit removing. A function has to be called on purpose,
+   by a file that has already decided it is a test, which is why this is one. */
+export function __forceMemory() {
+  backend = "memory";
+  persistent = false;
+}
 
 /* ── When the store is configured and cannot be reached ──────────────
 
@@ -120,6 +158,21 @@ async function tcpClient() {
   return resolved;
 }
 
+/* ---------------- Postgres (the kv table from migration 004) ---------------- */
+/* Imported where it is used rather than at the top, so a deployment with no
+   database never loads `pg` at all, and so this module does not depend on
+   `_db.js` to be read. */
+async function pg(text, params) {
+  const { db } = await import("./_db.js");
+  return db().query(text, params);
+}
+
+/* `%` and `_` are LIKE wildcards and `\` escapes them, so a prefix carrying
+   one would match more keys than it named. None of the prefixes in use do
+   today — but "today" is not a property worth relying on when the cost of
+   being wrong is an admin screen listing somebody else's records. */
+const likePrefix = (prefix) => `${String(prefix).replace(/[\\%_]/g, "\\$&")}%`;
+
 /* ---------------- HTTP (Upstash REST) ---------------- */
 async function rest(command) {
   const res = await fetch(REST_URL, {
@@ -135,6 +188,13 @@ async function rest(command) {
 /* ---------------- Public API ---------------- */
 export async function getJSON(key) {
   warnOnce();
+  if (backend === "pg") {
+    /* jsonb comes back parsed by the driver, so there is nothing to decode.
+       A row that exists always has a value — the column is NOT NULL — so an
+       absent row is the only way this answers null. */
+    const r = await guard("read", () => pg("SELECT value FROM kv WHERE key = $1", [key]));
+    return r.rows.length ? r.rows[0].value : null;
+  }
   if (backend !== "memory") {
     const raw = await guard("read", async () => {
       if (backend === "http") return rest(["GET", key]);
@@ -151,6 +211,14 @@ export async function getJSON(key) {
 export async function setJSON(key, value) {
   warnOnce();
   const raw = JSON.stringify(value);
+  if (backend === "pg") {
+    await guard("write", () => pg(
+      `INSERT INTO kv (key, value, updated_at) VALUES ($1, $2::jsonb, now())
+         ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now()`,
+      [key, raw],
+    ));
+    return true;
+  }
   if (backend !== "memory") {
     await guard("write", async () => {
       if (backend === "http") return rest(["SET", key, raw]);
@@ -166,6 +234,10 @@ export async function setJSON(key, value) {
 
 export async function del(key) {
   warnOnce();
+  if (backend === "pg") {
+    await guard("delete", () => pg("DELETE FROM kv WHERE key = $1", [key]));
+    return true;
+  }
   if (backend !== "memory") {
     await guard("delete", async () => {
       if (backend === "http") return rest(["DEL", key]);
@@ -185,6 +257,11 @@ export async function del(key) {
 export async function listKeys(prefix) {
   warnOnce();
   const pattern = `${prefix}*`;
+  if (backend === "pg") {
+    const r = await guard("listKeys", () => pg(
+      "SELECT key FROM kv WHERE key LIKE $1 ESCAPE '\\'", [likePrefix(prefix)]));
+    return r.rows.map((row) => row.key);
+  }
   if (backend !== "memory") {
     return (await guard("listKeys", async () => {
       if (backend === "http") return rest(["KEYS", pattern]);

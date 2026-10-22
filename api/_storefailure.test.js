@@ -23,6 +23,10 @@ process.env.KV_REST_API_URL = "http://127.0.0.1:1/";
 process.env.KV_REST_API_TOKEN = "not-a-real-token";
 delete process.env.REDIS_URL;
 delete process.env.KV_URL;
+/* Postgres outranks Redis in `_store.js`, so leaving either of these set
+   would quietly make `backend` "pg" and test a backend that works. */
+delete process.env.DATABASE_URL;
+delete process.env.POSTGRES_URL;
 
 import assert from "node:assert/strict";
 
