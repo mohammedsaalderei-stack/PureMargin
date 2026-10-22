@@ -13,6 +13,7 @@ import { LanguageProvider } from "./i18n.jsx";
 import { ThemeProvider } from "./theme.jsx";
 import { prefersReducedMotion } from "./hooks.js";
 import { useRoute, navigate, useBackspaceBack } from "./router.js";
+import { readSession, writeSession, clearSession, TOKEN_KEY, USER_KEY } from "./session.js";
 
 const OUT_MS = 260;
 
@@ -20,8 +21,8 @@ const OUT_MS = 260;
 const PUBLIC_VIEWS = ["landing", "login", "register", "forgot", "pricing", "attendance"];
 
 function Routes() {
-  const [token, setToken] = useState(() => sessionStorage.getItem("sufra_token") || "");
-  const [user, setUser] = useState(() => sessionStorage.getItem("sufra_user") || "");
+  const [token, setToken] = useState(() => readSession(TOKEN_KEY));
+  const [user, setUser] = useState(() => readSession(USER_KEY));
   /* A team invitation link opens straight onto the sign-up form, carrying
      its token so registration lands the account in the inviting team. */
   const [inviteToken] = useState(() => new URLSearchParams(window.location.search).get("invite") || "");
@@ -54,7 +55,13 @@ function Routes() {
   /* Carried from sign-in into the reset screen, so an address already typed
      doesn't have to be typed twice. */
   const [resetIdentifier, setResetIdentifier] = useState("");
-  const [splash, setSplash] = useState(() => !sessionStorage.getItem("sufra_seen"));
+  /* Guarded because this runs during the first render, before anything is on
+     screen. A WKWebView with site data blocked throws on the first access
+     rather than returning null, and an exception here is a white screen on
+     launch instead of a splash shown twice. */
+  const [splash, setSplash] = useState(() => {
+    try { return !sessionStorage.getItem("sufra_seen"); } catch { return true; }
+  });
   /* Set only for the session that just registered, so the connect prompt
      appears once for a new account and not on every sign-in after. */
   const [justRegistered, setJustRegistered] = useState(false);
@@ -92,8 +99,7 @@ function Routes() {
   });
 
   const signOut = () => transition(() => {
-    sessionStorage.removeItem("sufra_token");
-    sessionStorage.removeItem("sufra_user");
+    clearSession();
     setToken("");
     setUser("");
     setView("landing");
@@ -126,7 +132,7 @@ function Routes() {
            without adopting it, the device that made the change would sign
            itself out. */
         onSession={(next) => {
-          sessionStorage.setItem("sufra_token", next);
+          writeSession(TOKEN_KEY, next);
           setToken(next);
         }}
       />
@@ -187,7 +193,7 @@ function Routes() {
       {splash && (
         <Splash
           onDone={() => {
-            sessionStorage.setItem("sufra_seen", "1");
+            try { sessionStorage.setItem("sufra_seen", "1"); } catch { /* shown again next launch */ }
             setSplash(false);
           }}
         />

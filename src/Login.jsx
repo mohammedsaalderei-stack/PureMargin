@@ -5,6 +5,7 @@ import BrandMark from "./BrandMark.jsx";
 import { useLang, fill } from "./i18n.jsx";
 import { Req, RequiredLegend } from "./Required.jsx";
 import LanguagePicker from "./LanguagePicker.jsx";
+import { writeSession, TOKEN_KEY, USER_KEY } from "./session.js";
 
 export default function Login({ onAuthed, onBack, onRegister, onForgot }) {
   const C = useC();
@@ -50,8 +51,8 @@ export default function Login({ onAuthed, onBack, onRegister, onForgot }) {
         }
         return;
       }
-      sessionStorage.setItem("sufra_token", data.token);
-      sessionStorage.setItem("sufra_user", username || "user");
+      writeSession(TOKEN_KEY, data.token);
+      writeSession(USER_KEY, username || "user");
       onAuthed(data.token, username);
     } catch {
       setError(t.login.offline);
