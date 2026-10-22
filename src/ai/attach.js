@@ -82,6 +82,47 @@ export function renderPlan(pageCount) {
    in one request anyway. */
 export const MAX_RENDERED_PAGES = 60;
 
+/* The most of a page the model actually sees.
+
+   The model's API scales any image above about 1.15 megapixels down to that
+   before reading it. A page rendered at 1600 px on its long edge is 1.8
+   megapixels, so a third of its bytes were spent on detail thrown away on
+   arrival, and on a scanned PDF those bytes are what decided how many pages fit
+   in one request. Rendering to this size shows the model exactly what it saw
+   before, at roughly two thirds of the weight. */
+export const MODEL_MAX_PIXELS = 1_150_000;
+
+/* The scale to render a page at: the plan's long edge, capped at what the
+   model sees, and never more than three times the page's own size. */
+export function pageScale(width, height, maxDim) {
+  return Math.min(
+    maxDim / Math.max(width, height),
+    Math.sqrt(MODEL_MAX_PIXELS / (width * height)),
+    3,
+  );
+}
+
+/* Rendered pages, grouped into requests that each fit the wire budget, in
+   order. A document too long for one request is read in parts (see
+   `api/_parts.js`) rather than having its later pages dropped. */
+export function batchPages(dataUrls, budget = WIRE_BUDGET_BYTES) {
+  const batches = [];
+  let current = [];
+  let spent = 0;
+  for (const url of dataUrls) {
+    const cost = dataUrlBytes(url);
+    if (current.length && spent + cost > budget) {
+      batches.push(current);
+      current = [];
+      spent = 0;
+    }
+    current.push(url);
+    spent += cost;
+  }
+  if (current.length) batches.push(current);
+  return batches;
+}
+
 /* Why a file was refused, in a form the caller can turn into a sentence. The
    codes match the ones `api/ai.js` returns, so both ends map through the same
    table and a refusal reads the same wherever it was decided. */
@@ -154,11 +195,13 @@ async function loadPdfjs() {
   return lib;
 }
 
-/* Render a PDF into page images that fit the budget.
+/* Render a PDF into page images, every page up to MAX_RENDERED_PAGES.
 
-   Pages are added while there is room and the rest are dropped, which the
-   caller reports — reading eleven of fourteen pages silently would leave three
-   pages of invoice lines missing with nothing on screen to suggest it. */
+   Pages used to be added only while they fitted one request and the rest were
+   dropped, so a scanned invoice of more than a few pages lost its later lines.
+   Every page is rendered now, and prepareFile groups them into requests. Only
+   a document longer than MAX_RENDERED_PAGES is still cut, which the caller
+   reports. */
 async function pdfToPages(file, onProgress) {
   const pdfjs = await loadPdfjs();
   const bytes = new Uint8Array(await file.arrayBuffer());
@@ -169,13 +212,12 @@ async function pdfToPages(file, onProgress) {
   const limit = Math.min(pageCount, MAX_RENDERED_PAGES);
 
   const dataUrls = [];
-  let spent = 0;
 
   for (let n = 1; n <= limit; n += 1) {
     onProgress?.(n, pageCount);
     const page = await doc.getPage(n);
     const base = page.getViewport({ scale: 1 });
-    const scale = Math.min(plan.maxDim / Math.max(base.width, base.height), 3);
+    const scale = pageScale(base.width, base.height, plan.maxDim);
     const viewport = page.getViewport({ scale });
 
     const canvas = document.createElement("canvas");
@@ -205,16 +247,20 @@ async function pdfToPages(file, onProgress) {
     canvas.height = 0;
     page.cleanup();
 
-    const cost = dataUrlBytes(url);
-    if (spent + cost > WIRE_BUDGET_BYTES) break;
-    spent += cost;
+    /* A single page that cannot fit a request on its own cannot be sent at
+       all, in parts or otherwise. At these sizes it does not happen; if it
+       ever does, it is named rather than bounced by the platform. */
+    if (dataUrlBytes(url) > WIRE_BUDGET_BYTES) {
+      doc.destroy();
+      throw new AttachError("toolarge", { limitMb: Math.round(RAW_BUDGET_BYTES / 1048576) });
+    }
     dataUrls.push(url);
   }
 
   doc.destroy();
 
   if (!dataUrls.length) throw new AttachError("toolarge", { limitMb: Math.round(RAW_BUDGET_BYTES / 1048576) });
-  return { dataUrls, pageCount, sent: dataUrls.length };
+  return { dataUrls, pageCount };
 }
 
 /* Pages of one document gathered before it is read.
@@ -251,8 +297,13 @@ export async function prepareFile(file, { onProgress } = {}) {
 
   const isPdf = await looksLikePdf(file);
 
+  /* `dataUrls` is what fits one request, and `batches` is the whole document
+     split into requests. A caller that can only send one request (sorting a
+     document on Ask) sends `dataUrls` and reports `sent` against `pageCount`;
+     the scanners send every batch. */
   if (!isPdf) {
-    return { isPdf: false, dataUrls: [await photoToDataUrl(file, 1600)], rasterised: false };
+    const url = await photoToDataUrl(file, 1600);
+    return { isPdf: false, dataUrls: [url], batches: [[url]], rasterised: false };
   }
 
   /* Small enough to send whole. Preferred: the text layer is read directly
@@ -261,13 +312,22 @@ export async function prepareFile(file, { onProgress } = {}) {
   if (file.size <= RAW_BUDGET_BYTES) {
     const url = await readAsDataUrl(file);
     if (dataUrlBytes(url) <= WIRE_BUDGET_BYTES) {
-      return { isPdf: true, dataUrls: [url], rasterised: false };
+      return { isPdf: true, dataUrls: [url], batches: [[url]], rasterised: false };
     }
   }
 
   try {
-    const { dataUrls, pageCount, sent } = await pdfToPages(file, onProgress);
-    return { isPdf: true, dataUrls, rasterised: true, pageCount, sent };
+    const { dataUrls, pageCount } = await pdfToPages(file, onProgress);
+    const batches = batchPages(dataUrls);
+    return {
+      isPdf: true,
+      dataUrls: batches[0],
+      batches,
+      rasterised: true,
+      pageCount,
+      sent: batches[0].length,
+      rendered: dataUrls.length,
+    };
   } catch (err) {
     if (err instanceof AttachError) throw err;
     /* pdf.js could not open it — encrypted, truncated, or not really a PDF.
@@ -275,7 +335,8 @@ export async function prepareFile(file, { onProgress } = {}) {
        reads some documents pdf.js will not. Otherwise there is nothing to
        send, and the honest answer is that it is too big. */
     if (file.size <= RAW_BUDGET_BYTES) {
-      return { isPdf: true, dataUrls: [await readAsDataUrl(file)], rasterised: false };
+      const url = await readAsDataUrl(file);
+      return { isPdf: true, dataUrls: [url], batches: [[url]], rasterised: false };
     }
     throw new AttachError("toolarge", { limitMb: Math.round(RAW_BUDGET_BYTES / 1048576) });
   }

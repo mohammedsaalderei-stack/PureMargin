@@ -52,6 +52,9 @@ export default function PhotoScan({ token, kind, onResult, buttonLabel }) {
   const [pages, setPages] = useState([]);
   /* How many pages did not fit in one reading, so the screen can say so. */
   const [pagesRefused, setPagesRefused] = useState(0);
+  /* How many requests the last document took, when it took more than one.
+     Each was a scan off the allowance, which is said rather than discovered. */
+  const [readInParts, setReadInParts] = useState(0);
 
   useEffect(() => {
     fetch("/api/ai", { headers: { Authorization: `Bearer ${token}` } })
@@ -79,10 +82,13 @@ export default function PhotoScan({ token, kind, onResult, buttonLabel }) {
       });
       isPdf = prepared.isPdf;
       setPreviewIsPdf(prepared.isPdf);
-      if (prepared.rasterised && prepared.sent < prepared.pageCount) {
-        setClipped({ sent: prepared.sent, total: prepared.pageCount });
+      /* Every rendered page is sent now, in as many parts as it takes, so only
+         a document longer than the render cap is still read in part. */
+      const rendered = prepared.rendered ?? prepared.sent;
+      if (prepared.rasterised && rendered < prepared.pageCount) {
+        setClipped({ sent: rendered, total: prepared.pageCount });
       }
-      await send(prepared.dataUrls, isPdf);
+      await send(prepared.batches || [prepared.dataUrls], isPdf);
     } catch (err) {
       setError(err instanceof AttachError
         ? scanErrorMessage(s, { ...err, isPdf })
@@ -93,33 +99,51 @@ export default function PhotoScan({ token, kind, onResult, buttonLabel }) {
     }
   }
 
-  /* One request for one document, however many pages it arrived as. The
-     server reads every image in the order sent, as one document, so a line
-     that runs across a page break still reads as one line. */
-  async function send(dataUrls, isPdf) {
-    setPreview(dataUrls[0]);
-    setStage(s.analyzing);
-    const res = await fetch("/api/ai", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ kind, images: dataUrls, lang }),
-    });
-    const json = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      /* Every refusal used to read "the photo couldn't be read, try again in
-         better light" — a spent allowance, a file the platform bounced, an
-         unreadable type, and a PDF, all the same sentence. Each says what it
-         actually is now, and the mapping is shared with the other scanner so
-         they cannot drift apart again. */
-      setError(scanErrorMessage(s, { status: res.status, ...json, isPdf }));
-      if (json.error === "quota") setScans({ left: 0 });
-      return false;
+  /* One document, sent as one request or, when it is too long for one, as
+     several. The server reads the images of a request in the order sent, so a
+     line that runs across a page break still reads as one line; a document in
+     parts has every part but the last read on its own, and the last brings
+     those readings back to be joined and matched as a whole (api/_parts.js). */
+  async function send(parts, isPdf) {
+    setPreview(parts[0][0]);
+    setReadInParts(0);
+    const previous = [];
+    for (let i = 0; i < parts.length; i += 1) {
+      const last = i === parts.length - 1;
+      setStage(parts.length > 1 ? fill(s.readingPart, { n: i + 1, total: parts.length }) : s.analyzing);
+      const res = await fetch("/api/ai", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          kind,
+          images: parts[i],
+          lang,
+          ...(last ? (previous.length ? { previous } : {}) : { partial: true }),
+        }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        /* Every refusal used to read "the photo couldn't be read, try again in
+           better light" — a spent allowance, a file the platform bounced, an
+           unreadable type, and a PDF, all the same sentence. Each says what it
+           actually is now, and the mapping is shared with the other scanner so
+           they cannot drift apart again. */
+        setError(scanErrorMessage(s, { status: res.status, ...json, isPdf }));
+        if (json.error === "quota") setScans({ left: 0 });
+        return false;
+      }
+      if (json.scans) setScans(json.scans);
+      if (!last) {
+        previous.push(json.partial);
+        continue;
+      }
+      if (parts.length > 1) setReadInParts(parts.length);
+      /* The depletion plan rides alongside the result rather than inside it:
+         it is a proposal about stock, not part of what the photo said. */
+      onResult(json.result, parts[0][0], json.depletion || null);
+      return true;
     }
-    if (json.scans) setScans(json.scans);
-    /* The depletion plan rides alongside the result rather than inside it:
-       it is a proposal about stock, not part of what the photo said. */
-    onResult(json.result, dataUrls[0], json.depletion || null);
-    return true;
+    return false;
   }
 
   /* What the picker handed over: one file or several, taken or chosen. */
@@ -165,7 +189,7 @@ export default function PhotoScan({ token, kind, onResult, buttonLabel }) {
     setPreviewIsPdf(false);
     setFileName("");
     try {
-      if (await send(pages, false)) {
+      if (await send([pages], false)) {
         setPages([]);
         setPagesRefused(0);
       }
@@ -323,6 +347,12 @@ export default function PhotoScan({ token, kind, onResult, buttonLabel }) {
       {clipped && !error && (
         <p className="text-[11px] mt-2" style={{ color: C.amber }}>
           {fill(s.pagesClipped, { n: clipped.sent, total: clipped.total })}
+        </p>
+      )}
+
+      {readInParts > 1 && !error && (
+        <p className="text-[11px] mt-2" style={{ opacity: 0.7 }}>
+          {fill(s.readInParts, { n: readInParts })}
         </p>
       )}
 

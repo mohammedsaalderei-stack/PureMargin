@@ -23,6 +23,9 @@ import {
   scanErrorMessage,
   MAX_RENDERED_PAGES,
   addPages,
+  batchPages,
+  pageScale,
+  MODEL_MAX_PIXELS,
 } from "./ai/attach.js";
 
 let failures = 0;
@@ -233,6 +236,51 @@ test("the pages already held are not modified", () => {
   const held = [pageOf(100)];
   addPages(held, [pageOf(100)]);
   assert.equal(held.length, 1);
+});
+
+/* A scanned PDF too long for one request, split into several. */
+
+test("every page lands in exactly one batch, in order", () => {
+  const pages = Array.from({ length: 9 }, (_, i) => pageOf(700, String.fromCharCode(97 + i)));
+  const batches = batchPages(pages, 2000);
+  assert.deepEqual(batches.flat(), pages);
+});
+
+test("each batch fits one request", () => {
+  const pages = Array.from({ length: 9 }, () => pageOf(700));
+  for (const batch of batchPages(pages, 2000)) {
+    assert.ok(batch.reduce((sum, p) => sum + dataUrlBytes(p), 0) <= 2000);
+  }
+});
+
+test("a batch is filled before the next one starts", () => {
+  /* Two per batch fit; nine pages need five requests, not nine. Every extra
+     request is another scan off the allowance. */
+  const pages = Array.from({ length: 9 }, () => pageOf(700));
+  assert.deepEqual(batchPages(pages, 2000).map((b) => b.length), [2, 2, 2, 2, 1]);
+});
+
+test("a document that fits is one batch", () => {
+  const pages = [pageOf(500), pageOf(500)];
+  assert.deepEqual(batchPages(pages, 2000), [pages]);
+});
+
+test("a page is rendered no larger than the model reads", () => {
+  /* An A4 page at the short-document plan used to come out at 1.8 megapixels,
+     of which the model kept 1.15. */
+  const s = pageScale(595, 842, 1600);
+  assert.ok(595 * s * 842 * s <= MODEL_MAX_PIXELS * 1.001);
+});
+
+test("a small page still follows the plan's long edge", () => {
+  /* Where the plan asks for less than the model reads, the plan wins: a
+     sixty-page document is rendered small so it needs fewer requests. */
+  const s = pageScale(595, 842, 900);
+  assert.ok(Math.abs(842 * s - 900) < 1);
+});
+
+test("a tiny page is not blown up past three times its size", () => {
+  assert.equal(pageScale(100, 100, 1600), 3);
 });
 
 console.log(failures ? `\n${failures} failed` : "\nall passed");
