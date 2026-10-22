@@ -217,6 +217,31 @@ async function pdfToPages(file, onProgress) {
   return { dataUrls, pageCount, sent: dataUrls.length };
 }
 
+/* Pages of one document gathered before it is read.
+
+   A paper invoice is photographed a page at a time, and every page has to ride
+   the same request to be read as one document: read one by one, page two was a
+   second scan of a second "invoice" with no header and half the lines. Pages
+   are taken in order while they fit the wire budget and the page cap. The first
+   one that would not fit is refused, and so is everything after it, so the
+   document never gains a gap in the middle. The caller says how many were
+   refused instead of reading a shorter invoice than was photographed. */
+export function addPages(pages, added, { budget = WIRE_BUDGET_BYTES, maxPages = MAX_RENDERED_PAGES } = {}) {
+  const kept = [...pages];
+  let spent = kept.reduce((sum, url) => sum + dataUrlBytes(url), 0);
+  let refused = 0;
+  for (const url of added) {
+    const cost = dataUrlBytes(url);
+    if (refused || kept.length >= maxPages || spent + cost > budget) {
+      refused += 1;
+      continue;
+    }
+    spent += cost;
+    kept.push(url);
+  }
+  return { pages: kept, refused };
+}
+
 /* Prepare a chosen file for `POST /api/ai`.
 
    Returns what to send and what happened to it, or throws an AttachError whose

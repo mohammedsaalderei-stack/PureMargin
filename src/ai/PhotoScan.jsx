@@ -1,8 +1,8 @@
 import { useRef, useState, useEffect } from "react";
-import { Camera, Loader2, RotateCcw, FileText } from "lucide-react";
+import { Camera, Loader2, RotateCcw, FileText, Plus, X, ScanLine } from "lucide-react";
 import { useC } from "../theme.jsx";
 import { useLang, fill } from "../i18n.jsx";
-import { prepareFile, looksLikePdf, scanErrorMessage, AttachError } from "./attach.js";
+import { prepareFile, looksLikePdf, scanErrorMessage, AttachError, addPages } from "./attach.js";
 
 /* Take or choose a photo or a document, send it to the AI, hand the parsed
    result up.
@@ -41,6 +41,17 @@ export default function PhotoScan({ token, kind, onResult, buttonLabel }) {
      spending one. Somebody sees "12 left" before taking the photo rather than
      after being refused. */
   const [scans, setScans] = useState(null);
+  /* Photographs waiting to be read together as one document.
+
+     A paper invoice is photographed a page at a time. Each photo used to be
+     read the moment it was taken, so page two became a second scan of a
+     second "invoice", with no supplier, no date and half the lines, and there
+     was no way to send both pages at once. Now photos gather here, in order,
+     until somebody says read. A lone PDF still goes straight through: it
+     already carries its pages. */
+  const [pages, setPages] = useState([]);
+  /* How many pages did not fit in one reading, so the screen can say so. */
+  const [pagesRefused, setPagesRefused] = useState(0);
 
   useEffect(() => {
     fetch("/api/ai", { headers: { Authorization: `Bearer ${token}` } })
@@ -68,32 +79,10 @@ export default function PhotoScan({ token, kind, onResult, buttonLabel }) {
       });
       isPdf = prepared.isPdf;
       setPreviewIsPdf(prepared.isPdf);
-      setPreview(prepared.dataUrls[0]);
       if (prepared.rasterised && prepared.sent < prepared.pageCount) {
         setClipped({ sent: prepared.sent, total: prepared.pageCount });
       }
-
-      setStage(s.analyzing);
-      const res = await fetch("/api/ai", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ kind, images: prepared.dataUrls, lang }),
-      });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        /* Every refusal used to read "the photo couldn't be read, try again in
-           better light" — a spent allowance, a file the platform bounced, an
-           unreadable type, and a PDF, all the same sentence. Each says what it
-           actually is now, and the mapping is shared with the other scanner so
-           they cannot drift apart again. */
-        setError(scanErrorMessage(s, { status: res.status, ...json, isPdf }));
-        if (json.error === "quota") setScans({ left: 0 });
-        return;
-      }
-      if (json.scans) setScans(json.scans);
-      /* The depletion plan rides alongside the result rather than inside it:
-         it is a proposal about stock, not part of what the photo said. */
-      onResult(json.result, prepared.dataUrls[0], json.depletion || null);
+      await send(prepared.dataUrls, isPdf);
     } catch (err) {
       setError(err instanceof AttachError
         ? scanErrorMessage(s, { ...err, isPdf })
@@ -102,6 +91,97 @@ export default function PhotoScan({ token, kind, onResult, buttonLabel }) {
       setBusy(false);
       setStage("");
     }
+  }
+
+  /* One request for one document, however many pages it arrived as. The
+     server reads every image in the order sent, as one document, so a line
+     that runs across a page break still reads as one line. */
+  async function send(dataUrls, isPdf) {
+    setPreview(dataUrls[0]);
+    setStage(s.analyzing);
+    const res = await fetch("/api/ai", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ kind, images: dataUrls, lang }),
+    });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      /* Every refusal used to read "the photo couldn't be read, try again in
+         better light" — a spent allowance, a file the platform bounced, an
+         unreadable type, and a PDF, all the same sentence. Each says what it
+         actually is now, and the mapping is shared with the other scanner so
+         they cannot drift apart again. */
+      setError(scanErrorMessage(s, { status: res.status, ...json, isPdf }));
+      if (json.error === "quota") setScans({ left: 0 });
+      return false;
+    }
+    if (json.scans) setScans(json.scans);
+    /* The depletion plan rides alongside the result rather than inside it:
+       it is a proposal about stock, not part of what the photo said. */
+    onResult(json.result, dataUrls[0], json.depletion || null);
+    return true;
+  }
+
+  /* What the picker handed over: one file or several, taken or chosen. */
+  async function gather(files) {
+    if (!files.length) return;
+    if (files.length === 1 && !pages.length && await looksLikePdf(files[0])) {
+      return analyze(files[0]);
+    }
+    setBusy(true);
+    setError("");
+    setClipped(null);
+    setPreview("");
+    setStage(s.addingPages);
+    let gathered = pages;
+    let refused = pagesRefused;
+    let isPdf = false;
+    try {
+      for (const file of files) {
+        const prepared = await prepareFile(file, {
+          onProgress: (page, total) => setStage(fill(s.renderingPage, { n: page, total })),
+        });
+        isPdf = prepared.isPdf;
+        const added = addPages(gathered, prepared.dataUrls);
+        gathered = added.pages;
+        refused += added.refused;
+      }
+    } catch (err) {
+      /* The pages gathered before the one that failed are kept. */
+      setError(err instanceof AttachError
+        ? scanErrorMessage(s, { ...err, isPdf })
+        : (isPdf ? s.pdfFailed : s.failed));
+    } finally {
+      setPages(gathered);
+      setPagesRefused(refused);
+      setBusy(false);
+      setStage("");
+    }
+  }
+
+  async function readPages() {
+    setBusy(true);
+    setError("");
+    setPreviewIsPdf(false);
+    setFileName("");
+    try {
+      if (await send(pages, false)) {
+        setPages([]);
+        setPagesRefused(0);
+      }
+    } catch {
+      setError(s.failed);
+    } finally {
+      setBusy(false);
+      setStage("");
+    }
+  }
+
+  function removePage(index) {
+    setPages(pages.filter((_, i) => i !== index));
+    /* Room was made, so nothing is refused any more; the next Add page is
+       measured afresh. */
+    setPagesRefused(0);
   }
 
   const spinner = stage || s.analyzing;
@@ -120,20 +200,61 @@ export default function PhotoScan({ token, kind, onResult, buttonLabel }) {
 
           Without it the sheet lists Take Photo alongside Photo Library and
           Browse, so the camera is still one tap away and everything else is
-          reachable. On a desktop it was never anything but a file dialog. */}
+          reachable. On a desktop it was never anything but a file dialog.
+
+          `multiple` lets the library hand over every page of an invoice in
+          one go. Take Photo still returns one picture, which is what Add page
+          is for. */}
       <input
         ref={inputRef}
         type="file"
         accept="image/*,application/pdf"
+        multiple
         className="hidden"
         onChange={(e) => {
-          const file = e.target.files?.[0];
+          const files = Array.from(e.target.files || []);
           e.target.value = "";
-          if (file) analyze(file);
+          gather(files);
         }}
       />
 
-      {preview && (
+      {pages.length > 0 && (
+        <div className="mb-3">
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {pages.map((url, i) => (
+              <div key={i} className="relative shrink-0 w-16 h-20 rounded-lg overflow-hidden"
+                style={{ border: `1px solid ${C.hairline}`, opacity: busy ? 0.5 : 1 }}>
+                {url.startsWith("data:image")
+                  ? <img src={url} alt="" className="w-full h-full object-cover object-top" />
+                  : (
+                    <div className="w-full h-full flex items-center justify-center">
+                      <FileText size={18} style={{ color: C.iris }} />
+                    </div>
+                  )}
+                <span className="absolute bottom-0 inset-x-0 text-[10px] text-center py-0.5"
+                  style={{ background: "rgba(0,0,0,0.55)", color: "#fff" }}>
+                  {fill(s.pageN, { n: i + 1 })}
+                </span>
+                {!busy && (
+                  <button type="button" onClick={() => removePage(i)}
+                    aria-label={fill(s.removePage, { n: i + 1 })}
+                    className="absolute top-0.5 end-0.5 w-5 h-5 rounded-full flex items-center justify-center"
+                    style={{ background: "rgba(0,0,0,0.6)", color: "#fff" }}>
+                    <X size={12} />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+          {/* Said, not skipped: a page left behind is invoice lines missing
+              from stock, found weeks later in a count if at all. */}
+          {pagesRefused > 0 && (
+            <p className="text-[11px] mt-2" style={{ color: C.amber }}>{s.pagesFull}</p>
+          )}
+        </div>
+      )}
+
+      {preview && !pages.length && (
         <div className="mb-3 relative rounded-xl overflow-hidden" style={{ border: `1px solid ${C.hairline}` }}>
           {/* A PDF sent whole has nothing to show in an <img>, and a broken
               image icon reads as the upload having failed. Name the file
@@ -163,15 +284,37 @@ export default function PhotoScan({ token, kind, onResult, buttonLabel }) {
         </div>
       )}
 
-      <button
-        onClick={() => inputRef.current?.click()}
-        disabled={busy}
-        className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold disabled:opacity-60"
-        style={{ background: C.iris, color: C.onPrimary }}
-      >
-        {busy ? <Loader2 size={16} className="animate-spin" /> : preview ? <RotateCcw size={16} /> : <Camera size={16} />}
-        {busy ? spinner : preview ? s.retake : buttonLabel || s.take}
-      </button>
+      {pages.length > 0 ? (
+        <div className="flex gap-2">
+          <button
+            onClick={() => inputRef.current?.click()}
+            disabled={busy || pagesRefused > 0}
+            className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold disabled:opacity-60"
+            style={{ border: `1px solid ${C.hairline}`, color: C.ink }}
+          >
+            <Plus size={16} /> {s.addPage}
+          </button>
+          <button
+            onClick={readPages}
+            disabled={busy}
+            className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold disabled:opacity-60"
+            style={{ background: C.iris, color: C.onPrimary }}
+          >
+            {busy ? <Loader2 size={16} className="animate-spin" /> : <ScanLine size={16} />}
+            {busy ? spinner : pages.length === 1 ? s.readOnePage : fill(s.readPages, { n: pages.length })}
+          </button>
+        </div>
+      ) : (
+        <button
+          onClick={() => inputRef.current?.click()}
+          disabled={busy}
+          className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold disabled:opacity-60"
+          style={{ background: C.iris, color: C.onPrimary }}
+        >
+          {busy ? <Loader2 size={16} className="animate-spin" /> : preview ? <RotateCcw size={16} /> : <Camera size={16} />}
+          {busy ? spinner : preview ? s.retake : buttonLabel || s.take}
+        </button>
+      )}
 
       {/* Pages that did not fit are named. A document read from page one to
           page eleven of fourteen looks complete on screen, and the three
