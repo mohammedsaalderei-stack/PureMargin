@@ -134,6 +134,18 @@ export default function PhotoScan({ token, kind, onResult, buttonLabel }) {
       }
       if (json.scans) setScans(json.scans);
       if (!last) {
+        /* A server from before reading in parts ignores `partial` and answers
+           with a finished result for this part alone, and would ignore
+           `previous` too. Carrying on would show only the last part's pages.
+           Its answer is kept instead, and the rest is said to be unread,
+           which is what that server always did. The app ships separately from
+           the server it talks to, so this is the case on every phone until the
+           server is deployed. */
+        if (!json.partial) {
+          setClipped({ sent: parts[0].length, total: parts.flat().length });
+          onResult(json.result, parts[0][0], json.depletion || null);
+          return true;
+        }
         previous.push(json.partial);
         continue;
       }
