@@ -43,44 +43,60 @@ of configuration moves that. Everything up to it is done.
 ```bash
 npm install
 cd ios/App && pod install && cd ../..
-npm run ios:open
 ```
 
 `pod install` is the step Windows could not do: it fetches the native source
 for the six Capacitor plugins. Everything else is already in the repository.
 
-### The one manual step in Xcode
-
-**Add the privacy manifest to the target.** The file exists but Xcode does not
-yet know to bundle it, and an upload without it is rejected automatically.
-
-1. In the file navigator, right-click the `App` folder → **Add Files to "App"…**
-2. Choose `ios/App/App/PrivacyInfo.xcprivacy`
-3. Tick **Copy items if needed** off, and make sure **App** is ticked under
-   *Add to targets*
-4. Select the project → **Build Phases → Copy Bundle Resources** and confirm
-   `PrivacyInfo.xcprivacy` is listed
-
 ### Signing
 
-Select the **App** target → **Signing & Capabilities** → tick *Automatically
-manage signing* and choose your team. The bundle identifier is
-`ae.puremargin.app` and **must never change** — it is the app's identity on the
-store forever.
+Either sign in to Xcode once (**Settings → Accounts**, add your Apple ID), or
+create an **App Store Connect API key** — *Users and Access → Integrations* —
+which needs no interaction at all and is what lets a release run on a machine
+nobody is sitting at. The `.p8` file downloads exactly once, so keep it
+somewhere you back up.
+
+The bundle identifier is `ae.puremargin.app` and **must never change**: it is
+the app's identity on the store forever.
 
 ---
 
-## Every release after that
+## Releasing, without Xcode's windows
 
 ```bash
-npm run ios          # builds the web app and syncs it into ios/
-npm run ios:open     # opens Xcode
+export APPLE_TEAM_ID=XXXXXXXXXX          # developer.apple.com → Membership
+bash scripts/ios/release.sh              # build, sign, export the .ipa
 ```
 
-Then **Product → Archive**, and **Distribute App → App Store Connect**.
+and when you want it on App Store Connect:
 
-Bump the version in Xcode under the General tab before each upload. Apple
-refuses a build whose number it has seen before.
+```bash
+export ASC_KEY_ID=XXXXXXXX
+export ASC_ISSUER_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+export ASC_KEY_PATH=~/keys/AuthKey_XXXXXXXX.p8
+bash scripts/ios/release.sh --upload
+```
+
+That script does every step in order: builds the web app, syncs it into
+`ios/`, runs `pod install` if it has not been run, **adds the privacy
+manifest to the target**, archives, exports the `.ipa`, validates it, and
+uploads. Validation happens before the upload on purpose — it runs the same
+checks and reports what is wrong *without consuming the build number*, which
+cannot be reused, so a rejected upload otherwise costs a version bump and
+another full archive.
+
+The privacy-manifest step is `scripts/ios/add-privacy-manifest.rb`, which
+uses the `xcodeproj` gem that arrives with CocoaPods. It used to be four
+clicks in Xcode — four chances to click the wrong one, with no way to tell
+until an upload was rejected by a message naming the file rather than the
+reason. It is safe to run repeatedly and reports when there is nothing to do.
+
+You can still do all of this by hand in Xcode: **Product → Archive**, then
+**Distribute App → App Store Connect**. The script exists because that route
+leaves no record of which options were chosen.
+
+Bump the version under the target's General tab before each upload. Apple
+refuses a build number it has seen before.
 
 ---
 
@@ -140,6 +156,9 @@ Stated plainly rather than left to be discovered:
   been resolved against each other.
 - **The camera path is untested on real hardware.** `fileFromBase64` has unit
   tests over the bytes, but the plugin handing those bytes over has not run.
+- **`scripts/ios/release.sh` has never been executed.** Its shell parses and
+  every command in it is standard, but no step of it has run; the Ruby script
+  has not even been syntax-checked, because there is no Ruby on this machine.
 
 ---
 

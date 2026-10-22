@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+	How `xcodebuild -exportArchive` turns the archive into the .ipa that is
+	uploaded. Xcode writes one of these for you when you use the Organizer;
+	this is the same thing, kept in the repository so that a release is a
+	command rather than a sequence of dialogs nobody can review afterwards.
+
+	`teamID` is deliberately absent. It is the one value that differs per
+	account, scripts/ios/release.sh fills it in from the environment, and a
+	team id committed here would be wrong for anybody else and silently
+	override the right one.
+-->
+<plist version="1.0">
+<dict>
+	<!-- App Store Connect, rather than ad-hoc or enterprise. -->
+	<key>method</key>
+	<string>app-store-connect</string>
+
+	<!-- Let Xcode fetch or create the distribution profile. With an App
+	     Store Connect API key this needs no interaction; without one it
+	     needs an Apple ID already signed in to Xcode. -->
+	<key>signingStyle</key>
+	<string>automatic</string>
+
+	<!-- Upload the dSYMs so crash reports from TestFlight and the store
+	     come back with function names instead of addresses. There is no
+	     second chance to send these for a build already shipped. -->
+	<key>uploadSymbols</key>
+	<true/>
+
+	<!-- Bitcode has been dead since Xcode 14 and an explicit false keeps
+	     older toolchains from trying. -->
+	<key>uploadBitcode</key>
+	<false/>
+
+	<!-- App thinning off: one universal binary. The app is small and the
+	     variants are a complication with no benefit at this size. -->
+	<key>stripSwiftSymbols</key>
+	<true/>
+
+	<key>destination</key>
+	<string>export</string>
+</dict>
+</plist>
