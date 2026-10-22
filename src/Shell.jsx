@@ -374,7 +374,12 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
       const json = await res.json();
       if (res.status === 402) return;
       if (res.status === 409) { setNeedsPos(true); return; }
-      if (res.status === 502) { if (!quiet) setError(json.detail || t.connect.failed); return; }
+      /* 502 means a POS is connected and refused or could not be reached, so
+         the account is no longer one without a POS. Left set from the 409
+         before connecting, `needsPos` won the render over the error, and a
+         rejected token looked like a connection that had never happened:
+         "connect your POS" again, with Loyverse's reason nowhere on screen. */
+      if (res.status === 502) { setNeedsPos(false); if (!quiet) setError(json.detail || t.connect.failed); return; }
       if (!res.ok) throw new Error(json.error || t.watch.failedTitle);
       setNeedsPos(false); setData(json); setFetchedAt(Date.now());
 
