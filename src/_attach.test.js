@@ -22,6 +22,10 @@ import {
   renderPlan,
   scanErrorMessage,
   MAX_RENDERED_PAGES,
+  addPages,
+  batchPages,
+  pageScale,
+  MODEL_MAX_PIXELS,
 } from "./ai/attach.js";
 
 let failures = 0;
@@ -181,6 +185,102 @@ test("only a photograph is ever told about the light", () => {
 test("an unrecognised code still produces a sentence", () => {
   assert.ok(scanErrorMessage(S, { error: "something-new", isPdf: false }).length > 0);
   assert.ok(scanErrorMessage(S, {}).length > 0);
+});
+
+/* Gathering a paper invoice's pages before it is read.
+
+   Data URLs of a chosen length stand in for photographs: the budget only ever
+   looks at their size. */
+const pageOf = (bytes, tag = "x") => `data:image/jpeg;base64,${tag.repeat(bytes - 23)}`;
+
+test("pages are kept in the order they were taken", () => {
+  const one = pageOf(1000, "a");
+  const two = pageOf(1000, "b");
+  const three = pageOf(1000, "c");
+  const first = addPages([], [one, two]);
+  const second = addPages(first.pages, [three]);
+  assert.deepEqual(second.pages, [one, two, three]);
+  assert.equal(second.refused, 0);
+});
+
+test("pages that would overrun the wire budget are refused, not sent to be bounced", () => {
+  const { pages, refused } = addPages([], [pageOf(600), pageOf(600), pageOf(600)], { budget: 1500 });
+  assert.equal(pages.length, 2);
+  assert.equal(refused, 1);
+  assert.ok(pages.reduce((sum, p) => sum + dataUrlBytes(p), 0) <= 1500);
+});
+
+test("what is already gathered counts against the budget", () => {
+  const held = addPages([], [pageOf(1000)], { budget: 1500 }).pages;
+  const { pages, refused } = addPages(held, [pageOf(600)], { budget: 1500 });
+  assert.equal(pages.length, 1);
+  assert.equal(refused, 1);
+});
+
+test("once a page is refused, the pages after it are too — no gap in the middle", () => {
+  /* The small last page would fit on its own. Taking it would send pages one
+     and three of an invoice as if they were the whole of it. */
+  const { pages, refused } = addPages([], [pageOf(1000, "a"), pageOf(1000, "b"), pageOf(100, "c")], { budget: 1500 });
+  assert.equal(pages.length, 1);
+  assert.equal(refused, 2);
+});
+
+test("no more pages than the server reads in one go", () => {
+  const many = Array.from({ length: MAX_RENDERED_PAGES + 5 }, () => pageOf(30));
+  const { pages, refused } = addPages([], many);
+  assert.equal(pages.length, MAX_RENDERED_PAGES);
+  assert.equal(refused, 5);
+});
+
+test("the pages already held are not modified", () => {
+  const held = [pageOf(100)];
+  addPages(held, [pageOf(100)]);
+  assert.equal(held.length, 1);
+});
+
+/* A scanned PDF too long for one request, split into several. */
+
+test("every page lands in exactly one batch, in order", () => {
+  const pages = Array.from({ length: 9 }, (_, i) => pageOf(700, String.fromCharCode(97 + i)));
+  const batches = batchPages(pages, 2000);
+  assert.deepEqual(batches.flat(), pages);
+});
+
+test("each batch fits one request", () => {
+  const pages = Array.from({ length: 9 }, () => pageOf(700));
+  for (const batch of batchPages(pages, 2000)) {
+    assert.ok(batch.reduce((sum, p) => sum + dataUrlBytes(p), 0) <= 2000);
+  }
+});
+
+test("a batch is filled before the next one starts", () => {
+  /* Two per batch fit; nine pages need five requests, not nine. Every extra
+     request is another scan off the allowance. */
+  const pages = Array.from({ length: 9 }, () => pageOf(700));
+  assert.deepEqual(batchPages(pages, 2000).map((b) => b.length), [2, 2, 2, 2, 1]);
+});
+
+test("a document that fits is one batch", () => {
+  const pages = [pageOf(500), pageOf(500)];
+  assert.deepEqual(batchPages(pages, 2000), [pages]);
+});
+
+test("a page is rendered no larger than the model reads", () => {
+  /* An A4 page at the short-document plan used to come out at 1.8 megapixels,
+     of which the model kept 1.15. */
+  const s = pageScale(595, 842, 1600);
+  assert.ok(595 * s * 842 * s <= MODEL_MAX_PIXELS * 1.001);
+});
+
+test("a small page still follows the plan's long edge", () => {
+  /* Where the plan asks for less than the model reads, the plan wins: a
+     sixty-page document is rendered small so it needs fewer requests. */
+  const s = pageScale(595, 842, 900);
+  assert.ok(Math.abs(842 * s - 900) < 1);
+});
+
+test("a tiny page is not blown up past three times its size", () => {
+  assert.equal(pageScale(100, 100, 1600), 3);
 });
 
 console.log(failures ? `\n${failures} failed` : "\nall passed");

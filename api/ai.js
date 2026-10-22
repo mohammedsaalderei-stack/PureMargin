@@ -39,6 +39,7 @@ import { matchPurchase } from "./_purchase.js";
 import { listIngredients } from "./_inventory.js";
 import { matchRecipe } from "./_recipescan.js";
 import { classifyPrompt, normaliseVerdict, routeFor } from "./_docroute.js";
+import { PART_KINDS, readPrevious, joinParts } from "./_parts.js";
 
 /* Overridable without a deploy, so a model rename doesn't take the scanner
    down until somebody ships a commit. */
@@ -374,6 +375,13 @@ export default async function handler(req, res) {
   if (!apiKey) return res.status(500).json({ error: "noai" });
 
   const { kind, lang } = req.body || {};
+  /* A long document read in parts: every part but the last asks for the
+     reading alone, and the last brings those readings back to be joined. See
+     _parts.js. */
+  const partial = req.body?.partial === true;
+  const previous = readPrevious(kind, req.body?.previous);
+  if (previous.error) return res.status(400).json({ error: previous.error, limit: previous.limit });
+  if (partial && !PART_KINDS.includes(kind)) return res.status(400).json({ error: "kind" });
   const attached = parseAttachments(req.body);
   /* Named rather than collapsed: "too big" and "not a kind we read" need
      different things from the person holding the file, and neither of them is
@@ -564,9 +572,13 @@ export default async function handler(req, res) {
       return res.status(502).json({ error: "parse" });
     }
 
-    let result = parsed;
-    if (kind === "supplier") result = await matchPurchase(org?.id, parsed);
-    else if (kind === "recipe") result = await matchRecipe(org?.id, parsed);
+    const scans = { used: claim.used, limit: claim.limit, left: claim.left, resetsAt: claim.resetsAt };
+    if (partial) return res.status(200).json({ kind, partial: parsed, scans });
+    const whole = joinParts(kind, [...previous.parts, parsed]);
+
+    let result = whole;
+    if (kind === "supplier") result = await matchPurchase(org?.id, whole);
+    else if (kind === "recipe") result = await matchRecipe(org?.id, whole);
     else if (kind === "classify") {
       /* Sorting a document is one model call and no data, so it costs a scan
          like any other read. Routing is decided here from a fixed table rather
@@ -577,10 +589,7 @@ export default async function handler(req, res) {
       result = { ...verdict, route: routeFor(verdict.kind, scope?.capabilities || []) };
     }
 
-    return res.status(200).json({
-      kind, result,
-      scans: { used: claim.used, limit: claim.limit, left: claim.left, resetsAt: claim.resetsAt },
-    });
+    return res.status(200).json({ kind, result, scans });
   } catch (err) {
     console.error("ai endpoint failed:", err);
     return res.status(500).json({ error: "server" });

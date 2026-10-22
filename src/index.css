@@ -159,9 +159,11 @@ html { overscroll-behavior-y: none; }
    byte-for-byte what it was. The variables are declared at the root as zero
    so a component may use them anywhere without testing the platform first.
 
-   The top inset is deliberately not padded here: the status bar is
-   configured with `overlaysWebView: false`, so iOS positions the web view
-   below it already, and padding again would leave a dark band. Left and
+   The top is padded too. `overlaysWebView: false` was expected to put the
+   web view below the status bar, but in Capacitor 6 that setting does
+   nothing on iOS (`setOverlaysWebView` is `call.unimplemented()` in the
+   plugin), so the web view always runs under the clock and the Dynamic
+   Island. Seen in the simulator: every header sat behind them. Left and
    right matter only in landscape, which the iPhone build is locked out of. */
 :root {
   --safe-top: 0px;
@@ -178,7 +180,48 @@ html { overscroll-behavior-y: none; }
 }
 
 .is-native body {
+  padding-top: var(--safe-top);
   padding-bottom: var(--safe-bottom);
+}
+
+/* `html, body, #root` are height: 100%, and the body is border-box, so
+   #root is already the space between the bars. `h-screen` is 100vh, which is
+   the whole glass, so the signed-in shell would hang off both ends and its
+   last row would sit under the home indicator. */
+.is-native .h-screen {
+  height: calc(100vh - var(--safe-top) - var(--safe-bottom));
+}
+
+/* Pages that scroll the document (landing, pricing, clock-in, admin) pin
+   their header with `sticky top-0`, which is the top of the glass. Pin it
+   under the status bar instead, and put a strip of the page's colour behind
+   the bar so content scrolling up does not show through the clock. Above
+   page headers (z-40), below every overlay (z-50 and up). Headers only:
+   a sticky row inside a dialog's own scroller is already clear of the bar. */
+.is-native header.sticky {
+  top: var(--safe-top);
+}
+
+.is-native body::before {
+  content: "";
+  position: fixed;
+  inset-inline: 0;
+  top: 0;
+  height: var(--safe-top);
+  background: var(--bone);
+  z-index: 45;
+}
+
+/* Sheets that rise from the bottom on a phone (`fixed inset-0 items-end`)
+   would otherwise put their buttons under the home indicator, and a tall one
+   would reach up under the clock. */
+.is-native .fixed.inset-0.items-end {
+  padding-top: var(--safe-top);
+  padding-bottom: var(--safe-bottom);
+}
+
+.is-native .auth-bar {
+  top: var(--safe-top);
 }
 
 /* The padded strip takes the page's own background rather than the white

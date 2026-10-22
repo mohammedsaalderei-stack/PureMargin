@@ -62,10 +62,18 @@ export function isNativePlatform(scope = globalThis) {
 
    Read from the environment so a TestFlight build can be pointed at a staging
    API without editing source, and defaulted so forgetting to set it produces
-   a working app rather than a silent one. */
+   a working app rather than a silent one.
+
+   The www host, because that is where the site is served. The bare domain
+   answers every request, /api included, with a 308 to www, and when iOS
+   follows a redirect to another host it drops the Authorization header. So
+   with the bare domain, sign-in worked (it needs no header, and a 308 keeps
+   the POST) and every request after it arrived anonymous: no account, no
+   scope, no figures, an app showing Ask and Settings and nothing the
+   website could see. */
 export const API_ORIGIN =
   (typeof import.meta !== "undefined" && import.meta.env?.VITE_API_ORIGIN)
-  || "https://puremargin.ae";
+  || "https://www.puremargin.ae";
 
 /* Wrap `fetch` so relative API paths reach the API.
 
