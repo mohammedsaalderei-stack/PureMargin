@@ -14,6 +14,7 @@ import { ThemeProvider } from "./theme.jsx";
 import { prefersReducedMotion } from "./hooks.js";
 import { useRoute, navigate, useBackspaceBack } from "./router.js";
 import { readSession, writeSession, clearSession, TOKEN_KEY, USER_KEY } from "./session.js";
+import { isNativePlatform } from "./platform.js";
 
 const OUT_MS = 260;
 
@@ -39,7 +40,13 @@ function Routes() {
   }, []);
 
   const adminView = route.name === "admin";
-  const view = PUBLIC_VIEWS.includes(route.name) ? route.name : "landing";
+  /* The app opens on sign-in. The landing page is the website's: a marketing
+     page with a pricing page behind it, and an app that lists prices for
+     features sold outside the App Store is the commonest reason for a 3.1.1
+     rejection. In the app both are sign-in; the website is unchanged. */
+  const native = isNativePlatform();
+  const requested = PUBLIC_VIEWS.includes(route.name) ? route.name : "landing";
+  const view = native && (requested === "landing" || requested === "pricing") ? "login" : requested;
 
   /* The clock-in page belongs to nobody's session.
 
@@ -143,7 +150,7 @@ function Routes() {
     screen = (
       <Register
         inviteToken={inviteToken}
-        onBack={() => setView("landing")}
+        onBack={() => setView(native ? "login" : "landing")}
         onSignIn={() => setView("login")}
         onRegistered={(tk, name) => {
           setJustRegistered(true);
@@ -162,7 +169,7 @@ function Routes() {
   } else if (view === "login") {
     screen = (
       <Login
-        onBack={() => setView("landing")}
+        onBack={native ? undefined : () => setView("landing")}
         onAuthed={signIn}
         onRegister={() => setView("register")}
         onForgot={(typed) => {
@@ -207,7 +214,10 @@ export default function App() {
     <ThemeProvider>
       <LanguageProvider>
         <Routes />
-        <Analytics />
+        {/* Page-view analytics are the website's. The app declares no
+            analytics in its privacy manifest and on its App Store privacy
+            answers, so it loads none. */}
+        {!isNativePlatform() && <Analytics />}
       </LanguageProvider>
     </ThemeProvider>
   );

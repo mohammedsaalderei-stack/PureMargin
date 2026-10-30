@@ -1,12 +1,31 @@
 # PureMargin on the App Store
 
-The iOS app is built and committed. `ios/` is a real Xcode project with the
-icons, the permission strings and the privacy manifest already in it. What is
-left is the part that can only happen on a Mac.
+The iOS app is built, has run in the simulator and on an iPhone, and the
+release script archives it. `ios/` is a real Xcode project with the icons, the
+permission strings and the privacy manifest in it.
 
-**Be clear about the wall.** Apple accepts only an `.ipa` — a signed app
-package — and only Xcode produces one, and Xcode only runs on macOS. No amount
-of configuration moves that. Everything up to it is done.
+## Where it stands (30 October 2026)
+
+**One thing stops an upload: the paid Apple Developer Program.** The app is
+signed by a free Personal Team (`345DD373X5`, "Mohammed Alderei"). That is
+enough to run it on a phone, but such a team cannot hold an "iOS Distribution"
+certificate or an App Store profile, so `release.sh` archives and then stops
+at export with exactly that error. A paid membership is a different team with
+its own Team ID: set `APPLE_TEAM_ID` to it and pick it in Xcode's Signing &
+Capabilities, and nothing else changes.
+
+| Step | State |
+|---|---|
+| Compiles (Debug for the simulator, Release for a device) | Done |
+| Runs on the iOS 27 simulator and on an iPhone 17 Pro Max (iOS 26.6) | Done |
+| `release.sh`: web build, sync, privacy manifest, archive | Done |
+| `release.sh`: export the `.ipa`, validate, upload | **Needs the paid program** |
+| App Store Connect record, listing, screenshots, privacy answers | To do, after enrolling |
+| Reviewer account with sample data | To do |
+
+**Free provisioning expires after seven days.** A copy installed from a
+Personal Team stops opening a week later; run it from Xcode again, or install
+through TestFlight once the paid team exists.
 
 ---
 
@@ -18,11 +37,16 @@ of configuration moves that. Everything up to it is done.
 | API calls reach the API | `src/platform.js` points relative `/api/…` paths at `https://www.puremargin.ae` inside the app (the bare domain redirects to www, and iOS drops the sign-in header on that redirect) and changes nothing on the web. |
 | No CORS problem | `CapacitorHttp` is enabled, so requests go through native networking, which is not subject to CORS. The API needed no changes. |
 | Stays signed in | `src/session.js` uses `localStorage` in the app — iOS kills a backgrounded app without warning, and `sessionStorage` would sign people out at random. |
-| Native camera | `src/native/camera.js` opens a viewfinder for clock-in instead of a file picker. |
+| Native camera | `src/native/camera.js` opens a viewfinder for clock-in instead of a file picker. **Not reached in the app today:** staff open clock-in from a shared link, which opens Safari, since the app claims no links. Universal Links would bring it into the app. |
 | Permission strings | In `ios/App/App/Info.plist`. Without these iOS kills the app silently the moment it touches the camera. |
 | Privacy manifest | `ios/App/App/PrivacyInfo.xcprivacy`. Required since May 2024; a build without one is rejected at upload. |
 | Icon and launch image | Rendered from `public/icon.svg` by `npm run icons`, square and opaque as Apple requires. |
-| Status bar, keyboard, splash, safe areas | `src/native/shell.js` and the `.is-native` rules in `src/index.css`. |
+| Status bar, keyboard, splash, safe areas | `src/native/shell.js` and the `.is-native` rules in `src/index.css`. Seen in the simulator and on a phone. |
+| Launches on iOS 27 | The scene life cycle (`SceneDelegate.swift`, `UIApplicationSceneManifest`); without it iOS refuses to launch an app built with the iOS 27 SDK. |
+| No zoom on a text field | `lockedViewport` in `src/native/shell.js`; iOS otherwise zooms into any field under 16 px and never zooms back out. |
+| Nothing for sale in the app | The app opens on sign-in, not the website's landing page; the pricing page and "get in touch for more packages" are not shown in it (`isNativePlatform()`). Guideline 3.1.1. |
+| No analytics | The website's Vercel page analytics are not loaded in the app, matching the privacy manifest. |
+| Account deletion | Settings → Account → Delete account, as Guideline 5.1.1(v) requires. |
 
 ---
 
@@ -32,8 +56,8 @@ of configuration moves that. Everything up to it is done.
 |---|---|
 | A Mac | Any Apple-silicon Mac. Xcode is free from the App Store. |
 | Xcode 15+ | Plus the Command Line Tools, which it offers to install. |
-| Apple Developer Program | 99 USD a year. Approval takes a day or two — **start this first**, it is the long pole. |
-| CocoaPods | `sudo gem install cocoapods` |
+| Apple Developer Program | 99 USD a year. Approval takes a day or two — **start this first**, it is the long pole. A free Personal Team cannot upload. |
+| CocoaPods | `brew install cocoapods`. macOS's own Ruby (2.6) is too old for current CocoaPods; `release.sh` finds Homebrew's. |
 | Node 20+ | The same one this project builds with. |
 
 ---
@@ -110,20 +134,35 @@ refuses a build number it has seen before.
 | Age rating | 4+ |
 | Sign-in required | Yes, and they will test it |
 | Privacy policy URL | Required before review. It must match `PrivacyInfo.xcprivacy`. |
+| Devices | iPhone and iPad (`TARGETED_DEVICE_FAMILY = "1,2"`), so the listing needs iPad screenshots as well as iPhone ones, and review may test on an iPad. The iPad layout has not been looked at yet. Setting the family to iPhone only removes both. |
 
 ### Give the reviewer a real account
 
 Under **App Review Information**, put a working username and password for a
-business that has staff on the roster and some attendance already recorded. An
-app that opens onto a sign-in wall with no credentials is rejected without
-being looked at, and it is the commonest reason a first submission comes back.
+sample business that has the packages switched on, recipes with selling
+prices, and some sales. An app that opens onto a sign-in wall with no
+credentials is rejected without being looked at, and it is the commonest
+reason a first submission comes back.
 
-Then put this in the notes, because a reviewer who does not know it will try to
-sign in as an employee, fail, and mark the feature broken:
+Then put this in the notes. Each paragraph answers a question a reviewer
+otherwise has to guess at:
 
-> Attendance is used by restaurant staff who have no account. Tap "Clock in" on
-> the home screen, search for the demo restaurant by name, choose a branch and a
-> person, and take any photograph. No sign-in is involved on that path.
+> PureMargin is back-office software for restaurants: sales and margins,
+> recipes and their cost, stock, and a register. The demo account is the owner
+> of a sample restaurant.
+>
+> The Register tab records sales of food and drink served in the restaurant.
+> Payment is taken at the counter, in cash or on the restaurant's own card
+> terminal; the app only records which. These are goods and services consumed
+> outside the app (3.1.3(e)).
+>
+> Features are sold to businesses by our team under a business agreement, not
+> in the app (3.1.3(c), enterprise services). The app shows what an account
+> has and offers nothing for sale.
+>
+> To delete an account: Settings → Account → Delete account.
+
+Do not mention clock-in: it opens in Safari from a link, not in the app.
 
 ### What the privacy answers must say
 
@@ -136,6 +175,9 @@ photographed are owed:
   owner and deletable by them
 - photographs of supplier invoices, read for their line items
 - sales and stock figures, which are the product
+- sales rung up on the register: what was sold, the amounts, and whether it
+  was paid in cash or by card — never a card number, which never reaches the
+  app
 
 No tracking, no advertising, no third-party analytics SDK. Do not describe the
 clock-in photo as "verification" or "identity" — it is neither, and
@@ -143,22 +185,19 @@ clock-in photo as "verification" or "identity" — it is neither, and
 
 ---
 
-## Things I could not check from Windows
+## Still unverified
 
 Stated plainly rather than left to be discovered:
 
-- **Nothing here has been run on a device or in the simulator.** The project
-  builds as a project; it has never been compiled.
-- **The safe-area rules are unverified.** `.is-native` padding in
-  `src/index.css` is reasoned from the layout, not seen. Check the bottom of
-  the Overview and the clock-in screen against the home indicator first.
-- **`pod install` has never run**, so the plugin versions have not actually
-  been resolved against each other.
-- **The camera path is untested on real hardware.** `fileFromBase64` has unit
-  tests over the bytes, but the plugin handing those bytes over has not run.
-- **`scripts/ios/release.sh` has never been executed.** Its shell parses and
-  every command in it is standard, but no step of it has run; the Ruby script
-  has not even been syntax-checked, because there is no Ruby on this machine.
+- **The camera on a phone.** Clock-in, the one path that uses the native
+  viewfinder, is not reachable inside the app (see above). The scanners use
+  the system picker, whose Take Photo has not been tried on the phone either.
+- **iPad.** Never opened on one.
+- **Export, validation and upload.** Blocked on the paid program; the archive
+  step before them works.
+- **A till and the register together on one live account.** Register sales are
+  joined to Loyverse's in code and tested with a till-shaped read, not yet seen
+  with a real Loyverse account.
 
 ---
 

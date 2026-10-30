@@ -1825,6 +1825,7 @@ export const STRINGS = {
       getTitle: "Want more?",
       getLead: "New packages are activated by our team. Get in touch and we'll add them to your account.",
       lockedLeadAdmin: "It's added by our team. Get in touch to have it on your account.",
+      lockedLeadApp: "Your account doesn't include this.",
     },
     live: {
       justNow: "updated just now",
@@ -3760,6 +3761,7 @@ export const STRINGS = {
       getTitle: "تريد المزيد؟",
       getLead: "الباقات الجديدة يفعّلها فريقنا. تواصل معنا وسنضيفها إلى حسابك.",
       lockedLeadAdmin: "يضيفها فريقنا. تواصل معنا لتكون على حسابك.",
+      lockedLeadApp: "هذا غير مشمول في حسابك.",
     },
     live: {
       justNow: "حُدّثت للتو",
@@ -5691,6 +5693,7 @@ export const STRINGS = {
       getTitle: "और चाहिए?",
       getLead: "नए पैकेज हमारी टीम चालू करती है। संपर्क करें और हम उन्हें आपके खाते में जोड़ देंगे।",
       lockedLeadAdmin: "इसे हमारी टीम जोड़ती है। अपने खाते में पाने के लिए संपर्क करें।",
+      lockedLeadApp: "आपके खाते में यह शामिल नहीं है।",
     },
     live: {
       justNow: "अभी अपडेट हुआ",
@@ -7350,6 +7353,7 @@ export const STRINGS = {
       getTitle: "مزید چاہیے؟",
       getLead: "نئے پیکیجز ہماری ٹیم چالو کرتی ہے۔ رابطہ کیجیے، ہم آپ کے اکاؤنٹ میں شامل کر دیں گے۔",
       lockedLeadAdmin: "یہ ہماری ٹیم شامل کرتی ہے۔ اپنے اکاؤنٹ پر لینے کے لیے رابطہ کیجیے۔",
+      lockedLeadApp: "یہ آپ کے اکاؤنٹ میں شامل نہیں ہے۔",
     },
     plan: {
       range: "حد",
@@ -9726,6 +9730,7 @@ export const STRINGS = {
       getTitle: "Gusto ng higit?",
       getLead: "Ang mga bagong pakete ay ina-activate ng team namin. Makipag-ugnayan at idadagdag namin sa account mo.",
       lockedLeadAdmin: "Idinadagdag ito ng team namin. Makipag-ugnayan para maging sa account mo.",
+      lockedLeadApp: "Hindi kasama ito sa iyong account.",
     },
     live: {
       justNow: "kaka-update lang",

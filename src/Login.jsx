@@ -82,13 +82,16 @@ export default function Login({ onAuthed, onBack, onRegister, onForgot }) {
       <div className="flex flex-col justify-center px-6 md:px-12 lg:px-20 py-12">
         <div className="w-full max-w-sm mx-auto">
           <div className="flex items-center justify-between mb-10">
-            <button
-              onClick={onBack}
-              className="inline-flex items-center gap-1.5 text-sm hover:opacity-70"
-              style={{ color: C.slate }}
-            >
-              <ArrowLeft size={15} className="flip-rtl" /> {t.common.back}
-            </button>
+            {/* No back in the app: sign-in is where it opens. */}
+            {onBack ? (
+              <button
+                onClick={onBack}
+                className="inline-flex items-center gap-1.5 text-sm hover:opacity-70"
+                style={{ color: C.slate }}
+              >
+                <ArrowLeft size={15} className="flip-rtl" /> {t.common.back}
+              </button>
+            ) : <span />}
 <LanguagePicker />
           </div>
 
