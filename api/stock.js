@@ -346,8 +346,11 @@ export default async function handler(req, res) {
            error and leaves whatever it had already written. So the choice was
            never all-or-nothing — it was between a partial commit nobody was
            told about and a partial commit that says what it left behind. */
+        /* The dry run is the fourth argument, not a field of the movement.
+           Passed inside the movement it was ignored and every "check" was a
+           real write — see `_dryrun.test.js`. */
         const dry = await Promise.all(prepared.map((r) =>
-          recordMovement(orgId, branch[0], { ...r, actor: session.username, dryRun: true })));
+          recordMovement(orgId, branch[0], { ...r, actor: session.username }, { dryRun: true })));
 
         const takeable = prepared.filter((_, i) => !dry[i].error);
         const refused = prepared
@@ -497,8 +500,11 @@ export default async function handler(req, res) {
           return res.status(400).json({ error: "line" });
         }
 
+        /* The dry run is the fourth argument, not a field of the movement.
+           Passed inside the movement it was ignored and every "check" was a
+           real write — see `_dryrun.test.js`. */
         const dry = await Promise.all(prepared.map((r) =>
-          recordMovement(orgId, branch[0], { ...r, actor: session.username, dryRun: true })));
+          recordMovement(orgId, branch[0], { ...r, actor: session.username }, { dryRun: true })));
         const refused = dry.find((d) => d.error);
         if (refused) {
           return res.status(400).json({
@@ -556,7 +562,7 @@ export default async function handler(req, res) {
         }
 
         const dry = await Promise.all(
-          prepared.map((r) => recordMovement(orgId, branch[0], { ...r, actor: session.username, dryRun: true })),
+          prepared.map((r) => recordMovement(orgId, branch[0], { ...r, actor: session.username }, { dryRun: true })),
         );
         const refused = dry.find((d) => d.error);
         if (refused) {

@@ -33,6 +33,9 @@ import { purchasePlan, branchRanking } from "./_operations.js";
 import { DEFAULT_COST_METHOD } from "./_costing.js";
 import { costedList } from "./_recipes.js";
 import { netProfit } from "./_profit.js";
+import { listIngredients } from "./_inventory.js";
+import { balances } from "./_movements.js";
+import { costBasis, costFrom } from "./_costing.js";
 
 const DAY = 864e5;
 
@@ -48,6 +51,8 @@ const DAY = 864e5;
    the leakage screen, the alerts screen and the purchase plan, which is also
    where the branch ranking is rendered. */
 export const SECTION_FEATURE = {
+  /* The inventory screen: what is on the shelf now. */
+  stock: "operations",
   leakage: "operations",
   alerts: "operations",
   plan: "operations",
@@ -66,7 +71,7 @@ export const SECTION_FEATURE = {
    package rather than listing screen names: "the purchasing plan" is what an
    owner calls it, `plan` is what the router calls it. */
 const PACKAGE_CONTENTS = {
-  operations: "stock leakage, alerts, the purchasing plan and the branch comparison",
+  operations: "the stock on hand, stock leakage, alerts, recipes, the purchasing plan and the branch comparison",
   costs: "the cost ledger, corrections to what the till reported, menu engineering and the forecast",
   assistant: "this assistant",
 };
@@ -137,6 +142,46 @@ export async function groundingFor(account, {
       period: { from: start, to },
     },
   };
+
+  /* --- What is on the shelf: the inventory screen, as prose. ------------
+
+     The brief carried what stock *should* have been used, what went missing,
+     what to reorder — and never what is actually there. "What have I got in
+     the storeroom" is the first question anybody asks of an inventory, and
+     the assistant answered it with a tool that, until this change, read no
+     branches at all. So the answer is here, always, the way the screen shows
+     it: largest value first, because that is where a mistake costs most.
+
+     Capped. A storeroom of four hundred lines would crowd out every other
+     section; the tool reads the rest on demand, and the brief says so. */
+  if (can("view:inventory") && paidFor(SECTION_FEATURE.stock)) {
+    const ingredients = await listIngredients(orgId);
+    const rows = await balances(orgId, branches, { ingredients, to });
+    const basis = await costBasis(orgId, branches, { to });
+    const valued = rows.map((r) => {
+      const perBase = costFrom(basis, r.ingredientId, method);
+      return { ...r, value: perBase === null ? null : r.qtyBase * perBase };
+    });
+    evidence.stock = valued;
+
+    const SHOWN = 40;
+    const ordered = [...valued].sort((a, b) => (b.value ?? -1) - (a.value ?? -1) || a.name.localeCompare(b.name));
+    const total = valued.reduce((sum, r) => sum + (r.value > 0 ? r.value : 0), 0);
+    const unvalued = valued.filter((r) => r.value === null).length;
+    const qtyText = (r) => `${Number(r.qty.toFixed(3))} ${r.stockUnit}`;
+
+    const lines = ordered.slice(0, SHOWN).map((r) => `${r.name}: ${qtyText(r)}${
+      r.value === null ? " (no cost recorded)" : ` worth ${money(r.value)}`}${
+      r.negative ? " — NEGATIVE, a recording problem rather than a real balance" : ""}${
+      r.belowReorder && !r.negative ? " — at or below its reorder point" : ""}`);
+
+    sections.push(rows.length
+      ? `STOCK ON HAND NOW (${rows.length} items, ${branches.length === 1 ? "1 branch" : `${branches.length} branches`}; value at cost ${money(total)}${unvalued ? `, ${unvalued} items have no cost yet so the value is a lower bound` : ""})
+${lines.join("\n")}${rows.length > SHOWN ? `
+…and ${rows.length - SHOWN} more lower-value items. For any of them, or a single branch's split, call get_inventory_levels.` : ""}`
+      : `STOCK ON HAND NOW
+Nothing has been recorded on the shelves yet — no delivery received and no stock entered. Say so rather than calling the storeroom empty.`);
+  }
 
   /* --- Cost and leakage: needs `view:costs`. ----------------------------- */
   if (can("view:costs") && paidFor(SECTION_FEATURE.leakage)) {
