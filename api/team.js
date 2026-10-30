@@ -253,7 +253,11 @@ export default async function handler(req, res) {
      else. An owner who wants a second administrator has a way to say so, and
      that decision should look like what it is. */
   if (req.method === "PATCH") {
-    if (!can(member.role, "manage:users")) return res.status(403).json({ error: "forbidden" });
+    /* By role, not by grant: the caller's role has to carry manage:users
+       itself. This read `member.role`, and no `member` exists in this
+       handler, so every grant answered 500 with a ReferenceError and no
+       owner could open a tab for anybody. */
+    if (!can(scope.role, "manage:users")) return res.status(403).json({ error: "forbidden" });
 
     const grants = normaliseGrants(req.body || {});
     const org2 = { ...org, tabGrants: grants };
