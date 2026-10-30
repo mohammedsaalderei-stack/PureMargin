@@ -228,3 +228,8 @@ export function toStockUnit(qty, rawUnit, stockUnit) {
      the precision of any scale in a kitchen. */
   return { qty: Math.round(out * 1e6) / 1e6, unit: to, converted: true, from };
 }
+
+/* The same folding, for a word that is not a unit — "jar", "تنكة", "pinch" —
+   when it is used as the key of an ingredient's own conversion. One copy, so
+   a word learned off one delivery note matches the same word on the next. */
+export { tidy as tidyUnitWord };

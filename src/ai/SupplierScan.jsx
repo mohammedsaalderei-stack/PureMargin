@@ -181,7 +181,9 @@ export default function SupplierScan({ token, onReceived, initial, onInitialUsed
   const edit = (i, patch) =>
     setLines((list) => list.map((l, n) => (n === i
       ? { ...l, ...patch, ...("qty" in patch || "unit" in patch
-          ? { receiveQty: undefined, receiveUnit: undefined, edited: true } : {}) }
+          /* And the conversion with it: a corrected line is no longer evidence
+             of what one package holds, so nothing should be learned from it. */
+          ? { receiveQty: undefined, receiveUnit: undefined, learn: null, estimated: false, edited: true } : {}) }
       : l)));
   const drop = (i) => setLines((list) => list.filter((_, n) => n !== i));
 
@@ -579,6 +581,18 @@ export default function SupplierScan({ token, onReceived, initial, onInitialUsed
                           total: l.pack.qty,
                           unit: l.pack.unit,
                         })}
+                        {l.estimated && <span dir="auto" style={{ color: C.amber }}> · {s.convEstimated}</span>}
+                      </div>
+                    )}
+
+                    {/* A conversion the line went through that no bracket
+                        printed — "1 tin = 18 l", "1 pcs = 0.1 kg". Amber when
+                        it is the reader's estimate, so the one row worth
+                        checking against the paper stands out. */}
+                    {!l.pack && l.learn && !l.edited && (
+                      <div className="text-[11px]" style={{ color: l.estimated ? C.amber : C.cyan }}>
+                        <span dir="ltr" className="data">{fill(s.convRead, { from: l.learn.from, qty: l.learn.qty, unit: l.learn.unit })}</span>
+                        {l.estimated && <> · {s.convEstimated}</>}
                       </div>
                     )}
 

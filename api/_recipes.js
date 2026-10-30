@@ -33,10 +33,11 @@
    duplicated recipe per branch. */
 
 import { getJSON, setJSON } from "./_store.js";
-import { getIngredient, listIngredients, ensureIngredient, slug } from "./_inventory.js";
+import { getIngredient, listIngredients, ensureIngredient, learnConversions, slug } from "./_inventory.js";
 import { baseUnitOf } from "./_movements.js";
 import { convert, sameDimension, baseUnitFor } from "./_units.js";
 import { resolveUnit } from "./_unitwords.js";
+import { readConversion, toShelf } from "./_conversions.js";
 import { costBasis, costFrom, evidenceFor, DEFAULT_COST_METHOD } from "./_costing.js";
 
 const RECIPES = (orgId) => `inv:${orgId}:recipes`;
@@ -84,6 +85,7 @@ async function buildLines(orgId, inputs, { required }) {
   if (required && !inputs.length) return { error: "nolines" };
 
   const created = [];
+  const learn = [];
 
   for (const input of inputs) {
     const qty = Number(input.qty);
@@ -99,7 +101,14 @@ async function buildLines(orgId, inputs, { required }) {
        change what a line means, only whether the line is understood. */
     const written = input.unit;
     const read = written ? resolveUnit(written) : { unit: null };
-    if (written && read.error) {
+    /* What one of the written unit is, as the card's reader worked it out —
+       "1 pcs is 0.1 kg" for a lemon, "1 pinch is 0.5 g". Read here without a
+       shelf, because the ingredient may not exist yet; anchored to the real
+       one further down. */
+    const told = readConversion(input.convert);
+    /* A word the ledger has no unit for — "pinch", "bunch", "jar" — is no
+       longer the end of the line when the reader said what one is. */
+    if (written && read.error && !(told && told.kind === "word")) {
       return { error: read.error, unit: String(written), name: String(input.name || "") };
     }
     const stated = read.unit || null;
@@ -119,7 +128,10 @@ async function buildLines(orgId, inputs, { required }) {
 
       const made = await ensureIngredient(orgId, {
         name,
-        unit: stated,
+        /* The written unit where it is one; otherwise the unit the conversion
+           lands in, so "2 cloves" of a new garlic is kept in grams because a
+           clove was said to be five of them. */
+        unit: stated || told?.unit || null,
         estimatedCostPerBase: perBase,
         category: input.category,
       });
@@ -130,12 +142,34 @@ async function buildLines(orgId, inputs, { required }) {
 
     if (rows.some((r) => r.ingredientId === ingredient.id)) return { error: "duplicate" };
 
-    const unit = stated || ingredient.stockUnit;
-    /* A count offered where a weight is kept is the one refusal a person
-       genuinely has to answer, and it is named with the line so the screen can
-       say which ingredient rather than "one of the lines". */
-    if (!sameDimension(unit, ingredient.stockUnit)) {
-      return { error: "unit", name: ingredient.name, unit, stockUnit: ingredient.stockUnit };
+    const unit = stated || (written ? String(written).trim() : ingredient.stockUnit);
+
+    /* The quantity in the shelf's terms. Plain arithmetic when the units
+       measure the same kind of thing; otherwise what one of the written unit
+       is for this ingredient — a conversion it already keeps, or the one the
+       card's reader gave. Two lemons against a shelf kept in kilograms is
+       0.2 kg when a lemon is 100 g, and that used to be a refusal the chef
+       had to resolve before the dish could be saved at all. */
+    let qtyBase;
+    let via = null;
+    if (stated && sameDimension(stated, ingredient.stockUnit)) {
+      qtyBase = convert(qty, stated, baseUnitOf(ingredient));
+    } else {
+      const anchored = told ? readConversion(input.convert, ingredient.stockUnit) : null;
+      const reached = toShelf(qty, unit, ingredient, anchored ? [anchored] : []);
+      /* Still refused when nothing says what one is, and named with the line
+         so the screen can say which ingredient rather than "one of the lines". */
+      if (!reached) {
+        return {
+          error: stated ? "unit" : (read.error || "unit"),
+          name: ingredient.name, unit, stockUnit: ingredient.stockUnit,
+        };
+      }
+      qtyBase = convert(reached.qty, ingredient.stockUnit, baseUnitOf(ingredient));
+      if (reached.rule) {
+        via = { from: reached.rule.from, qty: reached.rule.qty, unit: reached.rule.unit, estimated: reached.rule.estimated };
+        if (anchored && reached.rule === anchored) learn.push({ ingredientId: ingredient.id, conversion: anchored });
+      }
     }
 
     rows.push({
@@ -143,12 +177,15 @@ async function buildLines(orgId, inputs, { required }) {
       name: ingredient.name,
       qty, unit,
       /* Net — what ends up in the dish. Yield turns it into what leaves stock. */
-      qtyBase: convert(qty, unit, baseUnitOf(ingredient)),
+      qtyBase,
       baseUnit: baseUnitOf(ingredient),
+      /* "1 pcs = 0.1 kg (estimated)", where the line needed one, so the sheet
+         can show what a quantity in lemons was costed as. */
+      ...(via ? { via } : {}),
       note: String(input.note || "").trim(),
     });
   }
-  return { lines: rows, created };
+  return { lines: rows, created, learn };
 }
 
 /* Portions defaults to one and yield to a hundred, and neither is asked for.
@@ -254,6 +291,12 @@ export async function saveVersion(orgId, input = {}) {
 
   map[id] = recipe;
   await setJSON(RECIPES(orgId), map);
+  /* Saved, so what the card's units turned out to mean is remembered on each
+     ingredient — the next recipe saying "2 lemons" needs nobody to say what
+     a lemon weighs. After the write, so a refused save teaches nothing. */
+  for (const { ingredientId, conversion } of [...(built.learn || []), ...(packaging.learn || [])]) {
+    await learnConversions(orgId, ingredientId, [conversion]);
+  }
   return {
     recipe,
     version,
@@ -562,10 +605,16 @@ export async function simulate(orgId, id, branchIds, {
     lines.map((line) => {
       const override = Number(qtyOverrides[line.ingredientId]);
       if (!Number.isFinite(override) || override < 0) return line;
+      /* In proportion to the saved line rather than converted afresh: a line
+         written in lemons against a shelf kept in kilograms has no unit
+         arithmetic to redo, only the rate it was saved at. */
+      const rate = Number(line.qty) > 0 ? Number(line.qtyBase) / Number(line.qty) : null;
       return {
         ...line,
         qty: override,
-        qtyBase: convert(override, line.unit, line.baseUnit),
+        qtyBase: rate !== null && Number.isFinite(rate)
+          ? override * rate
+          : convert(override, line.unit, line.baseUnit),
       };
     });
 

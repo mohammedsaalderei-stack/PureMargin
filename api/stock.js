@@ -31,7 +31,7 @@ import { posTokenFor } from "./_accounts.js";
 import { receiptsFor } from "./_data.js";
 import { depleteFromSales } from "./_salesdepletion.js";
 import { recordAudit } from "./_audit.js";
-import { listIngredients, ensureIngredient } from "./_inventory.js";
+import { listIngredients, ensureIngredient, learnConversions } from "./_inventory.js";
 import { learnAliases } from "./_aliases.js";
 import { costBasis, costFrom, evidenceFor } from "./_costing.js";
 import { unitsByDimension, toBase, unitLabel } from "./_units.js";
@@ -430,6 +430,15 @@ export default async function handler(req, res) {
         const learned = await learnAliases(orgId, receivable
           .filter((r) => receivedIds.has(String(r.ingredientId)) && r.text)
           .map((r) => ({ text: r.text, ingredientId: String(r.ingredientId) })));
+
+        /* And what this supplier's packages hold — "1 tin is 18 l" — so the
+           next note saying "tin" converts without asking anybody. Same rule as
+           the wording: only lines that were actually received. */
+        for (const r of receivable) {
+          if (r.learn && receivedIds.has(String(r.ingredientId))) {
+            await learnConversions(orgId, String(r.ingredientId), [r.learn]);
+          }
+        }
 
         await recordAudit(orgId, {
           actor: session.username,
