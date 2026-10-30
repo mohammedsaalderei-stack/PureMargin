@@ -200,6 +200,35 @@ const LANG_NOTE = {
   en: "Write every `note` and `summary` field in English.",
 };
 
+/* The list a document is matched against, with the unit each item is kept in.
+
+   The model used to see names only, so it could not know that the lemons on
+   file are counted in kilograms when a card says "2 lemons", or that the oil
+   is kept in litres when a note says "1 tin". Those are the lines that ended
+   up as questions for a person; with the unit beside the name it can say
+   what one of the written unit is instead. A pipe rather than brackets, and
+   the name always first, because the answer has to be the name alone. */
+function stockList(stock) {
+  return stock
+    .map((i) => (i.stockUnit ? `${i.name} | ${i.stockUnit}` : i.name))
+    .join("\n") || "(none on file yet)";
+}
+
+/* What a conversion looks like, said once for both prompts. */
+const CONVERT_RULE = `  convert  { "from": "<the unit as written on the line>", "qty": <how many of
+             the shelf's unit one of it is>, "unit": "<the shelf's unit>",
+             "estimated": <false only when the document itself prints it> }
+
+Give convert only when the written unit cannot be turned into the shelf's
+unit by arithmetic: a count against a weight ("2 lemons" where lemons are kept
+in kg — one lemon is about 0.1 kg), a volume against a weight ("2 tbsp tahini"
+where tahini is kept in kg — a tablespoon is about 0.015 kg), a package
+("1 tin" of oil kept in l — 18), or a kitchen word ("2 cloves" of garlic kept
+in g — 5). Use what you know about the product; a person sees that it was an
+estimate and can correct it, which is far better than a line that cannot be
+saved at all. Leave it null when kg against g, l against ml or pcs against ea
+already settles it.`;
+
 function supplierPrompt(langNote, stock = []) {
   return `You read photos of supplier invoices and delivery notes for a
 restaurant, and of grocery receipts where a restaurant has bought supplies.
@@ -209,8 +238,8 @@ ingredients each dish needs per portion, with no supplier and no price on the
 lines — answer with only {"notAPurchase": "recipe"} and nothing else. A supplier
 invoice, delivery note or receipt is a purchase however short or untidy it is.
 
-INGREDIENTS ALREADY ON FILE (one name per line):
-${stock.map((i) => i.name).join("\n") || "(none on file yet)"}
+INGREDIENTS ALREADY ON FILE (one per line: name | the unit it is kept in):
+${stockList(stock)}
 
 Transcribe every purchased line exactly as printed, and match each to the
 closest name on that list. Abbreviations, misspellings, another language and a
@@ -219,8 +248,9 @@ the tomatoes on the list. Use null when nothing on the list is a plausible
 match — a wrong match writes a delivery against the wrong shelf, and nothing
 downstream will contradict it.
 
-Only ever answer with a name copied exactly from that list, or null. Do not
-invent a name, and do not adjust the spelling of one you found.
+Only ever answer with a name copied exactly from that list — the part before
+the |, without the unit — or null. Do not invent a name, and do not adjust the
+spelling of one you found.
 
 When nothing on the list matches, describe the ingredient the business should
 create for it. You can see what a kitchen buys: "OLIVE OIL EXTRA VIRGIN 5L TIN"
@@ -247,16 +277,25 @@ x 330ml" is twenty-four of 330 ml. "5 kg Bag" is one bag of five kilos.
   pack   { "count": <inner units in one package>, "size": <amount in one inner
            unit>, "unit": "<that inner unit as printed>" }
 
-Fill it only from what the line actually prints. A line that says "1 Carton"
-and nothing more has a null pack — how much a carton holds is not something to
-infer from the price or from what cartons usually hold, and a wrong pack size
-multiplies a stock balance by the size of the mistake.
+Fill it from what the line prints wherever it prints it. "Pack of 12" with no
+inner unit is twelve pieces: { "count": 12, "size": 1, "unit": "pcs" }.
 
-Do not convert units and do not calculate a unit price — those are worked out
-afterwards from the business's own records, and a guess would be written into a
-stock balance as though it were measured. Report the pack as three separate
-numbers for the same reason: the multiplication is arithmetic, and arithmetic
-belongs in code where it can be checked.
+When a line sells by a package and does not say what one holds — "1 Tin",
+"2 Jar", "5 Pack" — give the size that product's package normally comes in and
+add "estimated": true to the pack. A sunflower-oil tin is usually 18 L, a
+tahini jar usually 1 kg. The line is then received with the estimate marked on
+screen, where somebody holding the tin can correct it; without one it cannot
+be received at all.
+
+When the line is for an item on the list, also look at the unit it is kept in.
+If the line's unit cannot be turned into that unit by arithmetic, say what one
+of it is:
+
+${CONVERT_RULE}
+
+Do not calculate a unit price, and do not multiply anything out yourself.
+Report the pack and the conversion as separate numbers: the multiplication is
+arithmetic, and arithmetic belongs in code where it can be checked.
 
 If a quantity, a unit or an amount cannot be read, use null. A null is a
 question somebody answers in two seconds; a wrong number is a discrepancy
@@ -267,7 +306,7 @@ Respond with ONLY this JSON, nothing else:
   "supplier": "<supplier or shop name, or null>",
   "invoiceNo": "<invoice or receipt number, or null>",
   "date": "<date as printed, or null>",
-  "lines": [{ "text": "<line as printed>", "qty": <number, or null>, "unit": "<kg, g, l, ml, box, pcs… as printed, or null>", "pack": { "count": <number>, "size": <number>, "unit": "<inner unit as printed>" }, "amount": <line total, or null>, "ingredient": "<exact name from the list, or null>", "newItem": { "name": "<short kitchen name>", "stockUnit": "<kg|g|l|ml|ea>", "purchaseUnit": "<how it is sold>", "packSize": <number>, "category": "<produce|meat|dairy|dry|oil|drink|packaging>" } }],
+  "lines": [{ "text": "<line as printed>", "qty": <number, or null>, "unit": "<kg, g, l, ml, box, pcs… as printed, or null>", "pack": { "count": <number>, "size": <number>, "unit": "<inner unit as printed>", "estimated": <true when not printed> }, "convert": <as above, or null>, "amount": <line total, or null>, "ingredient": "<exact name from the list, or null>", "newItem": { "name": "<short kitchen name>", "stockUnit": "<kg|g|l|ml|ea>", "purchaseUnit": "<how it is sold>", "packSize": <number>, "category": "<produce|meat|dairy|dry|oil|drink|packaging>" } }],
   "subtotal": <total before tax as printed, or null>,
   "tax": <tax or VAT amount as printed, or null>,
   "total": <invoice total as printed, or null>
@@ -284,14 +323,14 @@ function recipePrompt(langNote, stock = []) {
   return `You read photographs of recipe cards, handwritten recipes and printed
 recipe sheets from restaurant kitchens.
 
-INGREDIENTS ALREADY ON FILE (one name per line):
-${stock.map((i) => i.name).join("\n") || "(none on file yet)"}
+INGREDIENTS ALREADY ON FILE (one per line: name | the unit it is kept in):
+${stockList(stock)}
 
 Transcribe the dish name, how many portions it says it makes, and every
 ingredient quantity written on it. Copy the quantities exactly as written —
 "1/2", "1½" and "0.5" are all fine, and so is a quantity with no unit. Match
-each line to the closest name on that list, copied exactly, or null when
-nothing on it is a plausible match.
+each line to the closest name on that list, copied exactly — the part before
+the |, without the unit — or null when nothing on it is a plausible match.
 
 A document may hold more than one dish: several cards photographed together,
 or a report with a dish to a page. Read every dish as its own recipe, in the
@@ -315,7 +354,15 @@ straightforward: "olive oil" is kept in litres, "flour" in kilos, "eggs" each.
 
 Leave newItem null on the lines that matched.
 
-Report only what is on the card. Do not convert between units, and do not
+When a line matches an item on the list and its unit cannot be turned into the
+unit that item is kept in by arithmetic, say what one of the written unit is.
+For a line that matches nothing and is written in a kitchen word rather than a
+unit — "2 cloves", "a pinch", "1 bunch" — say the same against the newItem's
+stockUnit:
+
+${CONVERT_RULE}
+
+Report only what is on the card. Do not change the quantities, and do not
 invent a portion count the card does not state — those are settled afterwards against the business's own
 records, and a guess here would be written into a recipe that every cost report
 afterwards is built on.
@@ -352,8 +399,8 @@ dish in the document:
   "foodCostBasis": "<portion|batch, or null>",
   "portions": <number of portions the card states, or null>,
   "note": "<anything short worth keeping, or null>",
-  "lines": [{ "text": "<ingredient as written>", "qty": "<quantity as written, or null>", "qtyPerPortion": "<one-portion figure, only on a sheet with two quantity columns, or null>", "qtyBatch": "<total for all the portions, only on a sheet with two quantity columns, or null>", "unit": "<g, kg, ml, l, tsp, tbsp, cup, pcs… as written, or null>", "ingredient": "<exact name from the list, or null>", "newItem": { "name": "<short kitchen name>", "stockUnit": "<kg|g|l|ml|ea>", "purchaseUnit": "<how it is sold>", "packSize": <number>, "category": "<produce|meat|dairy|dry|oil|drink|packaging>" } }],
-  "packaging": [{ "text": "<item as written>", "qty": "<quantity, or null>", "qtyPerPortion": "<one-portion figure, or null>", "qtyBatch": "<total for all the portions, or null>", "unit": "<pcs, ea… as written, or null>", "ingredient": "<exact name from the list, or null>", "newItem": { "name": "<short name>", "stockUnit": "ea", "purchaseUnit": "<how it is sold>", "packSize": <number>, "category": "packaging" } }]
+  "lines": [{ "text": "<ingredient as written>", "qty": "<quantity as written, or null>", "qtyPerPortion": "<one-portion figure, only on a sheet with two quantity columns, or null>", "qtyBatch": "<total for all the portions, only on a sheet with two quantity columns, or null>", "unit": "<g, kg, ml, l, tsp, tbsp, cup, pcs… as written, or null>", "convert": <as above, or null>, "ingredient": "<exact name from the list, or null>", "newItem": { "name": "<short kitchen name>", "stockUnit": "<kg|g|l|ml|ea>", "purchaseUnit": "<how it is sold>", "packSize": <number>, "category": "<produce|meat|dairy|dry|oil|drink|packaging>" } }],
+  "packaging": [{ "text": "<item as written>", "qty": "<quantity, or null>", "qtyPerPortion": "<one-portion figure, or null>", "qtyBatch": "<total for all the portions, or null>", "unit": "<pcs, ea… as written, or null>", "convert": <as above, or null>, "ingredient": "<exact name from the list, or null>", "newItem": { "name": "<short name>", "stockUnit": "ea", "purchaseUnit": "<how it is sold>", "packSize": <number>, "category": "packaging" } }]
   }]
 }
 ${langNote}`;

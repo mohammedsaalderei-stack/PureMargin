@@ -23,6 +23,7 @@ import { isUnit, dimensionOf, UNITS, convert as convertUnits } from "./_units.js
 import { resolveUnit, normaliseUnit } from "./_unitwords.js";
 import { normaliseText } from "./_text.js";
 import { resetAliases } from "./_aliases.js";
+import { cleanConversions, mergeConversions, readConversion } from "./_conversions.js";
 
 const ING = (orgId) => `inv:${orgId}:ingredients`;
 const SUP = (orgId) => `inv:${orgId}:suppliers`;
@@ -215,6 +216,10 @@ export async function saveIngredient(orgId, input) {
     branchOverrides: input.branchOverrides && typeof input.branchOverrides === "object"
       ? input.branchOverrides
       : existing?.branchOverrides || {},
+    /* What one lemon weighs, what one tin holds — see `_conversions.js`.
+       Kept through an edit that does not mention them, because the item form
+       does not show them and saving it must not forget what a scan learned. */
+    conversions: cleanConversions(input.conversions ?? existing?.conversions, input.stockUnit),
     archived: Boolean(input.archived ?? existing?.archived ?? false),
     createdAt: existing?.createdAt || now,
     updatedAt: now,
@@ -253,7 +258,7 @@ export async function saveIngredient(orgId, input) {
    `created` is returned so callers can tell somebody what happened. A recipe
    that quietly conjures six ingredients is doing the right thing, but it should
    still say it did. */
-export async function ensureIngredient(orgId, { name, unit, estimatedCostPerBase, category, purchaseUnit, packSize }) {
+export async function ensureIngredient(orgId, { name, unit, estimatedCostPerBase, category, purchaseUnit, packSize, conversions }) {
   const wanted = String(name || "").trim();
   const id = slug(wanted);
   if (!id) return { error: "name" };
@@ -314,7 +319,31 @@ export async function ensureIngredient(orgId, { name, unit, estimatedCostPerBase
     packSize: usableBuys && Number(packSize) > 0 ? Number(packSize) : undefined,
     category: String(category || "").trim(),
     estimatedCostPerBase: Number(estimatedCostPerBase) > 0 ? Number(estimatedCostPerBase) : null,
+    conversions,
   });
+}
+
+/* Remember how a document's units turned into this ingredient's.
+
+   Called once a person has saved the document — a delivery received, a
+   recipe saved — never on a scan alone, for the same reason supplier wording
+   is learned on commit: a scan is a proposal, and saving it is somebody
+   saying the proposal was right. Returns the ingredient, changed or not. */
+export async function learnConversions(orgId, id, incoming) {
+  const map = (await getJSON(ING(orgId))) || {};
+  const existing = map[id];
+  if (!existing) return null;
+
+  const read = (incoming || []).map((c) => readConversion(c, existing.stockUnit)).filter(Boolean);
+  if (!read.length) return existing;
+
+  const before = cleanConversions(existing.conversions, existing.stockUnit);
+  const next = mergeConversions(before, read);
+  if (JSON.stringify(next) === JSON.stringify(before)) return existing;
+
+  map[id] = { ...existing, conversions: next, updatedAt: Date.now() };
+  await setJSON(ING(orgId), map);
+  return map[id];
 }
 
 /* Archive, never delete. The document is explicit that the ledger is corrected

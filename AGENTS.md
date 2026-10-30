@@ -287,6 +287,31 @@ What actually goes with it:
   unchanged by this; the honest position is that leakage needs somebody
   recording issues, not a periodic recount.
 
+## What one of something is (`api/_conversions.js`)
+- An ingredient carries `conversions`: "one `from` is `qty` `unit`", where
+  `from` is a ledger unit of another dimension ("1 ea = 0.1 kg" for a lemon) or
+  a word ("1 tin = 18 l", "1 clove = 5 g"). This is the density `_units.js`
+  says belongs to the ingredient; `_units.js` itself still never converts
+  across dimensions.
+- **The model supplies them.** Both prompts now list items as `name | unit`,
+  and a line whose unit cannot reach the shelf's by arithmetic carries
+  `convert`. The invoice prompt may also estimate a package nothing printed
+  (`pack.estimated`). Estimated is the default unless the model says
+  `estimated: false`; rows show it in amber, the way an estimated cost shows.
+- `toShelf` order: same-dimension arithmetic (never overruled) → the item's
+  own package word → a printed conversion → a kept one → an estimated one.
+- **Learned on save, never on scan** — a delivery received
+  (`stock.js ?what=invoice`) or a recipe saved (`saveVersion`). A printed
+  conversion replaces an estimate; an estimate replaces only an estimate.
+  `saveIngredient` keeps them through a form edit that does not mention them.
+- `buildPurchase` converts against the *proposed* shelf for a line with no
+  match. It used to convert only against a match, so every new item sold by
+  the jar, tin or pack was refused on a first delivery (8 of 19 lines on
+  a sample delivery note).
+- A new item's `packSize` of 1 is the default, not an answer: only
+  `packKnown` lets it convert a package.
+- Tests: `api/_conversions.test.js` (21).
+
 ## Supplier vocabulary (`api/_aliases.js`)
 - Key `inv:<orgId>:aliases`: normalised invoice description → `{ ingredientId,
   hits, learnedAt, replaced }`. Capped at 5000, trimmed by least-used.

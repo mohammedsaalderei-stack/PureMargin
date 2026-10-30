@@ -1012,6 +1012,8 @@ export const STRINGS = {
       partial: "Not counted: {items} — no recipe on file, so what they used isn't known.",
     },
     supplierscan: {
+      convRead: "1 {from} = {qty} {unit}",
+      convEstimated: "estimated, check against the paper",
       extracted: "Extracted invoice",
       ready: "Ready",
       checkTotals: "Check totals",
@@ -1111,6 +1113,8 @@ export const STRINGS = {
       errServer: "Couldn't add those. Nothing was created.",
     },
     recipescan: {
+      convRead: "1 {from} = {qty} {unit}",
+      convEstimated: "estimated, check against the paper",
       dishOf: "Dish {n} of {total}",
       skipDish: "Skip this dish",
       savedName: "{name} saved",
@@ -2954,6 +2958,8 @@ export const STRINGS = {
       partial: "غير محتسب: {items}. لا توجد وصفة مسجّلة لهذه الأصناف.",
     },
     supplierscan: {
+      convRead: "1 {from} = {qty} {unit}",
+      convEstimated: "تقديري، تحقّق منه على الورقة",
       extracted: "بيانات الفاتورة المستخرجة",
       ready: "جاهزة",
       checkTotals: "راجع المجاميع",
@@ -3053,6 +3059,8 @@ export const STRINGS = {
       errServer: "تعذّرت الإضافة. لم يُنشأ شيء.",
     },
     recipescan: {
+      convRead: "1 {from} = {qty} {unit}",
+      convEstimated: "تقديري، تحقّق منه على الورقة",
       dishOf: "الطبق {n} من {total}",
       skipDish: "تخطَّ هذا الطبق",
       savedName: "حُفظ {name}",
@@ -4901,6 +4909,8 @@ export const STRINGS = {
       partial: "नहीं गिना गया: {items} — रेसिपी दर्ज नहीं, इसलिए खपत अज्ञात है।",
     },
     supplierscan: {
+      convRead: "1 {from} = {qty} {unit}",
+      convEstimated: "अनुमानित, काग़ज़ से मिलाकर देखें",
       extracted: "निकाला गया चालान",
       ready: "तैयार",
       checkTotals: "जोड़ जाँचें",
@@ -5000,6 +5010,8 @@ export const STRINGS = {
       errServer: "जोड़ा नहीं जा सका। कुछ नहीं बना।",
     },
     recipescan: {
+      convRead: "1 {from} = {qty} {unit}",
+      convEstimated: "अनुमानित, काग़ज़ से मिलाकर देखें",
       dishOf: "व्यंजन {n}/{total}",
       skipDish: "यह व्यंजन छोड़ें",
       savedName: "{name} सहेजा गया",
@@ -7160,6 +7172,8 @@ export const STRINGS = {
       caveat: "یہ تجاویز ہیں، لیجر کے اندراجات نہیں۔ جو واقعی موجود ہے اسے درج کرنے کے لیے گنتی کا طریقہ استعمال کیجیے۔",
     },
     supplierscan: {
+      convRead: "1 {from} = {qty} {unit}",
+      convEstimated: "اندازاً، کاغذ سے ملا کر دیکھیں",
       extracted: "نکالی گئی رسید",
       ready: "تیار",
       checkTotals: "میزان جانچیں",
@@ -7207,6 +7221,8 @@ export const STRINGS = {
       errServer: "درج نہیں ہو سکا۔ کچھ نہیں لکھا گیا۔",
     },
     recipescan: {
+      convRead: "1 {from} = {qty} {unit}",
+      convEstimated: "اندازاً، کاغذ سے ملا کر دیکھیں",
       dishOf: "ڈش {n}/{total}",
       skipDish: "یہ ڈش چھوڑیں",
       savedName: "{name} محفوظ ہو گئی",
@@ -8950,6 +8966,8 @@ export const STRINGS = {
       partial: "Hindi nabilang: {items} — walang recipe, kaya hindi alam ang naubos.",
     },
     supplierscan: {
+      convRead: "1 {from} = {qty} {unit}",
+      convEstimated: "tantya, ikumpara sa papel",
       extracted: "Nakuhang invoice",
       ready: "Handa",
       checkTotals: "Suriin ang kabuuan",
@@ -9049,6 +9067,8 @@ export const STRINGS = {
       errServer: "Hindi naidagdag. Walang nagawa.",
     },
     recipescan: {
+      convRead: "1 {from} = {qty} {unit}",
+      convEstimated: "tantya, ikumpara sa papel",
       dishOf: "Putahe {n} ng {total}",
       skipDish: "Laktawan ang putaheng ito",
       savedName: "Na-save ang {name}",

@@ -4,6 +4,7 @@ import { sameDimension, unitLabel, dimensionOf } from "./_units.js";
 import { normaliseText, words } from "./_text.js";
 import { slug } from "./_inventory.js";
 import { aliasKey, resolveMany } from "./_aliases.js";
+import { readConversion, toShelf } from "./_conversions.js";
 
 /* A supplier invoice, turned into something the store can receive.
 
@@ -204,6 +205,12 @@ export function proposeItem(line, text, printedUnit) {
     packSize: contents?.qty > 0
       ? contents.qty
       : (Number(raw.packSize) > 0 ? Number(raw.packSize) : 1),
+    /* Whether `packSize` was said by anyone, and by whom. 1 is also the
+       default for "nobody said", and a jar received as one kilo because the
+       default looked like an answer is the exact mistake this file exists to
+       avoid. */
+    packKnown: contents?.qty > 0 || Number(raw.packSize) > 0,
+    packPrinted: contents?.qty > 0 && line.pack?.estimated !== true,
     category: CATEGORIES_OK.has(String(raw.category).toLowerCase())
       ? String(raw.category).toLowerCase()
       : null,
@@ -340,7 +347,9 @@ export function buildPurchase(parsed, ingredients, aliases = new Map()) {
     const learned = aliases.get(aliasKey(text));
     const remembered = learned ? byId.get(learned.ingredientId) : null;
 
-    const named = String(line.ingredient || "").trim().toLowerCase();
+    /* The list is shown as "name | unit"; a model that copies the whole row
+       still means the name. */
+    const named = String(line.ingredient || "").split("|")[0].trim().toLowerCase();
     const chosen = named
       ? ingredients.find((i) => i.name.trim().toLowerCase() === named)
       : null;
@@ -358,7 +367,23 @@ export function buildPurchase(parsed, ingredients, aliases = new Map()) {
     /* Cost per unit of whatever the invoice counted in — per tin, per sack,
        per kilo. Correct as far as it goes, and not yet what the ledger wants. */
     const stockUnit = hit?.ingredient?.stockUnit || null;
-    const inStock = unit && stockUnit ? toStockUnit(qty, unit, stockUnit) : null;
+
+    /* The shelf this line will be received onto: the ingredient it matched, or
+       the one the commit is about to create from `newItem`.
+
+       Every conversion below used to run against a match only. A line for
+       something not yet on file had no shelf to convert into, so "2 Jar —
+       Tahini 2 kg" went through as two of a unit called "jar", was flagged as
+       won't-fit, and was refused at the ledger — on the first delivery of a
+       new account, that was every line sold by the jar, tin, pack or carton,
+       including the ones that printed exactly what they held. The proposal
+       says what the shelf will count in, which is all a conversion needs. */
+    const proposal = hit ? null : proposeItem(line, text, printed);
+    const shelf = stockUnit || normaliseUnit(proposal?.stockUnit) || null;
+    /* What the model says one of the written unit is in this shelf's terms —
+       "1 tin is 18 L", "1 pcs is 0.1 kg" — printed or estimated. */
+    const told = readConversion(line.convert, shelf);
+    const inStock = unit && shelf ? toStockUnit(qty, unit, shelf) : null;
 
     const perInvoiceUnit = qty && total ? total / qty : null;
 
@@ -380,13 +405,14 @@ export function buildPurchase(parsed, ingredients, aliases = new Map()) {
        a supplier who changes from twelve-bottle cartons to twenty-four prints
        the new number on the note, and the ingredient's saved pack size is then
        last month's answer. */
-    const stated = packContents(line.pack, stockUnit);
+    const statedPack = packContents(line.pack, shelf);
+    const stated = statedPack ? { ...statedPack, estimated: line.pack?.estimated === true } : null;
 
     const asStockUnit = (() => {
-      if (perInvoiceUnit === null || !stockUnit) return { unitCost: perInvoiceUnit, qty };
+      if (perInvoiceUnit === null || !shelf) return { unitCost: perInvoiceUnit, qty };
 
-      if (unit && sameDimension(unit, stockUnit)) {
-        const inStock = toStockUnit(qty, unit, stockUnit);
+      if (unit && sameDimension(unit, shelf)) {
+        const inStock = toStockUnit(qty, unit, shelf);
         if (inStock && inStock.qty > 0) {
           return { unitCost: (total || 0) / inStock.qty, qty: inStock.qty, converted: true };
         }
@@ -399,6 +425,12 @@ export function buildPurchase(parsed, ingredients, aliases = new Map()) {
         const stockQty = qty * stated.qty;
         return {
           unitCost: (total || 0) / stockQty, qty: stockQty, converted: true, viaStatedPack: true,
+          estimated: stated.estimated,
+          /* Remembered against the package word, so next month's "2 Jar" with
+             no bracket still converts. */
+          learn: !unit && printed
+            ? { from: printed, qty: stated.qty, unit: shelf, estimated: stated.estimated }
+            : null,
         };
       }
 
@@ -407,6 +439,28 @@ export function buildPurchase(parsed, ingredients, aliases = new Map()) {
       if (pack > 0 && buys && printed && buys.toLowerCase() === printed.toLowerCase()) {
         const stockQty = qty * pack;
         return { unitCost: (total || 0) / stockQty, qty: stockQty, converted: true, viaPack: true };
+      }
+
+      /* What one of the written unit is for this ingredient: a conversion the
+         ingredient already keeps, or the one the model gave for this line. */
+      const via = toShelf(qty, printed, { stockUnit: shelf, conversions: hit?.ingredient?.conversions }, told ? [told] : []);
+      if (via && via.qty > 0) {
+        return {
+          unitCost: (total || 0) / via.qty, qty: via.qty, converted: true, viaConversion: true,
+          estimated: via.estimated, learn: via.rule,
+        };
+      }
+
+      /* A new item's own proposal — "bought by the jar, two kilos to a jar".
+         Only when somebody actually said the size: the default of 1 would
+         receive a two-kilo jar as one kilo and look like an answer. */
+      if (proposal?.packKnown && !unit && printed && proposal.packSize > 0) {
+        const stockQty = qty * proposal.packSize;
+        return {
+          unitCost: (total || 0) / stockQty, qty: stockQty, converted: true, viaPack: true,
+          estimated: !proposal.packPrinted,
+          learn: { from: printed, qty: proposal.packSize, unit: shelf, estimated: !proposal.packPrinted },
+        };
       }
 
       return { unitCost: perInvoiceUnit, qty, unknown: true };
@@ -452,7 +506,7 @@ export function buildPurchase(parsed, ingredients, aliases = new Map()) {
 
        So the pair is emitted here, next to the cost it belongs with, and there
        is no longer a combination a caller can choose that disagrees. */
-    const receiveUnit = asStockUnit.converted ? stockUnit : (unit || printed);
+    const receiveUnit = asStockUnit.converted ? shelf : (unit || printed);
     const receiveQty = asStockUnit.converted ? asStockUnit.qty : qty;
 
     /* Whether the ledger will take this line, decided here rather than found
@@ -472,8 +526,7 @@ export function buildPurchase(parsed, ingredients, aliases = new Map()) {
        Measured against the ingredient that will exist after the commit: a line
        that matched nothing creates one from `newItem`, and it is that unit the
        delivery will be received in. */
-    const willBeStockedIn = stockUnit
-      || (hit ? null : normaliseUnit(proposeItem(line, text, printed).stockUnit));
+    const willBeStockedIn = shelf;
 
     const trouble = (() => {
       if (!willBeStockedIn) return null;
@@ -528,7 +581,15 @@ export function buildPurchase(parsed, ingredients, aliases = new Map()) {
       stockUnit,
       /* What to create when nothing matched, so the delivery can be received
          in one press rather than sending somebody to fill in a form first. */
-      newItem: hit ? null : proposeItem(line, text, printed),
+      newItem: proposal,
+      /* Whether the quantity on the shelf rests on an estimate — a tin taken
+         to hold what such tins usually hold — rather than on the paper. The
+         line goes in either way; the row says which, so somebody holding the
+         actual tin can correct it. */
+      estimated: Boolean(asStockUnit.estimated),
+      /* "1 tin = 18 l", for the row to show beside the converted quantity,
+         and for the commit to remember on the ingredient. */
+      learn: asStockUnit.learn || null,
       /* Null when the line will go in. "unit" when what is written measures a
          different kind of thing from the shelf, "packaging" when it names a
          package whose contents nothing has stated. Both are questions for a

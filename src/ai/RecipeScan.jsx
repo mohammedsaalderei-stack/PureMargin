@@ -80,6 +80,11 @@ export default function RecipeScan({ token, onSaved, initial, onInitialUsed }) {
       text: l.ingredientName || l.text || "",
       qty: l.qty ?? "",
       unit: l.unit || l.stockUnit || "",
+      /* What one of the written unit is — "1 pcs = 0.1 kg" for a lemon kept in
+         kilograms — as the scan worked it out. Sent with the line so the save
+         can use it instead of refusing; shown so it can be checked. */
+      convert: l.convert || null,
+      via: l.via || null,
     }));
     setDraft({
       menuItem: r?.menuItem || "",
@@ -128,8 +133,14 @@ export default function RecipeScan({ token, onSaved, initial, onInitialUsed }) {
   };
 
   const patch = (p) => setDraft((d) => ({ ...d, ...p }));
+  /* A conversion is about one ingredient: renaming the line drops it. A new
+     unit only hides the note — the save applies the conversion solely when
+     the unit still matches what it was worked out for. */
   const editRow = (key, i, p) => setDraft((d) => ({
-    ...d, [key]: d[key].map((r, n) => (n === i ? { ...r, ...p } : r)),
+    ...d,
+    [key]: d[key].map((r, n) => (n === i
+      ? { ...r, ...p, ...("text" in p ? { convert: null, via: null } : {}), ...("unit" in p ? { via: null } : {}) }
+      : r)),
   }));
   const dropRow = (key, i) => setDraft((d) => ({
     ...d, [key]: d[key].filter((_, n) => n !== i),
@@ -153,6 +164,7 @@ export default function RecipeScan({ token, onSaved, initial, onInitialUsed }) {
         name: r.text.trim(),
         qty: Number(r.qty),
         unit: r.unit.trim() || undefined,
+        convert: r.convert || undefined,
       }));
 
       const res = await fetch("/api/recipes?what=save", {
@@ -216,7 +228,8 @@ export default function RecipeScan({ token, onSaved, initial, onInitialUsed }) {
   const table = (key, addLabel) => (
     <div className="space-y-1.5">
       {draft[key].map((row, i) => (
-        <div key={i} className="flex items-center gap-1.5">
+        <div key={i}>
+        <div className="flex items-center gap-1.5">
           <input
             {...field}
             className={`${field.className} flex-1 min-w-0`}
@@ -242,6 +255,13 @@ export default function RecipeScan({ token, onSaved, initial, onInitialUsed }) {
             className="shrink-0 p-1.5 rounded-lg" style={{ color: C.slate }}>
             <Trash2 size={14} />
           </button>
+        </div>
+        {row.via && (
+          <div className="text-[11px] mt-0.5 ps-1" style={{ color: row.via.estimated ? C.amber : C.cyan }}>
+            <span dir="ltr">{fill(s.convRead, { from: row.via.from, qty: row.via.qty, unit: row.via.unit })}</span>
+            {row.via.estimated && <> · {s.convEstimated}</>}
+          </div>
+        )}
         </div>
       ))}
       <button type="button" onClick={() => addRow(key)}

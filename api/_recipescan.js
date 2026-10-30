@@ -1,6 +1,7 @@
 import { listIngredients } from "./_inventory.js";
 import { normaliseUnit, isPackaging, toStockUnit } from "./_unitwords.js";
 import { bestMatch, proposeItem } from "./_purchase.js";
+import { readConversion, toShelf } from "./_conversions.js";
 
 /* A recipe card, read off a photograph.
 
@@ -93,7 +94,9 @@ export function buildRecipe(parsed, ingredients) {
        that "TOMATO RED 5KG BOX" is the tomatoes; token overlap cannot see
        through a supplier's abbreviations nearly as well. Doing it the other way
        round was what left lines unmatched and sent people to a dropdown. */
-    const named = String(line.ingredient || "").trim().toLowerCase();
+    /* The list is shown as "name | unit"; a model that copies the whole row
+       still means the name. */
+    const named = String(line.ingredient || "").split("|")[0].trim().toLowerCase();
     const chosen = named
       ? ingredients.find((i) => i.name.trim().toLowerCase() === named)
       : null;
@@ -102,6 +105,13 @@ export function buildRecipe(parsed, ingredients) {
       : bestMatch(text, ingredients);
     const stockUnit = hit?.ingredient?.stockUnit || null;
     const inStock = unit && stockUnit ? toStockUnit(qty, unit, stockUnit) : null;
+    /* What one of the written unit is, where the card's unit and the shelf's
+       measure different things — "2 lemons" against kilograms. Carried to the
+       save, which applies it against the real ingredient and remembers it. */
+    const told = readConversion(line.convert);
+    const reached = !inStock && stockUnit && qty !== null
+      ? toShelf(qty, printed, hit.ingredient, told ? [readConversion(line.convert, stockUnit)] : [])
+      : null;
 
     return {
       text,
@@ -112,8 +122,13 @@ export function buildRecipe(parsed, ingredients) {
       unit: unit || printed,
       printedUnit: printed,
       packaging: !unit && isPackaging(printed),
-      stockQty: inStock ? inStock.qty : null,
-      converted: Boolean(inStock?.converted),
+      stockQty: inStock ? inStock.qty : (reached ? reached.qty : null),
+      converted: Boolean(inStock?.converted || reached),
+      convert: told,
+      /* "1 pcs = 0.1 kg", estimated or printed, for the row to show. */
+      via: reached?.rule
+        ? { from: reached.rule.from, qty: reached.rule.qty, unit: reached.rule.unit, estimated: reached.rule.estimated }
+        : null,
       ingredientId: hit?.ingredient?.id || null,
       ingredientName: hit?.ingredient?.name || null,
       confidence: hit?.confidence ?? 0,
