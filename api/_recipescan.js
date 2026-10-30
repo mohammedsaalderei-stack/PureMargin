@@ -52,13 +52,36 @@ export function parseQty(raw) {
 }
 
 export function buildRecipe(parsed, ingredients) {
+  const asList = (v) => (Array.isArray(v) ? v : []);
+  const stated = num(parsed?.portions);
+
+  /* Sheets that print two quantity columns: one portion, and the batch.
+
+     Asked to copy the one-portion column and set portions to 1, the model
+     copied the one-portion column and set portions to the batch (15) all the
+     same, which divides every quantity by fifteen: a beef plate costed at 13 g
+     of beef. So the model now copies both columns as printed, and the choice
+     is made here, where it can be tested. A per-portion figure wins; failing
+     that, a batch figure is divided by the portions the batch is for, which
+     also settles a line whose `qty` holds either column. The recipe is then
+     per portion, with portions 1. */
+  const onePortion = (line) => {
+    const one = parseQty(line?.qtyPerPortion);
+    if (one !== null) return one;
+    const batch = parseQty(line?.qtyBatch);
+    if (batch === null || !(stated > 0)) return null;
+    return Math.round((batch / stated) * 1e6) / 1e6;
+  };
+  const perPortion = [...asList(parsed?.lines), ...asList(parsed?.packaging)]
+    .some((line) => onePortion(line) !== null);
+
   /* One mapper, used for the food lines and the packaging lines alike. They
      are the same shape and the same matching problem — a box the store already
      stocks should resolve like a tomato does — and the only difference is which
      list they end up in on the recipe. */
   const readLine = (line) => {
     const text = String(line.text || line.name || "").trim();
-    const qty = parseQty(line.qty);
+    const qty = perPortion ? (onePortion(line) ?? parseQty(line.qty)) : parseQty(line.qty);
     const printed = String(line.unit || "").trim();
     const unit = normaliseUnit(printed);
     /* The model was given the real list and asked to pick from it. Trust that
@@ -104,7 +127,6 @@ export function buildRecipe(parsed, ingredients) {
     };
   };
 
-  const asList = (v) => (Array.isArray(v) ? v : []);
   const lines = asList(parsed?.lines).map(readLine);
   /* Boxes, cups, lids. Kept apart from the food because a food-cost percentage
      that includes clamshells is not comparable with anybody's benchmark — the
@@ -113,6 +135,13 @@ export function buildRecipe(parsed, ingredients) {
   const packaging = asList(parsed?.packaging).map(readLine);
 
   const matched = lines.filter((l) => l.ingredientId);
+
+  /* A batch cost goes per portion with the quantities. Left as "batch" with
+     portions now 1, the screen would divide it by one: the sheet's AED 258.75
+     for fifteen plates read as the cost of one. */
+  const printedCost = num(parsed?.foodCost);
+  const printedBasis = String(parsed?.foodCostBasis || "").toLowerCase() === "batch" ? "batch" : "portion";
+  const costToPortion = perPortion && printedBasis === "batch" && stated > 0 && printedCost !== null;
 
   return {
     menuItem: String(parsed?.menuItem || parsed?.title || "").trim(),
@@ -134,20 +163,19 @@ export function buildRecipe(parsed, ingredients) {
        Only where the card said it. Nothing is summed or inferred here — a
        derived figure presented as the card's own is the one mistake that
        cannot be spotted later. */
-    statedCost: num(parsed?.foodCost),
+    statedCost: costToPortion ? Math.round((printedCost / stated) * 100) / 100 : printedCost,
     /* Per portion or per batch. A card giving one total for four servings
        means a quarter of it per dish, and reading a batch figure as a portion
        figure overstates every margin on the menu by the batch size. Unstated
        basis is treated as per portion, which is what a card without a
        "serves" line means. */
-    statedCostBasis: String(parsed?.foodCostBasis || "").toLowerCase() === "batch"
-      ? "batch" : "portion",
+    statedCostBasis: costToPortion ? "portion" : printedBasis,
     /* A card that does not say how many it serves is the common case, and one
        is the honest default: it makes the quantities per-portion, which is
        what a card without a yield line usually means. A person can correct it,
        and the screen says so rather than hiding the assumption. */
-    portions: num(parsed?.portions) || 1,
-    portionsStated: num(parsed?.portions) !== null,
+    portions: perPortion ? 1 : (stated || 1),
+    portionsStated: perPortion || stated !== null,
     /* Never guessed. Yield is trim and cooking loss, which is not written on
        a card and cannot be seen in a photograph; 100 means "as written". */
     yieldPct: 100,
