@@ -59,6 +59,7 @@ import { costBasis, costFrom } from "./_costing.js";
 import { ingestionStatus } from "./_loyversehook.js";
 import { listOrders } from "./_purchasing.js";
 import { rawReceipts } from "./_data.js";
+import { usesRegister, registerReceipts } from "./_till.js";
 import { listEdits, applyEdit, receiptIdOf } from "./_saleedits.js";
 import { provider } from "./_pos.js";
 import { listEmployees, listPunches, onShift, shiftsFrom } from "./_employees.js";
@@ -466,7 +467,11 @@ export async function getPosSalesMetrics(ctx, { } = {}) {
    through, so what this returns is what the app's own screens show. */
 export async function getRecentReceipts(ctx, { days = 7, limit = 25, dish_name: dishName } = {}) {
   if (!allowed(ctx, DOMAIN.POS_SALES)) return refuse(DOMAIN.POS_SALES);
-  if (!ctx.posToken) {
+  /* Sales rung up on PureMargin's own register are receipts like the till's. */
+  const register = (await usesRegister(ctx.orgId).catch(() => false))
+    ? await registerReceipts(ctx.orgId).catch(() => [])
+    : [];
+  if (!ctx.posToken && !register.length) {
     return {
       domain: DOMAIN.POS_SALES,
       error: "notconnected",
@@ -477,7 +482,7 @@ export async function getRecentReceipts(ctx, { days = 7, limit = 25, dish_name: 
 
   let raw;
   try {
-    raw = await rawReceipts(ctx.posToken, { days: Math.min(Math.max(Number(days) || 7, 1), 31) });
+    raw = await rawReceipts(ctx.posToken, { days: Math.min(Math.max(Number(days) || 7, 1), 31), register });
   } catch {
     return {
       domain: DOMAIN.POS_SALES,

@@ -12,13 +12,13 @@
 import crypto from "crypto";
 import { requireAuth } from "./_auth.js";
 import { scopeFor, setMember, removeMember, ROLES, ROLE_KEYS, saveOrg, can } from "./_org.js";
-import { getAccount, normalise, posTokenFor, validEmail, getAccountByEmail } from "./_accounts.js";
-import { branchList } from "./_data.js";
+import { getAccount, normalise, validEmail, getAccountByEmail } from "./_accounts.js";
 import { normaliseGrants, grantable, grantedTabs } from "./_tabs.js";
 import { recordAudit, readAudit } from "./_audit.js";
 import { readSyncs } from "./_sync.js";
 import { getJSON, setJSON, del } from "./_store.js";
 import { sendMail, shell, row, button, publicOrigin } from "./_mail.js";
+import { rosterFor } from "./_till.js";
 
 
 /* ── Email invitations ────────────────────────────────────────
@@ -62,7 +62,7 @@ export default async function handler(req, res) {
      rejected outright rather than stored and silently ignored later. */
   let branchIds = [];
   try {
-    branchIds = (await branchList(await posTokenFor(session.username))).map((b) => String(b.id));
+    branchIds = (await rosterFor(session.account)).map((b) => String(b.id));
   } catch {
     branchIds = [];
   }

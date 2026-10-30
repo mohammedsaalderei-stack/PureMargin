@@ -273,6 +273,27 @@ export async function listKeys(prefix) {
   return [...memory.keys()].filter((k) => k.startsWith(prefix));
 }
 
+/* Every document under a prefix, as { key, value }, ordered by key.
+
+   For records kept one to a key, like the register's receipts, which are kept
+   apart so that two tills saving at once cannot overwrite each other. Reading
+   a month of those back one `getJSON` at a time is a query per sale; on
+   Postgres this is one query, through the same prefix index as `listKeys`.
+   Elsewhere it is the key listing followed by the reads. */
+export async function listJSON(prefix) {
+  warnOnce();
+  if (backend === "pg") {
+    const r = await guard("listJSON", () => pg(
+      "SELECT key, value FROM kv WHERE key LIKE $1 ESCAPE '\\' ORDER BY key", [likePrefix(prefix)]));
+    return r.rows.map((row) => ({ key: row.key, value: row.value }));
+  }
+  const keys = (await listKeys(prefix)).sort();
+  const values = await Promise.all(keys.map((key) => getJSON(key)));
+  return keys
+    .map((key, i) => ({ key, value: values[i] }))
+    .filter((row) => row.value !== null);
+}
+
 /* Test seam. */
 export function __resetMemory() {
   memory.clear();

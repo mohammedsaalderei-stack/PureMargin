@@ -53,6 +53,10 @@ export const TAB_ACCESS = {
      what everybody with a dashboard already does, and the screen shows no edit
      controls to somebody who cannot use them. */
   sales: "view:dashboard",
+  /* PureMargin's own register: a cashier's whole job, and anybody's who runs a
+     shift. Selling is not reading the margin, so a cashier who may not see the
+     dashboard still rings up sales. */
+  till: "use:till",
   employees: "manage:staff",
   watch: "view:profitability",
   menu: "view:profitability",

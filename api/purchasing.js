@@ -20,18 +20,17 @@
 
 import { requireAuth } from "./_auth.js";
 import { scopeFor, effectiveBranches, parseBranchParam } from "./_org.js";
-import { posTokenFor } from "./_accounts.js";
-import { branchList } from "./_data.js";
 import { recordAudit } from "./_audit.js";
 import { listIngredients, listSuppliers } from "./_inventory.js";
 import {
   saveOrder, submitOrder, cancelOrder, receiveOrder, returnToSupplier,
   getOrder, listOrders,
 } from "./_purchasing.js";
+import { rosterFor } from "./_till.js";
 
 async function branchesFor(session) {
   try {
-    return await branchList(await posTokenFor(session.username));
+    return await rosterFor(session.account);
   } catch {
     return [];
   }

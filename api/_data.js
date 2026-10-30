@@ -434,6 +434,78 @@ export class PosUnreachable extends Error {
   }
 }
 
+/* ── Register sales ─────────────────────────────────────────────────────────
+
+   The register (`_till.js`) stores its sales as receipts in the till's own
+   shape, so every report reads them with no second code path. They are joined
+   here, in the three functions every report goes through — `getMetrics`,
+   `salesLines` and `rawReceipts` — rather than in each report, where twenty
+   copies of the join would drift.
+
+   The cached till read is never modified: the join makes a new object, so one
+   organization's register sales never reach another's cached receipts. */
+
+/* The branch register sales belong to when there is no till to name one. */
+export const REGISTER_BRANCH = { id: "register", name: "Register" };
+
+/* How far back reports read the register: the sixty days a period is compared
+   with, and a margin. */
+export const REGISTER_WINDOW_DAYS = 62;
+
+export function withRegister(raw, register) {
+  if (!register?.length) return raw;
+  const since = new Date(raw.since).getTime();
+  const inWindow = register.filter((r) => new Date(r.receipt_date).getTime() >= since);
+  if (!inWindow.length) return raw;
+  const known = new Set(raw.allBranches);
+  const extra = [...new Set(inWindow.map((r) => String(r.store_id || REGISTER_BRANCH.id)))]
+    .filter((id) => !known.has(id));
+  return {
+    ...raw,
+    receipts: [...raw.receipts, ...inWindow],
+    receiptCount: raw.receiptCount + inWindow.length,
+    registerCount: inWindow.length,
+    allBranches: [...raw.allBranches, ...extra],
+    storeNames: {
+      ...raw.storeNames,
+      ...Object.fromEntries(extra.map((id) => [id, id === REGISTER_BRANCH.id ? REGISTER_BRANCH.name : id])),
+    },
+  };
+}
+
+/* Figures for an organization with no till at all: the register's own. */
+export function registerOnlyRaw(register, now = Date.now()) {
+  const since = now - REGISTER_WINDOW_DAYS * DAY;
+  const receipts = (register || []).filter((r) => new Date(r.receipt_date).getTime() >= since);
+  const branches = [...new Set(receipts.map((r) => String(r.store_id || REGISTER_BRANCH.id)))];
+  if (!branches.length) branches.push(REGISTER_BRANCH.id);
+  return {
+    now,
+    fetchedAt: now,
+    since: new Date(since).toISOString(),
+    receiptCount: receipts.length,
+    registerCount: receipts.length,
+    receipts,
+    limitedHistory: false,
+    historyDays: REGISTER_WINDOW_DAYS,
+    catalogue: new Map(),
+    storeNames: Object.fromEntries(branches.map((id) => [id, id === REGISTER_BRANCH.id ? REGISTER_BRANCH.name : id])),
+    allBranches: branches,
+  };
+}
+
+/* The till's read joined to the register's, or the register's alone when there
+   is no till. `register` is null or empty for an organization that has never
+   used it, which leaves every function exactly as it was before the register. */
+async function salesRaw(token, register, maxAge) {
+  if (!token) {
+    if (register?.length) return { raw: registerOnlyRaw(register), fetched: false };
+    throw new NotConnected();
+  }
+  const { raw, fetched } = await cachedRaw(token, maxAge);
+  return { raw: withRegister(raw, register), fetched };
+}
+
 /* Live figures or an honest failure. There is no sample path: someone
    looking at this app should only ever be looking at their own service. */
 /* The business's own name and currency, straight from the POS. Asking
@@ -459,12 +531,17 @@ export async function fetchMerchant(token) {
    Permissions need the list of branches that exist before any figures are
    computed — assigning a branch manager to a branch shouldn't require pulling
    a month of receipts first. This is the cheap read for that. */
-export async function branchList(posToken) {
+export async function branchList(posToken, { register = false } = {}) {
   const token = posToken || process.env.POS_ACCESS_TOKEN || process.env.LOYVERSE_ACCESS_TOKEN || "";
   /* No POS linked yet: there are no branches to report. Callers that only
      need the roster for scope resolution catch this and carry on with an
-     empty list; the dashboard turns it into the connect-your-POS state. */
-  if (!token) throw new NotConnected();
+     empty list; the dashboard turns it into the connect-your-POS state.
+     An organization that sells through the register has one branch without a
+     till: the register itself. */
+  if (!token) {
+    if (register) return [{ ...REGISTER_BRANCH }];
+    throw new NotConnected();
+  }
 
   /* The cached fetch already holds the roster, so a dashboard request that is
      about to aggregate anyway doesn't pay for a second /stores call — which
@@ -524,21 +601,19 @@ async function cachedRaw(token, maxAge = CACHE_MS) {
    The sale list needs the untouched record — it shows what the till said
    beside what it was changed to, so it must not be handed something already
    corrected. Applying the overlay is the caller's job. */
-export async function rawReceipts(posToken, { days = 7, maxAge = CACHE_MS } = {}) {
+export async function rawReceipts(posToken, { days = 7, maxAge = CACHE_MS, register = null } = {}) {
   const token = posToken || process.env.POS_ACCESS_TOKEN || process.env.LOYVERSE_ACCESS_TOKEN || "";
-  if (!token) throw new NotConnected();
-
-  const { raw } = await cachedRaw(token, maxAge);
+  const { raw } = await salesRaw(token, register, maxAge);
   const since = Date.now() - days * DAY;
   return raw.receipts.filter((r) => new Date(r.receipt_date).getTime() >= since);
 }
 
-export async function getMetrics(posToken, { maxAge = CACHE_MS, overrides = {}, branches = null, edits = {} } = {}) {
+export async function getMetrics(posToken, { maxAge = CACHE_MS, overrides = {}, branches = null, edits = {}, register = null } = {}) {
   const token = posToken || process.env.POS_ACCESS_TOKEN || process.env.LOYVERSE_ACCESS_TOKEN || "";
-  /* No POS linked yet: refuse to invent figures. The interface turns this
-     into the connect-your-POS state rather than presenting sample numbers as
-     if they were the business's own. */
-  if (!token) throw new NotConnected();
+  /* No POS linked yet and nothing sold through the register: refuse to invent
+     figures (`salesRaw` throws NotConnected). The interface turns this into the
+     connect-your-POS state rather than presenting sample numbers as if they
+     were the business's own. */
 
   /* The cache holds the raw upstream read, not the finished payload. Two
      requests with different branch scopes share one upstream call and are
@@ -550,7 +625,7 @@ export async function getMetrics(posToken, { maxAge = CACHE_MS, overrides = {}, 
   /* `fetched` says whether this call went upstream. The sync log records real
      fetches only — the dashboard polls every thirty seconds and almost all of
      those are cache hits, which are not events worth logging. */
-  const { raw, fetched } = await cachedRaw(token, maxAge);
+  const { raw, fetched } = await salesRaw(token, register, maxAge);
 
   /* `branches` is already authorized and intersected by the caller. null means
      the whole organization. */
@@ -584,6 +659,8 @@ export async function getMetrics(posToken, { maxAge = CACHE_MS, overrides = {}, 
       /* How many receipts the owner has corrected, so provenance can say the
          figures are not purely the till's. */
       editCount: Object.keys(edits || {}).length,
+      // How many of the receipts were rung up on PureMargin's own register.
+      registerCount: raw.registerCount || 0,
       // How many item costs came from the owner rather than the POS.
       overrideCount: Object.keys(overrides).length,
     },
@@ -607,11 +684,9 @@ export async function getMetrics(posToken, { maxAge = CACHE_MS, overrides = {}, 
 
    The provenance of the read travels with it, because a variance figure resting
    on a stale or truncated sales history is a different claim from one that isn't. */
-export async function salesLines(posToken, { from, to = Date.now(), branches = null, maxAge = CACHE_MS, edits = {} } = {}) {
+export async function salesLines(posToken, { from, to = Date.now(), branches = null, maxAge = CACHE_MS, edits = {}, register = null } = {}) {
   const token = posToken || process.env.POS_ACCESS_TOKEN || process.env.LOYVERSE_ACCESS_TOKEN || "";
-  if (!token) throw new NotConnected();
-
-  const { raw } = await cachedRaw(token, maxAge);
+  const { raw } = await salesRaw(token, register, maxAge);
 
   const allowed = branches === null ? null : new Set(branches.map(String));
   const pos = provider();

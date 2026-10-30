@@ -19,16 +19,15 @@
 import { requireAuth } from "./_auth.js";
 import { unitLabel } from "./_units.js";
 import { scopeFor, effectiveBranches, parseBranchParam } from "./_org.js";
-import { posTokenFor } from "./_accounts.js";
-import { branchList } from "./_data.js";
 import { recordAudit } from "./_audit.js";
 import { COST_METHODS, DEFAULT_COST_METHOD } from "./_costing.js";
 import {
   saveVersion, archiveRecipe, costedRecipe, costedList, simulate, recipeMeta, getRecipe, deleteRecipe } from "./_recipes.js";
+import { rosterFor } from "./_till.js";
 
 async function branchesFor(session) {
   try {
-    return await branchList(await posTokenFor(session.username));
+    return await rosterFor(session.account);
   } catch {
     return [];
   }

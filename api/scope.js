@@ -23,7 +23,8 @@ export default async function handler(req, res) {
     let branches = [];
     try {
       const posToken = await posTokenFor(session.username);
-      branches = await branchList(posToken);
+      /* No till: the register is the branch, from the start (see rosterFor). */
+      branches = await branchList(posToken, { register: !posToken });
     } catch {
       branches = [];
     }

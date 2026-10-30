@@ -28,8 +28,6 @@
 
 import { requireAuth } from "./_auth.js";
 import { scopeFor, effectiveBranches, parseBranchParam, unlockedBranches, saveOrg } from "./_org.js";
-import { posTokenFor } from "./_accounts.js";
-import { branchList } from "./_data.js";
 import { recordAudit } from "./_audit.js";
 import { clockKey, rotateClockKey, publishClockIn } from "./_clockkey.js";
 import { publicOrigin } from "./_mail.js";
@@ -40,6 +38,7 @@ import {
 import {
   readPhoto, readThumbsFor, removePhoto, dayKeyFor, punchMail, notifyManagers,
 } from "./_attendance.js";
+import { rosterFor } from "./_till.js";
 
 const startOfDay = (now = Date.now()) => {
   const d = new Date(now);
@@ -54,7 +53,7 @@ export default async function handler(req, res) {
   try {
     let roster = [];
     try {
-      roster = await branchList(await posTokenFor(session.username));
+      roster = await rosterFor(session.account);
     } catch { /* no till connected: one unnamed place, which is still a place */ }
 
     const scope = await scopeFor(session.account, roster.map((b) => b.id));

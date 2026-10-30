@@ -22,6 +22,10 @@ export const SCREEN_FEATURE = {
   forecast: "costs",
   costs: "costs",
   sales: "costs",
+  /* The register is not a package. Selling is what the business does; putting
+     the till behind a plan would stop a restaurant taking money the day a plan
+     lapsed. */
+  till: null,
   // Team administration is gated by role, not by plan.
   team: null,
   /* The team board is never gated. It is how the people in an organization
