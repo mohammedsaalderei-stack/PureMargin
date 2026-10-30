@@ -368,6 +368,38 @@ button:not(:disabled):active,
   white-space: nowrap;
 }
 
+/* Panel — the card most screens are built from.
+
+   Its rule went in the August redesign, which moved the overview to
+   `.glass-card` and left twenty-nine other files still asking for `.panel`.
+   With nothing behind the class their cards drew as bare text: no surface,
+   no edge, no corner, so the register's dishes stopped reading as buttons
+   and every list ran into the page behind it.
+
+   This is the glass card's surface and edge, so old screens and new ones
+   match. Two things are left out on purpose: the hover lift, because most
+   panels are not something to press, and the backdrop blur, because panels
+   repeat — a dish grid or a stock list can put forty on screen, and forty
+   blurred layers are what makes an iPad's scrolling stutter. Here in
+   index.css, the one stylesheet main.jsx loads itself, so the class never
+   depends on which screen happened to import glass.css. */
+.panel {
+  position: relative;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 20px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 8px 32px -12px rgba(0, 0, 0, 0.4);
+}
+[data-theme="light"] .panel {
+  background: rgba(255, 255, 255, 0.72);
+  border-color: rgba(124, 58, 237, 0.14);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 8px 32px -12px rgba(80, 40, 140, 0.18);
+}
+
 /* Ticket edge — kept for landing receipt demo */
 .ticket { position: relative; background: var(--surface); }
 .ticket::before {
