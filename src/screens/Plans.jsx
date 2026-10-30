@@ -2,6 +2,7 @@ import { BarChart3, Check, Lock, MessageSquare, Package, Wallet } from "lucide-r
 import { useC } from "../theme.jsx";
 import { useLang, fill, formatDate } from "../i18n.jsx";
 import { normaliseFeatures } from "../entitlements.js";
+import { isNativePlatform } from "../platform.js";
 
 /* What the account has — read-only.
 
@@ -99,13 +100,17 @@ export default function Plans({ account }) {
           </p>
         )}
 
-        {/* How to get more: through the team, not a checkout. */}
-        <div className="rounded-2xl p-5" style={{ background: C.surface, border: `1px solid ${C.hairline}` }}>
-          <div className="display font-bold text-base mb-1">{t.billing.getTitle}</div>
-          <p className="text-sm leading-relaxed" style={{ color: C.slate }}>
-            {fill(t.billing.getLead, {})}
-          </p>
-        </div>
+        {/* How to get more: through the team, not a checkout. Not said in the
+            app, where pointing to a purchase made outside it is what App
+            Review rejects under 3.1.1; the app shows what the account has. */}
+        {!isNativePlatform() && (
+          <div className="rounded-2xl p-5" style={{ background: C.surface, border: `1px solid ${C.hairline}` }}>
+            <div className="display font-bold text-base mb-1">{t.billing.getTitle}</div>
+            <p className="text-sm leading-relaxed" style={{ color: C.slate }}>
+              {fill(t.billing.getLead, {})}
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -125,7 +130,7 @@ export function Locked({ feature, onSeePlans }) {
           {fill(t.billing.lockedTitle, { name: t.billing.features[feature] || feature })}
         </h3>
         <p className="text-sm leading-relaxed mb-6" style={{ color: C.slate }}>
-          {t.billing.lockedLeadAdmin}
+          {isNativePlatform() ? t.billing.lockedLeadApp : t.billing.lockedLeadAdmin}
         </p>
         <button onClick={onSeePlans} className="px-5 py-2.5 rounded-lg text-sm font-semibold"
           style={{ background: C.iris, color: C.onPrimary }}>

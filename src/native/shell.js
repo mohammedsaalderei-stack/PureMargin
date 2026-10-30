@@ -35,8 +35,15 @@ async function setUpStatusBar() {
     /* `Style.Dark` means light text on a dark bar, which reads backwards and
        is Apple's naming, not ours. The app's chrome is #08060E. */
     await StatusBar.setStyle({ style: Style.Dark });
-    await StatusBar.setBackgroundColor({ color: BACKGROUND });
-    await StatusBar.setOverlaysWebView({ overlay: false });
+    /* Android only. On iOS both are `call.unimplemented()` in Capacitor 6:
+       the first rejected on every launch, logged an error, and skipped the
+       second. The web view runs under the iOS status bar and the CSS pads
+       for it (`.is-native` in index.css). */
+    const { Capacitor } = await import("@capacitor/core");
+    if (Capacitor.getPlatform() === "android") {
+      await StatusBar.setBackgroundColor({ color: BACKGROUND });
+      await StatusBar.setOverlaysWebView({ overlay: false });
+    }
   } catch { /* the bar keeps whatever the system gave it */ }
 }
 
