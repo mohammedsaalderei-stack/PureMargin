@@ -134,16 +134,23 @@ export async function saveAddons(orgId, itemId, list) {
 
 /* ── The catalogue ───────────────────────────────────────────────────────── */
 
-/* Every dish that can be sold: on file, not archived, with a selling price.
-   A dish without a price is not on the register rather than on it at zero. */
+/* The menu: every dish on file that is not archived.
+
+   A dish with no selling price is on it, marked `priced: false`, rather than
+   missing. The menu is the recipes, and a menu scanned from a kitchen sheet
+   comes in with no prices: leaving those dishes off made the register look
+   empty to somebody looking at six dishes on the Recipes screen. A manager
+   sets the price from the register; nobody can sell a dish at no price
+   (`buildSale` refuses one). */
 export function catalogueOf(recipes, settings) {
   return (recipes || [])
-    .filter((r) => r && !r.archived && Number(r.sellPrice) > 0)
+    .filter((r) => r && !r.archived)
     .map((r) => ({
       id: String(r.id),
       name: String(r.menuItem || "").trim(),
       category: String(r.category || "").trim(),
-      price: round2(r.sellPrice),
+      price: Number(r.sellPrice) > 0 ? round2(r.sellPrice) : null,
+      priced: Number(r.sellPrice) > 0,
       addons: settings?.addons?.[String(r.id)] || [],
     }))
     .filter((item) => item.name)
@@ -189,6 +196,7 @@ export function buildSale(input, { catalogue, vatPct = DEFAULT_VAT_PCT, branchId
   for (const raw of lines) {
     const item = byId.get(String(raw?.itemId ?? ""));
     if (!item) return { error: "item", itemId: raw?.itemId ?? null };
+    if (!(Number(item.price) > 0)) return { error: "noprice", item: item.name };
     const qty = Number(raw?.qty);
     if (!Number.isInteger(qty) || qty < 1 || qty > MAX_QTY) return { error: "qty", item: item.name };
 

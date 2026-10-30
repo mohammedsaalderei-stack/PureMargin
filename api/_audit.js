@@ -84,6 +84,7 @@ export const AUDIT_ACTIONS = {
 
   "register.addons": "register add-ons changed",
   "register.vat": "register VAT rate changed",
+  "register.price": "dish price set from the register",
 
   /* Stage 4, phase 7 — targets. A threshold decides what the whole organization
      is warned about, so moving one is a sensitive change like a permission. */

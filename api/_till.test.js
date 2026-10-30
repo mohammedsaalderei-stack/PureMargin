@@ -153,14 +153,23 @@ await test("a receipt number no till issues, sortable by time", async () => {
 
 /* ── The catalogue ── */
 
-await test("only priced, current dishes are on the register", async () => {
+await test("every current dish is on the register, priced or not", async () => {
   const items = catalogueOf([
     { id: "a", menuItem: "Burger", sellPrice: 28 },
     { id: "b", menuItem: "Old dish", sellPrice: 20, archived: true },
     { id: "c", menuItem: "Unpriced", sellPrice: null },
     { id: "d", menuItem: "Free?", sellPrice: 0 },
   ], { addons: {} });
-  assert.deepEqual(items.map((i) => i.id), ["a"]);
+  assert.deepEqual(items.map((i) => i.id).sort(), ["a", "c", "d"]);
+  assert.deepEqual(items.filter((i) => i.priced).map((i) => i.id), ["a"]);
+  assert.equal(items.find((i) => i.id === "c").price, null);
+});
+
+await test("a dish with no price cannot be sold", async () => {
+  const catalogue = catalogueOf([{ id: "c", menuItem: "Unpriced", sellPrice: null }], { addons: {} });
+  const out = buildSale({ orderType: "takeaway", lines: [{ itemId: "c", qty: 1 }], payment: { type: "card" } },
+    { catalogue, vatPct: 5, branchId: "b1", at: Date.now(), number: "PM-x" });
+  assert.equal(out.error, "noprice");
 });
 
 await test("a dish carries its own add-ons and nobody else's", async () => {

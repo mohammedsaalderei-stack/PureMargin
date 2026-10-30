@@ -12,6 +12,7 @@
         ?what=day&from=&to=[&branches=] — receipts in a window of at most two days
    POST ?what=sale     { branchId, orderType, table, lines, payment }
    PUT  ?what=addons   { itemId, addons: [{ name, price, cost }] }
+        ?what=price    { itemId, price }   — a dish's selling price, on its recipe
         ?what=vat      { vatPct }
 */
 import { requireAuth } from "./_auth.js";
@@ -19,7 +20,7 @@ import { scopeFor, effectiveBranches, parseBranchParam } from "./_org.js";
 import { getMeta } from "./_inventory.js";
 import { depleteFromSales } from "./_salesdepletion.js";
 import { recordAudit } from "./_audit.js";
-import { listRecipes } from "./_recipes.js";
+import { listRecipes, setSellPrice } from "./_recipes.js";
 import { getSettings, catalogueOf, buildSale, recordSale, registerReceipts, saveAddons, saveVat, forDepletion, rosterFor } from "./_till.js";
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -142,6 +143,25 @@ export default async function handler(req, res) {
       return res.status(200).json(out);
     }
 
+    /* A dish's selling price, set where it is first needed. It is the recipe's
+       price, so it moves every margin the dish appears in, and is logged like
+       any other change to what the business charges. */
+    if (req.method === "PUT" && what === "price") {
+      if (!scope.capabilities.includes("manage:recipes")) return res.status(403).json({ error: "forbidden" });
+      const itemId = String(req.body?.itemId || "");
+      const before = (await listRecipes(orgId)).find((r) => String(r.id) === itemId);
+      const out = await setSellPrice(orgId, itemId, req.body?.price);
+      if (out.error === "notfound") return res.status(404).json({ error: "item" });
+      if (out.error) return res.status(422).json(out);
+      await recordAudit(orgId, {
+        actor: session.username,
+        action: "register.price",
+        target: itemId,
+        detail: { from: before?.sellPrice ?? null, to: out.recipe.sellPrice },
+      });
+      return res.status(200).json({ itemId, price: out.recipe.sellPrice });
+    }
+
     if (req.method === "PUT" && what === "vat") {
       if (!scope.capabilities.includes("manage:costs")) return res.status(403).json({ error: "forbidden" });
       const before = (await getSettings(orgId)).vatPct;
@@ -155,7 +175,7 @@ export default async function handler(req, res) {
       return res.status(200).json(out);
     }
 
-    return res.status(405).json({ error: "Use GET ?what=catalogue|day, POST ?what=sale, or PUT ?what=addons|vat." });
+    return res.status(405).json({ error: "Use GET ?what=catalogue|day, POST ?what=sale, or PUT ?what=addons|price|vat." });
   } catch (err) {
     console.error("register failed:", err);
     return res.status(500).json({ error: "server" });

@@ -40,6 +40,7 @@ export default function Till({ token }) {
   const [category, setCategory] = useState("");
   const [cart, setCart] = useState([]);
   const [picking, setPicking] = useState(null);
+  const [pricing, setPricing] = useState(null);
   const [cartOpen, setCartOpen] = useState(false);
   const [paying, setPaying] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -95,7 +96,13 @@ export default function Till({ token }) {
     .map((l) => (l.key === key ? { ...l, qty: l.qty + delta } : l))
     .filter((l) => l.qty > 0));
 
-  const tap = (item) => (item.addons.length ? setPicking({ item, chosen: [] }) : add(item));
+  /* A dish with no selling price is on the menu but cannot be sold until it
+     has one. A manager sets it here, on the recipe; a cashier is told to ask. */
+  const tap = (item) => {
+    if (!item.priced) { if (menu.canManageAddons) setPricing(item); return; }
+    if (item.addons.length) setPicking({ item, chosen: [] });
+    else add(item);
+  };
 
   /* ── Payment ── */
 
@@ -227,11 +234,16 @@ export default function Till({ token }) {
                 <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-2.5">
                   {shown.map((item) => (
                     <div key={item.id} className="relative">
-                      <button onClick={() => tap(item)}
-                        className="panel p-3 w-full h-full text-start flex flex-col gap-2 active:scale-[0.98] transition-transform min-h-[92px]">
+                      <button onClick={() => tap(item)} disabled={!item.priced && !menu.canManageAddons}
+                        className="panel p-3 w-full h-full text-start flex flex-col gap-2 active:scale-[0.98] transition-transform min-h-[92px]"
+                        style={{
+                          background: C.surface, border: `1px ${item.priced ? "solid" : "dashed"} ${C.hairline}`,
+                          borderRadius: 16, opacity: item.priced ? 1 : 0.6,
+                        }}>
                         <span className="font-semibold text-sm leading-snug line-clamp-2 pe-6" style={{ color: C.ink }}>{item.name}</span>
                         <span className="mt-auto flex items-center justify-between gap-2 text-sm" style={{ color: C.slate }}>
-                          <Money value={item.price} decimals={2} />
+                          {item.priced ? <Money value={item.price} decimals={2} />
+                            : <span className="text-xs">{menu.canManageAddons ? s.setPrice : s.askPrice}</span>}
                           {item.addons.length > 0 && <Plus size={14} style={{ color: C.iris }} />}
                         </span>
                       </button>
@@ -268,6 +280,14 @@ export default function Till({ token }) {
       )}
       {cartOpen && (
         <Sheet onClose={() => setCartOpen(false)} title={s.cart} C={C} s={s}>{cartPanel}</Sheet>
+      )}
+
+      {pricing && (
+        <PriceSheet item={pricing} token={token} onClose={() => setPricing(null)} s={s} C={C}
+          onSaved={(itemId, price) => {
+            setMenu((m) => ({ ...m, items: m.items.map((i) => (i.id === itemId ? { ...i, price, priced: true } : i)) }));
+            setPricing(null);
+          }} />
       )}
 
       {picking && (
@@ -390,6 +410,42 @@ function CartPanel({ cart, unitOf, step, subtotal, vat, vatPct, total, canManage
         {s.charge} <Money value={total} decimals={2} />
       </button>
     </div>
+  );
+}
+
+function PriceSheet({ item, token, onClose, onSaved, s, C }) {
+  const [value, setValue] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const save = async () => {
+    setBusy(true);
+    setErr("");
+    try {
+      const res = await fetch("/api/till?what=price", {
+        method: "PUT",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ itemId: item.id, price: Number(value) }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) { setErr(s.errPrice); return; }
+      onSaved(item.id, json.price);
+    } catch {
+      setErr(s.errPrice);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Sheet title={fill(s.priceFor, { name: item.name })} onClose={onClose} C={C} s={s}>
+      <p className="text-sm mb-3" style={{ color: C.slate }}>{s.priceHint}</p>
+      <input value={value} onChange={(e) => setValue(e.target.value)} inputMode="decimal" dir="ltr" autoFocus
+        aria-label={s.price} className="w-full px-3 py-3 rounded-xl text-base"
+        style={{ background: "transparent", color: C.ink, border: `1px solid ${C.hairline}` }} />
+      {err && <p className="text-sm mt-2" style={{ color: C.rose }}>{err}</p>}
+      <button onClick={save} disabled={busy || !(Number(value) > 0)}
+        className="w-full mt-4 py-3 rounded-xl text-sm font-bold disabled:opacity-50"
+        style={{ background: C.iris, color: "#fff" }}>{s.savePrice}</button>
+    </Sheet>
   );
 }
 

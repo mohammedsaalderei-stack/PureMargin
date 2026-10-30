@@ -291,6 +291,23 @@ export async function deleteRecipe(orgId, id) {
   return { deleted: true, menuItem };
 }
 
+/* A dish's selling price, set on its own.
+
+   Not a new version: a version is what the dish is made of, dated so a March
+   sale keeps March's recipe. The price is what it sells for, and the register
+   sets it the moment a dish with none is first rung up — making a version of
+   the ingredients for that would put a copy of the recipe in its history with
+   nothing changed. */
+export async function setSellPrice(orgId, id, price) {
+  const value = Number(price);
+  if (!Number.isFinite(value) || value <= 0 || value > 100000) return { error: "price" };
+  const map = await readAll(orgId);
+  if (!map[id]) return { error: "notfound" };
+  map[id] = { ...map[id], sellPrice: Math.round(value * 100) / 100, updatedAt: Date.now() };
+  await setJSON(RECIPES(orgId), map);
+  return { recipe: map[id] };
+}
+
 export async function archiveRecipe(orgId, id, { archived = true } = {}) {
   const map = await readAll(orgId);
   if (!map[id]) return { error: "notfound" };
