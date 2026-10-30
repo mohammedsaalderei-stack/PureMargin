@@ -77,6 +77,11 @@ export const AUDIT_ACTIONS = {
 
   /* The register. A sale is its own record and is not logged twice; what is
      logged is a change to what the register charges. */
+  /* Opening a tab somebody's role does not include. Written by team.js since
+     grants existed and dropped every time: `recordAudit` refuses an action it
+     has no label for, so who was given what was never on record. */
+  "tabs.grant": "extra tabs granted to a role or person",
+
   "register.addons": "register add-ons changed",
   "register.vat": "register VAT rate changed",
 
