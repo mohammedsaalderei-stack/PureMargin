@@ -298,9 +298,10 @@ or a report with a dish to a page. Read every dish as its own recipe, in the
 order they appear, and never put two dishes' ingredients in one list.
 
 When a sheet prints both a quantity for one portion and a total for a number
-of portions, copy the one-portion column and give portions as 1. Quantities
-for one portion under a portion count of fifteen would cost the dish at a
-fifteenth of what it costs.
+of portions, copy both as printed: the one-portion figure into qtyPerPortion,
+the total into qtyBatch, and the number of portions the totals are for into
+portions. Leave qty null on those lines. Which column the recipe uses is
+decided afterwards, from both.
 
 When nothing matches, describe the ingredient the business should create, in
 newItem. A recipe card names things a kitchen keeps, so this is usually
@@ -351,8 +352,8 @@ dish in the document:
   "foodCostBasis": "<portion|batch, or null>",
   "portions": <number of portions the card states, or null>,
   "note": "<anything short worth keeping, or null>",
-  "lines": [{ "text": "<ingredient as written>", "qty": "<quantity as written, or null>", "unit": "<g, kg, ml, l, tsp, tbsp, cup, pcs… as written, or null>", "ingredient": "<exact name from the list, or null>", "newItem": { "name": "<short kitchen name>", "stockUnit": "<kg|g|l|ml|ea>", "purchaseUnit": "<how it is sold>", "packSize": <number>, "category": "<produce|meat|dairy|dry|oil|drink|packaging>" } }],
-  "packaging": [{ "text": "<item as written>", "qty": "<quantity, or null>", "unit": "<pcs, ea… as written, or null>", "ingredient": "<exact name from the list, or null>", "newItem": { "name": "<short name>", "stockUnit": "ea", "purchaseUnit": "<how it is sold>", "packSize": <number>, "category": "packaging" } }]
+  "lines": [{ "text": "<ingredient as written>", "qty": "<quantity as written, or null>", "qtyPerPortion": "<one-portion figure, only on a sheet with two quantity columns, or null>", "qtyBatch": "<total for all the portions, only on a sheet with two quantity columns, or null>", "unit": "<g, kg, ml, l, tsp, tbsp, cup, pcs… as written, or null>", "ingredient": "<exact name from the list, or null>", "newItem": { "name": "<short kitchen name>", "stockUnit": "<kg|g|l|ml|ea>", "purchaseUnit": "<how it is sold>", "packSize": <number>, "category": "<produce|meat|dairy|dry|oil|drink|packaging>" } }],
+  "packaging": [{ "text": "<item as written>", "qty": "<quantity, or null>", "qtyPerPortion": "<one-portion figure, or null>", "qtyBatch": "<total for all the portions, or null>", "unit": "<pcs, ea… as written, or null>", "ingredient": "<exact name from the list, or null>", "newItem": { "name": "<short name>", "stockUnit": "ea", "purchaseUnit": "<how it is sold>", "packSize": <number>, "category": "packaging" } }]
   }]
 }
 ${langNote}`;
