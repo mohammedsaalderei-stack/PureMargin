@@ -523,6 +523,31 @@ What actually goes with it:
 - **Careful in tests:** `varianceReport`/`listMovements` bound by `to`, so a movement
   recorded with the default `at` (now) falls *outside* a window captured earlier —
   pass an explicit `at`.
+## What the assistant can read
+- **Tools read the branches the stock screen reads.** `askerScopeFor` in
+  `api/chat.js` resolves scope from `rosterFor`, as `stock.js` does. It used
+  to be `scopeFor(account, [])`, so every tool walked zero branches: the
+  storeroom read as empty, movements and purchase orders as none, recipes
+  costed from estimates only.
+- **Packages gate the tools as they gate the screens.** `TOOL_FEATURE` in
+  `_domains.js` mirrors `SCREEN_FEATURE` (asserted in `_askstock.test.js`);
+  `toolsFor(features)` offers only the paid ones and `runTool` refuses the
+  rest by naming the package. No `features` fails closed.
+- `get_stock_alerts` narrows a model-supplied branch list with
+  `effectiveBranches`; it used to take it as given.
+- The brief has a **STOCK ON HAND** section (operations, `view:inventory`):
+  largest value first, capped at 40, reorder and negative states named.
+- **No till is not a refusal.** A business with no POS and no register sales
+  used to get 409 before anything was read; it now gets "SALES: none" and
+  everything else it has.
+
+## The dry run is an option, not a field
+- `recordMovement(orgId, branchId, input, { dryRun })`. `stock.js` passed
+  `dryRun` inside `input` on the invoice, receive-batch and consume routes, so
+  every check was a real, concurrent write: one phantom entry (usually)
+  survived per save, and the Postgres mirror got all of them. Fixed; tested
+  in `_dryrun.test.js`. Ledgers written before the fix still hold the extras.
+
 ## Assistant grounding (stage 6)
 - `api/_grounding.js` is the **only** path by which inventory/costing/forecast
   figures reach the model. `groundingFor(account, {...})` resolves the session's

@@ -65,6 +65,7 @@ import { provider } from "./_pos.js";
 import { listEmployees, listPunches, onShift, shiftsFrom } from "./_employees.js";
 import { buildAlerts } from "./_alerts.js";
 import { normaliseText } from "./_text.js";
+import { effectiveBranches } from "./_org.js";
 
 /* The tag on every row. Deliberately shouty and deliberately redundant with
    the tool that produced it: a row that travels into a conversation and comes
@@ -832,7 +833,10 @@ async function getStaffAttendance(ctx, { days = 7, employee } = {}) {
 async function getStockAlerts(ctx, { branches } = {}) {
   if (!allowed(ctx, DOMAIN.RAW_INVENTORY)) return refuse(DOMAIN.RAW_INVENTORY);
 
-  const scope = branches?.length ? branches : ctx.branches;
+  /* Narrowed, never widened. The model fills this argument in, and taking it
+     as given let a question name a branch outside the asker's scope and read
+     its shortages — the one thing every other route and the brief refuse. */
+  const scope = effectiveBranches(branches, ctx.branches);
   const built = await buildAlerts(ctx.orgId, scope, {
     salesRows: ctx.metrics?.rows || [],
     from: Date.now() - 30 * 86400000,
@@ -853,10 +857,61 @@ async function getStockAlerts(ctx, { branches } = {}) {
   };
 }
 
+/* Which package each tool reads for — the screen it mirrors.
+
+   Capability decides who in a team may read a domain; this decides whether
+   the business has bought the screen the figures live on. The assistant
+   never had the second check, so it either reached past a package nobody
+   paid for or, the other way, could not be relied on to reach everything
+   that was. Mirrors `SCREEN_FEATURE` in `src/entitlements.js`, and
+   `_domains.test.js` asserts the two agree.
+
+     operations  inventory, recipes, alerts — the back-of-house suite
+     costs       the cost ledger and the sales list
+     table       the Overview, free to everybody
+     null        gated by role only, like the employees screen */
+export const TOOL_FEATURE = {
+  get_inventory_levels: "operations",
+  get_stock_movements: "operations",
+  get_suppliers_and_orders: "operations",
+  get_stock_alerts: "operations",
+  get_recipe_details: "operations",
+  get_fixed_costs: "costs",
+  get_recent_receipts: "costs",
+  get_pos_sales_metrics: "table",
+  calculate_net_profit: "table",
+  get_staff_attendance: null,
+};
+
+const paid = (ctx, feature) => !feature || (ctx.features || []).includes(feature);
+
+/* The tools offered to the model: the ones this business has paid for.
+
+   Offering one it has not bought would only teach the model to ask for a
+   refusal. The brief already names the packages that are switched off, so a
+   question about them still gets an honest answer. */
+export function toolsFor(features = []) {
+  return TOOLS.filter((t) => paid({ features }, TOOL_FEATURE[t.name]));
+}
+
 /* Dispatch. A name that is not on the list is refused rather than guessed at —
    there is no default tool, because the default would be a way to reach data
-   the caller did not ask for. */
+   the caller did not ask for.
+
+   The package is checked here as well as in `toolsFor`, so a tool cannot be
+   reached by a caller that forgot to filter the list. `features` missing
+   fails closed, as the brief does: the cost of the other default is giving a
+   package away without anybody deciding to. */
 export async function runTool(name, input, ctx) {
+  const feature = TOOL_FEATURE[name];
+  if (feature !== undefined && !paid(ctx, feature)) {
+    return {
+      error: "package",
+      package: feature,
+      message: `This is part of the ${feature} package, which is not switched on for this business. Say so plainly; do not estimate it from other figures.`,
+      entries: [],
+    };
+  }
   switch (name) {
     case "get_fixed_costs": return getFixedCosts(ctx, input || {});
     case "get_recipe_details": return getRecipeDetails(ctx, input || {});

@@ -38,6 +38,9 @@ const ctx = (over = {}) => ({
   orgId: "org1",
   branches: ["b1"],
   capabilities: ALL,
+  /* Every package, so a test about domains is not also a test about billing.
+     The package checks have tests of their own below. */
+  features: ["table", "assistant", "operations", "costs"],
   method: "wavg",
   metrics: { totals: { sales: 100000, cost: 30000, receipts: 1200, avgTicket: 83.3, discounts: 0 },
     items: [{ name: "Cheeseburger", qty: 400, revenue: 16000 }] },

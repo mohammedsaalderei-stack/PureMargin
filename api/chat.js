@@ -1,13 +1,13 @@
 import { requireAuth } from "./_auth.js";
-import { getMetrics, toContext, branchList, salesLines } from "./_data.js";
-import { registerContext } from "./_till.js";
+import { getMetrics, toContext, salesLines } from "./_data.js";
+import { registerContext, rosterFor } from "./_till.js";
 import { redactContext, redactionNote } from "./_askscope.js";
-import { posTokenFor, noteQuestion, getAccount, activeItems } from "./_accounts.js";
+import { posTokenFor, noteQuestion, getAccount, activeItems, normaliseFeatures } from "./_accounts.js";
 import { getJSON } from "./_store.js";
 import { groundingFor, ANSWER_CONTRACT } from "./_grounding.js";
 import { parseBranchParam, effectiveBranches, scopeFor } from "./_org.js";
 import { listEdits } from "./_saleedits.js";
-import { TOOLS, runTool, DOMAIN_GUARDRAIL } from "./_domains.js";
+import { toolsFor, runTool, DOMAIN_GUARDRAIL } from "./_domains.js";
 
 const MODEL = "claude-sonnet-4-5";
 
@@ -75,6 +75,28 @@ const REGISTER = `Voice:
    only path by which inventory, cost and forecast figures reach the model — and
    which contains nothing outside the user's authorized branches. The prompt is the
    boundary: a scope it never receives cannot be talked about. */
+/* The branches the asker may see, worked out the way the stock screen works
+   them out.
+
+   This used to be `scopeFor(account, [])` — an empty list of branches, so
+   the authorized set was always empty and every tool read nothing. The
+   inventory tool summed no ledgers and reported an empty storeroom, the
+   movements tool walked no branches, the recipe tool costed from estimates
+   only, and purchase orders came back as none. The brief was unaffected,
+   because it resolved its own roster, which is how the assistant could quote
+   leakage and then say it could not see the stock.
+
+   `rosterFor` is what `stock.js`, `recipes.js` and the purchasing routes use,
+   so a balance on the Inventory screen and a balance in an answer come from
+   the same branches. That includes the register's own branch for a business
+   with no till connected, which the old roster left out until somebody had
+   rung up a sale. */
+export async function askerScopeFor(account) {
+  const roster = await rosterFor(account).catch(() => []);
+  const scope = await scopeFor(account, roster.map((b) => b.id)).catch(() => null);
+  return { roster, scope };
+}
+
 function buildSystem(metrics, lang, grounding, capabilities) {
   return `You are PureMargin, an analyst for a food business in the UAE — restaurants, cafés, and cloud kitchens.
 
@@ -89,7 +111,9 @@ How to answer:
 - Where something warrants action, state it directly. The decision remains the operator's.
 - Use ONLY the figures below. If the answer is not among them, state what is missing and what would need to be recorded or connected. Never estimate a figure that is not there.
 
-${toContext(redactContext(metrics, capabilities))}${redactionNote(capabilities)}${grounding ? `
+${metrics
+    ? toContext(redactContext(metrics, capabilities))
+    : `SALES: none. No till is connected and nothing has been rung up on the register, so there are no sales figures at all. Say so if asked about sales, and answer questions about stock, recipes, suppliers and costs from the brief and the tools — those are recorded here and do not depend on a till.`}${redactionNote(capabilities)}${grounding ? `
 
 ${ANSWER_CONTRACT}
 
@@ -146,7 +170,9 @@ export default async function handler(req, res) {
          saw only purchased ids would withhold it from everybody — including
          an owner whose dashboard shows it on the first screen. */
       const { FREE_FEATURES } = await import("./_accounts.js");
-      features = [...FREE_FEATURES, ...(active ? plan.items : [])];
+      /* Retired ids translated forward, so a business that bought `billscan`
+         gets the costs package from the assistant as it does from the tabs. */
+      features = [...FREE_FEATURES, ...normaliseFeatures(active ? plan.items : [])];
       if (!features.includes("assistant")) {
         return res.status(402).json({ error: "locked", feature: "assistant" });
       }
@@ -156,7 +182,7 @@ export default async function handler(req, res) {
        the model sees it. Read from the same place every data route reads it,
        so the assistant cannot end up with a more generous view than the
        screens. */
-    const askerScope = await scopeFor(session.account, []).catch(() => null);
+    const { roster, scope: askerScope } = await askerScopeFor(session.account);
     const capabilities = askerScope?.capabilities || [];
 
     const overrides = (await getJSON(`costs:${session.username}`)) || {};
@@ -167,15 +193,25 @@ export default async function handler(req, res) {
        disagree, with nothing on screen to explain which is which. */
     const saleEdits = await listEdits(askerScope?.org?.id).catch(() => ({}));
     /* Register sales, so an answer about takings counts what the screens count. */
-    const { register, used } = await registerContext(session.account).catch(() => ({ register: [], used: false }));
-    const metrics = await getMetrics(posToken, { overrides, edits: saleEdits, register });
+    const { register } = await registerContext(session.account).catch(() => ({ register: [] }));
+    /* No sales source is a reason to have no sales figures, not a reason to
+       refuse the question. This answered 409 "not connected" before reading
+       anything else, so a kitchen that keeps its stock, recipes and costs here
+       but has not connected a till yet could not ask what was in its own
+       storeroom — everything it had paid for, behind a sales feed it did not
+       have. Any other failure still stops the answer, as it did. */
+    let metrics = null;
+    try {
+      metrics = await getMetrics(posToken, { overrides, edits: saleEdits, register });
+    } catch (err) {
+      if (err?.code !== "notconnected") throw err;
+    }
 
     /* The operations half of the answer. It is best-effort: an account with no
        organization, or a POS that won't answer, still gets the sales assistant it
        had before — it just has no inventory or costing figures to reason from. */
     let grounding = null;
     try {
-      const roster = await branchList(posToken, { register: used }).catch(() => []);
       const to = Date.now();
       const from = to - 30 * 864e5;
       const sales = await salesLines(posToken, { from, to, edits: saleEdits, register }).catch(() => ({ lines: [], fetch: null }));
@@ -193,7 +229,7 @@ export default async function handler(req, res) {
            the profit on the Overview rather than a second calculation free
            to disagree with it. Org-wide, which is the only scope the figure
            is emitted for — overheads are not allocated per branch. */
-        totals: { ...(metrics.totals || {}), costCoverage: metrics.costCoverage ?? null },
+        totals: metrics ? { ...(metrics.totals || {}), costCoverage: metrics.costCoverage ?? null } : null,
         /* What this business has actually bought. Sections outside it are
            left out of the brief entirely rather than withheld by an
            instruction — the same reason an out-of-scope branch is absent
@@ -215,8 +251,10 @@ export default async function handler(req, res) {
       orgId: askerScope?.org?.id || null,
       branches: effectiveBranches(parseBranchParam(requestedBranches), askerScope?.authorized || []),
       capabilities,
+      /* The packages this business has bought — each tool checks its own. */
+      features,
       method: "wavg",
-      metrics,
+      metrics: metrics || {},
       /* The till connection, so the receipts tool reads transactions from the
          same place the Sales screen does rather than from a second copy that
          would disagree the first time a sale was corrected. */
@@ -230,7 +268,7 @@ export default async function handler(req, res) {
       messages: clean,
       /* No organization means no domains to read, so no tools are offered
          rather than five that would all refuse. */
-      ...(toolCtx.orgId ? { tools: TOOLS } : {}),
+      ...(toolCtx.orgId ? { tools: toolsFor(features) } : {}),
       stream: Boolean(stream),
     };
 
