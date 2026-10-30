@@ -3,6 +3,7 @@ import { posTokenFor } from "./_accounts.js";
 import { scopeFor, effectiveBranches, parseBranchParam } from "./_org.js";
 import { recordAudit } from "./_audit.js";
 import { branchList, rawReceipts, NotConnected, PosUnreachable } from "./_data.js";
+import { registerContext } from "./_till.js";
 import {
   listEdits, saveEdit, removeEdit, applyEdit, snapshotOf, isStale,
   differenceOf, receiptIdOf, EDIT_REASONS,
@@ -32,7 +33,9 @@ export default async function handler(req, res) {
 
   try {
     const posToken = await posTokenFor(session.username);
-    const allBranches = (await branchList(posToken)).map((b) => b.id);
+    /* Register sales are listed and corrected like the till's. */
+    const { register, used } = await registerContext(session.account);
+    const allBranches = (await branchList(posToken, { register: used })).map((b) => b.id);
     const scope = await scopeFor(session.account, allBranches);
     const orgId = scope.org?.id;
     if (!orgId) return res.status(403).json({ error: "noorg" });
@@ -47,7 +50,7 @@ export default async function handler(req, res) {
     if (req.method === "GET") {
       const days = Math.min(Math.max(Number(req.query?.days) || 7, 1), MAX_DAYS);
       const edits = await listEdits(orgId);
-      const receipts = await rawReceipts(posToken, { days });
+      const receipts = await rawReceipts(posToken, { days, register });
 
       const allowed = new Set(requested.map(String));
       const rows = [];
@@ -96,7 +99,7 @@ export default async function handler(req, res) {
          sends an id; the original total, the branch and the line shape all
          come from the till, so a body claiming a receipt was 9,000 cannot
          make the recorded correction look small. */
-      const receipts = await rawReceipts(posToken, { days: MAX_DAYS });
+      const receipts = await rawReceipts(posToken, { days: MAX_DAYS, register });
       const receipt = receipts.find((r) => receiptIdOf(r) === receiptId);
       if (!receipt) return res.status(404).json({ error: "notfound" });
 

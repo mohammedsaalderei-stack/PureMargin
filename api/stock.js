@@ -30,7 +30,6 @@ import { getMeta } from "./_inventory.js";
 import { posTokenFor } from "./_accounts.js";
 import { receiptsFor } from "./_data.js";
 import { depleteFromSales } from "./_salesdepletion.js";
-import { branchList } from "./_data.js";
 import { recordAudit } from "./_audit.js";
 import { listIngredients, ensureIngredient } from "./_inventory.js";
 import { learnAliases } from "./_aliases.js";
@@ -42,12 +41,13 @@ import {
   MOVEMENT_KEYS, recordMovement, recordTransfer, reverseMovement,
   listMovements, balances, getPolicy, savePolicy,
 } from "./_movements.js";
+import { rosterFor } from "./_till.js";
 
 /* Branches come from the POS (phase 1's decision: a branch is a store, not a
    local table), so a missing connection means no branches rather than an error. */
 async function branchesFor(session) {
   try {
-    return await branchList(await posTokenFor(session.username));
+    return await rosterFor(session.account);
   } catch {
     return [];
   }

@@ -1,5 +1,6 @@
 import { requireAuth } from "./_auth.js";
 import { getMetrics, toContext, branchList, salesLines } from "./_data.js";
+import { registerContext } from "./_till.js";
 import { redactContext, redactionNote } from "./_askscope.js";
 import { posTokenFor, noteQuestion, getAccount, activeItems } from "./_accounts.js";
 import { getJSON } from "./_store.js";
@@ -165,17 +166,19 @@ export default async function handler(req, res) {
        than an assistant with no figures at all: two authoritative answers that
        disagree, with nothing on screen to explain which is which. */
     const saleEdits = await listEdits(askerScope?.org?.id).catch(() => ({}));
-    const metrics = await getMetrics(posToken, { overrides, edits: saleEdits });
+    /* Register sales, so an answer about takings counts what the screens count. */
+    const { register, used } = await registerContext(session.account).catch(() => ({ register: [], used: false }));
+    const metrics = await getMetrics(posToken, { overrides, edits: saleEdits, register });
 
     /* The operations half of the answer. It is best-effort: an account with no
        organization, or a POS that won't answer, still gets the sales assistant it
        had before — it just has no inventory or costing figures to reason from. */
     let grounding = null;
     try {
-      const roster = await branchList(posToken).catch(() => []);
+      const roster = await branchList(posToken, { register: used }).catch(() => []);
       const to = Date.now();
       const from = to - 30 * 864e5;
-      const sales = await salesLines(posToken, { from, to, edits: saleEdits }).catch(() => ({ lines: [], fetch: null }));
+      const sales = await salesLines(posToken, { from, to, edits: saleEdits, register }).catch(() => ({ lines: [], fetch: null }));
       grounding = await groundingFor(session.account, {
         allBranchIds: roster.map((b) => b.id),
         branchNames: Object.fromEntries(roster.map((b) => [b.id, b.name])),

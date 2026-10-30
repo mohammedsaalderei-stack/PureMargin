@@ -8,6 +8,7 @@ import { provenance } from "./_provenance.js";
 import { noteSync, lastSync } from "./_sync.js";
 import { listEdits } from "./_saleedits.js";
 import { netProfit } from "./_profit.js";
+import { registerContext } from "./_till.js";
 
 export default async function handler(req, res) {
   const session = await requireAuth(req, res);
@@ -28,7 +29,11 @@ export default async function handler(req, res) {
        The branch roster is read first, so the scope is resolved before any
        figures are aggregated: the receipts outside it are never counted, rather
        than counted and filtered afterwards. */
-    const allBranches = (await branchList(posToken)).map((b) => b.id);
+    /* Sales rung up on PureMargin's own register, joined to the till's inside
+       getMetrics. An organization with no till that uses the register gets the
+       register as its one branch. */
+    const { register, used } = await registerContext(session.account);
+    const allBranches = (await branchList(posToken, { register: used })).map((b) => b.id);
     const scope = await scopeFor(session.account, allBranches);
     const effective = effectiveBranches(parseBranchParam(req.query?.branches), scope.authorized);
 
@@ -40,6 +45,7 @@ export default async function handler(req, res) {
     const metrics = await getMetrics(posToken, {
       overrides,
       edits,
+      register,
       branches: effective,
       ...(fresh ? { maxAge: 0 } : {}),
     });

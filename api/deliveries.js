@@ -13,10 +13,9 @@
 
 import { requireAuth } from "./_auth.js";
 import { scopeFor, effectiveBranches, parseBranchParam } from "./_org.js";
-import { posTokenFor } from "./_accounts.js";
-import { branchList } from "./_data.js";
 import { listDeliveries } from "./_receiptlog.js";
 import { ingestionStatus } from "./_loyversehook.js";
+import { rosterFor } from "./_till.js";
 
 export default async function handler(req, res) {
   const session = await requireAuth(req, res);
@@ -30,7 +29,7 @@ export default async function handler(req, res) {
        just cannot put names to the store ids. */
     let roster = [];
     try {
-      roster = await branchList(await posTokenFor(session.username));
+      roster = await rosterFor(session.account);
     } catch { /* no connection, or the till is down */ }
 
     const scope = await scopeFor(session.account, roster.map((b) => b.id));

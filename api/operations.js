@@ -14,6 +14,7 @@ import { requireAuth } from "./_auth.js";
 import { scopeFor, effectiveBranches, parseBranchParam } from "./_org.js";
 import { posTokenFor } from "./_accounts.js";
 import { branchList, salesLines, NotConnected, PosUnreachable } from "./_data.js";
+import { registerContext } from "./_till.js";
 import { COST_METHODS, DEFAULT_COST_METHOD } from "./_costing.js";
 import { purchasePlan, branchRanking } from "./_operations.js";
 import { getTargets } from "./_alerts.js";
@@ -32,10 +33,12 @@ export default async function handler(req, res) {
 
   try {
     const posToken = await posTokenFor(session.username);
+    /* Sales rung up on PureMargin's own register count like the till's. */
+    const { register, used } = await registerContext(session.account);
 
     let roster = [];
     try {
-      roster = await branchList(posToken);
+      roster = await branchList(posToken, { register: used });
     } catch {
       /* The purchase plan runs off the ledger and needs no POS at all. */
     }
@@ -58,7 +61,7 @@ export default async function handler(req, res) {
     let sales = { lines: [], fetch: null };
     let salesError = null;
     try {
-      sales = await salesLines(posToken, { from, to, branches, edits: await listEdits(orgId) });
+      sales = await salesLines(posToken, { from, to, branches, edits: await listEdits(orgId), register });
     } catch (err) {
       salesError = err instanceof NotConnected ? "notconnected"
         : err instanceof PosUnreachable ? "unreachable" : "failed";

@@ -75,6 +75,11 @@ export const AUDIT_ACTIONS = {
   "recipe.archive": "recipe archived",
   "recipe.restore": "recipe restored",
 
+  /* The register. A sale is its own record and is not logged twice; what is
+     logged is a change to what the register charges. */
+  "register.addons": "register add-ons changed",
+  "register.vat": "register VAT rate changed",
+
   /* Stage 4, phase 7 — targets. A threshold decides what the whole organization
      is warned about, so moving one is a sensitive change like a permission. */
   "targets.update": "cost targets and thresholds changed",

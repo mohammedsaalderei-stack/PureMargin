@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   BarChart3, LineChart, MessageSquare, Settings as Cog, UtensilsCrossed, Users,
   Search, Lightbulb, PanelRightClose, PanelRightOpen, LogOut, Lock, Wallet,
-  LayoutDashboard, Download, FileText, Table, ChevronDown, Package, ChefHat, Scale, BellRing, ShoppingCart, Calculator, Receipt, MessagesSquare,} from "lucide-react";
+  LayoutDashboard, Download, FileText, Table, ChevronDown, Package, ChefHat, Scale, BellRing, ShoppingCart, Calculator, Receipt, MessagesSquare, Store,} from "lucide-react";
 import { useC } from "./theme.jsx";
 import BrandMark from "./BrandMark.jsx";
 import { useLang, fill } from "./i18n.jsx";
@@ -31,6 +31,7 @@ import Alerts from "./screens/Alerts.jsx";
 import Plan from "./screens/Plan.jsx";
 import Costs from "./screens/Costs.jsx";
 import Sales from "./screens/Sales.jsx";
+import Till from "./screens/Till.jsx";
 import Employees from "./screens/Employees.jsx";
 import BranchScope from "./BranchScope.jsx";
 import BusinessTypePicker from "./BusinessTypePicker.jsx";
@@ -124,6 +125,9 @@ const VARIANCE_TAB = { id: "variance", icon: Scale };
    what everybody with a dashboard already does, and the screen shows no edit
    controls to somebody who cannot use them. */
 const SALES_TAB = { id: "sales", icon: Receipt };
+/* PureMargin's own register. Second in the nav: for a cashier it is the job,
+   and for an owner it sits beside the figures it feeds. */
+const TILL_TAB = { id: "till", icon: Store };
 
 /* Every tab there is, in the order the nav shows them.
 
@@ -148,7 +152,7 @@ const SALES_TAB = { id: "sales", icon: Receipt };
 const ALL_TABS = (() => {
   const byId = Object.fromEntries(TAB_META.map((tb) => [tb.id, tb]));
   return [
-    byId.overview, SALES_TAB, byId.costs, byId.ask,
+    byId.overview, TILL_TAB, SALES_TAB, byId.costs, byId.ask,
     INVENTORY_TAB, ALERTS_TAB, PLAN_TAB, RECIPES_TAB, VARIANCE_TAB, EMPLOYEES_TAB,
     byId.watch, byId.menu, byId.forecast, byId.advice,
     MESSAGES_TAB, TEAM_TAB,
@@ -577,6 +581,7 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
      no scanner to hand a document to; documents route to Inventory or Recipes. */
   else if (tab === "costs") { body = <Costs token={token} />; }
   else if (tab === "sales") { body = <Sales token={token} branches={branches} />; }
+  else if (tab === "till") { body = <Till token={token} />; }
   else if (tab === "inventory") { body = <Inventory token={token} pendingDoc={pendingDoc} onDocUsed={() => setPendingDoc(null)} />; }
   else if (tab === "recipes") { body = <Recipes token={token} pendingDoc={pendingDoc} onDocUsed={() => setPendingDoc(null)} />; }
   else if (tab === "variance") { body = <Variance token={token} branches={branches} />; }

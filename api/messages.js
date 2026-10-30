@@ -9,6 +9,7 @@ import {
   matchesAudience, audienceIsEveryone, addressable, visibleTo, isDirect,
   MAX_BODY,
 } from "./_messages.js";
+import { rosterFor } from "./_till.js";
 
 /* The team board.
 
@@ -79,7 +80,7 @@ export default async function handler(req, res) {
       const since = await lastReadAt(org.id, account.username);
       let branches = [];
       try {
-        branches = await branchList(await posTokenFor(account.username));
+        branches = await rosterFor(account);
       } catch {
         /* The board must open even when the till is unreachable. Without the
            branch list the audience picker falls back to roles only, which is

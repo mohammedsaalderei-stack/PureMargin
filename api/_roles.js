@@ -30,6 +30,8 @@ export const ROLES = {
       /* Attendance. Whoever runs a shift is who takes it: the person at the
          pass when somebody arrives, not an administrator in an office. */
       "manage:staff",
+      /* Selling through PureMargin's own register. */
+      "use:till",
     ],
   },
   ops: {
@@ -43,6 +45,7 @@ export const ROLES = {
       "manage:recipes", "manage:inventory", "manage:purchasing",
       "adjust:sales",
       "manage:staff",
+      "use:till",
     ],
   },
   branch_manager: {
@@ -56,6 +59,7 @@ export const ROLES = {
          and the figures stay wrong in a way everyone on site can see. */
       "adjust:sales",
       "manage:staff",
+      "use:till",
     ],
   },
   chef: {
@@ -81,7 +85,7 @@ export const ROLES = {
        usually the person who would be correcting it, and a till where the
        operator can quietly remove their own transactions is the oldest hole
        in retail. Corrections belong to whoever the shift reports to. */
-    can: ["view:dashboard"],
+    can: ["view:dashboard", "use:till"],
   },
   accountant: {
     label: "Accountant",
