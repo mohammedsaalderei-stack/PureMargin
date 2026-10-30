@@ -251,9 +251,13 @@ export default async function handler(req, res) {
      Team and Packages cannot be granted. They are controls, not views: Team
      lets somebody change roles, which lets them grant themselves everything
      else. An owner who wants a second administrator has a way to say so, and
-     that decision should look like what it is. */
+     that decision should look like what it is.
+
+     Checked against the caller's role rather than `scope.capabilities`, which
+     already include whatever has been granted: no grant may confer the right
+     to hand out grants. */
   if (req.method === "PATCH") {
-    if (!can(member.role, "manage:users")) return res.status(403).json({ error: "forbidden" });
+    if (!can(scope.role, "manage:users")) return res.status(403).json({ error: "forbidden" });
 
     const grants = normaliseGrants(req.body || {});
     const org2 = { ...org, tabGrants: grants };
