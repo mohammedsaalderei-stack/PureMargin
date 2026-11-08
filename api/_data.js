@@ -280,6 +280,7 @@ function linesOf(r) {
     lines: (r.line_items || []).map((li) => ({
       name: li.item_name || "",
       variant: li.variant_name || "",
+      scale: Number(li.variant_scale) > 0 ? Number(li.variant_scale) : 1,
       qty: Number(li.quantity) || 0,
       revenue: Number(li.total_money) || 0,
     })),
@@ -304,8 +305,10 @@ export async function salesLines({ from, to = Date.now(), branches = null, edits
     for (const li of receipt.lines) {
       const name = li.name || "Unnamed item";
       const mapKey = `${receipt.branchId}||${name}||${li.variant}`;
-      const row = rows.get(mapKey) || { branchId: receipt.branchId, name, variant: li.variant, qty: 0, revenue: 0, lines: 0 };
+      const row = rows.get(mapKey) || { branchId: receipt.branchId, name, variant: li.variant, qty: 0, drawQty: 0, revenue: 0, lines: 0 };
       row.qty += li.qty;
+      /* Portions of the plain recipe, for a variant drawn at a scale. */
+      row.drawQty += li.qty * li.scale;
       row.revenue += li.revenue;
       row.lines += 1;
       rows.set(mapKey, row);

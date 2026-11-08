@@ -93,7 +93,18 @@ export function buildSale(input, {
   for (const raw of lines) {
     const item = byId.get(String(raw?.itemId ?? ""));
     if (!item) return { error: "item", itemId: raw?.itemId ?? null };
-    if (!(Number(item.price) > 0)) return { error: "noprice", item: item.name };
+
+    /* An item sold in sizes or flavours is sold as one of them, never as the
+       item alone, and the one chosen sets the price. A variant may be its own
+       recipe (`recipeId`, a "Latte · Large" written on the Recipes screen),
+       or the item's recipe or stock scaled (`scale`, a large fries being 1.5
+       portions). */
+    const variants = Array.isArray(item.variants) ? item.variants : [];
+    const variant = variants.length ? variants.find((v) => v.id === String(raw?.variantId ?? "")) : null;
+    if (variants.length && !variant) return { error: "variant", item: item.name };
+    const basePrice = variant ? variant.price : item.price;
+    if (!(Number(basePrice) > 0)) return { error: "noprice", item: variant ? `${item.name} · ${variant.name}` : item.name };
+    const scale = variant && !variant.recipeId && Number(variant.scale) > 0 ? Number(variant.scale) : 1;
     const qty = Number(raw?.qty);
     if (!Number.isInteger(qty) || qty < 1 || qty > MAX_QTY) return { error: "qty", item: item.name };
 
@@ -106,7 +117,7 @@ export function buildSale(input, {
       chosen.push(addon);
     }
 
-    const unit = round2(item.price + chosen.reduce((sum, a) => sum + a.price, 0));
+    const unit = round2(Number(basePrice) + chosen.reduce((sum, a) => sum + a.price, 0));
     const gross = round2(unit * qty);
     const lineDiscount = readDiscount(raw?.discount, discounts);
     if (lineDiscount?.error) return { error: "discount", item: item.name };
@@ -121,10 +132,17 @@ export function buildSale(input, {
       /* The recipe, by id, where the till would put its catalogue id. Stock
          depletion matches by this first and by the dish name after. A product
          sold as it comes has no recipe, and says so in its id. */
-      item_id: item.kind === "product" ? `product:${item.id}` : `recipe:${item.id}`,
-      variant_id: "",
+      item_id: item.kind === "product" ? `product:${item.id}` : `recipe:${variant?.recipeId || item.id}`,
+      variant_id: variant?.id || "",
       item_name: item.name,
-      variant_name: "",
+      variant_name: variant?.name || "",
+      ...(scale !== 1 ? { variant_scale: scale } : {}),
+      /* A product sold as it comes, linked to a stock item: what one of it
+         takes off the shelf. Written on the receipt at the time of sale, so
+         changing the link later does not rewrite what past sales drew. */
+      ...(item.kind === "product" && item.stock?.ingredientId && Number(item.stock.qty) > 0
+        ? { stock_draw: [{ ingredientId: item.stock.ingredientId, qty: Math.round(Number(item.stock.qty) * scale * 1e6) / 1e6, unit: item.stock.unit }] }
+        : {}),
       quantity: qty,
       price: unit,
       gross_total_money: gross,
@@ -136,7 +154,7 @@ export function buildSale(input, {
          cost, which comes from its recipe like any sale's. */
       addon_cost: addonCost,
       ...(item.kind === "product" && item.cost !== null && item.cost !== undefined
-        ? { cost: round2(item.cost * qty) } : {}),
+        ? { cost: round2(item.cost * scale * qty) } : {}),
     });
   }
 

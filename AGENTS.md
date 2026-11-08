@@ -164,6 +164,31 @@ they override the defaults).
   `/api/login`, which replaces the device token with a normal session.
 - Tests: `api/_device.test.js`.
 
+## Variants and trading stock
+- **Variants** live in two places and the register shows them the same way:
+  - recipes that share a dish name and differ by `variant` (Recipes screen) are
+    grouped by `catalogueOf` into one item; each variant is `r-<recipeId>` with
+    that recipe's price, and the sale line's `item_id` is `recipe:<thatRecipe>`;
+  - register variants (`settings.variants[itemId]`, `PUT /api/till?what=variants`,
+    `readVariants`): `{ id, name, price, scale, barcode, sku }`. `scale` is how
+    many portions of the plain recipe (or the product's stock draw) one is.
+- `buildSale` (`shared/tillprice.js`) refuses a line without a variant when the
+  item has them (`error: "variant"`), prices from the variant, writes
+  `variant_id`/`variant_name`, and `variant_scale` only when ≠ 1.
+- Depletion (`_salesdepletion.js`) resolves `recipe:<id>` directly, prefers a
+  variant's own recipe by name over the plain one, and multiplies by
+  `variant_scale` only when it fell back to the plain recipe. Variance does the
+  same via `drawQty` on `salesLines` rows. A recipe index entry for a variant no
+  longer overwrites the plain dish's name (it used to: last one listed won).
+- **Trading stock**: a product (`saveProduct`) may carry `stock: { ingredientId,
+  qty, unit }` — any unit of the stock item's dimension. `buildSale` writes
+  `stock_draw` per unit sold onto the receipt line (so a later edit of the link
+  doesn't rewrite past sales), and depletion takes it off the shelf with no
+  recipe involved. `GET /api/till?what=stockitems` feeds the product form.
+- `src/depletion.js` sent whole store objects as `branchId`; every catch-up
+  depletion was refused 403. Fixed.
+- Tests: `api/_variants.test.js`.
+
 ## Multi-branch authorization (stage 1 of the product direction)
 - `api/_org.js` — organizations, roles, membership, scope resolution. Every
   account owns an organization from registration (`orgFor` backfills accounts

@@ -25,6 +25,13 @@ export const ORDER_ICONS = { dine_in: Utensils, takeaway: ShoppingBag, car: Car,
 
 const newKey = () => `l${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`;
 
+/* "Latte · Large" — the item and, when it has sizes, which one. */
+export function lineName(item, line, P) {
+  if (!item) return line.itemId;
+  const v = line.variantId ? (item.variants || []).find((x) => x.id === line.variantId) : null;
+  return v ? `${item.name} · ${v.name || P.variants.regular}` : item.name;
+}
+
 export function emptyOrder(orderType = "takeaway") {
   return { orderType, table: "", ticketName: "", customerId: "", discount: null, note: "", lines: [], ticketId: null, printed: {} };
 }
@@ -66,18 +73,23 @@ export default function Sell({ token, catalogue, order, setOrder, branchId, wide
     && (!query || `${i.name} ${i.sku} ${i.barcode}`.toLowerCase().includes(query.toLowerCase())));
   const byId = useMemo(() => new Map(items.map((i) => [i.id, i])), [items]);
 
-  const add = (item, addons = [], qty = 1) => {
+  const add = (item, addons = [], qty = 1, variantId = "") => {
     setOrder((o) => {
-      const same = o.lines.find((l) => l.itemId === item.id && !l.discount && !l.note
+      const same = o.lines.find((l) => l.itemId === item.id && (l.variantId || "") === variantId && !l.discount && !l.note
         && JSON.stringify([...l.addons].sort()) === JSON.stringify([...addons].sort()));
       if (same) return { ...o, lines: o.lines.map((l) => (l === same ? { ...l, qty: l.qty + qty } : l)) };
-      return { ...o, lines: [...o.lines, { key: newKey(), itemId: item.id, qty, addons, discount: null, note: "" }] };
+      return { ...o, lines: [...o.lines, { key: newKey(), itemId: item.id, ...(variantId ? { variantId } : {}), qty, addons, discount: null, note: "" }] };
     });
   };
-  const tap = (item) => {
+  const sellable = (item) => (item.variants || []).filter((v) => v.price > 0);
+  /* An item with sizes or add-ons asks which; a scanned variant's barcode
+     says already. */
+  const tap = (item, variantId = "") => {
     if (!item.priced) { if (can.manageItems) onSetPrice(item); return; }
-    if (item.addons?.length) setPicking({ item, chosen: [], qty: 1 });
-    else add(item);
+    const sizes = sellable(item);
+    if (variantId && !item.addons?.length) { add(item, [], 1, variantId); return; }
+    if (sizes.length > 1 || item.addons?.length) setPicking({ item, chosen: [], qty: 1, variantId: variantId || sizes[0]?.id || "" });
+    else add(item, [], 1, sizes[0]?.id || "");
   };
   const setLine = (key, patch) => setOrder((o) => ({ ...o, lines: o.lines.map((l) => (l.key === key ? { ...l, ...patch } : l)) }));
   const removeLine = (key) => setOrder((o) => ({ ...o, lines: o.lines.filter((l) => l.key !== key) }));
@@ -96,7 +108,10 @@ export default function Sell({ token, catalogue, order, setOrder, branchId, wide
         buffer.current.text = "";
         if (code.length >= 3) {
           const hit = items.find((i) => i.barcode === code || (i.sku && i.sku === code));
-          if (hit) { tap(hit); setFlash(hit.name); } else setFlash(fill(P.sell.unknownCode, { code }));
+          const viaVariant = !hit && items.map((i) => ({ i, v: (i.variants || []).find((v) => v.barcode === code || (v.sku && v.sku === code)) })).find((x) => x.v);
+          if (hit) { tap(hit); setFlash(hit.name); }
+          else if (viaVariant) { tap(viaVariant.i, viaVariant.v.id); setFlash(`${viaVariant.i.name} · ${viaVariant.v.name || P.variants.regular}`); }
+          else setFlash(fill(P.sell.unknownCode, { code }));
           setTimeout(() => setFlash(""), 1800);
         }
       } else if (e.key.length === 1) buffer.current.text += e.key;
@@ -145,9 +160,11 @@ export default function Sell({ token, catalogue, order, setOrder, branchId, wide
                 <span className="font-semibold text-sm leading-snug line-clamp-2" style={{ color: C.ink }}>{item.name}</span>
                 <span className="flex items-center justify-between gap-1 mt-2">
                   <span className="data text-sm font-bold" dir="ltr" style={{ color: item.priced ? C.iris : C.slate }}>
-                    {item.priced ? money(item.price) : (can.manageItems ? P.sell.setPrice : P.sell.noPrice)}
+                    {item.priced
+                      ? (sellable(item).length > 1 ? fill(P.variants.from, { price: money(item.price) }) : money(item.price))
+                      : (can.manageItems ? P.sell.setPrice : P.sell.noPrice)}
                   </span>
-                  {item.addons?.length > 0 && <Plus size={13} style={{ color: C.slate }} />}
+                  {(item.addons?.length > 0 || sellable(item).length > 1) && <Plus size={13} style={{ color: C.slate }} />}
                 </span>
               </button>
             ))}
@@ -193,7 +210,7 @@ export default function Sell({ token, catalogue, order, setOrder, branchId, wide
           return (
             <div key={line.key} className="flex items-center gap-2 py-2.5" style={{ borderBottom: `1px solid ${C.hairline}` }}>
               <button onClick={() => setEditing(line.key)} className="flex-1 min-w-0 text-start">
-                <span className="block text-sm font-semibold truncate" style={{ color: C.ink }}>{item?.name || line.itemId}</span>
+                <span className="block text-sm font-semibold truncate" style={{ color: C.ink }}>{lineName(item, line, P)}</span>
                 {line.addons.length > 0 && (
                   <span className="block text-xs truncate" style={{ color: C.slate }}>
                     + {line.addons.map((a) => item?.addons?.find((x) => x.id === a)?.name || a).join(", ")}
@@ -283,9 +300,27 @@ export default function Sell({ token, catalogue, order, setOrder, branchId, wide
 
       {picking && (
         <Sheet title={picking.item.name} onClose={() => setPicking(null)}
-          footer={<Btn full size="lg" onClick={() => { add(picking.item, picking.chosen, picking.qty); setPicking(null); }}>
-            {P.sell.add} <span className="data" dir="ltr">{money((picking.item.price + picking.chosen.reduce((s, id) => s + (picking.item.addons.find((a) => a.id === id)?.price || 0), 0)) * picking.qty)}</span>
+          footer={<Btn full size="lg" onClick={() => { add(picking.item, picking.chosen, picking.qty, picking.variantId); setPicking(null); }}>
+            {P.sell.add} <span className="data" dir="ltr">{money(((sellable(picking.item).find((v) => v.id === picking.variantId)?.price ?? picking.item.price) + picking.chosen.reduce((s, id) => s + (picking.item.addons.find((a) => a.id === id)?.price || 0), 0)) * picking.qty)}</span>
           </Btn>}>
+          {sellable(picking.item).length > 1 && (
+            <div className="mb-4">
+              <span className="block text-xs font-semibold mb-2" style={{ color: C.slate }}>{P.variants.choose}</span>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {sellable(picking.item).map((v) => {
+                  const on = v.id === picking.variantId;
+                  return (
+                    <button key={v.id} onClick={() => setPicking((p) => ({ ...p, variantId: v.id }))}
+                      className="min-w-0 flex flex-col items-start px-3.5 py-3 rounded-2xl text-start"
+                      style={{ background: on ? C.irisWash : "var(--chip-bg)", color: on ? C.iris : C.ink, border: `1.5px solid ${on ? C.iris : "transparent"}` }}>
+                      <span className="text-sm font-bold truncate max-w-full">{v.name || P.variants.regular}</span>
+                      <span className="data text-xs font-semibold" dir="ltr">{money(v.price)}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
           <div className="space-y-1.5">
             {picking.item.addons.map((a) => {
               const on = picking.chosen.includes(a.id);

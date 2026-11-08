@@ -8,6 +8,8 @@
    at one id. */
 
 import { getSettings, putSettings, PAYMENT_KINDS, VAT_MODES } from "./_till.js";
+import { getIngredient } from "./_inventory.js";
+import { isUnit, dimensionOf } from "./_units.js";
 
 const text = (v, max) => String(v ?? "").trim().slice(0, max);
 const round2 = (n) => Math.round((Number(n) + Number.EPSILON) * 100) / 100;
@@ -139,10 +141,25 @@ export async function saveProduct(orgId, raw) {
   const id = raw?.id && settings.products[String(raw.id)] ? String(raw.id) : uniqueId(`p-${slug(name)}`, used);
   const clash = barcodeClash(settings, barcode, id);
   if (clash) return { error: "barcode", item: clash };
+
+  /* Trading stock: a product with no recipe can still come off a shelf — a
+     can of soda is one can of the soda bought in. The link names the stock
+     item and how much one sale takes, in any unit that measures it. */
+  let stock = null;
+  if (raw?.stock?.ingredientId) {
+    const ingredient = await getIngredient(orgId, String(raw.stock.ingredientId));
+    if (!ingredient || ingredient.archived) return { error: "stock" };
+    const qty = Number(raw.stock.qty ?? 1);
+    const unit = String(raw.stock.unit || ingredient.stockUnit);
+    if (!(qty > 0) || qty > 100000 || !isUnit(unit)) return { error: "stockqty" };
+    if (dimensionOf(unit) !== dimensionOf(ingredient.stockUnit)) return { error: "stockunit" };
+    stock = { ingredientId: ingredient.id, qty: Math.round(qty * 1e6) / 1e6, unit };
+  }
+
   const product = {
     name, price: round2(price), cost: cost === null ? null : round2(cost),
     category: text(raw?.category, 40), barcode, sku: text(raw?.sku, 40), color,
-    hidden: Boolean(raw?.hidden), archived: false,
+    hidden: Boolean(raw?.hidden), archived: false, stock,
   };
   await putSettings(orgId, { ...settings, products: { ...settings.products, [id]: product } });
   return { id, product };

@@ -136,7 +136,7 @@ export function drawReceipt(receipt, { width = 576, settings = {}, labels, local
   p.rule();
 
   for (const li of receipt.line_items || []) {
-    p.row(`${li.quantity} × ${li.item_name}`, money(li.gross_total_money ?? li.total_money), { bold: true });
+    p.row(`${li.quantity} × ${li.item_name}${li.variant_name ? ` · ${li.variant_name}` : ""}`, money(li.gross_total_money ?? li.total_money), { bold: true });
     for (const m of li.line_modifiers || []) {
       p.row(`+ ${m.name}`, m.price ? money(m.price * li.quantity) : "", { scale: 0.85, indent: 24 });
     }

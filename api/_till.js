@@ -79,6 +79,7 @@ export async function getSettings(orgId) {
     vatPct: Number.isFinite(saved.vatPct) ? saved.vatPct : DEFAULT_VAT_PCT,
     vatMode: VAT_MODES.includes(saved.vatMode) ? saved.vatMode : "exclusive",
     addons: obj(saved.addons),
+    variants: obj(saved.variants),
     usedAt: saved.usedAt || null,
     /* Everything below is the register as a till of its own: what it takes
        money as, what it may knock off, what it prints, and whether a cashier
@@ -138,6 +139,46 @@ export function readAddons(list) {
   return { addons: out };
 }
 
+/* Sizes or flavours of one item, each with its own price.
+
+   `scale` is how much of the item's recipe — or, for a product, its stock
+   item — one of this variant draws: 1.5 for a large that is half as much
+   again. A variant that is its own recipe is written on the Recipes screen
+   instead (same dish name, a variant set) and needs no scale. */
+const MAX_VARIANTS = 20;
+export function readVariants(list) {
+  if (!Array.isArray(list)) return { error: "variants" };
+  if (list.length > MAX_VARIANTS) return { error: "toomany", limit: MAX_VARIANTS };
+  const out = [];
+  const used = new Set();
+  for (const raw of list) {
+    const name = text(raw?.name, 40);
+    if (!name) return { error: "name" };
+    const price = Number(raw?.price);
+    if (!Number.isFinite(price) || price <= 0 || price > MAX_PRICE) return { error: "price", name };
+    const scaleRaw = raw?.scale === undefined || raw?.scale === null || raw?.scale === "" ? 1 : Number(raw.scale);
+    if (!Number.isFinite(scaleRaw) || scaleRaw < 0.05 || scaleRaw > 20) return { error: "scale", name };
+    let id = raw?.id && /^v-[\p{L}\p{N}-]+$/u.test(String(raw.id)) && !used.has(String(raw.id)) ? String(raw.id) : `v-${slug(name)}`;
+    for (let n = 2; used.has(id); n += 1) id = `v-${slug(name)}-${n}`;
+    used.add(id);
+    out.push({
+      id, name, price: round2(price), scale: Math.round(scaleRaw * 1000) / 1000,
+      barcode: text(raw?.barcode, 40).replace(/\s/g, ""), sku: text(raw?.sku, 40),
+    });
+  }
+  return { variants: out };
+}
+
+export async function saveVariants(orgId, itemId, list) {
+  const read = readVariants(list);
+  if (read.error) return read;
+  const current = await getSettings(orgId);
+  const variants = { ...current.variants, [String(itemId)]: read.variants };
+  if (!read.variants.length) delete variants[String(itemId)];
+  await putSettings(orgId, { ...current, variants });
+  return { variants: read.variants };
+}
+
 export async function saveAddons(orgId, itemId, list) {
   const read = readAddons(list);
   if (read.error) return read;
@@ -160,24 +201,48 @@ export async function saveAddons(orgId, itemId, list) {
    (`buildSale` refuses one). */
 export function catalogueOf(recipes, settings) {
   const meta = settings?.itemMeta || {};
-  const dishes = (recipes || [])
-    .filter((r) => r && !r.archived)
-    .map((r) => {
-      const m = meta[String(r.id)] || {};
-      return {
-        id: String(r.id),
-        kind: "recipe",
-        name: String(r.menuItem || "").trim(),
-        category: String(r.category || "").trim(),
-        price: Number(r.sellPrice) > 0 ? round2(r.sellPrice) : null,
-        priced: Number(r.sellPrice) > 0,
-        addons: settings?.addons?.[String(r.id)] || [],
-        barcode: m.barcode || "",
-        sku: m.sku || "",
-        color: m.color || "",
-        hidden: Boolean(m.hidden),
-      };
-    });
+  const own = settings?.variants || {};
+  const priceOf = (r) => (Number(r.sellPrice) > 0 ? round2(r.sellPrice) : null);
+
+  /* Recipes that share a dish name and differ by variant ("Latte · Small",
+     "Latte · Large") are one item on the register with those variants, each
+     its own recipe and price. A dish with one recipe is an item as before,
+     with whatever variants were set on the register. */
+  const groups = new Map();
+  for (const r of recipes || []) {
+    if (!r || r.archived) continue;
+    const name = String(r.menuItem || "").trim();
+    if (!name) continue;
+    const key = name.toLowerCase().replace(/\s+/g, " ");
+    groups.set(key, [...(groups.get(key) || []), r]);
+  }
+  const dishes = [...groups.values()].map((list) => {
+    const base = list.find((r) => !String(r.variant || "").trim()) || list[0];
+    const m = meta[String(base.id)] || {};
+    const fromRecipes = list.length > 1 || String(base.variant || "").trim()
+      ? list.map((r) => ({
+        id: `r-${r.id}`, name: String(r.variant || "").trim(), price: priceOf(r), recipeId: String(r.id), scale: 1,
+        barcode: meta[String(r.id)]?.barcode || "", sku: meta[String(r.id)]?.sku || "",
+      }))
+      : [];
+    const variants = fromRecipes.length ? fromRecipes : own[String(base.id)] || [];
+    const prices = variants.map((v) => v.price).filter((p) => p > 0);
+    return {
+      id: String(base.id),
+      kind: "recipe",
+      name: String(base.menuItem || "").trim(),
+      category: String(base.category || "").trim(),
+      price: variants.length ? (prices.length ? Math.min(...prices) : null) : priceOf(base),
+      priced: variants.length ? prices.length > 0 : priceOf(base) !== null,
+      variants,
+      variantsFromRecipes: fromRecipes.length > 0,
+      addons: settings?.addons?.[String(base.id)] || [],
+      barcode: m.barcode || "",
+      sku: m.sku || "",
+      color: m.color || "",
+      hidden: Boolean(m.hidden),
+    };
+  });
   /* Products sold as they come. Ids carry a prefix so one can never collide
      with a recipe's, whatever either is called. */
   const products = Object.entries(settings?.products || {})
@@ -187,8 +252,11 @@ export function catalogueOf(recipes, settings) {
       kind: "product",
       name: String(p.name || "").trim(),
       category: String(p.category || "").trim(),
-      price: Number(p.price) > 0 ? round2(p.price) : null,
-      priced: Number(p.price) > 0,
+      price: own[id]?.length ? Math.min(...own[id].map((v) => v.price)) : Number(p.price) > 0 ? round2(p.price) : null,
+      priced: Number(p.price) > 0 || Boolean(own[id]?.length),
+      variants: own[id] || [],
+      variantsFromRecipes: false,
+      stock: p.stock?.ingredientId ? p.stock : null,
       addons: settings?.addons?.[id] || [],
       barcode: p.barcode || "",
       sku: p.sku || "",
@@ -328,6 +396,8 @@ export function forDepletion(receipt) {
       variantId: li.variant_id || "",
       name: li.item_name || "",
       variant: li.variant_name || "",
+      scale: Number(li.variant_scale) > 0 ? Number(li.variant_scale) : 1,
+      stockDraw: Array.isArray(li.stock_draw) ? li.stock_draw : [],
       qty: Number(li.quantity) || 0,
       revenue: Number(li.total_money) || 0,
     })),

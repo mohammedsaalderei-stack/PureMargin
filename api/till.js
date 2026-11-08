@@ -19,20 +19,21 @@
    in as — is who the sale is put against and whose permissions apply. A
    cashier's PIN on the owner's device is a cashier.
 
-   GET  ?what=catalogue | day | receipts | receipt | tickets | customers | shift | shifts | pins
+   GET  ?what=catalogue | day | receipts | receipt | tickets | customers | shift | shifts | pins | stockitems
    POST ?what=sale | refund | pin | shift-open | shift-move | shift-close
-   PUT  ?what=ticket | customer | addons | price | vat | settings | product | item | pins
+   PUT  ?what=ticket | customer | addons | variants | price | vat | settings | product | item | pins
    DELETE ?what=ticket | product | pins
 */
 
 import { requireAuth, issueDeviceToken } from "./_auth.js";
 import { scopeFor, effectiveBranches, parseBranchParam } from "./_org.js";
-import { getMeta } from "./_inventory.js";
+import { getMeta, listIngredients } from "./_inventory.js";
+import { UNIT_KEYS, dimensionOf } from "./_units.js";
 import { depleteFromSales } from "./_salesdepletion.js";
 import { recordAudit } from "./_audit.js";
 import { listRecipes, setSellPrice } from "./_recipes.js";
 import {
-  getSettings, catalogueOf, buildSale, buildRefund, recordSale, registerReceipts, saveAddons, saveVat,
+  getSettings, catalogueOf, buildSale, buildRefund, recordSale, registerReceipts, saveAddons, saveVariants, saveVat,
   forDepletion, rosterFor, findReceipt, refundedSoFar, acceptNumber, monthsBetween, ORDER_TYPES,
 } from "./_till.js";
 import { currentShift, openShift, cashMove, closeShift, summarise, listShifts } from "./_tillshift.js";
@@ -213,6 +214,19 @@ export default async function handler(req, res) {
       const shifts = (await listShifts(orgId, monthsBetween(now - 92 * DAY, now)))
         .filter((s) => authorized.includes(String(s.branchId)));
       return res.status(200).json({ shifts: shifts.slice(0, 100) });
+    }
+
+    /* Stock items a product can be linked to, with the units that measure
+       each, for the product form. */
+    if (req.method === "GET" && what === "stockitems") {
+      if (!can("manage:recipes")) return res.status(403).json({ error: "forbidden" });
+      const list = await listIngredients(orgId);
+      return res.status(200).json({
+        items: list.map((i) => ({
+          id: i.id, name: i.name, stockUnit: i.stockUnit,
+          units: UNIT_KEYS.filter((u) => dimensionOf(u) === dimensionOf(i.stockUnit)),
+        })),
+      });
     }
 
     if (req.method === "GET" && what === "pins") {
@@ -456,6 +470,18 @@ export default async function handler(req, res) {
       if (!can("manage:recipes")) return res.status(403).json({ error: "forbidden" });
       const out = await saveItemMeta(orgId, body.itemId, body);
       if (out.error) return res.status(422).json(out);
+      return res.status(200).json(out);
+    }
+
+    if (req.method === "PUT" && what === "variants") {
+      if (!can("manage:recipes")) return res.status(403).json({ error: "forbidden" });
+      const [recipes, settings] = await Promise.all([listRecipes(orgId), getSettings(orgId)]);
+      const itemId = String(body.itemId || "");
+      const known = recipes.some((r) => String(r.id) === itemId) || Boolean(settings.products[itemId]);
+      if (!known) return res.status(404).json({ error: "item" });
+      const out = await saveVariants(orgId, itemId, body.variants);
+      if (out.error) return res.status(422).json(out);
+      await audit("register.variants", { itemId, count: out.variants.length });
       return res.status(200).json(out);
     }
 

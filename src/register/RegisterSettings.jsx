@@ -268,15 +268,49 @@ function Options({ token, P, catalogue, onClose }) {
 function Items({ token, P, catalogue, onClose }) {
   const C = useC();
   const S = P.settings.items;
+  const V = P.variants;
   const [editing, setEditing] = useState(null);
+  const [stockItems, setStockItems] = useState([]);
+  const [variantError, setVariantError] = useState("");
   const { busy, error, run } = useSave(token, P);
   const items = catalogue.items || [];
+  useEffect(() => {
+    call(token, "stockitems").then((out) => setStockItems(out.items || [])).catch(() => {});
+  }, [token]);
+
+  const open = (i) => {
+    setVariantError("");
+    setEditing({
+      ...i, price: i.price ?? "", cost: i.cost ?? "",
+      variantRows: i.variantsFromRecipes ? [] : (i.variants || []).map((v) => ({ ...v, price: String(v.price), scale: String(v.scale ?? 1) })),
+      stockId: i.stock?.ingredientId || "", stockQty: String(i.stock?.qty ?? 1), stockUnit: i.stock?.unit || "",
+    });
+  };
   const save = async () => {
     const e = editing;
+    setVariantError("");
+    const stockItem = stockItems.find((x) => x.id === e.stockId);
     const out = e.kind === "recipe"
       ? await run("item", { itemId: e.id, barcode: e.barcode, sku: e.sku, color: e.color, hidden: e.hidden })
-      : await run("product", { id: e.id, name: e.name, price: Number(e.price), cost: e.cost === "" ? null : e.cost, category: e.category, barcode: e.barcode, sku: e.sku, color: e.color, hidden: e.hidden });
-    if (out) { setEditing(null); onClose(true); }
+      : await run("product", {
+        id: e.id, name: e.name, price: Number(e.price), cost: e.cost === "" ? null : e.cost, category: e.category,
+        barcode: e.barcode, sku: e.sku, color: e.color, hidden: e.hidden,
+        stock: stockItem ? { ingredientId: stockItem.id, qty: Number(e.stockQty), unit: e.stockUnit || stockItem.stockUnit } : null,
+      });
+    if (!out) return;
+    if (!e.variantsFromRecipes) {
+      try {
+        await call(token, "variants", { method: "PUT", body: {
+          itemId: e.kind === "recipe" ? e.id : out.id,
+          variants: e.variantRows.filter((v) => v.name.trim() || String(v.price).trim()).map((v) => ({ id: v.id, name: v.name, price: Number(v.price), scale: v.scale === "" ? 1 : Number(v.scale), barcode: v.barcode || "" })),
+        } });
+      } catch (err) {
+        setVariantError(V.errors[err?.body?.error] || P.errors.generic);
+        return;
+      }
+    }
+    setEditing(null);
+    onClose(true);
   };
   const COLORS = ["", "#7C3AED", "#0891B2", "#059669", "#D97706", "#E11D48", "#2563EB", "#64748B"];
   return (
@@ -284,12 +318,12 @@ function Items({ token, P, catalogue, onClose }) {
       footer={<Btn full onClick={() => setEditing({ kind: "product", name: "", price: "", cost: "", category: "", barcode: "", sku: "", color: "", hidden: false })}><Plus size={16} />{S.addProduct}</Btn>}>
       <p className="text-sm mb-3" style={{ color: C.slate }}>{S.lead}</p>
       {items.map((i) => (
-        <button key={i.id} onClick={() => setEditing({ ...i, price: i.price ?? "", cost: i.cost ?? "" })} className="w-full flex items-center justify-between gap-3 px-4 py-3 rounded-2xl mb-1.5 text-start" style={{ background: "var(--chip-bg)", opacity: i.hidden ? 0.5 : 1 }}>
+        <button key={i.id} onClick={() => open(i)} className="w-full flex items-center justify-between gap-3 px-4 py-3 rounded-2xl mb-1.5 text-start" style={{ background: "var(--chip-bg)", opacity: i.hidden ? 0.5 : 1 }}>
           <span className="flex items-center gap-2 min-w-0">
             <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: i.color || C.hairline }} />
             <span className="min-w-0">
               <span className="block text-sm font-semibold truncate">{i.name}</span>
-              <span className="block text-xs" style={{ color: C.slate }}>{i.kind === "recipe" ? S.recipe : S.product}{i.category ? ` · ${i.category}` : ""}{i.barcode ? ` · ${i.barcode}` : ""}</span>
+              <span className="block text-xs" style={{ color: C.slate }}>{i.kind === "recipe" ? S.recipe : S.product}{i.category ? ` · ${i.category}` : ""}{i.variants?.length ? ` · ${i.variants.length} ${V.title}` : ""}{i.barcode ? ` · ${i.barcode}` : ""}</span>
             </span>
           </span>
           <span className="data text-sm font-bold" dir="ltr">{i.priced ? money(i.price) : "—"}</span>
@@ -297,7 +331,7 @@ function Items({ token, P, catalogue, onClose }) {
       ))}
       {editing && (
         <Sheet title={editing.name || S.addProduct} onClose={() => setEditing(null)}
-          footer={<div>{error && <p className="text-sm mb-2" style={{ color: "#F43F5E" }}>{error}</p>}<Btn full disabled={busy} onClick={save}>{P.common.save}</Btn></div>}>
+          footer={<div>{(error || variantError) && <p className="text-sm mb-2" style={{ color: "#F43F5E" }}>{variantError || (P.variants.errors[error] || error)}</p>}<Btn full disabled={busy} onClick={save}>{P.common.save}</Btn></div>}>
           {editing.kind === "product" ? (
             <>
               <Field label={S.name} value={editing.name} onChange={(v) => setEditing({ ...editing, name: v })} />
@@ -320,6 +354,57 @@ function Items({ token, P, catalogue, onClose }) {
             ))}
           </div>
           <Toggle label={S.hidden} hint={S.hiddenHint} value={editing.hidden} onChange={(v) => setEditing({ ...editing, hidden: v })} />
+
+          {/* Sizes or flavours. A dish whose sizes are recipes of their own
+              shows where they come from instead of a list to edit here. */}
+          <div className="mt-4 pt-4" style={{ borderTop: `1px solid ${C.hairline}` }}>
+            <span className="block text-sm font-bold mb-1">{V.title}</span>
+            {editing.variantsFromRecipes ? (
+              <p className="text-xs" style={{ color: C.slate }}>{fill(V.fromRecipes, { name: editing.name })} {editing.variants.map((v) => v.name || V.regular).join(" · ")}</p>
+            ) : (
+              <>
+                <p className="text-xs mb-3" style={{ color: C.slate }}>{V.lead}</p>
+                <ListEditor rows={editing.variantRows} setRows={(rows) => setEditing({ ...editing, variantRows: rows })}
+                  blank={() => ({ name: "", price: "", scale: "1", barcode: "" })} addLabel={V.add}
+                  render={(r, set) => (
+                    <div className="grid grid-cols-[1fr_5.5rem_4.5rem] gap-2">
+                      <Field label={V.name} value={r.name} onChange={(v) => set({ name: v })} />
+                      <Field label={V.price} value={r.price} onChange={(v) => set({ price: v })} inputMode="decimal" dir="ltr" />
+                      <Field label={V.scale} value={r.scale} onChange={(v) => set({ scale: v })} inputMode="decimal" dir="ltr" />
+                    </div>
+                  )} />
+              </>
+            )}
+          </div>
+
+          {/* Trading stock: products bought in and sold as they are. */}
+          {editing.kind === "product" && (
+            <div className="mt-4 pt-4" style={{ borderTop: `1px solid ${C.hairline}` }}>
+              <span className="block text-sm font-bold mb-1">{V.stockTitle}</span>
+              <p className="text-xs mb-3" style={{ color: C.slate }}>{V.stockLead}</p>
+              <select value={editing.stockId} onChange={(e) => {
+                const it = stockItems.find((x) => x.id === e.target.value);
+                setEditing({ ...editing, stockId: e.target.value, stockUnit: it?.stockUnit || "" });
+              }} className="w-full px-3.5 py-3 rounded-xl text-base outline-none mb-3"
+                style={{ background: "var(--chip-bg)", color: C.ink, border: `1px solid ${C.hairline}` }}>
+                <option value="">{V.stockNone}</option>
+                {stockItems.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
+              </select>
+              {editing.stockId && (
+                <div className="flex gap-2">
+                  <div className="flex-1"><Field label={V.stockQty} value={editing.stockQty} onChange={(v) => setEditing({ ...editing, stockQty: v })} inputMode="decimal" dir="ltr" /></div>
+                  <label className="flex-1 block mb-3">
+                    <span className="block text-xs font-semibold mb-1.5" style={{ color: C.slate }}>{V.stockUnit}</span>
+                    <select value={editing.stockUnit} onChange={(e) => setEditing({ ...editing, stockUnit: e.target.value })}
+                      className="w-full px-3.5 py-3 rounded-xl text-base outline-none" dir="ltr"
+                      style={{ background: "var(--chip-bg)", color: C.ink, border: `1px solid ${C.hairline}` }}>
+                      {(stockItems.find((x) => x.id === editing.stockId)?.units || []).map((u) => <option key={u} value={u}>{u}</option>)}
+                    </select>
+                  </label>
+                </div>
+              )}
+            </div>
+          )}
         </Sheet>
       )}
     </Sheet>

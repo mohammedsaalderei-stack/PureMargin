@@ -117,7 +117,7 @@ function ReceiptDetail({ token, number, catalogue, can, printCtx, customers, onC
       {customer && <div className="text-sm mb-2 font-semibold">{customer.name}</div>}
       {(r.line_items || []).map((li, i) => (
         <div key={i} className="py-2" style={{ borderBottom: `1px solid ${C.hairline}` }}>
-          <Row label={`${li.quantity} × ${li.item_name}`} value={money(li.total_money)} />
+          <Row label={`${li.quantity} × ${li.item_name}${li.variant_name ? ` · ${li.variant_name}` : ""}`} value={money(li.total_money)} />
           {(li.line_modifiers || []).length > 0 && <div className="text-xs" style={{ color: C.slate }}>+ {li.line_modifiers.map((m) => m.name).join(", ")}</div>}
           {data.refunded.lines[i] > 0 && <div className="text-xs" style={{ color: C.rose }}>{fill(P.receipts.alreadyRefunded, { n: data.refunded.lines[i] })}</div>}
         </div>
@@ -177,7 +177,7 @@ function Refund({ token, receipt, refunded, catalogue, P, onCancel, onDone, prin
       {receipt.line_items.map((li, i) => (
         <div key={i} className="flex items-center justify-between gap-3 py-2.5" style={{ borderBottom: `1px solid ${C.hairline}`, opacity: left(i) ? 1 : 0.4 }}>
           <span className="min-w-0">
-            <span className="block text-sm font-semibold truncate">{li.item_name}</span>
+            <span className="block text-sm font-semibold truncate">{li.item_name}{li.variant_name ? ` · ${li.variant_name}` : ""}</span>
             <span className="block text-xs" style={{ color: C.slate }}>{fill(P.refund.left, { n: left(i) })}</span>
           </span>
           <span className="flex items-center gap-1.5" dir="ltr">

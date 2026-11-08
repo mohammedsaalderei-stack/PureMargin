@@ -20,7 +20,7 @@ import { useC } from "../theme.jsx";
 import { useLang, fill, localeFor } from "../i18n.jsx";
 import BrandMark from "../BrandMark.jsx";
 import { Btn, Sheet, Keypad, keyInto, Empty, Field, money } from "./ui.jsx";
-import Sell, { emptyOrder } from "./Sell.jsx";
+import Sell, { emptyOrder, lineName } from "./Sell.jsx";
 import Tickets from "./Tickets.jsx";
 import Receipts from "./Receipts.jsx";
 import Shift from "./Shift.jsx";
@@ -52,13 +52,13 @@ function useWide() {
 }
 
 /* What the kitchen has not been sent yet, line by line. */
-function kitchenLines(order, items) {
+function kitchenLines(order, items, P) {
   const byId = new Map(items.map((i) => [i.id, i]));
   return order.lines
     .map((l) => ({ l, item: byId.get(l.itemId), qty: l.qty - (order.printed?.[l.key] || 0) }))
     .filter((x) => x.qty > 0 && x.item)
     .map(({ l, item, qty }) => ({
-      key: l.key, qty, name: item.name, category: item.category, note: l.note,
+      key: l.key, qty, name: lineName(item, l, P), category: item.category, note: l.note,
       addons: l.addons.map((a) => item.addons?.find((x) => x.id === a)?.name || a),
     }));
 }
@@ -162,7 +162,7 @@ export default function RegisterApp({ token, user, business: businessProp, onExi
   const lock = () => { setOperator(null); setOp(null); };
 
   const sendToKitchen = async (o) => {
-    const lines = kitchenLines(o, catalogue.items);
+    const lines = kitchenLines(o, catalogue.items, P);
     if (!lines.length || !loadPrinters().some((p) => p.role === "kitchen")) return o.printed || {};
     const added = Object.keys(o.printed || {}).length > 0;
     const results = await printKitchen({ ...o, name: o.ticketName, at: Date.now(), by: operator?.name || user, lines }, printCtx, { added });
@@ -446,7 +446,14 @@ function PriceSheet({ token, item, P, onClose, onSaved }) {
   const save = async () => {
     setBusy(true);
     try {
-      if (item.kind === "product") await call(token, "product", { method: "PUT", body: { id: item.id, name: item.name, price: Number(value), category: item.category } });
+      /* The whole product goes back, not just its price: the save replaces
+         it, and a price set here must not drop its barcode or stock link. */
+      if (item.kind === "product") {
+        await call(token, "product", { method: "PUT", body: {
+          id: item.id, name: item.name, price: Number(value), cost: item.cost ?? null, category: item.category,
+          barcode: item.barcode, sku: item.sku, color: item.color, hidden: item.hidden, stock: item.stock || null,
+        } });
+      }
       else await call(token, "price", { method: "PUT", body: { itemId: item.id, price: Number(value) } });
       onSaved();
     } catch {
