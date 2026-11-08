@@ -96,7 +96,12 @@ export function indexRecipes(recipes, posIds = {}) {
 
   for (const r of recipes || []) {
     if (r.archived) continue;
-    byName.set(norm(r.menuItem), r);
+    /* A recipe written for one variant ("Latte", variant "Large") is found by
+       the qualified name; the plain one keeps the plain name, and is never
+       displaced by a variant that happens to be listed after it. */
+    const variant = String(r.variant || "").trim();
+    if (variant) byName.set(norm(`${r.menuItem} ${variant}`), r);
+    if (!variant || !byName.has(norm(r.menuItem))) byName.set(norm(r.menuItem), r);
     live.set(r.id, r);
   }
 
@@ -107,7 +112,7 @@ export function indexRecipes(recipes, posIds = {}) {
     if (recipe) byId.set(posId, recipe);
   }
 
-  return { byName, byId };
+  return { byName, byId, live };
 }
 
 /* The catalogue key for one sold line. Variant first: a large latte and a
@@ -123,15 +128,23 @@ export function posKeyOf(line) {
 /* Resolve one sold line to a recipe: by catalogue id where that is known,
    then by variant-qualified name, then by name alone. */
 function recipeFor(line, index) {
+  /* The register names the recipe outright ("recipe:<id>"), which survives
+     any rename and needs nothing learned. */
+  const own = String(line?.itemId || "").match(/^recipe:([^:]+)$/)?.[1];
+  if (own && index.live?.has(own)) return index.live.get(own);
+
   const key = posKeyOf(line);
   if (key && index.byId.has(key)) return index.byId.get(key);
+  /* A recipe written for this variant beats the plain item's. */
+  if (line.variant) {
+    const specific = index.byName.get(norm(`${line.name} ${line.variant}`));
+    if (specific) return specific;
+  }
   /* A variant-specific pairing is not known, but the plain item may be. */
   const bare = key.split(":")[0];
   if (bare && index.byId.has(bare)) return index.byId.get(bare);
 
-  return index.byName.get(norm(line.variant ? `${line.name} ${line.variant}` : line.name))
-    || index.byName.get(norm(line.name))
-    || null;
+  return index.byName.get(norm(line.name)) || null;
 }
 
 /* What one receipt consumed, per ingredient, in base units. */
@@ -141,9 +154,24 @@ export function consumptionOf(receipt, index, at) {
   /* Catalogue-id pairings this receipt proved, for the caller to remember. */
   const learned = [];
 
+  const add = (ingredientId, unit, moved) => {
+    if (!(moved > 0)) return;
+    const key = `${ingredientId}|${unit}`;
+    const row = totals.get(key) || { ingredientId, unit, qty: 0 };
+    row.qty += moved;
+    totals.set(key, row);
+  };
+
   for (const line of receipt.lines || []) {
     const qty = Number(line.qty);
     if (!Number.isFinite(qty) || qty <= 0) continue;
+
+    /* A product sold as it comes, linked to a stock item: no recipe, just
+       what one of it takes off the shelf, as the receipt recorded it. */
+    if (line.stockDraw?.length) {
+      for (const d of line.stockDraw) add(d.ingredientId, d.unit, (Number(d.qty) || 0) * qty);
+      continue;
+    }
 
     const recipe = recipeFor(line, index);
     const version = recipe ? effectiveVersion(recipe, at) : null;
@@ -155,23 +183,22 @@ export function consumptionOf(receipt, index, at) {
     /* Matched, and the till gave a catalogue id we do not already have against
        this recipe. Worth writing down so the next rename does not break it. */
     const key = posKeyOf(line);
-    if (key && index.byId.get(key)?.id !== recipe.id) {
+    if (key && !String(line.itemId).startsWith("recipe:") && index.byId.get(key)?.id !== recipe.id) {
       learned.push({ posKey: key, recipeId: recipe.id });
     }
 
     const portions = Number(version.portions) > 0 ? Number(version.portions) : 1;
     const factor = Number(version.yieldPct) > 0 ? Number(version.yieldPct) / 100 : 1;
+    /* A variant drawing the plain recipe at a different size — a large at
+       1.5 — scales it. One that is its own recipe already says how much. */
+    const ownVariant = Boolean(line.variant) && norm(recipe.variant) === norm(line.variant);
+    const scale = !ownVariant && Number(line.scale) > 0 ? Number(line.scale) : 1;
 
     for (const ing of version.lines) {
       /* Gross, not net: yield is trim and cooking loss, and the store gave up
          the larger amount. */
       const per = (Number(ing.qtyBase) || 0) / factor / portions;
-      const moved = per * qty;
-      if (!(moved > 0)) continue;
-      const key = `${ing.ingredientId}|${ing.baseUnit}`;
-      const row = totals.get(key) || { ingredientId: ing.ingredientId, unit: ing.baseUnit, qty: 0 };
-      row.qty += moved;
-      totals.set(key, row);
+      add(ing.ingredientId, ing.baseUnit, per * qty * scale);
     }
   }
 

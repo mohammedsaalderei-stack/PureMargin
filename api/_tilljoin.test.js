@@ -1,20 +1,16 @@
 /* Register sales in the reports.
 
-   The register writes receipts in the till's shape so every report reads them
-   through the same three functions: `getMetrics`, `salesLines`, `rawReceipts`.
-   What is checked here is the join: that a register sale is counted once,
-   that the till's cached read is never changed by one organization's sales,
-   and that an account with no till at all still gets figures. */
+   The register is the only source of sales. It writes receipts in one shape
+   so every report reads them through the same three functions: `getMetrics`,
+   `salesLines`, `rawReceipts`. What is checked here is that a sale is counted
+   once, lands in the store it was rung up in, and that the store names the
+   business gave are the names the reports use. */
 
 import assert from "node:assert/strict";
 
-/* Never reach a real till from a test. */
-delete process.env.POS_ACCESS_TOKEN;
-delete process.env.LOYVERSE_ACCESS_TOKEN;
-
 const data = await import("./_data.js");
 const { buildSale } = await import("./_till.js");
-const { withRegister, registerOnlyRaw, getMetrics, salesLines, rawReceipts, branchList, NotConnected, REGISTER_BRANCH } = data;
+const { registerOnlyRaw, getMetrics, salesLines, rawReceipts, NotConnected, REGISTER_BRANCH } = data;
 
 let failures = 0;
 async function test(name, fn) {
@@ -34,80 +30,60 @@ const sold = (number, itemId, qty, { branchId = REGISTER_BRANCH.id, at = NOW - 3
   { catalogue: CAT, vatPct: 5, branchId, at, number },
 ).receipt;
 
-const tillRaw = () => ({
-  now: NOW, fetchedAt: NOW, since: new Date(NOW - 30 * 864e5).toISOString(),
-  receiptCount: 1,
-  receipts: [{ receipt_number: "1-1001", receipt_type: "SALE", receipt_date: new Date(NOW - 7200e3).toISOString(), store_id: "b1", total_money: 18, line_items: [{ item_name: "Latte", quantity: 1, total_money: 18 }], payments: [{ name: "Cash", money_amount: 18 }] }],
-  limitedHistory: false, historyDays: 30, catalogue: new Map(),
-  storeNames: { b1: "Downtown" }, allBranches: ["b1"],
-});
-
-await test("register sales join the till's, each counted once", async () => {
-  const raw = withRegister(tillRaw(), [sold("PM-1", "fries", 2, { branchId: "b1" })]);
+await test("register sales are counted once each", async () => {
+  const raw = registerOnlyRaw([sold("PM-1", "fries", 2), sold("PM-2", "latte", 1)], NOW);
   assert.equal(raw.receipts.length, 2);
   assert.equal(raw.receiptCount, 2);
-  assert.equal(raw.registerCount, 1);
 });
 
-await test("the till's cached read is never changed by a join", async () => {
-  const cached = tillRaw();
-  withRegister(cached, [sold("PM-1", "fries", 2)]);
-  assert.equal(cached.receipts.length, 1);
-  assert.deepEqual(cached.allBranches, ["b1"]);
+await test("a sale keeps the store it was rung up in, under the name the business gave it", async () => {
+  const raw = registerOnlyRaw([sold("PM-1", "fries", 2, { branchId: "s-marina" })], NOW, { register: "Downtown", "s-marina": "Marina" });
+  assert.deepEqual(raw.allBranches.sort(), ["register", "s-marina"]);
+  assert.equal(raw.storeNames["s-marina"], "Marina");
+  assert.equal(raw.storeNames.register, "Downtown");
 });
 
-await test("a sale rung up in a till's branch keeps that branch", async () => {
-  const raw = withRegister(tillRaw(), [sold("PM-1", "fries", 2, { branchId: "b1" })]);
-  assert.deepEqual(raw.allBranches, ["b1"]);
+await test("a store with no sales is still a branch of the business", async () => {
+  const raw = registerOnlyRaw([], NOW, { register: "Downtown", "s-marina": "Marina" });
+  assert.deepEqual(raw.allBranches.sort(), ["register", "s-marina"]);
 });
 
-await test("the register's own branch is added, and named, when the till has no such branch", async () => {
-  const raw = withRegister(tillRaw(), [sold("PM-1", "fries", 2)]);
-  assert.deepEqual(raw.allBranches, ["b1", "register"]);
-  assert.equal(raw.storeNames.register, "Register");
+await test("sales older than the window are left out", async () => {
+  const raw = registerOnlyRaw([sold("PM-old", "fries", 1, { at: NOW - 90 * 864e5 }), sold("PM-1", "fries", 1)], NOW);
+  assert.deepEqual(raw.receipts.map((r) => r.receipt_number), ["PM-1"]);
 });
 
-await test("register sales older than the till's window are left out with the till's", async () => {
-  const raw = withRegister(tillRaw(), [sold("PM-old", "fries", 1, { at: NOW - 45 * 864e5 })]);
-  assert.equal(raw.receipts.length, 1);
-});
-
-await test("no register sales leaves the read exactly as it was", async () => {
-  const cached = tillRaw();
-  assert.equal(withRegister(cached, []), cached);
-  assert.equal(withRegister(cached, null), cached);
-});
-
-await test("an account with no till gets figures from its register alone", async () => {
-  const m = await getMetrics("", { register: [sold("PM-1", "fries", 2), sold("PM-2", "latte", 1)] });
+await test("figures come from the register's sales", async () => {
+  const m = await getMetrics({ register: [sold("PM-1", "fries", 2), sold("PM-2", "latte", 1)] });
   const byName = Object.fromEntries((m.items || []).map((i) => [i.name, i]));
   assert.equal(byName.Fries.qty, 2);
   assert.equal(byName.Fries.revenue, 24);
   assert.equal(byName.Latte.qty, 1);
-  assert.equal(m.fetch.registerCount, 2);
-  assert.deepEqual(m.allBranches, ["register"]);
+  assert.equal(m.source, "PureMargin");
 });
 
-await test("with no till and no register sales, it is still 'not connected'", async () => {
-  await assert.rejects(() => getMetrics("", {}), NotConnected);
-  await assert.rejects(() => getMetrics("", { register: [] }), NotConnected);
+await test("a store's figures are its own sales and nobody else's", async () => {
+  const register = [sold("PM-1", "fries", 2), sold("PM-2", "latte", 1, { branchId: "s-marina" })];
+  const m = await getMetrics({ register, branches: ["s-marina"], names: { register: "Downtown", "s-marina": "Marina" } });
+  const names = (m.items || []).map((i) => i.name);
+  assert.deepEqual(names, ["Latte"]);
 });
 
-await test("the sales lines behind variance and the purchase plan include register sales", async () => {
-  const out = await salesLines("", { register: [sold("PM-1", "fries", 3)], from: NOW - 864e5, to: NOW });
+await test("with no sales at all, there is nothing to show rather than invented figures", async () => {
+  await assert.rejects(() => getMetrics({}), NotConnected);
+  await assert.rejects(() => getMetrics({ register: [] }), NotConnected);
+});
+
+await test("the sales lines behind variance and the purchase plan are the register's", async () => {
+  const out = await salesLines({ register: [sold("PM-1", "fries", 3)], from: NOW - 864e5, to: NOW });
   const fries = out.lines.find((l) => l.name === "Fries");
   assert.equal(fries.qty, 3);
-  assert.equal(fries.branchId, "register");
+  assert.equal(fries.branchId, REGISTER_BRANCH.id);
 });
 
-await test("the sales list reads register receipts as it reads the till's", async () => {
-  const out = await rawReceipts("", { register: [sold("PM-1", "fries", 1)], days: 7 });
+await test("the sales list reads register receipts", async () => {
+  const out = await rawReceipts({ register: [sold("PM-1", "fries", 1)], days: 7 });
   assert.deepEqual(out.map((r) => r.receipt_number), ["PM-1"]);
-});
-
-await test("the register is the branch of an account with no till that uses it", async () => {
-  assert.deepEqual(await branchList("", { register: true }), [{ ...REGISTER_BRANCH }]);
-  await assert.rejects(() => branchList(""), NotConnected);
 });
 
 await test("a register-only read covers the sixty days a period is compared with", async () => {

@@ -1,52 +1,16 @@
 import { requireAuth } from "./_auth.js";
 import {
-  getAccount, setPosToken, setBusiness, publicAccount, setEmail, renameAccount,
-  requestDeletion, cancelDeletion, purgeIfDue, deleteNow, FREE_FEATURES, posOwnership } from "./_accounts.js";
+  getAccount, publicAccount, setEmail, renameAccount,
+  requestDeletion, cancelDeletion, purgeIfDue, deleteNow, FREE_FEATURES } from "./_accounts.js";
 import { issueToken } from "./_auth.js";
 import { persistent } from "./_store.js";
-import { clearCache, fetchMerchant } from "./_data.js";
 import { orgFor, effectivePlanFor } from "./_org.js";
 import { recordAudit } from "./_audit.js";
-import { sendMail, shell, row } from "./_mail.js";
 
 /* Accounts predating organizations have no orgId on the record; orgFor
    backfills one. Without this an older account's changes would go unlogged. */
 const orgIdFor = async (account) => account?.orgId || (account ? (await orgFor(account))?.id : null);
 
-/* The inbound webhook URL for this organization, or null.
-
-   Built from the request rather than configured, so it is right on every
-   deployment — localhost in development, the real host in production —
-   without an environment variable that goes stale the first time a domain
-   changes. `x-forwarded-proto` and `x-forwarded-host` are what a platform
-   proxy sets; the direct values are the fallback for running the server on
-   its own.
-
-   Withheld from anybody who does not own the POS connection. It is a
-   credential in URL form: whoever holds it can post receipts into this
-   business's ledger. */
-async function webhookUrlFor(session, req) {
-  /* `canConnect` is the owner test — the same one that decides who may attach
-     a POS token at all, which is exactly the right gate for the URL receipts
-     arrive on. */
-  const ownership = await posOwnership(session.username);
-  if (!ownership?.canConnect) return null;
-
-  const account = await getAccount(session.username);
-  const orgId = await orgIdFor(account);
-  if (!orgId) return null;
-
-  const { webhookToken } = await import("./_loyversehook.js");
-  const token = await webhookToken(orgId);
-  if (!token) return null;
-
-  const proto = String(req.headers?.["x-forwarded-proto"] || "").split(",")[0]
-    || (req.socket?.encrypted ? "https" : "http");
-  const host = String(req.headers?.["x-forwarded-host"] || req.headers?.host || "").split(",")[0];
-  if (!host) return null;
-
-  return `${proto}://${host}/api/loyverse-webhook?t=${token}`;
-}
 
 export default async function handler(req, res) {
   const session = await requireAuth(req, res);
@@ -78,79 +42,10 @@ export default async function handler(req, res) {
       return res.status(200).json({
         account: pub,
         persistent,
-        serverToken: Boolean(process.env.POS_ACCESS_TOKEN || process.env.LOYVERSE_ACCESS_TOKEN),
-        /* Whether this person connects the till or reads through the owner's
-           connection. Never the token itself — not even to the owner, who set
-           it and has no use for it back. */
-        pos: await posOwnership(session.username),
-        /* The address to paste into Loyverse so receipts arrive as they are
-           rung up rather than when somebody next opens the dashboard.
-
-           Only for whoever owns the POS connection: it is the org's own
-           inbound URL, and anybody holding it can post receipts into this
-           business's ledger. Everyone else gets null and no explanation,
-           because a team member has no use for it and nothing to do with it. */
-        webhookUrl: await webhookUrlFor(session, req),
       });
     }
 
-    if (req.method === "PUT") {
-      const { posToken } = req.body || {};
-      const account = await getAccount(session.username);
-      if (!account) return res.status(404).json({ error: "noaccount" });
-
-      /* Only the owner connects the till. A member who posts one anyway —
-         an old client, a curious tab — is refused rather than quietly given a
-         second connection nobody can see or revoke. */
-      const ownership = await posOwnership(session.username);
-      if (!ownership.canConnect) return res.status(403).json({ error: "notowner" });
-
-      const trimmed = String(posToken || "").trim();
-      await setPosToken(session.username, trimmed);
-      // The next read must not serve figures from the previous connection.
-      clearCache();
-
-      /* Name the business from the POS rather than asking for it. */
-      if (trimmed) {
-        const merchant = await fetchMerchant(trimmed);
-        if (merchant?.business) await setBusiness(session.username, merchant.business);
-      }
-
-      /* The POS connection decides where every figure in the app comes from, so
-         connecting or clearing it is logged. The token itself never is. */
-      await recordAudit(await orgIdFor(account), {
-        actor: session.username,
-        action: trimmed ? "pos.connect" : "pos.disconnect",
-        detail: {},
-      });
-
-      /* The admin is told whenever someone connects a POS API — a connection
-         is the moment an account becomes a real prospect. Best-effort. */
-      if (trimmed && process.env.ADMIN_EMAIL) {
-        const updated = await getAccount(session.username);
-        sendMail({
-          to: process.env.ADMIN_EMAIL,
-          subject: `PureMargin: ${session.username} connected their POS API`,
-          text: `${session.username} (${updated?.email || "no email"})${updated?.business ? ` — ${updated.business}` : ""} just connected their POS API.`,
-          html: shell({
-            title: "A POS connection was made",
-            intro: "Somebody linked their till, so their figures are now live.",
-            blocks: [
-              row("Account", session.username),
-              row("Email", updated?.email || "none on file"),
-              row("Business", updated?.business || "not named yet"),
-            ],
-          }),
-        }).catch(() => {});
-      }
-
-      const updated = await getAccount(session.username);
-      return res.status(200).json({ account: publicAccount(updated) });
-    }
-
-    /* The sign-in address. Separate from PUT, which owns the POS connection —
-       these are unrelated changes and a single body carrying both would make it
-       impossible to tell which one a caller meant to make. */
+    /* The sign-in address. */
     if (req.method === "PATCH") {
       const { email, current } = req.body || {};
       if (!current) return res.status(400).json({ error: "missing" });

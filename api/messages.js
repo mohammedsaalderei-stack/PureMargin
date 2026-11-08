@@ -1,7 +1,6 @@
 import { requireAuth } from "./_auth.js";
-import { getAccount, posTokenFor } from "./_accounts.js";
+import { getAccount } from "./_accounts.js";
 import { orgFor, membership, ROLES, can } from "./_org.js";
-import { branchList } from "./_data.js";
 import { recordAudit } from "./_audit.js";
 import { sendMail, shell, quote, row } from "./_mail.js";
 import {
@@ -137,8 +136,7 @@ export default async function handler(req, res) {
         try {
           const names = {};
           try {
-            const token = await posTokenFor(account.username);
-            for (const b of await branchList(token)) names[String(b.id)] = b.name;
+            for (const b of await rosterFor(account)) names[String(b.id)] = b.name;
           } catch { /* subject falls back to branch ids */ }
 
           const orgName = org.name || account.username;

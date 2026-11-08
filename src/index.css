@@ -192,6 +192,28 @@ html { overscroll-behavior-y: none; }
   height: calc(100vh - var(--safe-top) - var(--safe-bottom));
 }
 
+/* In a phone's browser 100vh is the height with the toolbars hidden, so a
+   full-height screen's bottom bar sat under Safari's toolbar. The dynamic
+   unit is the space actually showing. */
+@supports (height: 100dvh) {
+  .h-screen { height: 100dvh; }
+  .is-native .h-screen { height: calc(100dvh - var(--safe-top) - var(--safe-bottom)); }
+}
+
+/* Insets for bars that sit in the page's flow (a top header, a bottom tab
+   bar). In the app the body is already padded clear of the status bar and
+   the home indicator, so these are zero there — adding the inset again is
+   what squeezed the register and the back office between two gaps. In a
+   browser nothing pads the body, so they are the real insets. */
+:root {
+  --inset-top: env(safe-area-inset-top, 0px);
+  --inset-bottom: env(safe-area-inset-bottom, 0px);
+}
+.is-native {
+  --inset-top: 0px;
+  --inset-bottom: 0px;
+}
+
 /* Pages that scroll the document (landing, pricing, clock-in, admin) pin
    their header with `sticky top-0`, which is the top of the glass. Pin it
    under the status bar instead, and put a strip of the page's colour behind
@@ -218,6 +240,32 @@ html { overscroll-behavior-y: none; }
 .is-native .fixed.inset-0.items-end {
   padding-top: var(--safe-top);
   padding-bottom: var(--safe-bottom);
+}
+
+/* A full-screen frame on screen (`src/appFrame.js`): the frame runs edge to
+   edge, and its header and tab bar pad themselves clear of the status bar and
+   the home indicator, so their own backgrounds fill those strips instead of
+   bare page showing above and below. */
+.is-native.app-frame-on body {
+  padding-top: 0;
+  padding-bottom: 0;
+}
+.is-native.app-frame-on body::before {
+  display: none;
+}
+.is-native.app-frame-on {
+  --inset-top: var(--safe-top);
+  --inset-bottom: var(--safe-bottom);
+}
+.is-native.app-frame-on .h-screen {
+  height: 100vh;
+  height: 100dvh;
+}
+
+/* Sheets that run to the bottom edge and pad their own footer clear of the
+   home indicator, so no strip of backdrop shows beneath them. */
+.is-native .fixed.inset-0.items-end.own-insets {
+  padding-bottom: 0;
 }
 
 .is-native .auth-bar {
@@ -410,9 +458,40 @@ button:not(:disabled):active,
 }
 .rule-dashed { border-top: 1px dashed var(--hairline); }
 
+/* ── The register's motion ─────────────────────────────────────────────────
+
+   Sheets rise from the bottom and sink back rather than appearing and
+   vanishing; the backdrop fades with them; switching views eases the new one
+   in; a line added to the order settles into place. Short and decelerating —
+   a till is used hundreds of times a shift, and motion that makes a cashier
+   wait is worse than none. On a tablet or computer a sheet is a centred card,
+   so it scales in instead of travelling. */
+@keyframes backdrop-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes backdrop-out { from { opacity: 1; } to { opacity: 0; } }
+@keyframes sheet-up { from { transform: translateY(100%); } to { transform: none; } }
+@keyframes sheet-down { from { transform: none; } to { transform: translateY(100%); } }
+@keyframes card-in { from { opacity: 0; transform: translateY(10px) scale(.97); } to { opacity: 1; transform: none; } }
+@keyframes card-out { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(10px) scale(.97); } }
+@keyframes pane-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes line-in { from { opacity: 0; transform: translateY(-4px); background: var(--chip-bg); } to { opacity: 1; transform: none; } }
+@keyframes bar-up { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+
+.backdrop-in { animation: backdrop-in .22s ease-out both; }
+.backdrop-out { animation: backdrop-out .2s ease-in both; }
+.sheet-in { animation: sheet-up .32s cubic-bezier(.22,.9,.3,1) both; }
+.sheet-out { animation: sheet-down .22s cubic-bezier(.4,0,1,1) both; }
+@media (min-width: 640px) {
+  .sheet-in.sheet-card { animation: card-in .22s cubic-bezier(.2,.8,.3,1) both; }
+  .sheet-out.sheet-card { animation: card-out .16s ease-in both; }
+}
+.pane-in { animation: pane-in .22s cubic-bezier(.2,.8,.3,1) both; }
+.line-in { animation: line-in .28s cubic-bezier(.2,.8,.3,1) both; }
+.bar-up { animation: bar-up .26s cubic-bezier(.2,.8,.3,1) both; }
+
 @media (prefers-reduced-motion: reduce) {
   .rise, .slide-in, .screen-in, .palette-in, .view-in, .app-in, .rail-in,
   .auth-out, .auth-in, .auth-bar { animation: none; }
+  .backdrop-in, .backdrop-out, .sheet-in, .sheet-out, .pane-in, .line-in, .bar-up { animation: none !important; }
   .skeleton::after { animation: none; }
   * { scroll-behavior: auto !important; }
   [style*="live-pulse"] { animation: none !important; }

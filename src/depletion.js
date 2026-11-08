@@ -14,7 +14,10 @@
    case as an error would put a red message on a screen for no reason. */
 
 export async function depleteFromSales(token, branches) {
-  const list = branches?.length ? branches : [null];
+  /* The scope's branches are store records; the endpoint takes an id. Sent
+     whole, each one arrived as "[object Object]" and was refused as a
+     branch nobody may use, so this never caught anything up. */
+  const list = branches?.length ? branches.map((b) => (b && typeof b === "object" ? b.id : b)) : [null];
   for (const branchId of list) {
     try {
       await fetch("/api/stock?what=deplete-sales", {

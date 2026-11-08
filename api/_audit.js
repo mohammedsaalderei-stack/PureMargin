@@ -83,8 +83,21 @@ export const AUDIT_ACTIONS = {
   "tabs.grant": "extra tabs granted to a role or person",
 
   "register.addons": "register add-ons changed",
+  "register.variants": "register variants changed",
+  "register.image": "item picture changed",
   "register.vat": "register VAT rate changed",
   "register.price": "dish price set from the register",
+  "register.refund": "register refund",
+  "register.void": "open ticket voided",
+  "register.shift.open": "register shift opened",
+  "register.shift.close": "register shift closed",
+  "register.cash": "cash paid in or out",
+  "register.pin": "register PIN changed",
+  "register.settings": "register settings changed",
+  "register.product": "register product changed",
+  "register.device": "a device was set to register-only",
+  "store.save": "store added or changed",
+  "store.archive": "store archived or restored",
 
   /* Stage 4, phase 7 — targets. A threshold decides what the whole organization
      is warned about, so moving one is a sensitive change like a permission. */

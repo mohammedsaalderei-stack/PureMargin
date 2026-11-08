@@ -111,8 +111,13 @@ export function theoreticalUsage(salesRows, recipes, { at = Date.now() } = {}) {
     matched.push({ name: row.name, branchId: row.branchId, qty: row.qty, recipeId: recipe.id, version: version.version });
 
     /* Portions sold, not batches: the recipe's quantities make `portions`
-       servings, so one sale draws one portion's share. */
-    const share = row.qty / version.portions;
+       servings, so one sale draws one portion's share. A variant sold at a
+       scale of the plain recipe (a large at 1.5) draws that many portions;
+       one with a recipe of its own draws what its recipe says. */
+    const ownVariant = Boolean(row.variant)
+      && String(recipe.variant || "").trim().toLowerCase() === String(row.variant).trim().toLowerCase();
+    const portionsSold = !ownVariant && Number(row.drawQty) > 0 ? Number(row.drawQty) : row.qty;
+    const share = portionsSold / version.portions;
     const yieldFactor = version.yieldPct / 100;
 
     for (const line of version.lines) {

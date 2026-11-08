@@ -108,7 +108,6 @@ async function listAccounts() {
       business: a.business || "",
       createdAt: a.createdAt || null,
       lastLoginAt: a.lastLoginAt || null,
-      posConnected: Boolean(a.posToken),
       questionCount: a.questionCount || 0,
       deleteAfter: a.deleteAfter || null,
       orgId: a.orgId || null,

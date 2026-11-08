@@ -18,8 +18,7 @@
    for their own restaurant, and the search cost every business the privacy of
    its staff list.
 
-   So the URL is the authentication, the same way it is for the POS webhook in
-   `_loyversehook.js`. No key, no answer — and there is nothing to enumerate,
+   So the URL is the authentication. No key, no answer — and there is nothing to enumerate,
    because there is no longer a list of businesses to enumerate.
 
    ── What that is worth, stated plainly ───────────────────────────────────

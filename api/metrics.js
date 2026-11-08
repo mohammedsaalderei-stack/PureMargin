@@ -1,23 +1,20 @@
 import { requireAuth } from "./_auth.js";
-import { getMetrics, branchList, cacheAge, NotConnected, PosUnreachable } from "./_data.js";
-import { posTokenFor } from "./_accounts.js";
+import { getMetrics, NotConnected } from "./_data.js";
 import { getJSON } from "./_store.js";
 import { scopeFor, effectiveBranches, parseBranchParam } from "./_org.js";
 import { applyScope } from "./_scope-metrics.js";
 import { provenance } from "./_provenance.js";
-import { noteSync, lastSync } from "./_sync.js";
+import { lastSync } from "./_sync.js";
 import { listEdits } from "./_saleedits.js";
 import { netProfit } from "./_profit.js";
-import { registerContext } from "./_till.js";
+import { registerContext, rosterFor } from "./_till.js";
+import { menuCosts } from "./_recipes.js";
 
 export default async function handler(req, res) {
   const session = await requireAuth(req, res);
   if (!session) return;
 
   try {
-    const posToken = await posTokenFor(session.username);
-    // ?fresh=1 skips the cache — used by the manual refresh button.
-    const fresh = String(req.query?.fresh || "") === "1";
     const overrides = (await getJSON(`costs:${session.username}`)) || {};
     /* Branch scope. The POS reports which branches exist; the session decides
        which of those this user may read; the query string may only narrow that
@@ -29,11 +26,22 @@ export default async function handler(req, res) {
        The branch roster is read first, so the scope is resolved before any
        figures are aggregated: the receipts outside it are never counted, rather
        than counted and filtered afterwards. */
-    /* Sales rung up on PureMargin's own register, joined to the till's inside
-       getMetrics. An organization with no till that uses the register gets the
-       register as its one branch. */
-    const { register, used } = await registerContext(session.account);
-    const allBranches = (await branchList(posToken, { register: used })).map((b) => b.id);
+    /* A longer period than the usual 30 days, when the overview asks for one:
+       90 days, a year, or everything since the first sale. Sales are the
+       register's own, so how far back is up to the business, not a till's
+       API. Anything else asked for is the usual 30 days. */
+    const asked = String(req.query?.period || "");
+    const PERIODS = { 90: 90, 365: 365 };
+    /* The business's sales, and its own stores as the branches. */
+    const { register, names, firstSaleAt } = await registerContext(session.account, {
+      days: asked === "all" ? "all" : PERIODS[asked] ? PERIODS[asked] * 2 + 2 : undefined,
+    });
+    const DAY = 864e5;
+    const historyDays = firstSaleAt ? Math.max(1, Math.ceil((Date.now() - firstSaleAt) / DAY)) : 0;
+    const period = asked === "all"
+      ? { key: "all", days: Math.max(31, historyDays) }
+      : PERIODS[asked] ? { key: asked === "90" ? "quarter" : "year", days: PERIODS[asked] } : null;
+    const allBranches = (await rosterFor(session.account)).map((b) => b.id);
     const scope = await scopeFor(session.account, allBranches);
     const effective = effectiveBranches(parseBranchParam(req.query?.branches), scope.authorized);
 
@@ -42,28 +50,22 @@ export default async function handler(req, res) {
        series rather than subtracted from the headline alone. */
     const edits = await listEdits(scope.org?.id);
 
-    const metrics = await getMetrics(posToken, {
+    /* Each dish's cost from its recipe, priced from the deliveries the
+       branches in view actually received — the same figure the Recipes
+       screen shows. Without it every dish read as costing nothing. */
+    const costs = await menuCosts(scope.org?.id, effective);
+
+    const metrics = await getMetrics({
       overrides,
       edits,
       register,
+      names,
+      costs,
+      timeZone: scope.org?.timezone || "Asia/Dubai",
+      period,
       branches: effective,
-      ...(fresh ? { maxAge: 0 } : {}),
     });
     const scoped = applyScope(metrics, effective, allBranches);
-
-    /* Only a real upstream read is an event. Recorded against the organization
-       rather than the user, because it's the account's connection that synced —
-       whoever's poll happened to trigger it is incidental. */
-    if (metrics.fetch?.wentUpstream) {
-      await noteSync(scope.org?.id, {
-        ok: true,
-        receipts: metrics.fetch.receiptCount,
-        branches: allBranches.length,
-        since: metrics.fetch.since,
-        limitedHistory: Boolean(metrics.fetch.limitedHistory),
-        triggeredBy: session.username,
-      });
-    }
 
     const { fetch: _fetch, allBranches: _all, ...payload } = scoped;
 
@@ -84,9 +86,13 @@ export default async function handler(req, res) {
     const wholeBusiness = effective.length === 0 || effective.length === allBranches.length;
     const profit = scope.capabilities.includes("view:profitability") && wholeBusiness
       ? await netProfit(scope.org?.id, {
-        netSales: payload.totals?.sales ?? 0,
+        /* Without VAT, which is owed, not earned; and coverage as the 0–1
+           share `netProfit` expects. It was handed the percentage, so 78%
+           costed read as 78 and the "this is an upper bound" warning, which
+           checks for less than 1, never showed. */
+        netSales: payload.totals?.salesExVat ?? payload.totals?.sales ?? 0,
         cogs: payload.totals?.cost ?? 0,
-        coverage: payload.costCoverage ?? null,
+        coverage: Number.isFinite(payload.costCoverage) ? payload.costCoverage / 100 : null,
       })
       : null;
 
@@ -94,32 +100,22 @@ export default async function handler(req, res) {
     res.setHeader("Cache-Control", "no-store");
     return res.status(200).json({
       ...payload,
+      /* How far back this business's sales go, so the screen can say where a
+         long period starts rather than drawing a flat line with a confident
+         label. */
+      firstSaleAt: firstSaleAt ? new Date(firstSaleAt + 7 * DAY).toISOString() : null,
       profit,
       scope: { ...scoped.scope, role: scope.role },
-      ageSeconds: cacheAge(posToken) ?? 0,
+      ageSeconds: 0,
       provenance: provenance(scoped, {
         role: scope.role,
-        ageSeconds: cacheAge(posToken) ?? 0,
+        ageSeconds: 0,
         lastSync: await lastSync(scope.org?.id),
       }),
     });
   } catch (err) {
     if (err instanceof NotConnected) {
       return res.status(409).json({ error: "notconnected" });
-    }
-    if (err instanceof PosUnreachable) {
-      /* A failed sync is the more useful half of the log: it's what separates
-         "no sales" from "we couldn't ask". Best-effort, and never allowed to
-         turn a 502 into a 500. */
-      try {
-        const scope = await scopeFor(session.account);
-        await noteSync(scope.org?.id, {
-          ok: false,
-          error: err.detail || err.message || "unreachable",
-          triggeredBy: session.username,
-        });
-      } catch { /* the log is not worth failing the response over */ }
-      return res.status(502).json({ error: "pos", detail: err.detail });
     }
     console.error("metrics failed:", err);
     return res.status(500).json({ error: "server" });

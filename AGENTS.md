@@ -22,8 +22,6 @@ Vercel-style serverless API functions in `/api/*.js` (each exports
 ## Secrets
 - `ANTHROPIC_API_KEY` — required for the Ask (اسأل) chat screen only. The app
   boots and all other screens work without it (chat returns a clear error).
-- `LOYVERSE_ACCESS_TOKEN` — optional; without it the dashboard runs on labelled
-  demo data.
 - `FEEDBACK_WEBHOOK_URL` — optional.
 - `SESSION_SECRET` — has a dev fallback in `.env.base44-defaults`.
 - `REDIS_URL` is wired by compose to the local redis service (not a secret).
@@ -126,14 +124,189 @@ they override the defaults).
   150 g wrap leaves 4.85 kg), because the faults that reach people live between
   modules rather than inside them.
 
+## No outside till
+- **Loyverse is gone.** The webhook (`loyverse-webhook.js`, `_loyversehook.js`),
+  the POS adapter (`_pos.js`), the deliveries feed, the POS token on accounts
+  and the "connect your POS" screens are all deleted. Sales come from one place:
+  the register's receipts (`register:<org>:r:*`, `api/_till.js`).
+- `api/_data.js` is register-only: `getMetrics({ register, names, branches })`,
+  `salesLines(...)`, `rawReceipts(...)` take the receipts `registerContext()`
+  read. With nothing sold `getMetrics` throws `NotConnected` → 409 → the
+  dashboard's "open the register" empty state.
+- **Stores** (`api/_stores.js`, key `org:<orgId>:stores`, route `api/stores.js`,
+  UI `src/settings/StoresSetting.jsx`). Every business starts with one store
+  under the id `register` — the id early receipts were filed under, so nothing
+  moves. New stores get `s-<slug>` ids that never change on rename. Archived,
+  never deleted; the last open store can't be archived. Each store's address,
+  phone and TRN print on its own receipts in place of the business's.
+  `rosterFor(account)` is the roster every scoped route resolves against.
+  Changing stores is `manage:users` (owner).
+- **The first read of a business's store list writes it**, adopting every
+  branch id it already has data under (`inv:<org>:moves:<id>` ledgers, members'
+  assigned branches) as a store with that same id, named "Branch N" until the
+  owner renames it. Without this, a business that ran on Loyverse would have
+  lost sight of its stock and its managers' scope the day the till went.
+- `vercel.json`: `usb=(self)` in Permissions-Policy (it was `usb=()`, which
+  disabled WebUSB receipt printers on the site entirely), and
+  `/api/itemimage` is cacheable, overriding the `/api` no-store.
+- The `stockSource: "pos"` option (stock kept on the till) is gone with it.
+- History in the sections below still mentions the till where that is how
+  something came about; the code no longer has one.
+
+## Staff devices (register-only)
+- Register → More → "Use as a staff register" (`manage:staff` or owner) calls
+  `POST /api/till?what=device`, which returns a **device token**
+  (`issueDeviceToken` in `api/_auth.js`): `R.<user>.<expires>.<version>.<sig>`,
+  signed under its own `signScoped("device")` label so it can't be replayed as a
+  session, stamped with the account's `tokenVersion` so "sign out everywhere"
+  ends it, valid a year.
+- **`requireAuth` refuses a device token on every route but `REGISTER_ONLY_ROUTES`
+  (`till`)** with 403 `registeronly`. The check is in `requireAuth`, not in each
+  route, so a new route is closed to devices without anyone remembering to.
+- In `till.js`, on a device the account's capabilities don't apply: `can()` is
+  true only for a manager PIN and only for `DEVICE_MANAGER_CAPS`. No PIN means
+  cashier-level selling, no refunds, no settings.
+- Client: `isDeviceToken` (`src/session.js`) makes `App.jsx` render `RegisterApp`
+  with `deviceLocked` instead of the Shell. The way out is `UnlockSheet`
+  (`src/register/DeviceLock.jsx`): signing in with the account password via
+  `/api/login`, which replaces the device token with a normal session.
+- Tests: `api/_device.test.js`.
+
+## Variants and trading stock
+- **Variants** live in two places and the register shows them the same way:
+  - recipes that share a dish name and differ by `variant` (Recipes screen) are
+    grouped by `catalogueOf` into one item; each variant is `r-<recipeId>` with
+    that recipe's price, and the sale line's `item_id` is `recipe:<thatRecipe>`;
+  - register variants (`settings.variants[itemId]`, `PUT /api/till?what=variants`,
+    `readVariants`): `{ id, name, price, scale, barcode, sku }`. `scale` is how
+    many portions of the plain recipe (or the product's stock draw) one is.
+- `buildSale` (`shared/tillprice.js`) refuses a line without a variant when the
+  item has them (`error: "variant"`), prices from the variant, writes
+  `variant_id`/`variant_name`, and `variant_scale` only when ≠ 1.
+- Depletion (`_salesdepletion.js`) resolves `recipe:<id>` directly, prefers a
+  variant's own recipe by name over the plain one, and multiplies by
+  `variant_scale` only when it fell back to the plain recipe. Variance does the
+  same via `drawQty` on `salesLines` rows. A recipe index entry for a variant no
+  longer overwrites the plain dish's name (it used to: last one listed won).
+- **Trading stock**: a product (`saveProduct`) may carry `stock: { ingredientId,
+  qty, unit }` — any unit of the stock item's dimension. `buildSale` writes
+  `stock_draw` per unit sold onto the receipt line (so a later edit of the link
+  doesn't rewrite past sales), and depletion takes it off the shelf with no
+  recipe involved. `GET /api/till?what=stockitems` feeds the product form.
+- `src/depletion.js` sent whole store objects as `branchId`; every catch-up
+  depletion was refused 403. Fixed.
+- Tests: `api/_variants.test.js`.
+
+## Emailed receipts
+- `POST /api/till?what=email { number, email, lang }` → `_receiptmail.js`
+  `receiptMail()` → `sendMail`. The shop's name heads it; the selling store's
+  address/phone/TRN win over the business's; a TRN makes it a tax invoice.
+- **All wording is server-side** (`LABELS`, five languages). Only the address
+  comes from the request — client-supplied labels would make this a way to send
+  arbitrary text from our sender to any address. Everything is `esc()`'d.
+- Limits in `allowSend`: 3 per receipt, 500 per business per day. 503
+  `mailoff` when `RESEND_API_KEY` is unset (the local test server has none).
+- Buttons: the paid sheet (disabled for an offline sale — nothing on the server
+  to send yet) and the receipt detail. Prefilled from the customer's email.
+- Tests: `api/_receiptmail.test.js`.
+
+## Bluetooth printers
+- Connection `bluetooth` in `src/print/printers.js`. Every raw-byte path now goes
+  through `sendRaw()` (network, usb, serial, bluetooth), including the drawer.
+- iOS (`ios/App/App/BluetoothPrinters.swift`, exposed by `PrinterPlugin` as
+  `bluetoothScan` / `bluetoothSend` / `pickAccessory`):
+  - **BLE** via CoreBluetooth: connect, discover every service, write to a known
+    print characteristic (`PRINT_CHARACTERISTICS`: 2AF1, Feasycom, Microchip
+    ISSC, FFxx) or else the first writable one — **never** in a firmware-update
+    service (`NEVER_WRITE_SERVICES`). Packets sized by
+    `maximumWriteValueLength`, flow-controlled by `canSendWriteWithoutResponse`.
+  - **MFi** (Epson TM, Star) via ExternalAccessory, protocols
+    `com.epson.escpos` / `jp.star-m.starpro` declared in Info.plist
+    `UISupportedExternalAccessoryProtocols`. Star must be in ESC/POS emulation.
+    Shipping MFi printing through the App Store needs the printer maker's MFi
+    PPID submission — fine for development builds as is.
+  - `NSBluetoothAlwaysUsageDescription` added. The manager is created lazily, so
+    the permission is asked when someone looks for a Bluetooth printer.
+- Web: Web Bluetooth (Chrome/Edge, not Safari), LE only, `BLE_SERVICES` must be
+  listed up front as `optionalServices`.
+- New Swift files go into the target with `scripts/ios/add-printer-plugin.rb`
+  (needs CocoaPods' xcodeproj gem: `GEM_HOME="$(brew --prefix cocoapods)/libexec"`).
+- Not tested against real Bluetooth hardware yet.
+
+## Overview figures (audited)
+- **No comparison is `null`, not 0.** `pctChange` returned 0 when the earlier
+  period sold nothing, so a first week read "up 0.0%". Now null everywhere;
+  `TrendIndicator` draws "—". Each overview range compares with the period just
+  before it (today vs yesterday, week vs week) in `useDateRangeData`; the hero's
+  30-day profit keeps the server's 30-day comparison.
+- **Days and hours are the business's** (`org.timezone`, default Asia/Dubai) via
+  `localParts` in `_aggregate.js`. They were UTC days and server-zone hours.
+- **Dish costs come from recipes** (`menuCosts` in `_recipes.js`, the Recipes
+  screen's own per-portion figure), then a variant's own recipe, then a
+  product's `cost` on the receipt line, then the plain recipe × `variant_scale`,
+  plus `addon_cost`. Before this the overview only knew hand-typed costs, so
+  margins read 100% and profit purity never scored.
+- **Profit is worked without VAT.** `totals.sales` stays what customers paid;
+  `totals.tax` and `totals.salesExVat` are new; `grossProfit`, `marginPct`, item
+  `marginPct` and net profit all use the ex-VAT base. Including VAT overstated
+  gross profit by the whole VAT amount.
+- `costCoverage` is line revenue with a known cost ÷ all line revenue, both
+  ex-VAT (it was over receipt totals incl. VAT, so it could never reach 100%).
+  `netProfit` takes it as a 0–1 share — it was handed the percentage, so its
+  "upper bound" warning never showed. Item `marginPct` is null when uncosted.
+- `costedMarginPct` = margin on the costed dishes only; profit purity
+  (`pureScore`) scores that, not the headline margin that counts uncosted
+  dishes as free.
+- **Periods are calendar days**: the 30 days are today and the 29 before it
+  (the days the chart draws), the comparison the 30 before that. They were
+  30×24h back from now, and "prior" was everything older in the window. Daily
+  sales keep fils (rounding each day first made them not add up); totals carry
+  2 decimals so net profit and gross profit agree.
+- Range labels say what they cover ("Last 7 days", "Last 30 days"), not "This
+  week/month".
+- **Longer history**: `GET /api/metrics?period=90|365|all`. The register keeps
+  every sale, so `registerContext(account, { days })` reads 2×period (or from
+  the first sale, `settings.usedAt` less a week, for `all` — never from 1970).
+  `getMetrics` returns the usual 30 days plus `period: { key, days, from,
+  bucket, series, totals }`; `bucketSeries` groups by day ≤ 92 days, week
+  ≤ 400, month beyond. Profit, advice and the margin layer stay on 30 days
+  (running costs are a 30-day window). `firstSaleAt` lets the screen say
+  "Sales since …" when a range is longer than the history.
+- The sales card says how much of it is VAT (`daily[].tax`).
+- Tests: `api/_overview.test.js`.
+
+## Item pictures, motion, and edge-to-edge frames
+- **Pictures**: `PUT /api/till?what=image { itemId, image }` / `DELETE ?what=image&id=`
+  (`manage:recipes`). Stored one per item at `register:<org>:img:<itemId>`
+  (`_itemimages.js`), never inside settings — settings are read on every sale.
+  Type is sniffed from the bytes (JPEG/PNG/WebP only), 400 KB cap; the device
+  shrinks to a 480 px square JPEG first (`src/register/itemImage.js`).
+- Served by **`GET /api/itemimage?o&i&v&s`** with no session (an `<img>` can't
+  send one; a register-only device must still draw its menu). The HMAC
+  (`_imageurl.js`, `signScoped("itemimage")`) covers org, item and version, and
+  the version must be current, so a replaced picture's old address 404s and
+  current addresses are `immutable`. `_imageurl.js` is separate so `_till.js`
+  can sign without importing the storage module (which imports `_till.js`).
+  `catalogueOf(recipes, settings, { orgId })` adds `image`; native resolves it
+  against the API origin (`pictureSrc`). Tests: `api/_itemimages.test.js`.
+- **Motion** (`index.css`): `sheet-in/out`, `backdrop-in/out`, `pane-in`,
+  `line-in`, `bar-up`; sheets close through `useExit` (ui.jsx), which animates
+  then calls `onClose` and restores itself if the caller refuses to close.
+  All off under `prefers-reduced-motion`.
+- **Edge to edge in the app**: `useAppFrame()` (`src/appFrame.js`) puts
+  `app-frame-on` on `<html>` while the back office or register is mounted. In
+  the native app that drops the body's safe-area padding and sets
+  `--inset-top/--inset-bottom` to the real insets, so headers and tab bars
+  extend behind the status bar and home indicator with their content clear of
+  them. Pages that scroll as documents keep the old body padding.
+
 ## Multi-branch authorization (stage 1 of the product direction)
 - `api/_org.js` — organizations, roles, membership, scope resolution. Every
   account owns an organization from registration (`orgFor` backfills accounts
   that predate this). Roles: `owner`, `ops`, `branch_manager`, `chef`,
   `accountant`; each has capabilities and a scope rule (`all` | `assigned`).
-- **Branches are POS stores, not a local table.** `branchList()` in `_data.js`
-  reads `/stores`. Permissions only decide who may see which of those ids, so
-  there is nothing to keep in sync.
+- **Branches are the business's own stores** (`api/_stores.js`, see *No
+  outside till* below). Permissions only decide who may see which of those ids.
 - The rule from the document, in `effectiveBranches()`:
   `requested ∩ authorized`. Empty request = everything you're allowed to see,
   which is what keeps an owner's dashboard one consolidated view.
@@ -181,10 +354,6 @@ they override the defaults).
   `allBranches` from the response so internals don't reach the client.
 - Both logs are returned by `GET /api/team` (owner-only, same `manage:users`
   gate) rather than a new endpoint.
-- **`branchList()` wraps upstream failures in `PosUnreachable`.** It moved ahead
-  of `getMetrics` in stage 2, and unwrapped it made a POS outage a generic 500
-  with no failed-sync entry — the exact "no sales" vs "couldn't ask" confusion
-  this stage exists to remove. Keep it wrapped.
 - Front end: `src/Provenance.jsx` (collapsed one-liner under the Overview,
   expands to the full account; shouts only when the last sync failed) and
   `src/TeamActivity.jsx` (`SyncLog` + `AuditLog`, read-only, rendered in the Team

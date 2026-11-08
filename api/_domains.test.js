@@ -228,30 +228,27 @@ await test("every advertised tool exists and is reachable by name", async () => 
 
   for (const name of names) {
     const out = await dm.runTool(name, {}, ctx());
-    /* The receipts tool reads the till rather than the store, so with no POS
-       attached it refuses — which is the right answer, not a failure. Every
-       other tool must come back clean. */
+    /* The receipts tool reads the register's receipts, so with nothing sold
+       it says so — which is the right answer, not a failure. Every other
+       tool must come back clean. */
     if (name === "get_recent_receipts") {
-      assert.equal(out.error, "notconnected");
+      assert.equal(out.error, "nosales");
       continue;
     }
     assert.equal(out.error, undefined, `${name} failed: ${out.message}`);
   }
 });
 
-await test("the receipts tool says there is no till rather than inventing one", async () => {
-  /* The complaint that produced this tool: asked for the last ten sales, the
-     assistant said it could only see aggregates and told the owner to open
-     their POS. It was right — there was no tool. There is now, and when it
-     genuinely cannot read the till it says so instead of falling back to
-     totals and presenting them as transactions. */
+await test("the receipts tool says nothing has been sold rather than inventing sales", async () => {
+  /* Asked for the last ten sales with none rung up, it says so instead of
+     falling back to totals and presenting them as transactions. */
   const out = await dm.getRecentReceipts(ctx(), {});
-  assert.equal(out.error, "notconnected");
+  assert.equal(out.error, "nosales");
   assert.deepEqual(out.receipts, []);
 });
 
 await test("a role without the sales domain cannot read receipts", async () => {
-  const chef = ctx({ capabilities: ["view:inventory"], posToken: "x" });
+  const chef = ctx({ capabilities: ["view:inventory"] });
   assert.equal((await dm.getRecentReceipts(chef, {})).error, "forbidden");
 });
 
@@ -346,15 +343,6 @@ await test("the inventory tool says whether sales deduct at all", async () => {
   await inv.saveMeta("org1", { autoDepleteFromSales: false });
   const off = await dm.getInventoryLevels(ctx());
   assert.equal(off.settings.deductsFromSales, false);
-});
-
-await test("a till that keeps its own stock also stops deduction", async () => {
-  await seed();
-  await inv.saveMeta("org1", { stockSource: "pos" });
-  const out = await dm.getInventoryLevels(ctx());
-  assert.equal(out.settings.stockSource, "pos");
-  assert.equal(out.settings.deductsFromSales, false,
-    "both sides deducting the same sale would double it");
 });
 
 /* ---------------- suppliers and what is on order ---------------- */

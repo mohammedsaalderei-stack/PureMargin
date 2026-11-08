@@ -32,15 +32,19 @@ export const DATE_RANGES = [
   { key: "daily", days: 1 },
   { key: "weekly", days: 7 },
   { key: "monthly", days: 30 },
-  { key: "quarter", days: 90 },
-  { key: "year", days: 365 },
+  { key: "quarter", days: 90, long: true },
+  { key: "year", days: 365, long: true },
+  { key: "all", days: null, long: true },
 ];
 
 export function rangesFor(data) {
   /* Fall back to what is actually on hand when the API did not say. A period
      longer than the data is a flat line with a confident label. */
   const have = Number(data?.historyDays) || (data?.daily || []).length || 30;
-  const usable = DATE_RANGES.filter((r) => r.days <= have);
+  /* The long ranges are always offered: the register keeps every sale, so
+     any of them can be asked for, and the screen says where the history
+     starts when it is shorter than the range. */
+  const usable = DATE_RANGES.filter((r) => r.long || r.days <= have);
   return usable.length ? usable : [DATE_RANGES[0]];
 }
 
@@ -61,38 +65,74 @@ export function FilterBar({ dateRange, onDateChange, data }) {
   const { t } = useLang();
   const shown = rangesFor(data);
   return (
-    <div className="flex items-center gap-3 flex-wrap">
-      <div className="flex items-center gap-2">
-        <Calendar size={14} style={{ color: C.slate }} />
-        <div className="glass-filter" role="group">
+    <div className="flex items-center gap-3 flex-wrap min-w-0 max-w-full">
+      <div className="flex items-center gap-2 min-w-0 max-w-full">
+        <Calendar size={14} className="shrink-0" style={{ color: C.slate }} />
+        {/* Six ranges do not fit across a phone, so the row scrolls rather
+            than wrapping into a second line of pills. */}
+        <div className="glass-filter no-scrollbar max-w-full" role="group" style={{ overflowX: "auto", overflowY: "hidden" }}>
           {shown.map((r) => (
-            <button key={r.key} aria-pressed={dateRange === r.key} onClick={() => onDateChange(r.key)}>
+            <button key={r.key} aria-pressed={dateRange === r.key} onClick={() => onDateChange(r.key)} className="shrink-0 whitespace-nowrap">
               {t.ranges[r.key]}
             </button>
           ))}
         </div>
       </div>
+      {/* A range longer than the history: say where the sales start, so the
+          empty stretch before it is not read as days with no trade. */}
+      {data?.period?.key === dateRange && data?.firstSaleAt && data.period.from && data.firstSaleAt.slice(0, 10) > data.period.from && (
+        <span className="text-xs" style={{ color: C.slate }}>{fill(t.overview.salesSince, { date: new Date(data.firstSaleAt).toLocaleDateString() })}</span>
+      )}
     </div>
   );
 }
 
 /* ─── Derived totals by date range ───────────────────────── */
+/* Change against the period just before, or null when that period sold
+   nothing — no comparison, rather than a flat one. */
+const change = (now, before) => (before > 0 ? Number((((now - before) / before) * 100).toFixed(1)) : null);
+
 export function useDateRangeData(data, range) {
   return useMemo(() => {
+    /* A long range comes back from the server worked out for that period,
+       with its own comparison. Until it has, the 30 days stand in. */
+    if (DATE_RANGES.find((r) => r.key === range)?.long) {
+      if (data.period?.key === range) {
+        return { totals: { ...data.totals, ...data.period.totals }, series: data.period.series, period: data.period };
+      }
+    }
     const daily = data.daily || [];
     if (!daily.length) return { totals: data.totals || {}, series: [] };
     const days = (DATE_RANGES.find((r) => r.key === range) || {}).days;
     const slice = days ? daily.slice(-days) : daily;
     if (!slice.length) return { totals: data.totals || {}, series: [] };
-    const sales = slice.reduce((s, d) => s + (d.sales || 0), 0);
-    const receipts = slice.reduce((s, d) => s + (d.receipts || 0), 0);
+    const sum = (rows, k) => rows.reduce((s, d) => s + (d[k] || 0), 0);
+    const sales = sum(slice, "sales");
+    const receipts = sum(slice, "receipts");
+    const tax = sum(slice, "tax");
     const avgTicket = receipts > 0 ? sales / receipts : 0;
-    return { totals: { ...data.totals, sales, receipts, avgTicket }, series: slice };
+
+    /* Each range against the one before it: today against yesterday, this
+       week against last week. The cards used to show the 30-day comparison
+       whatever range was picked, so "today" quoted a month's change. The
+       30-day range keeps the server's, which can see the month before. */
+    let deltas = {};
+    if (days && days < daily.length && daily.length >= days * 2) {
+      const prior = daily.slice(-days * 2, -days);
+      const pSales = sum(prior, "sales");
+      const pReceipts = sum(prior, "receipts");
+      deltas = {
+        salesDelta: change(sales, pSales),
+        receiptsDelta: change(receipts, pReceipts),
+        avgTicketDelta: pReceipts > 0 && receipts > 0 ? change(avgTicket, pSales / pReceipts) : null,
+      };
+    }
+    return { totals: { ...data.totals, sales, receipts, avgTicket, tax, ...deltas }, series: slice };
   }, [data, range]);
 }
 
 /* ─── Summary card with trend indicator ──────────────────── */
-function SummaryCard({ label, value, money, text, delta, note, spark, sparkColor, i, icon: Icon, accentColor }) {
+function SummaryCard({ label, value, money, text, delta, note, sub, spark, sparkColor, i, icon: Icon, accentColor }) {
   const C = useC();
   const animated = useCountUp(value);
   const shown = Math.round(animated);
@@ -117,6 +157,7 @@ function SummaryCard({ label, value, money, text, delta, note, spark, sparkColor
         <TrendIndicator value={delta} />
         <span className="text-xs" style={{ color: C.slate }}>{note}</span>
       </div>
+      {sub && <div className="text-[11px] mt-1" style={{ color: C.slate }}>{sub}</div>}
       {spark && (
         <div className="mt-auto pt-3">
           <svg viewBox="0 0 100 30" preserveAspectRatio="none" style={{ height: 28, width: "100%" }}>
@@ -155,6 +196,7 @@ function SalesTrendChart({ data, range }) {
   let slice;
   if (range === "daily") slice = daily.slice(-1);
   else if (range === "weekly") slice = daily.slice(-7);
+  else if (data.period?.key === range) slice = data.period.series;
   else slice = daily;
 
   const trendColor = metric === "sales" ? "#8B5CF6" : "#06B6D4";
@@ -383,11 +425,18 @@ export default function Overview({ data, dateRange, onDateRangeChange, onAsk, on
                 style={{ background: "rgba(6,182,212,0.12)", color: C.cyan, border: "1px solid rgba(6,182,212,0.2)" }}>
                 {fill(t.overview.marginPct, { n: data.totals?.marginPct ?? 0 })}
               </span>
+              {/* The profit above is the last 30 days, so its comparison is
+                  too, whichever range the cards below are showing. */}
               <div className="flex items-center gap-2">
-                <TrendIndicator value={filteredTotals.salesDelta} />
+                <TrendIndicator value={data.totals?.salesDelta} />
                 <span className="text-xs" style={{ color: C.slate }}>{t.watch.vsPrior}</span>
               </div>
             </div>
+            {/* A margin over sales whose costs are unknown is not a margin:
+                every uncosted dish counts as free. Said where the number is. */}
+            {(data.costCoverage ?? 0) < 100 && (data.totals?.sales || 0) > 0 && (
+              <p className="text-xs mt-3" style={{ color: C.amber }}>{fill(t.overview.coverage, { n: data.costCoverage ?? 0 })}</p>
+            )}
           </div>
 
           {/* What is left after the doors are paid for.
@@ -450,6 +499,9 @@ export default function Overview({ data, dateRange, onDateRangeChange, onAsk, on
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
           <SummaryCard i={1} label={t.watch.sales} value={filteredTotals.sales} money
             delta={filteredTotals.salesDelta} note={t.watch.vsPrior}
+            /* What customers paid, VAT and all — said, since the profit
+               figures beside it are worked without the VAT. */
+            sub={filteredTotals.tax > 0 ? fill(t.overview.inclVat, { amount: Number(filteredTotals.tax).toFixed(2) }) : null}
             spark={(series.length > 1 ? series : data.daily || []).map((d) => d.sales)}
             sparkColor="#8B5CF6" icon={Activity} accentColor="#8B5CF6" />
           <SummaryCard i={2} label={t.watch.receipts} value={filteredTotals.receipts}

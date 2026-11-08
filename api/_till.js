@@ -26,17 +26,24 @@
 
 import { getJSON, setJSON, listJSON } from "./_store.js";
 import { listRecipes } from "./_recipes.js";
-import { REGISTER_BRANCH, REGISTER_WINDOW_DAYS, branchList } from "./_data.js";
-import { posTokenFor } from "./_accounts.js";
+import { REGISTER_BRANCH, REGISTER_WINDOW_DAYS } from "./_data.js";
+import { imageUrl } from "./_imageurl.js";
+import { listStores, storeNames } from "./_stores.js";
 import { orgFor } from "./_org.js";
+import {
+  DEFAULT_VAT_PCT, ORDER_TYPES, PAYMENT_TYPES, PAYMENT_KINDS, DEFAULT_PAYMENT_TYPES, VAT_MODES,
+  readVat, receiptNumber, readDiscount, buildSale, buildRefund,
+} from "../shared/tillprice.js";
+
+/* The pricing lives in `shared/tillprice.js` so a till offline can run it too. */
+export {
+  DEFAULT_VAT_PCT, ORDER_TYPES, PAYMENT_TYPES, PAYMENT_KINDS, DEFAULT_PAYMENT_TYPES, VAT_MODES,
+  readVat, receiptNumber, readDiscount, buildSale, buildRefund,
+};
 
 export { REGISTER_BRANCH };
-export const ORDER_TYPES = ["dine_in", "takeaway", "car"];
-export const PAYMENT_TYPES = ["cash", "card"];
-export const DEFAULT_VAT_PCT = 5;
 
-const MAX_LINES = 100;
-const MAX_QTY = 999;
+
 const MAX_ADDONS = 20;
 const MAX_PRICE = 100000;
 const DAY = 24 * 60 * 60 * 1000;
@@ -68,24 +75,36 @@ export function monthsBetween(sinceMs, nowMs) {
 
 export async function getSettings(orgId) {
   const saved = (await getJSON(settingsKey(orgId))) || {};
+  const obj = (v) => (v && typeof v === "object" && !Array.isArray(v) ? v : {});
   return {
     vatPct: Number.isFinite(saved.vatPct) ? saved.vatPct : DEFAULT_VAT_PCT,
-    addons: saved.addons && typeof saved.addons === "object" ? saved.addons : {},
+    vatMode: VAT_MODES.includes(saved.vatMode) ? saved.vatMode : "exclusive",
+    addons: obj(saved.addons),
+    variants: obj(saved.variants),
+    images: obj(saved.images),
     usedAt: saved.usedAt || null,
+    /* Everything below is the register as a till of its own: what it takes
+       money as, what it may knock off, what it prints, and whether a cashier
+       has to open a shift before selling. */
+    paymentTypes: Array.isArray(saved.paymentTypes) && saved.paymentTypes.length
+      ? saved.paymentTypes : DEFAULT_PAYMENT_TYPES,
+    discounts: Array.isArray(saved.discounts) ? saved.discounts : [],
+    receipt: obj(saved.receipt),
+    loyaltyPct: Number.isFinite(saved.loyaltyPct) ? saved.loyaltyPct : 0,
+    useShifts: saved.useShifts !== false,
+    /* Things sold that have no recipe — a can of soda, a bottle of water. */
+    products: obj(saved.products),
+    /* Barcode, SKU and tile colour for a dish, kept beside the recipe rather
+       than on it: they are facts about selling it, not about making it. */
+    itemMeta: obj(saved.itemMeta),
   };
 }
 
-async function putSettings(orgId, next) {
+export async function putSettings(orgId, next) {
   await setJSON(settingsKey(orgId), next);
   return next;
 }
 
-/* VAT is a rate, between none and anything a government has actually set. */
-export function readVat(value) {
-  const n = Number(value);
-  if (!Number.isFinite(n) || n < 0 || n > 50) return { error: "vat" };
-  return { vatPct: round2(n) };
-}
 
 export async function saveVat(orgId, value) {
   const vat = readVat(value);
@@ -122,6 +141,46 @@ export function readAddons(list) {
   return { addons: out };
 }
 
+/* Sizes or flavours of one item, each with its own price.
+
+   `scale` is how much of the item's recipe — or, for a product, its stock
+   item — one of this variant draws: 1.5 for a large that is half as much
+   again. A variant that is its own recipe is written on the Recipes screen
+   instead (same dish name, a variant set) and needs no scale. */
+const MAX_VARIANTS = 20;
+export function readVariants(list) {
+  if (!Array.isArray(list)) return { error: "variants" };
+  if (list.length > MAX_VARIANTS) return { error: "toomany", limit: MAX_VARIANTS };
+  const out = [];
+  const used = new Set();
+  for (const raw of list) {
+    const name = text(raw?.name, 40);
+    if (!name) return { error: "name" };
+    const price = Number(raw?.price);
+    if (!Number.isFinite(price) || price <= 0 || price > MAX_PRICE) return { error: "price", name };
+    const scaleRaw = raw?.scale === undefined || raw?.scale === null || raw?.scale === "" ? 1 : Number(raw.scale);
+    if (!Number.isFinite(scaleRaw) || scaleRaw < 0.05 || scaleRaw > 20) return { error: "scale", name };
+    let id = raw?.id && /^v-[\p{L}\p{N}-]+$/u.test(String(raw.id)) && !used.has(String(raw.id)) ? String(raw.id) : `v-${slug(name)}`;
+    for (let n = 2; used.has(id); n += 1) id = `v-${slug(name)}-${n}`;
+    used.add(id);
+    out.push({
+      id, name, price: round2(price), scale: Math.round(scaleRaw * 1000) / 1000,
+      barcode: text(raw?.barcode, 40).replace(/\s/g, ""), sku: text(raw?.sku, 40),
+    });
+  }
+  return { variants: out };
+}
+
+export async function saveVariants(orgId, itemId, list) {
+  const read = readVariants(list);
+  if (read.error) return read;
+  const current = await getSettings(orgId);
+  const variants = { ...current.variants, [String(itemId)]: read.variants };
+  if (!read.variants.length) delete variants[String(itemId)];
+  await putSettings(orgId, { ...current, variants });
+  return { variants: read.variants };
+}
+
 export async function saveAddons(orgId, itemId, list) {
   const read = readAddons(list);
   if (read.error) return read;
@@ -142,151 +201,167 @@ export async function saveAddons(orgId, itemId, list) {
    empty to somebody looking at six dishes on the Recipes screen. A manager
    sets the price from the register; nobody can sell a dish at no price
    (`buildSale` refuses one). */
-export function catalogueOf(recipes, settings) {
-  return (recipes || [])
-    .filter((r) => r && !r.archived)
-    .map((r) => ({
-      id: String(r.id),
-      name: String(r.menuItem || "").trim(),
-      category: String(r.category || "").trim(),
-      price: Number(r.sellPrice) > 0 ? round2(r.sellPrice) : null,
-      priced: Number(r.sellPrice) > 0,
-      addons: settings?.addons?.[String(r.id)] || [],
-    }))
+export function catalogueOf(recipes, settings, { orgId = null } = {}) {
+  const meta = settings?.itemMeta || {};
+  /* A picture's signed address, when the item has one and the organization is
+     known; null otherwise, and a tile shows its colour instead. */
+  const pictureOf = (id) => imageUrl(orgId, id, settings?.images?.[String(id)]) || null;
+  const own = settings?.variants || {};
+  const priceOf = (r) => (Number(r.sellPrice) > 0 ? round2(r.sellPrice) : null);
+
+  /* Recipes that share a dish name and differ by variant ("Latte · Small",
+     "Latte · Large") are one item on the register with those variants, each
+     its own recipe and price. A dish with one recipe is an item as before,
+     with whatever variants were set on the register. */
+  const groups = new Map();
+  for (const r of recipes || []) {
+    if (!r || r.archived) continue;
+    const name = String(r.menuItem || "").trim();
+    if (!name) continue;
+    const key = name.toLowerCase().replace(/\s+/g, " ");
+    groups.set(key, [...(groups.get(key) || []), r]);
+  }
+  const dishes = [...groups.values()].map((list) => {
+    const base = list.find((r) => !String(r.variant || "").trim()) || list[0];
+    const m = meta[String(base.id)] || {};
+    const fromRecipes = list.length > 1 || String(base.variant || "").trim()
+      ? list.map((r) => ({
+        id: `r-${r.id}`, name: String(r.variant || "").trim(), price: priceOf(r), recipeId: String(r.id), scale: 1,
+        barcode: meta[String(r.id)]?.barcode || "", sku: meta[String(r.id)]?.sku || "",
+      }))
+      : [];
+    const variants = fromRecipes.length ? fromRecipes : own[String(base.id)] || [];
+    const prices = variants.map((v) => v.price).filter((p) => p > 0);
+    return {
+      id: String(base.id),
+      kind: "recipe",
+      name: String(base.menuItem || "").trim(),
+      category: String(base.category || "").trim(),
+      price: variants.length ? (prices.length ? Math.min(...prices) : null) : priceOf(base),
+      priced: variants.length ? prices.length > 0 : priceOf(base) !== null,
+      variants,
+      variantsFromRecipes: fromRecipes.length > 0,
+      image: pictureOf(base.id),
+      addons: settings?.addons?.[String(base.id)] || [],
+      barcode: m.barcode || "",
+      sku: m.sku || "",
+      color: m.color || "",
+      hidden: Boolean(m.hidden),
+    };
+  });
+  /* Products sold as they come. Ids carry a prefix so one can never collide
+     with a recipe's, whatever either is called. */
+  const products = Object.entries(settings?.products || {})
+    .filter(([, p]) => p && !p.archived)
+    .map(([id, p]) => ({
+      id,
+      kind: "product",
+      name: String(p.name || "").trim(),
+      category: String(p.category || "").trim(),
+      price: own[id]?.length ? Math.min(...own[id].map((v) => v.price)) : Number(p.price) > 0 ? round2(p.price) : null,
+      priced: Number(p.price) > 0 || Boolean(own[id]?.length),
+      variants: own[id] || [],
+      variantsFromRecipes: false,
+      stock: p.stock?.ingredientId ? p.stock : null,
+      image: pictureOf(id),
+      addons: settings?.addons?.[id] || [],
+      barcode: p.barcode || "",
+      sku: p.sku || "",
+      color: p.color || "",
+      cost: Number.isFinite(p.cost) ? p.cost : null,
+      hidden: Boolean(p.hidden),
+    }));
+  return [...dishes, ...products]
     .filter((item) => item.name)
     .sort((a, b) => a.category.localeCompare(b.category) || a.name.localeCompare(b.name));
 }
 
 export async function catalogueFor(orgId) {
   const [recipes, settings] = await Promise.all([listRecipes(orgId), getSettings(orgId)]);
-  return { items: catalogueOf(recipes, settings), vatPct: settings.vatPct };
+  return { items: catalogueOf(recipes, settings, { orgId }), vatPct: settings.vatPct, settings };
 }
 
 /* ── A sale ──────────────────────────────────────────────────────────────── */
 
-/* A receipt number no till issues. Time first so they sort, then a few
-   random characters so two tills in the same second still differ. */
-export function receiptNumber(at, random = Math.random) {
-  const d = new Date(at);
-  const p = (n) => String(n).padStart(2, "0");
-  const stamp = `${String(d.getUTCFullYear()).slice(2)}${p(d.getUTCMonth() + 1)}${p(d.getUTCDate())}`
-    + `-${p(d.getUTCHours())}${p(d.getUTCMinutes())}${p(d.getUTCSeconds())}`;
-  const tail = Math.floor(random() * 36 ** 3).toString(36).toUpperCase().padStart(3, "0");
-  return `PM-${stamp}-${tail}`;
-}
 
 /* Turn what the cashier rang up into a receipt, or say what is wrong with it.
 
    `input` comes from the request and is trusted for nothing but which dish,
    how many and which add-ons. Everything with a price on it comes from
    `catalogue`. */
-export function buildSale(input, { catalogue, vatPct = DEFAULT_VAT_PCT, branchId, at = Date.now(), number, cashier = "" }) {
-  const lines = Array.isArray(input?.lines) ? input.lines : [];
-  if (!lines.length) return { error: "empty" };
-  if (lines.length > MAX_LINES) return { error: "toomany", limit: MAX_LINES };
 
-  const orderType = ORDER_TYPES.includes(input?.orderType) ? input.orderType : null;
-  if (!orderType) return { error: "ordertype" };
-  const table = orderType === "dine_in" ? text(input?.table, 10) : "";
 
-  const byId = new Map((catalogue || []).map((item) => [item.id, item]));
-  const lineItems = [];
-  let subtotal = 0;
 
-  for (const raw of lines) {
-    const item = byId.get(String(raw?.itemId ?? ""));
-    if (!item) return { error: "item", itemId: raw?.itemId ?? null };
-    if (!(Number(item.price) > 0)) return { error: "noprice", item: item.name };
-    const qty = Number(raw?.qty);
-    if (!Number.isInteger(qty) || qty < 1 || qty > MAX_QTY) return { error: "qty", item: item.name };
-
-    const wanted = Array.isArray(raw?.addons) ? raw.addons.map(String) : [];
-    const offered = new Map(item.addons.map((a) => [a.id, a]));
-    const chosen = [];
-    for (const id of wanted) {
-      const addon = offered.get(id);
-      if (!addon) return { error: "addon", item: item.name, addonId: id };
-      chosen.push(addon);
-    }
-
-    const unit = round2(item.price + chosen.reduce((sum, a) => sum + a.price, 0));
-    const total = round2(unit * qty);
-    subtotal = round2(subtotal + total);
-    const addonCost = chosen.some((a) => a.cost !== null)
-      ? round2(chosen.reduce((sum, a) => sum + (a.cost || 0), 0) * qty)
-      : null;
-
-    lineItems.push({
-      /* The recipe, by id, where the till would put its catalogue id. Stock
-         depletion matches by this first and by the dish name after. */
-      item_id: `recipe:${item.id}`,
-      variant_id: "",
-      item_name: item.name,
-      variant_name: "",
-      quantity: qty,
-      price: unit,
-      total_money: total,
-      line_modifiers: chosen.map((a) => ({ id: a.id, name: a.name, price: a.price, cost: a.cost })),
-      /* What the add-ons cost the business, for this line. Not the dish's own
-         cost, which comes from its recipe like any sale's. */
-      addon_cost: addonCost,
-    });
-  }
-
-  const rate = readVat(vatPct).error ? DEFAULT_VAT_PCT : Number(vatPct);
-  const tax = round2((subtotal * rate) / 100);
-  const totalMoney = round2(subtotal + tax);
-
-  const payType = PAYMENT_TYPES.includes(input?.payment?.type) ? input.payment.type : null;
-  if (!payType) return { error: "payment" };
-  let received = totalMoney;
-  if (payType === "cash" && input.payment.received !== undefined && input.payment.received !== null && input.payment.received !== "") {
-    received = round2(input.payment.received);
-    if (!Number.isFinite(received) || received < totalMoney) return { error: "short", total: totalMoney };
-  }
-  const change = payType === "cash" ? round2(received - totalMoney) : 0;
-
-  const iso = new Date(at).toISOString();
-  const id = number || receiptNumber(at);
-  return {
-    receipt: {
-      id,
-      receipt_number: id,
-      receipt_type: "SALE",
-      source: "register",
-      receipt_date: iso,
-      created_at: iso,
-      store_id: String(branchId || REGISTER_BRANCH.id),
-      order_type: orderType,
-      table: table || null,
-      cashier: text(cashier, 60),
-      vat_pct: rate,
-      subtotal_money: subtotal,
-      total_tax: tax,
-      total_money: totalMoney,
-      line_items: lineItems,
-      payments: [{
-        type: payType === "cash" ? "CASH" : "CARD",
-        /* The name the dashboard groups payments by, as a till would call it. */
-        name: payType === "cash" ? "Cash" : "Card",
-        money_amount: totalMoney,
-        received,
-        change,
-      }],
-    },
-  };
-}
 
 /* ── Storage ─────────────────────────────────────────────────────────────── */
 
 export async function recordSale(orgId, receipt) {
+  /* A sale sent twice is one sale. A till that lost its signal keeps a sale
+     and sends it when it is back, and may send it again if the first answer
+     never arrived; the id the till gave it is how the second copy is known. */
+  if (receipt.client_id) {
+    const seen = await getJSON(clientKey(orgId, receipt.client_id));
+    if (seen) {
+      const existing = await findReceipt(orgId, seen);
+      if (existing) return { ...existing, duplicate: true };
+    }
+  }
   const at = new Date(receipt.receipt_date).getTime();
   await setJSON(`${receiptPrefix(orgId, monthOf(at))}${receipt.id}`, receipt);
+  if (receipt.client_id) await setJSON(clientKey(orgId, receipt.client_id), receipt.id);
+  if (receipt.receipt_type === "REFUND" && receipt.refund_for) {
+    const list = (await getJSON(refundsKey(orgId, receipt.refund_for))) || [];
+    await setJSON(refundsKey(orgId, receipt.refund_for), [...list, receipt.id]);
+  }
   /* Marks the organization as one that sells through the register, which is
      how an account with no POS still gets a dashboard (see `branchList`). */
   const settings = await getSettings(orgId);
   if (!settings.usedAt) await putSettings(orgId, { ...settings, usedAt: at });
   return receipt;
+}
+
+const clientKey = (orgId, id) => `register:${orgId}:client:${String(id).slice(0, 80)}`;
+const refundsKey = (orgId, number) => `register:${orgId}:refunds:${number}`;
+
+/* The month a register receipt is filed under, read off its number. */
+export function monthOfNumber(number) {
+  const m = /^PM-(\d{2})(\d{2})\d{2}-\d{6}-[0-9A-Z]{3,6}$/.exec(String(number || ""));
+  return m ? `20${m[1]}-${m[2]}` : null;
+}
+
+export async function findReceipt(orgId, number) {
+  const month = monthOfNumber(number);
+  if (!orgId || !month) return null;
+  return getJSON(`${receiptPrefix(orgId, month)}${number}`);
+}
+
+/* What earlier refunds of a sale already gave back, per line. */
+export async function refundedSoFar(orgId, number) {
+  const ids = (await getJSON(refundsKey(orgId, number))) || [];
+  const out = {};
+  for (const id of ids) {
+    const r = await findReceipt(orgId, id);
+    for (const li of r?.line_items || []) {
+      out[li.line_index] = (out[li.line_index] || 0) + Number(li.quantity || 0);
+    }
+  }
+  return { lines: out, refunds: ids };
+}
+
+/* A receipt number proposed by a till that sold while offline.
+
+   It printed that number on the customer's receipt, so the record has to
+   carry the same one. Accepted only in the register's own format, dated the
+   same day as the sale, and never over a number already used. */
+export async function acceptNumber(orgId, proposed, at) {
+  const month = monthOfNumber(proposed);
+  if (!month) return null;
+  const d = new Date(at);
+  const p = (n) => String(n).padStart(2, "0");
+  const stamp = `${String(d.getUTCFullYear()).slice(2)}${p(d.getUTCMonth() + 1)}${p(d.getUTCDate())}`;
+  if (String(proposed).slice(3, 9) !== stamp) return null;
+  if (await findReceipt(orgId, proposed)) return null;
+  return String(proposed);
 }
 
 /* Register receipts inside a window, oldest first. */
@@ -325,35 +400,43 @@ export function forDepletion(receipt) {
     at: new Date(receipt.receipt_date).getTime(),
     lines: (receipt.line_items || []).map((li) => ({
       itemId: li.item_id || "",
-      variantId: "",
+      variantId: li.variant_id || "",
       name: li.item_name || "",
-      variant: "",
+      variant: li.variant_name || "",
+      scale: Number(li.variant_scale) > 0 ? Number(li.variant_scale) : 1,
+      stockDraw: Array.isArray(li.stock_draw) ? li.stock_draw : [],
       qty: Number(li.quantity) || 0,
       revenue: Number(li.total_money) || 0,
     })),
   };
 }
 
-/* What a report route needs to include register sales: the organization's
-   register receipts, and whether it uses the register at all (an account with
-   no till that does is given the register as its branch). Two reads for an
-   organization that has never used it. */
-export async function registerContext(account) {
+/* What a report route needs: the organization's receipts over the longest
+   window any report reads, and the names of its stores. */
+export async function registerContext(account, { days = REGISTER_WINDOW_DAYS } = {}) {
   const org = account ? await orgFor(account) : null;
   const orgId = org?.id || null;
-  const used = await usesRegister(orgId);
-  return { orgId, used, register: used ? await registerReceipts(orgId) : [] };
+  const settings = orgId ? await getSettings(orgId) : null;
+  const used = Boolean(settings?.usedAt);
+  /* The first sale, less a week for sales rung up offline before it was
+     sent. Nothing is read from before it, which is what keeps "all time"
+     from asking storage for every month since 1970. */
+  const firstSaleAt = used ? new Date(settings.usedAt).getTime() - 7 * DAY : null;
+  const since = days === "all" ? firstSaleAt : Math.max(Date.now() - days * DAY, firstSaleAt ?? 0);
+  return {
+    orgId,
+    used,
+    firstSaleAt,
+    register: used ? await registerReceipts(orgId, { since }) : [],
+    names: orgId ? await storeNames(orgId, org?.name) : {},
+  };
 }
 
-/* The branches a route works with, for a signed-in account: the till's, or,
-   with no till, the register.
-
-   With no till the register is the branch from the start, not from the first
-   sale. A business opening without a POS stocks the shelf before it sells
-   anything, and a branch that only appeared after the first sale refused the
-   delivery that has to come first. The dashboard is unaffected: it still says
-   there is nothing to show until a sale exists (`getMetrics`). */
+/* The branches a route works with, for a signed-in account: the stores the
+   business has set up (one, named after it, until it adds more). */
 export async function rosterFor(account) {
-  const posToken = await posTokenFor(account.username);
-  return branchList(posToken, { register: !posToken });
+  const org = account ? await orgFor(account) : null;
+  if (!org?.id) return [];
+  return (await listStores(org.id, { orgName: org.name }))
+    .map((st) => ({ id: st.id, name: st.name, address: st.address || "", phone: st.phone || "", trn: st.trn || "" }));
 }

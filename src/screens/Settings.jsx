@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { CheckCircle2, AlertCircle, RefreshCw, Plug, Loader2 as Spin, Loader2, Send, LifeBuoy, Instagram, Mail, Phone, Webhook, Copy, ExternalLink } from "lucide-react";
+import { CheckCircle2, AlertCircle, RefreshCw, Loader2 as Spin, Loader2, Send, LifeBuoy, Instagram, Mail, Phone } from "lucide-react";
 import { useC } from "../theme.jsx";
 import BusinessTypePicker from "../BusinessTypePicker.jsx";
 import { useLang, fill, localeFor, formatDate } from "../i18n.jsx";
@@ -11,6 +11,7 @@ import ThemeToggle from "../ThemeToggle.jsx";
 import DeleteConfirm from "../DeleteConfirm.jsx";
 import EmailSetting from "../settings/EmailSetting.jsx";
 import UsernameSetting from "../settings/UsernameSetting.jsx";
+import StoresSetting from "../settings/StoresSetting.jsx";
 /* The single list, shared with the bell that reads these. Two copies is how a
    switch gets added in one place and silently ignored in the other. */
 import { ALERT_KEYS, readPrefs, writePrefs } from "../notices.js";
@@ -51,7 +52,7 @@ function Row({ label, value }) {
    gates both target notices behind `target > 0`. Two more notices silently
    switched off by saving an unrelated switch. */
 
-export default function Settings({ data, user, onRefresh, refreshing, token, conversationCount = 0, account, onConnect, onAccountChange, onSeePlans, onSession, onLogout }) {
+export default function Settings({ data, user, onRefresh, refreshing, token, conversationCount = 0, account, onAccountChange, onSeePlans, onSession, onLogout }) {
   const C = useC();
   const { t, lang } = useLang();
   const live = data.connected;
@@ -155,59 +156,6 @@ export default function Settings({ data, user, onRefresh, refreshing, token, con
       setTicketNote(t.feedback.failed);
     } finally {
       setSending(false);
-    }
-  };
-
-  const [posValue, setPosValue] = useState("");
-  const [posBusy, setPosBusy] = useState(false);
-  const [posNote, setPosNote] = useState("");
-  const posConnected = Boolean(account?.account?.posConnected);
-
-  /* The inbound webhook address. The server returns it only to whoever owns
-     the POS connection and null to everyone else, so there is no permission
-     check to repeat here — an absent URL is the answer. Withheld until the
-     till is connected, because a webhook with no POS behind it is a URL for
-     nothing. */
-  const webhookUrl = posConnected ? account?.webhookUrl || "" : "";
-  const [showWebhook, setShowWebhook] = useState(false);
-  const [copiedWebhook, setCopiedWebhook] = useState(false);
-
-  /* Enough of the URL to recognise, none of the token. The path is the same
-     for everybody; the query string is the credential. */
-  const maskedWebhook = webhookUrl.replace(/(\?t=).*/, "$1••••••••••••");
-
-  const copyWebhook = async () => {
-    try {
-      await navigator.clipboard.writeText(webhookUrl);
-      setCopiedWebhook(true);
-      setTimeout(() => setCopiedWebhook(false), 2000);
-    } catch {
-      /* Clipboard refused — an insecure origin, or a browser that asks. Reveal
-         it instead so it can be selected by hand rather than failing silently
-         with no way forward. */
-      setShowWebhook(true);
-    }
-  };
-  const serverToken = Boolean(account?.serverToken);
-
-  const savePos = async (value) => {
-    setPosBusy(true);
-    setPosNote("");
-    try {
-      const res = await fetch("/api/account", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ posToken: value }),
-      });
-      if (!res.ok) throw new Error();
-      setPosValue("");
-      setPosNote(value ? t.connect.connected : "");
-      onAccountChange?.();
-      onRefresh?.();
-    } catch {
-      setPosNote(t.connect.failed);
-    } finally {
-      setPosBusy(false);
     }
   };
 
@@ -321,180 +269,7 @@ export default function Settings({ data, user, onRefresh, refreshing, token, con
       <div className="max-w-3xl mx-auto px-4 md:px-8 py-5 md:py-8 space-y-4 md:space-y-5">
         <h2 className="display text-2xl md:text-3xl font-extrabold">{t.settings.title}</h2>
 
-        {/* A member sees that the till is connected and by whom; they do not
-            see a form, and they never see the key. */}
-        {account?.account && account?.pos?.canConnect === false && (
-          <Panel title={t.connect.posTitle}>
-            <div className="flex items-start gap-3 p-4 rounded-lg"
-              style={{ background: account?.pos?.connected ? C.irisWash : C.lilacWash }}>
-              <Plug size={18} className="mt-0.5 shrink-0"
-                style={{ color: account?.pos?.connected ? C.iris : C.lilac }} />
-              <div>
-                <div className="font-semibold text-sm mb-1">
-                  {account?.pos?.connected ? t.connect.posConnected : t.connect.posNot}
-                </div>
-                <p className="text-sm leading-relaxed" style={{ color: C.slate }}>
-                  {account?.pos?.connected ? t.connect.viaOwner : t.connect.askOwner}
-                </p>
-              </div>
-            </div>
-          </Panel>
-        )}
-
-        {account?.account && account?.pos?.canConnect !== false && (
-          <Panel title={t.connect.posTitle}>
-            <div
-              className="flex items-start gap-3 p-4 rounded-lg mb-4"
-              style={{ background: posConnected ? C.irisWash : C.lilacWash }}
-            >
-              <Plug size={18} className="mt-0.5 shrink-0" style={{ color: posConnected ? C.iris : C.lilac }} />
-              <div>
-                <div className="font-semibold text-sm mb-1">
-                  {posConnected ? t.connect.posConnected : t.connect.posNot}
-                </div>
-                <p className="text-sm leading-relaxed" style={{ color: C.slate }}>
-                  {serverToken && !posConnected ? t.connect.usingServer : t.connect.lead}
-                </p>
-              </div>
-            </div>
-
-            <div className="text-xs px-3 py-2 rounded-lg mb-3" style={{ background: C.bone, color: C.slate }} dir="ltr">
-              {t.connect.where}
-            </div>
-
-            <label className="block text-sm font-semibold mb-1.5">{t.connect.token}</label>
-            <input
-              value={posValue}
-              onChange={(e) => setPosValue(e.target.value)}
-              placeholder={t.connect.placeholder}
-              dir="ltr"
-              className="w-full rounded-lg px-4 py-2.5 text-sm outline-none text-start mb-3"
-              style={{ background: C.bone, border: `1px solid ${C.hairline}`, color: C.ink }}
-            />
-
-            {posNote && (
-              <p className="text-sm mb-3" style={{ color: posNote === t.connect.failed ? C.rose : C.iris }}>
-                {posNote}
-              </p>
-            )}
-
-            <div className="flex flex-wrap gap-2">
-              <button
-                onClick={() => savePos(posValue.trim())}
-                disabled={posBusy || !posValue.trim()}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-50"
-                style={{ background: C.iris, color: C.onPrimary }}
-              >
-                {posBusy && <Spin size={14} className="animate-spin" />}
-                {posConnected ? t.connect.posReplace : t.connect.save}
-              </button>
-              {posConnected && (
-                <button
-                  onClick={() => savePos("")}
-                  disabled={posBusy}
-                  className="px-4 py-2 rounded-lg text-sm font-semibold"
-                  style={{ border: `1px solid ${C.hairline}`, color: C.rose }}
-                >
-                  {t.connect.posRemove}
-                </button>
-              )}
-            </div>
-
-            <p className="text-[11px] mt-3 leading-relaxed" style={{ color: C.slate }}>
-              {t.connect.posNote}
-            </p>
-
-            {/* The address receipts arrive on.
-
-                Shown only once the till is connected, because a webhook with
-                no POS behind it is a URL for nothing — and only to whoever
-                owns the connection, which is what the server already decides
-                by returning null to everybody else.
-
-                It is a credential in URL form: anyone holding it can post
-                receipts into this business's ledger. So it is masked until
-                asked for, and copying it is one press rather than a select-
-                and-drag that half-selects on a phone. */}
-            {webhookUrl && (
-              <div className="mt-5 pt-5" style={{ borderTop: `1px solid ${C.hairline}` }}>
-                <div className="flex items-start gap-3 mb-3">
-                  <Webhook size={18} className="mt-0.5 shrink-0" style={{ color: C.iris }} />
-                  <div className="min-w-0">
-                    <div className="text-sm font-bold">{t.connect.webhookTitle}</div>
-                    <p className="text-xs mt-1 leading-relaxed" style={{ color: C.slate }}>
-                      {t.connect.webhookLead}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Two buttons, in the order they are pressed.
-
-                    This was a paragraph, a masked URL with two icon buttons,
-                    three numbered steps and a warning — five blocks of text
-                    for a job that is: copy this, paste it there. A restaurant
-                    owner reading that decides to do it later.
-
-                    Copy is the primary action and says so. The second button
-                    opens the exact Loyverse page, which removes the whole
-                    navigation instruction — there is nothing to describe if
-                    the link goes there. What is left is one sentence naming
-                    the event, because that is the only part somebody can
-                    actually get wrong, and there is no way to work it out from
-                    the Loyverse screen. */}
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={copyWebhook}
-                    className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-sm font-bold"
-                    style={copiedWebhook
-                      ? { background: "color-mix(in srgb, var(--mint) 12%, transparent)",
-                          border: "1px solid color-mix(in srgb, var(--mint) 40%, transparent)",
-                          color: C.mint }
-                      : { background: C.iris, color: C.onPrimary }}
-                  >
-                    {copiedWebhook ? <CheckCircle2 size={15} /> : <Copy size={15} />}
-                    {copiedWebhook ? t.connect.webhookCopied : t.connect.webhookCopy}
-                  </button>
-
-                  <a
-                    href="https://r.loyverse.com/dashboard/#/webhooks"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-sm font-semibold"
-                    style={{ border: `1px solid ${C.hairline}`, color: C.ink }}
-                  >
-                    {t.connect.webhookOpen} <ExternalLink size={14} />
-                  </a>
-                </div>
-
-                <p className="text-xs mt-3 leading-relaxed" style={{ color: C.slate }}>
-                  {t.connect.webhookHow}
-                </p>
-
-                {/* The address itself, for anybody who wants to see it or
-                    cannot use the clipboard. Behind a toggle rather than on
-                    screen, because it is the one thing here that must not be
-                    read aloud in a busy kitchen. */}
-                <button
-                  type="button"
-                  onClick={() => setShowWebhook((v) => !v)}
-                  className="text-[11px] font-semibold mt-2"
-                  style={{ color: C.slate }}
-                >
-                  {showWebhook ? t.connect.webhookHide : t.connect.webhookShow}
-                </button>
-
-                {showWebhook && (
-                  <code className="block mt-2 text-[11px] break-all rounded-lg px-3 py-2"
-                    dir="ltr"
-                    style={{ background: C.bone, border: `1px solid ${C.hairline}`, color: C.ink }}>
-                    {webhookUrl}
-                  </code>
-                )}
-              </div>
-            )}
-          </Panel>
-        )}
+        <StoresSetting token={token} />
 
         {/* Only for somebody who can set it. A member shown four cards that
             refuse to save has been offered a choice that was never theirs. */}

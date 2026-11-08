@@ -1,29 +1,20 @@
-// Pulls sales from the connected POS API and shapes them into the metrics
-// the UI needs. The vendor-specific parts live in _pos.js; POS_PROVIDER picks
-// at a different base URL to use another provider. With no token set, raises
-// NotConnected so the interface prompts for a POS connection.
+/* The figures every screen reads, from the business's own sales.
+
+   Sales are the receipts the register writes (`_till.js`); branches are the
+   stores the business sets up itself (`_stores.js`). There is no other till
+   behind this any more and nothing upstream to fetch, cache or wait for: a
+   sale rung up a second ago is in the next figure read. */
 
 import { buildAdvice } from "./_advice.js";
 import { marginLayer } from "./_margin.js";
 import { aggregate } from "./_aggregate.js";
-import { applyEdits, receiptIdOf } from "./_saleedits.js";
-import { provider } from "./_pos.js";
+import { applyEdits } from "./_saleedits.js";
 
 /* Everything vendor-specific — base URL, auth, endpoint names, field names,
    pagination — lives in _pos.js. Read per call rather than captured at module
    load, so changing POS_PROVIDER takes effect without a cold start. */
-/* Short, because the dashboard polls and people expect today's number to
-   move. Tills rate-limit, so this still shields the API from a room
-   full of tablets all refreshing at once — the cache is keyed by token, so
-   every device on one account shares a single upstream call. */
-const CACHE_MS = 45 * 1000;
-/* Keyed by token so two businesses on one deployment never see each
-   other's figures out of a shared cache. */
-const cache = new Map();
-
-export function clearCache() {
-  cache.clear();
-}
+/* Nothing is cached any more; kept so tests written against the old cache still run. */
+export function clearCache() {}
 
 const DAY = 864e5;
 const hourLabel = (h) => {
@@ -31,8 +22,6 @@ const hourLabel = (h) => {
   const hour = h % 12 === 0 ? 12 : h % 12;
   return `${hour}${suffix}`;
 };
-const pctChange = (now, before) =>
-  before > 0 ? Number((((now - before) / before) * 100).toFixed(1)) : 0;
 
 /* ------------------------------------------------------------------ */
 /*  Forecast — trend plus widening uncertainty                          */
@@ -185,299 +174,30 @@ function finish(m) {
 
 /* ---------------------------------------------------------------- */
 /*  Live POS                                                          */
-/* ---------------------------------------------------------------- */
-async function call(path, token) {
-  const pos = provider();
-  const res = await fetch(`${pos.base}${path}`, { headers: pos.auth(token) });
-  if (!res.ok) {
-    /* Loyverse explains itself in the body; a bare status code sends people
-       hunting for a problem the response already named. */
-    const body = await res.text().catch(() => "");
-    const detail = pos.detail(body);
-    const label =
-      res.status === 402 ? "The POS only returns a limited history of receipts on this plan" :
-      res.status === 401 ? "The access token was rejected" :
-      res.status === 403 ? "That token doesn't have permission to read this" :
-      res.status === 429 ? "The POS API is rate-limiting the connection" :
-      `The POS API returned ${res.status}`;
-    /* The status rides on the error: the history ladder asks the adapter
-       whether a refusal was the plan talking, and a message alone makes that a
-       string-matching guess. */
-    const err = new Error(detail ? `${label}: ${detail}` : label);
-    err.status = res.status;
-    throw err;
-  }
-  return res.json();
-}
-
-async function allReceipts(token, sinceIso) {
-  const out = [];
-  let cursor = null;
-
-  // Tills paginate; cap the walk so a huge account can't hang the request.
-  for (let page = 0; page < 12; page++) {
-    const pos = provider();
-    const data = await call(pos.receiptsPath(sinceIso, cursor), token);
-    out.push(...pos.receiptsOf(data));
-    cursor = pos.nextCursor(data);
-    if (!cursor) break;
-  }
-  return out;
-}
-
-/* How far back this account is actually allowed to read.
-
-   Loyverse caps receipt history at 31 days unless the account carries the
-   Unlimited Sales History add-on; asking for more returns 402 rather than a
-   short list. The previous version asked for 60 days and fell back to 30, so
-   an account that had paid for unlimited history still only ever saw two
-   months — the add-on bought nothing, and every screen kept saying "last 30
-   days" because that was all there was.
-
-   Now it finds the widest window the plan permits, cheaply. Each probe is a
-   single-receipt request, so the ladder costs a handful of tiny calls rather
-   than several full paginated walks, and only the window that wins is fetched
-   in full.
-
-   The ladder stops at a year. Beyond that the page cap below truncates the
-   result anyway, and a silently truncated history is worse than a short one
-   that knows it is short. */
-const HISTORY_LADDER = [365, 180, 90, 60, 30];
-
-/* Below this there is no prior period to compare against, and the interface
-   must not imply otherwise. */
-const COMPARISON_DAYS = 60;
-
-async function probeWindow(token, sinceIso) {
-  await call(provider().probePath(sinceIso), token);
-}
-
-function planRefused(err) {
-  return provider().historyRefused(err?.status, err?.message || "");
-}
-
-export async function widestHistoryDays(token, now = Date.now(), ladder = HISTORY_LADDER) {
-  for (const days of ladder) {
-    const since = new Date(now - days * DAY).toISOString();
-    try {
-      await probeWindow(token, since);
-      return days;
-    } catch (err) {
-      if (!planRefused(err)) throw err;
-    }
-  }
-  /* Every rung refused, which should not happen — 30 days is the floor the
-     free plan allows. Take the floor rather than returning nothing. */
-  return ladder[ladder.length - 1];
-}
-
-/* Receipts for one branch, normalised and with an id, for the ledger.
-
-   The metrics path aggregates receipts into totals and throws the individual
-   ones away, which is right for a dashboard and useless for posting stock: a
-   sale has to be identifiable so it is not posted twice. This returns them one
-   by one, in the adapter's neutral shape, so the depletion never sees a
-   vendor's spelling. */
-/* Stock levels as the till keeps them.
-
-   Only meaningful for a till whose adapter says it keeps stock at all, and the
-   caller checks that before asking — an unsupported till would otherwise
-   return an empty list that reads like an empty store.
-
-   Deliberately thin. This returns what the till has: an item, a branch and a
-   number. It does not invent a unit, a pack size or a supplier, because the
-   till does not have them and filling the gap with a guess is how a stock
-   figure ends up meaning something different from what anybody thinks. */
-export async function posInventory(token, branchId = null) {
-  const pos = provider();
-  if (!pos.inventory?.supported) return { supported: false, levels: [] };
-
-  const data = await call(pos.inventory.path(), token);
-  const levels = pos.inventory.listOf(data)
-    .map((row) => pos.inventory.level(row))
-    .filter((l) => l.itemId && Number.isFinite(l.qty))
-    .filter((l) => !branchId || l.branchId === String(branchId));
-
-  return { supported: true, levels, limits: pos.inventory.limits || [] };
-}
-
-export function posInventorySupport() {
-  const pos = provider();
-  return {
-    supported: Boolean(pos.inventory?.supported),
-    limits: pos.inventory?.limits || [],
-    label: pos.label,
-  };
-}
-
-export async function receiptsFor(token, branchId, { days = 7, now = Date.now() } = {}) {
-  const pos = provider();
-  const since = new Date(now - days * DAY).toISOString();
-  const raw = await allReceipts(token, since);
-
-  return raw
-    .map((r) => {
-      const receipt = pos.receipt(r);
-      return {
-        id: receiptIdOf(r) || `${receipt.branchId}-${receipt.at}`,
-        branchId: receipt.branchId,
-        at: receipt.at,
-        lines: receipt.lines,
-      };
-    })
-    .filter((r) => !branchId || r.branchId === String(branchId));
-}
-
-async function fetchReceipts(token, now) {
-  const days = await widestHistoryDays(token, now);
-  const since = new Date(now - days * DAY).toISOString();
-  return {
-    receipts: await allReceipts(token, since),
-    limitedHistory: days < COMPARISON_DAYS,
-    historyDays: days,
-    since,
-  };
-}
-
-/* The catalogue: cost and photo per item.
-
-   Receipts don't carry cost, so net profit is impossible from receipts
-   alone — this is why the app could only ever show turnover. The items
-   endpoint has `cost` on each variant, so we read it once and join it to
-   the line items by name.
-
-   Items paginate too, and an item can have several variants at
-   different costs; we key on both the item name and the variant name so a
-   large latte and a small one aren't averaged together. */
-async function fetchCatalogue(token) {
-  const byName = new Map();
-  let cursor = null;
-
-  const pos = provider();
-  for (let page = 0; page < 10; page++) {
-    const data = await call(pos.itemsPath(cursor), token);
-
-    for (const raw of pos.itemsOf(data)) {
-      const item = pos.item(raw);
-      if (!item.name) continue;
-      for (const variant of item.variants.length ? item.variants : [{ name: "", cost: 0 }]) {
-        const key = variant.name ? `${item.name}||${variant.name}` : item.name;
-        byName.set(key, { cost: variant.cost, image: item.image, category: item.category });
-      }
-      // Fallback entry so a line item without a variant name still resolves.
-      if (!byName.has(item.name)) {
-        byName.set(item.name, {
-          cost: item.variants[0]?.cost || 0, image: item.image, category: null,
-        });
-      }
-    }
-
-    cursor = pos.nextCursor(data);
-    if (!cursor) break;
-  }
-
-  return byName;
-}
-
-/* The upstream read, with no aggregation in it.
-
-   Kept separate from shaping so the expensive part (a month of receipts, the
-   whole catalogue) happens once per token and is then re-aggregated cheaply for
-   whatever branch scope each request has. */
-async function fetchRaw(token) {
-  const now = Date.now();
-
-  const [storesRes, history, catalogue] = await Promise.all([
-    call("/stores", token),
-    fetchReceipts(token, now),
-    // A catalogue failure shouldn't take the dashboard down; it just means
-    // no cost data, and the interface says so.
-    fetchCatalogue(token).catch((err) => {
-      console.error("Couldn't read the catalogue:", err.message);
-      return new Map();
-    }),
-  ]);
-
-  return {
-    now,
-    /* What this read actually covered, kept with the data so the figures can
-       always say where they came from rather than being asserted to be current. */
-    fetchedAt: Date.now(),
-    since: history.since,
-    receiptCount: history.receipts.length,
-    receipts: history.receipts,
-    limitedHistory: history.limitedHistory,
-    historyDays: history.historyDays,
-    catalogue,
-    storeNames: Object.fromEntries((storesRes.stores || []).map((s) => [s.id, s.name])),
-    allBranches: (storesRes.stores || []).map((s) => String(s.id)),
-  };
-}
-
-/* Raised when a real account has no POS connected. The caller turns this
-   into a "connect your POS" state rather than inventing numbers. */
+/* Nothing has been sold yet. The interface turns this into "start selling"
+   rather than presenting zeros as if they were a quiet month. */
 export class NotConnected extends Error {
   constructor() {
-    super("No POS connected");
+    super("nothing sold yet");
     this.code = "notconnected";
   }
 }
 
-/* Raised when a POS *is* connected but couldn't be read. The reason is
-   passed through, so the person can see whether the token was rejected,
-   the permissions are wrong, or the service is simply down. */
-export class PosUnreachable extends Error {
-  constructor(detail) {
-    super(detail);
-    this.code = "pos";
-    this.detail = detail;
-  }
-}
-
-/* ── Register sales ─────────────────────────────────────────────────────────
-
-   The register (`_till.js`) stores its sales as receipts in the till's own
-   shape, so every report reads them with no second code path. They are joined
-   here, in the three functions every report goes through — `getMetrics`,
-   `salesLines` and `rawReceipts` — rather than in each report, where twenty
-   copies of the join would drift.
-
-   The cached till read is never modified: the join makes a new object, so one
-   organization's register sales never reach another's cached receipts. */
-
-/* The branch register sales belong to when there is no till to name one. */
+/* The store a business has before it names any: every account starts with
+   one, and its receipts are filed under this id. */
 export const REGISTER_BRANCH = { id: "register", name: "Register" };
 
-/* How far back reports read the register: the sixty days a period is compared
-   with, and a margin. */
+/* How far back reports read: the sixty days a period is compared with, and a
+   margin. */
 export const REGISTER_WINDOW_DAYS = 62;
 
-export function withRegister(raw, register) {
-  if (!register?.length) return raw;
-  const since = new Date(raw.since).getTime();
-  const inWindow = register.filter((r) => new Date(r.receipt_date).getTime() >= since);
-  if (!inWindow.length) return raw;
-  const known = new Set(raw.allBranches);
-  const extra = [...new Set(inWindow.map((r) => String(r.store_id || REGISTER_BRANCH.id)))]
-    .filter((id) => !known.has(id));
-  return {
-    ...raw,
-    receipts: [...raw.receipts, ...inWindow],
-    receiptCount: raw.receiptCount + inWindow.length,
-    registerCount: inWindow.length,
-    allBranches: [...raw.allBranches, ...extra],
-    storeNames: {
-      ...raw.storeNames,
-      ...Object.fromEntries(extra.map((id) => [id, id === REGISTER_BRANCH.id ? REGISTER_BRANCH.name : id])),
-    },
-  };
-}
-
-/* Figures for an organization with no till at all: the register's own. */
-export function registerOnlyRaw(register, now = Date.now()) {
-  const since = now - REGISTER_WINDOW_DAYS * DAY;
+/* The receipts in reporting shape: the window a period is compared with, and
+   the names of the stores they were sold in. */
+export function registerOnlyRaw(register, now = Date.now(), names = {}, windowDays = REGISTER_WINDOW_DAYS) {
+  const since = now - windowDays * DAY;
   const receipts = (register || []).filter((r) => new Date(r.receipt_date).getTime() >= since);
-  const branches = [...new Set(receipts.map((r) => String(r.store_id || REGISTER_BRANCH.id)))];
+  const sold = receipts.map((r) => String(r.store_id || REGISTER_BRANCH.id));
+  const branches = [...new Set([...Object.keys(names), ...sold])];
   if (!branches.length) branches.push(REGISTER_BRANCH.id);
   return {
     now,
@@ -487,145 +207,69 @@ export function registerOnlyRaw(register, now = Date.now()) {
     registerCount: receipts.length,
     receipts,
     limitedHistory: false,
-    historyDays: REGISTER_WINDOW_DAYS,
+    historyDays: windowDays,
     catalogue: new Map(),
-    storeNames: Object.fromEntries(branches.map((id) => [id, id === REGISTER_BRANCH.id ? REGISTER_BRANCH.name : id])),
+    storeNames: Object.fromEntries(branches.map((id) => [id, names[id] || (id === REGISTER_BRANCH.id ? REGISTER_BRANCH.name : id)])),
     allBranches: branches,
   };
 }
 
-/* The till's read joined to the register's, or the register's alone when there
-   is no till. `register` is null or empty for an organization that has never
-   used it, which leaves every function exactly as it was before the register. */
-async function salesRaw(token, register, maxAge) {
-  if (!token) {
-    if (register?.length) return { raw: registerOnlyRaw(register), fetched: false };
-    throw new NotConnected();
-  }
-  const { raw, fetched } = await cachedRaw(token, maxAge);
-  return { raw: withRegister(raw, register), fetched };
+/* What every report reads. A business that has sold nothing yet is told so
+   (`NotConnected`) rather than shown a dashboard of zeros. */
+function salesRaw(register, names, now = Date.now(), windowDays = REGISTER_WINDOW_DAYS) {
+  if (!register?.length) throw new NotConnected();
+  return registerOnlyRaw(register, now, names, windowDays);
 }
 
-/* Live figures or an honest failure. There is no sample path: someone
-   looking at this app should only ever be looking at their own service. */
-/* The business's own name and currency, straight from the POS. Asking
-   someone to type a name we can simply read is a needless question. */
-export async function fetchMerchant(token) {
-  try {
-    const data = await call("/merchants", token);
-    const merchant = Array.isArray(data?.merchants) ? data.merchants[0] : data;
-    return {
-      business: merchant?.business_name || merchant?.name || "",
-      currency: merchant?.currency || "AED",
-      email: merchant?.email || "",
-    };
-  } catch (err) {
-    // Not fatal — the connection still works without the name.
-    console.error("Couldn't read the merchant record:", err.message);
-    return null;
+/* A long period's days, grouped so a chart of a year is fifty-odd bars and
+   not three hundred and sixty-five: by day up to a quarter, by week up to a
+   little over a year, by month beyond. Each bucket keeps the date it starts
+   on, and the sums are exact, so the bars add up to the period's total. */
+export function bucketSeries(daily, timeZone = "Asia/Dubai") {
+  const days = daily.length;
+  const bucket = days <= 92 ? "day" : days <= 400 ? "week" : "month";
+  if (bucket === "day") return { bucket, series: daily };
+  const groups = [];
+  for (const [i, d] of daily.entries()) {
+    const key = bucket === "week" ? Math.floor(i / 7) : d.date.slice(0, 7);
+    let g = groups[groups.length - 1];
+    if (!g || g.key !== key) {
+      const at = new Date(`${d.date}T12:00:00Z`);
+      g = {
+        key,
+        date: d.date,
+        label: bucket === "week"
+          ? at.toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone })
+          : at.toLocaleDateString("en-GB", { month: "short", year: "numeric", timeZone }),
+        sales: 0, receipts: 0, tax: 0,
+      };
+      groups.push(g);
+    }
+    g.sales += d.sales || 0;
+    g.receipts += d.receipts || 0;
+    g.tax += d.tax || 0;
   }
+  return {
+    bucket,
+    series: groups.map(({ key, ...g }) => ({ ...g, sales: Math.round(g.sales * 100) / 100, tax: Math.round(g.tax * 100) / 100 })),
+  };
 }
 
-/* The organization's branches, straight from the POS.
+/* Receipts as the register wrote them, with no corrections applied.
 
-   Permissions need the list of branches that exist before any figures are
-   computed — assigning a branch manager to a branch shouldn't require pulling
-   a month of receipts first. This is the cheap read for that. */
-export async function branchList(posToken, { register = false } = {}) {
-  const token = posToken || process.env.POS_ACCESS_TOKEN || process.env.LOYVERSE_ACCESS_TOKEN || "";
-  /* No POS linked yet: there are no branches to report. Callers that only
-     need the roster for scope resolution catch this and carry on with an
-     empty list; the dashboard turns it into the connect-your-POS state.
-     An organization that sells through the register has one branch without a
-     till: the register itself. */
-  if (!token) {
-    if (register) return [{ ...REGISTER_BRANCH }];
-    throw new NotConnected();
-  }
-
-  /* The cached fetch already holds the roster, so a dashboard request that is
-     about to aggregate anyway doesn't pay for a second /stores call — which
-     matters because tills rate-limit and this is now read on every metrics
-     request to resolve the scope. */
-  const hit = cache.get(token.slice(0, 24));
-  if (hit) {
-    return hit.raw.allBranches.map((id) => ({
-      id,
-      name: hit.raw.storeNames[id] || "Unnamed branch",
-    }));
-  }
-
-  /* Wrapped like the metrics fetch is. This read moved ahead of `getMetrics`
-     when scope resolution did, and an unwrapped failure here reached the
-     endpoint as a generic 500 — which is precisely the "no sales" versus
-     "couldn't ask" confusion the provenance work exists to remove. */
-  const pos = provider();
-  let data;
-  try {
-    data = await call(pos.storesPath(), token);
-  } catch (err) {
-    console.error("POS branch list failed:", err.message);
-    throw new PosUnreachable(err.message);
-  }
-
-  return pos.storesOf(data).map((raw) => {
-    const store = pos.store(raw);
-    return { id: store.id, name: store.name || "Unnamed branch" };
-  });
+   The sale list shows what was rung up beside what it was changed to, so it
+   must not be handed something already corrected. */
+export async function rawReceipts({ days = 7, register = null, now = Date.now() } = {}) {
+  const since = now - days * DAY;
+  return (register || []).filter((r) => new Date(r.receipt_date).getTime() >= since);
 }
 
-/* The cached upstream read, shared by everything that needs receipts.
-
-   `getMetrics` and `salesLines` had this same block twice already; the sale
-   list would have made three. Three copies of a cache lookup is three places
-   for the eviction rule to differ. */
-async function cachedRaw(token, maxAge = CACHE_MS) {
-  const key = token.slice(0, 24);
-  const hit = cache.get(key);
-  if (hit && Date.now() - hit.at < maxAge) return { raw: hit.raw, fetched: false };
-
-  let raw;
-  try {
-    raw = await fetchRaw(token);
-  } catch (err) {
-    console.error("POS fetch failed:", err.message);
-    throw new PosUnreachable(err.message);
-  }
-  cache.set(key, { at: Date.now(), raw });
-  return { raw, fetched: true };
-}
-
-/* Receipts as the till returned them, newest window first, with no
-   aggregation and no corrections applied.
-
-   The sale list needs the untouched record — it shows what the till said
-   beside what it was changed to, so it must not be handed something already
-   corrected. Applying the overlay is the caller's job. */
-export async function rawReceipts(posToken, { days = 7, maxAge = CACHE_MS, register = null } = {}) {
-  const token = posToken || process.env.POS_ACCESS_TOKEN || process.env.LOYVERSE_ACCESS_TOKEN || "";
-  const { raw } = await salesRaw(token, register, maxAge);
-  const since = Date.now() - days * DAY;
-  return raw.receipts.filter((r) => new Date(r.receipt_date).getTime() >= since);
-}
-
-export async function getMetrics(posToken, { maxAge = CACHE_MS, overrides = {}, branches = null, edits = {}, register = null } = {}) {
-  const token = posToken || process.env.POS_ACCESS_TOKEN || process.env.LOYVERSE_ACCESS_TOKEN || "";
-  /* No POS linked yet and nothing sold through the register: refuse to invent
-     figures (`salesRaw` throws NotConnected). The interface turns this into the
-     connect-your-POS state rather than presenting sample numbers as if they
-     were the business's own. */
-
-  /* The cache holds the raw upstream read, not the finished payload. Two
-     requests with different branch scopes share one upstream call and are
-     aggregated separately — which is the point of splitting the two, since the
-     fetch is the expensive half and the scope changes per user. Overrides no
-     longer belong in the key for the same reason: they're applied during
-     aggregation, so entering a cost is reflected immediately without a
-     refetch. */
-  /* `fetched` says whether this call went upstream. The sync log records real
-     fetches only — the dashboard polls every thirty seconds and almost all of
-     those are cache hits, which are not events worth logging. */
-  const { raw, fetched } = await salesRaw(token, register, maxAge);
+export async function getMetrics({ overrides = {}, branches = null, edits = {}, register = null, names = {}, costs = null, timeZone, period = null, now = Date.now() } = {}) {
+  /* The usual figures are the last 30 days. `period` asks for a longer one as
+     well — `{ key, days }` — read over twice its length so it has a period
+     before it to compare with. */
+  const windowDays = period?.days ? Math.max(REGISTER_WINDOW_DAYS, period.days * 2 + 2) : REGISTER_WINDOW_DAYS;
+  const raw = salesRaw(register, names, now, windowDays);
 
   /* `branches` is already authorized and intersected by the caller. null means
      the whole organization. */
@@ -635,16 +279,36 @@ export async function getMetrics(posToken, { maxAge = CACHE_MS, overrides = {}, 
       ? null
       : branches;
 
-  /* Corrections are applied to the receipts before anything is counted, for
-     the same reason the branch filter is: a figure derived from an uncorrected
-     receipt and then adjusted afterwards can only ever be the headline total —
-     the item, daily and hourly series would still carry the sale the owner
-     said never happened. Applied here, one void reaches every number. */
-  const corrected = { ...raw, receipts: applyEdits(raw.receipts, edits) };
+  /* Corrections are applied to the receipts before anything is counted: a
+     figure derived from an uncorrected receipt and adjusted afterwards can
+     only ever be the headline total — the item, daily and hourly series would
+     still carry the sale the owner said never happened. */
+  const corrected = { ...raw, catalogue: costs || raw.catalogue, receipts: applyEdits(raw.receipts, edits) };
 
-  const shaped = finish(aggregate(corrected, { overrides, branches: scoped }));
+  const shaped = finish(aggregate(corrected, { overrides, branches: scoped, timeZone }));
+
+  let longer = null;
+  if (period?.days > 30) {
+    const long = aggregate(corrected, { overrides, branches: scoped, timeZone, periodDays: period.days });
+    const { bucket, series } = bucketSeries(long.daily, timeZone);
+    longer = {
+      key: period.key,
+      days: period.days,
+      from: long.daily[0]?.date || null,
+      bucket,
+      series,
+      totals: {
+        sales: long.totals.sales, receipts: long.totals.receipts, avgTicket: long.totals.avgTicket,
+        tax: long.totals.tax, salesExVat: long.totals.salesExVat,
+        salesDelta: long.totals.salesDelta, receiptsDelta: long.totals.receiptsDelta, avgTicketDelta: long.totals.avgTicketDelta,
+      },
+    };
+  }
   return {
     ...shaped,
+    connected: true,
+    source: "PureMargin",
+    period: longer,
     allBranches: raw.allBranches,
     /* Provenance inputs, passed through rather than recomputed downstream so
        there is exactly one account of where a figure came from. */
@@ -652,66 +316,54 @@ export async function getMetrics(posToken, { maxAge = CACHE_MS, overrides = {}, 
       at: raw.fetchedAt,
       since: raw.since,
       receiptCount: raw.receiptCount,
-      limitedHistory: raw.limitedHistory,
+      limitedHistory: false,
       historyDays: raw.historyDays,
-      wentUpstream: fetched,
+      wentUpstream: false,
       branchNames: raw.storeNames,
-      /* How many receipts the owner has corrected, so provenance can say the
-         figures are not purely the till's. */
       editCount: Object.keys(edits || {}).length,
-      // How many of the receipts were rung up on PureMargin's own register.
       registerCount: raw.registerCount || 0,
-      // How many item costs came from the owner rather than the POS.
       overrideCount: Object.keys(overrides).length,
     },
   };
 }
 
+/* One receipt's lines in the shape the variance engine reads. */
+function linesOf(r) {
+  return {
+    branchId: String(r.store_id || REGISTER_BRANCH.id),
+    at: new Date(r.receipt_date).getTime(),
+    lines: (r.line_items || []).map((li) => ({
+      name: li.item_name || "",
+      variant: li.variant_name || "",
+      scale: Number(li.variant_scale) > 0 ? Number(li.variant_scale) : 1,
+      qty: Number(li.quantity) || 0,
+      revenue: Number(li.total_money) || 0,
+    })),
+  };
+}
+
 /* Sold quantities per menu item, scoped and dated — the sales half of
-   theoretical consumption.
-
-   The variance engine needs what was actually sold, per branch, inside a period.
-   `aggregate` can't answer that: it keeps a thirty-day organization total, rounds
-   money and drops all but the top items, which is right for a dashboard and
-   useless for multiplying by a recipe. So this reads the same cached receipts and
-   returns line-level quantities untouched.
-
-   `branches` is the already-authorized, already-intersected list — a filter over
-   receipts, exactly as in `aggregate`, and never a list straight from a request.
-   Refunds and cancelled receipts are excluded: a refunded sale consumed no
-   ingredients. Owner corrections are applied for the same reason — a voided
-   sale consumed nothing either.
-
-   The provenance of the read travels with it, because a variance figure resting
-   on a stale or truncated sales history is a different claim from one that isn't. */
-export async function salesLines(posToken, { from, to = Date.now(), branches = null, maxAge = CACHE_MS, edits = {}, register = null } = {}) {
-  const token = posToken || process.env.POS_ACCESS_TOKEN || process.env.LOYVERSE_ACCESS_TOKEN || "";
-  const { raw } = await salesRaw(token, register, maxAge);
-
+   theoretical consumption. Refunds are excluded (a refunded sale consumed no
+   ingredients, see `_aggregate.js` on why the food still counts as cost) and
+   owner corrections applied (a voided sale consumed nothing either). */
+export async function salesLines({ from, to = Date.now(), branches = null, edits = {}, register = null, names = {} } = {}) {
+  const raw = registerOnlyRaw(register, to, names);
   const allowed = branches === null ? null : new Set(branches.map(String));
-  const pos = provider();
   const rows = new Map();
 
-  /* The same corrections the dashboard reads. Leaving them out here would let
-     a voided sale keep drawing theoretical stock: the leakage screen would
-     expect ingredients to have left the shelf for a meal the owner has already
-     said was never served, and report the difference as unexplained — which is
-     precisely the reading that sends somebody looking for a thief. */
   for (const r of applyEdits(raw.receipts, edits)) {
     if (r.receipt_type === "REFUND" || r.cancelled_at) continue;
-    const receipt = pos.receipt(r);
-    const branchId = receipt.branchId;
-    if (allowed && !allowed.has(branchId)) continue;
-    const at = receipt.at;
-    if (from && at < from) continue;
-    if (to && at > to) continue;
-
+    const receipt = linesOf(r);
+    if (allowed && !allowed.has(receipt.branchId)) continue;
+    if (from && receipt.at < from) continue;
+    if (to && receipt.at > to) continue;
     for (const li of receipt.lines) {
       const name = li.name || "Unnamed item";
-      const variant = li.variant;
-      const mapKey = `${branchId}||${name}||${variant}`;
-      const row = rows.get(mapKey) || { branchId, name, variant, qty: 0, revenue: 0, lines: 0 };
+      const mapKey = `${receipt.branchId}||${name}||${li.variant}`;
+      const row = rows.get(mapKey) || { branchId: receipt.branchId, name, variant: li.variant, qty: 0, drawQty: 0, revenue: 0, lines: 0 };
       row.qty += li.qty;
+      /* Portions of the plain recipe, for a variant drawn at a scale. */
+      row.drawQty += li.qty * li.scale;
       row.revenue += li.revenue;
       row.lines += 1;
       rows.set(mapKey, row);
@@ -720,44 +372,29 @@ export async function salesLines(posToken, { from, to = Date.now(), branches = n
 
   return {
     lines: [...rows.values()],
-    /* What the sales side of any variance below actually rests on. */
-    fetch: {
-      at: raw.fetchedAt,
-      since: raw.since,
-      receiptCount: raw.receiptCount,
-      /* True when the POS wouldn't give us the whole window asked for, which
-         understates theoretical usage and must never be silently absorbed. */
-      limitedHistory: raw.limitedHistory,
-      historyDays: raw.historyDays,
-    },
+    fetch: { at: raw.fetchedAt, since: raw.since, receiptCount: raw.receiptCount, limitedHistory: false, historyDays: raw.historyDays },
   };
-}
-
-/* Seconds since these figures were actually fetched, so the interface can
-   say "updated 12 seconds ago" rather than implying they're instantaneous. */
-export function cacheAge(posToken) {
-  const token = posToken || process.env.POS_ACCESS_TOKEN || process.env.LOYVERSE_ACCESS_TOKEN || "";
-  if (!token) return null;
-  const key = token.slice(0, 24);
-  const hit = cache.get(key);
-  return hit ? Math.round((Date.now() - hit.at) / 1000) : null;
 }
 
 /* A compact text version of the same numbers, for the model to reason over. */
 export function toContext(m) {
   const money = (n) => `${m.currency} ${Math.round(n).toLocaleString("en-AE")}`;
+  /* No earlier sales means no comparison, and the model must not be handed a
+     number to quote as one. */
+  const change = (d) => (d === null || d === undefined ? "no earlier sales to compare with" : `${d >= 0 ? "+" : ""}${d}% vs the 30 days before`);
   const busiest = [...m.hours].sort((a, b) => b.receipts - a.receipts).slice(0, 3);
   const quietest = [...m.hours].filter((h) => h.receipts > 0).sort((a, b) => a.receipts - b.receipts).slice(0, 3);
 
   return `SOURCE: ${m.source}${m.connected ? "" : " — tell the user these are sample figures if they ask about accuracy"}
 PERIOD: last 30 days, compared with the 30 days before.
 
-Total sales ${money(m.totals.sales)} (${m.totals.salesDelta >= 0 ? "+" : ""}${m.totals.salesDelta}%).
-Cost of goods ${money(m.totals.cost || 0)}. GROSS PROFIT ${money(m.totals.grossProfit || 0)}, a gross margin of ${m.totals.marginPct ?? 0}%.
+Total sales ${money(m.totals.sales)} (${change(m.totals.salesDelta)}).
+Of that, VAT collected ${money(m.totals.tax || 0)}; sales without VAT ${money(m.totals.salesExVat ?? m.totals.sales)} — profit is worked on this.
+Cost of goods ${money(m.totals.cost || 0)}. GROSS PROFIT ${money(m.totals.grossProfit || 0)}, a gross margin of ${m.totals.marginPct ?? 0}% (${m.totals.costedMarginPct ?? "unknown"}% on the dishes whose cost is known).
 Discounts given ${money(m.totals.discounts || 0)}.
 Cost data covers ${m.costCoverage ?? 0}% of turnover.
-Orders ${m.totals.receipts.toLocaleString()} (${m.totals.receiptsDelta >= 0 ? "+" : ""}${m.totals.receiptsDelta}%).
-Average ticket ${money(m.totals.avgTicket)} (${m.totals.avgTicketDelta >= 0 ? "+" : ""}${m.totals.avgTicketDelta}%).
+Orders ${m.totals.receipts.toLocaleString()} (${change(m.totals.receiptsDelta)}).
+Average ticket ${money(m.totals.avgTicket)} (${change(m.totals.avgTicketDelta)}).
 
 BRANCHES: ${m.stores.map((s) => `${s.name} — ${money(s.sales)}, ${s.receipts} orders`).join("; ")}.
 
