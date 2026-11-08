@@ -14,8 +14,9 @@
    top bar, with the number of sales waiting to be sent. */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ShoppingCart, ClipboardList, Receipt, Wallet, Users, Settings, LogOut, Lock, WifiOff, CloudUpload, MoreHorizontal, Printer, Check, ArrowLeftRight, KeyRound } from "lucide-react";
+import { ShoppingCart, ClipboardList, Receipt, Wallet, Users, Settings, LogOut, Lock, WifiOff, CloudUpload, MoreHorizontal, Printer, Check, ArrowLeftRight, KeyRound, Mail } from "lucide-react";
 import { LockDeviceSheet, UnlockSheet } from "./DeviceLock.jsx";
+import EmailReceipt from "./EmailReceipt.jsx";
 import { useC } from "../theme.jsx";
 import { useLang, fill, localeFor } from "../i18n.jsx";
 import BrandMark from "../BrandMark.jsx";
@@ -351,7 +352,7 @@ export default function RegisterApp({ token, user, business: businessProp, onExi
       )}
 
       {deviceSheets}
-      {done && <Done sold={done} P={P} printCtx={printCtx} customers={customers} onClose={() => setDone(null)} />}
+      {done && <Done token={token} sold={done} P={P} printCtx={printCtx} customers={customers} onClose={() => setDone(null)} />}
       {pricing && <PriceSheet token={token} item={pricing} P={P} onClose={() => setPricing(null)} onSaved={() => { setPricing(null); load(); }} />}
 
       {notice && (
@@ -369,9 +370,11 @@ function Frame({ children }) {
 }
 
 /* After the sale: the change to hand back, and the receipt. */
-function Done({ sold, P, printCtx, customers, onClose }) {
+function Done({ token, sold, P, printCtx, customers, onClose }) {
   const C = useC();
   const [printing, setPrinting] = useState(false);
+  const [emailing, setEmailing] = useState(false);
+  const customer = customers.find((c) => c.id === sold.receipt.customer_id);
   const r = sold.receipt;
   const change = (r.payments || []).reduce((s, p) => s + Number(p.change || 0), 0);
   const reprint = async () => {
@@ -381,7 +384,13 @@ function Done({ sold, P, printCtx, customers, onClose }) {
   };
   return (
     <Sheet title={P.done.title} onClose={onClose}
-      footer={<div className="flex gap-2"><Btn kind="ghost" onClick={reprint} disabled={printing || !loadPrinters().some((p) => p.role === "receipt")}><Printer size={16} />{P.done.print}</Btn><Btn full size="lg" onClick={onClose}>{P.done.newSale}</Btn></div>}>
+      footer={<div className="flex gap-2">
+        <Btn kind="ghost" onClick={reprint} disabled={printing || !loadPrinters().some((p) => p.role === "receipt")}><Printer size={16} />{P.done.print}</Btn>
+        {/* A sale made offline has no receipt on the server to send yet. */}
+        <Btn kind="ghost" onClick={() => setEmailing(true)} disabled={sold.offline}><Mail size={16} />{P.email.action}</Btn>
+        <Btn full size="lg" onClick={onClose}>{P.done.newSale}</Btn>
+      </div>}>
+      {emailing && <EmailReceipt token={token} number={r.receipt_number} initial={customer?.email || ""} onClose={() => setEmailing(false)} />}
       <div className="text-center py-4">
         <div className="w-16 h-16 rounded-full mx-auto mb-3 flex items-center justify-center" style={{ background: "rgba(52,211,153,0.15)", color: C.mint }}><Check size={30} /></div>
         {change > 0 ? (

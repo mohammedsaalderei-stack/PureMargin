@@ -6,7 +6,8 @@
    server says how many are left of a line partly refunded. */
 
 import { useCallback, useEffect, useState } from "react";
-import { Receipt, Search, Printer, Undo2, Minus, Plus, ChevronLeft } from "lucide-react";
+import { Receipt, Search, Printer, Undo2, Minus, Plus, ChevronLeft, Mail } from "lucide-react";
+import EmailReceipt from "./EmailReceipt.jsx";
 import { useC } from "../theme.jsx";
 import { useLang, fill } from "../i18n.jsx";
 import { Btn, Sheet, Row, Empty, Field, money } from "./ui.jsx";
@@ -88,6 +89,7 @@ function ReceiptDetail({ token, number, catalogue, can, printCtx, customers, onC
   const { t } = useLang();
   const P = t.pos;
   const [data, setData] = useState(null);
+  const [emailing, setEmailing] = useState(false);
   const [refunding, setRefunding] = useState(false);
   const [printing, setPrinting] = useState(false);
 
@@ -100,6 +102,7 @@ function ReceiptDetail({ token, number, catalogue, can, printCtx, customers, onC
   const refundable = r.receipt_type === "SALE" && (r.line_items || []).some((li, i) => li.quantity > (data.refunded.lines[i] || 0));
 
   if (refunding) return <Refund token={token} receipt={r} refunded={data.refunded.lines} catalogue={catalogue} P={P} onCancel={() => setRefunding(false)} onDone={onRefunded} printCtx={printCtx} />;
+  if (emailing) return <EmailReceipt token={token} number={r.receipt_number} initial={customer?.email || ""} onClose={() => setEmailing(false)} />;
 
   return (
     <Sheet title={r.receipt_type === "REFUND" ? P.receipts.refundReceipt : P.receipts.receipt} onClose={onClose}
@@ -109,6 +112,7 @@ function ReceiptDetail({ token, number, catalogue, can, printCtx, customers, onC
             onClick={async () => { setPrinting(true); await printReceipt(r, { ...printCtx, customer }, { copy: true }).catch(() => {}); setPrinting(false); }}>
             <Printer size={16} />{P.receipts.reprint}
           </Btn>
+          <Btn kind="ghost" onClick={() => setEmailing(true)}><Mail size={16} />{P.email.action}</Btn>
           {refundable && can.refund && <Btn full kind="danger" onClick={() => setRefunding(true)}><Undo2 size={16} />{P.receipts.refund}</Btn>}
         </div>
       }>

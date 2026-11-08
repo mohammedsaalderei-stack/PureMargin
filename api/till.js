@@ -20,12 +20,14 @@
    cashier's PIN on the owner's device is a cashier.
 
    GET  ?what=catalogue | day | receipts | receipt | tickets | customers | shift | shifts | pins | stockitems
-   POST ?what=sale | refund | pin | shift-open | shift-move | shift-close
+   POST ?what=sale | refund | pin | shift-open | shift-move | shift-close | email | device
    PUT  ?what=ticket | customer | addons | variants | price | vat | settings | product | item | pins
    DELETE ?what=ticket | product | pins
 */
 
 import { requireAuth, issueDeviceToken } from "./_auth.js";
+import { sendMail, configured as mailConfigured } from "./_mail.js";
+import { receiptMail, receiptLanguages, allowSend, validEmail } from "./_receiptmail.js";
 import { scopeFor, effectiveBranches, parseBranchParam } from "./_org.js";
 import { getMeta, listIngredients } from "./_inventory.js";
 import { UNIT_KEYS, dimensionOf } from "./_units.js";
@@ -233,6 +235,32 @@ export default async function handler(req, res) {
       if (!can("manage:staff")) return res.status(403).json({ error: "forbidden" });
       const [pins, employees] = await Promise.all([listPins(orgId), listEmployees(orgId)]);
       return res.status(200).json({ pins, employees: employees.map((e) => ({ id: e.id, name: e.name, title: e.title || "" })) });
+    }
+
+    /* ── A receipt, emailed to the customer ──
+
+       Any receipt from a store the caller may use, to one address at a time,
+       a few times per receipt and so many a day per business
+       (`allowSend`). The words are the server's own (`_receiptmail.js`);
+       nothing in the request reaches the message but the address. */
+    if (req.method === "POST" && what === "email") {
+      const to = String(body.email || "").trim();
+      if (!validEmail(to)) return res.status(400).json({ error: "email" });
+      if (!mailConfigured) return res.status(503).json({ error: "mailoff" });
+      const receipt = await findReceipt(orgId, String(body.number || ""));
+      if (!receipt || !oneBranch(receipt.store_id)) return res.status(404).json({ error: "receipt" });
+      const allowed = await allowSend(orgId, receipt.receipt_number, now);
+      if (allowed.error) return res.status(429).json(allowed);
+      const settings = await getSettings(orgId);
+      const mail = receiptMail(receipt, {
+        business: scope.org?.name || settings.receipt?.business || "",
+        store: storeById[String(receipt.store_id)] || {},
+        receiptSettings: settings.receipt || {},
+        lang: receiptLanguages.includes(body.lang) ? body.lang : "en",
+      });
+      const sent = await sendMail({ to, ...mail });
+      if (sent.error) return res.status(502).json({ error: "send" });
+      return res.status(200).json({ sent: true });
     }
 
     /* ── Handing a device to staff ──

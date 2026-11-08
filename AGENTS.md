@@ -189,6 +189,19 @@ they override the defaults).
   depletion was refused 403. Fixed.
 - Tests: `api/_variants.test.js`.
 
+## Emailed receipts
+- `POST /api/till?what=email { number, email, lang }` → `_receiptmail.js`
+  `receiptMail()` → `sendMail`. The shop's name heads it; the selling store's
+  address/phone/TRN win over the business's; a TRN makes it a tax invoice.
+- **All wording is server-side** (`LABELS`, five languages). Only the address
+  comes from the request — client-supplied labels would make this a way to send
+  arbitrary text from our sender to any address. Everything is `esc()`'d.
+- Limits in `allowSend`: 3 per receipt, 500 per business per day. 503
+  `mailoff` when `RESEND_API_KEY` is unset (the local test server has none).
+- Buttons: the paid sheet (disabled for an offline sale — nothing on the server
+  to send yet) and the receipt detail. Prefilled from the customer's email.
+- Tests: `api/_receiptmail.test.js`.
+
 ## Multi-branch authorization (stage 1 of the product direction)
 - `api/_org.js` — organizations, roles, membership, scope resolution. Every
   account owns an organization from registration (`orgFor` backfills accounts
