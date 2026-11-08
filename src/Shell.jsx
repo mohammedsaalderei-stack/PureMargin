@@ -18,7 +18,6 @@ import Watch from "./screens/Watch.jsx";
 import Menu from "./screens/Menu.jsx";
 import Advice from "./screens/Advice.jsx";
 import Overview from "./screens/Overview.jsx";
-import Greeting from "./Greeting.jsx";
 import ChatSidebar from "./ChatSidebar.jsx";
 import Forecast from "./screens/Forecast.jsx";
 import Settings from "./screens/Settings.jsx";
@@ -31,7 +30,7 @@ import Alerts from "./screens/Alerts.jsx";
 import Plan from "./screens/Plan.jsx";
 import Costs from "./screens/Costs.jsx";
 import Sales from "./screens/Sales.jsx";
-import Till from "./screens/Till.jsx";
+import RegisterApp from "./register/RegisterApp.jsx";
 import Employees from "./screens/Employees.jsx";
 import BranchScope from "./BranchScope.jsx";
 import BusinessTypePicker from "./BusinessTypePicker.jsx";
@@ -41,7 +40,8 @@ import ThemeToggle from "./ThemeToggle.jsx";
 import Skeleton from "./Skeleton.jsx";
 import { ConnectDialog, EmptyTable } from "./Connect.jsx";
 import LiveDot from "./LiveDot.jsx";
-import MobileShell from "./MobileShell.jsx";
+import { PortalSwitcher, SectionTabs, BottomBar, MoreSheet, AccountMenu } from "./AppChrome.jsx";
+import { layoutFor, portalOf, landingOf, ACCOUNT } from "./nav.js";
 import NotificationBell from "./NotificationBell.jsx";
 import { depleteFromSales } from "./depletion.js";
 import Plans, { Locked } from "./screens/Plans.jsx";
@@ -314,6 +314,8 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
 
   const [branches, setBranches] = useState([]);
   const mainRef = useRef(null);
+  /* The screen last open in each portal; see the portals section below. */
+  const lastIn = useRef({});
 
   const [conversations, setConversations] = useState(() => listConversations(user));
   const [activeId, setActiveId] = useState(null);
@@ -461,7 +463,9 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
         && !json.pos?.connected
         && !json.account.posConnected
         && !json.serverToken;
-      if (shouldPrompt && (justRegistered || !skipped)) setConnectOpen(true);
+      /* No longer opened on its own. The register is the till; connecting
+         another POS is an option in Settings, not a gate on the way in. */
+      void shouldPrompt;
     } catch { /* */ }
   }
 
@@ -581,7 +585,6 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
      no scanner to hand a document to; documents route to Inventory or Recipes. */
   else if (tab === "costs") { body = <Costs token={token} />; }
   else if (tab === "sales") { body = <Sales token={token} branches={branches} />; }
-  else if (tab === "till") { body = <Till token={token} />; }
   else if (tab === "inventory") { body = <Inventory token={token} pendingDoc={pendingDoc} onDocUsed={() => setPendingDoc(null)} />; }
   else if (tab === "recipes") { body = <Recipes token={token} pendingDoc={pendingDoc} onDocUsed={() => setPendingDoc(null)} />; }
   else if (tab === "variance") { body = <Variance token={token} branches={branches} />; }
@@ -599,7 +602,7 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
       }}
       messages={messages} onMessagesChange={updateMessages} data={unconnectedAccount ? null : data}
       noticedLine={unconnectedAccount ? "" : noticedLine} branches={branches} />;
-  } else if (unconnectedAccount) { body = <EmptyTable onConnect={() => setConnectOpen(true)} />; }
+  } else if (unconnectedAccount) { body = <EmptyTable onOpenRegister={() => go("till")} onConnect={() => setConnectOpen(true)} />; }
   else if (!data && error) {
     body = (
       <div className="h-full flex items-center justify-center p-8">
@@ -680,195 +683,136 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
     );
   }
 
+  /* ---------------- Portals ----------------
+
+     Which portal is open follows the screen, and each portal remembers the
+     screen last used in it, so going to the Kitchen and back to Business
+     returns to Sales rather than to the top of Business. */
+  const layout = layoutFor(allowedIds);
+  const portalId = portalOf(tab) || layout[0]?.id || "business";
+  const portal = layout.find((p) => p.id === portalId) || null;
+  if (portalId !== "register") lastIn.current[portalId] = tab;
+  if (portalId !== "register") lastIn.current.backOffice = tab;
+  const pickPortal = (id) => {
+    if (id === "register") return go("till");
+    go(lastIn.current[id] && layout.find((p) => p.id === id)?.primary.concat(layout.find((p) => p.id === id)?.more || []).includes(lastIn.current[id])
+      ? lastIn.current[id]
+      : landingOf(layout, id) || firstAllowed);
+  };
+  const isLocked = (id) => !entitlements(account).has(SCREEN_FEATURE[id]);
+  const accountTabs = ACCOUNT.filter((id) => allowed(id));
+
+  /* The register is its own app: full screen, its own controls, and a way
+     back to wherever the back office was left. */
+  if (tab === "till") {
+    return (
+      <>
+        <RegisterApp token={token} user={user} business={account?.account?.business || scope?.organization?.name || ""}
+          onExit={() => go(lastIn.current.backOffice && lastIn.current.backOffice !== "till" ? lastIn.current.backOffice : firstAllowed === "till" ? "settings" : firstAllowed)}
+          onLogout={onLogout} portals={layout} onPortal={pickPortal} />
+        {connectEl}
+      </>
+    );
+  }
+
+  const exportButton = data && !unconnectedAccount && can("export") && (
+    <div className="relative">
+      <button onClick={() => setExportOpen((v) => !v)}
+        className="flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-semibold"
+        style={{ background: "var(--chip-bg)", color: C.ink }}>
+        <Download size={14} />{t.export.title}<ChevronDown size={12} style={{ color: C.slate }} />
+      </button>
+      {exportOpen && <ExportMenu data={data} screen={tab} dateRange={dateRange}
+        business={account?.account?.business} onClose={() => setExportOpen(false)} />}
+    </div>
+  );
+
   /* ---------------- Desktop ---------------- */
   if (desktop) {
     return (
-      <div className="h-screen flex" style={{ flexDirection: rtl ? "row-reverse" : "row" }}>
+      <div className="h-screen flex flex-col">
         <AmbientBackground />
-        <main className="flex-1 min-w-0 overflow-hidden relative z-10">{content}</main>
-
-        {tab === "ask" && chatsOpen && (
-          <div className="w-64 shrink-0 overflow-hidden relative z-10" style={{ borderLeft: `1px solid ${C.hairline}` }}>
-            <ChatSidebar conversations={conversations} activeId={activeId}
-              onSelect={openConversation} onNew={startNewChat} onDelete={removeConversation} online={Boolean(data)} />
-          </div>
-        )}
-
-        <aside className="w-60 shrink-0 flex flex-col p-4 rail-in relative z-10"
-          style={{ background: "var(--panel-glass)", backdropFilter: "blur(20px)", borderLeft: `1px solid ${C.hairline}` }}>
-          <div className="mb-5 px-1">{logo}</div>
-          <div className="mb-5 px-1"><Greeting user={user} business={account?.account?.business} /></div>
-
-          <nav className="flex flex-col gap-1 relative flex-1">
-            {navTabs.map(({ id, icon: Icon }) => {
-              const on = tab === id;
-              return (
-                <button key={id} onClick={() => go(id)}
-                  className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all relative"
-                  style={{
-                    background: on ? "linear-gradient(135deg, rgba(139,92,246,0.18) 0%, rgba(6,182,212,0.08) 100%)" : "transparent",
-                    color: on ? C.ink : C.slate,
-                    boxShadow: on ? "inset 0 0 0 1px rgba(139,92,246,0.2)" : "none",
-                  }}>
-                  <Icon size={17} />
-                  <span className="flex-1 text-start">{t[id]?.tab || id}</span>
-                  {!entitlements(account).has(SCREEN_FEATURE[id]) && <Lock size={12} style={{ color: C.slate }} />}
-                </button>
-              );
-            })}
-          </nav>
-
-          <div className="mt-auto px-1 space-y-3 pt-3">
-            {tab === "ask" && (
-              <button onClick={() => setChatsOpen((v) => !v)}
-                className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold"
-                style={{ border: `1px solid ${C.hairline}`, color: C.slate }}>
-                {chatsOpen ? <PanelRightClose size={13} /> : <PanelRightOpen size={13} />}
-                <span className="flex-1 text-start">{t.chats.title}</span>
-                <span className="data text-[10px]" dir="ltr">{conversations.length}</span>
-              </button>
-            )}
-            <button onClick={() => setPalette(true)}
-              className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs"
-              style={{ border: `1px solid ${C.hairline}`, color: C.slate }}>
-              <Search size={13} /><span className="flex-1 text-start">{t.palette.open}</span>
-              <kbd className="data text-[10px] px-1.5 py-0.5 rounded" style={{ background: "var(--chip-bg)" }} dir="ltr">⌘K</kbd>
-            </button>
-
+        <header className="shrink-0 relative z-20" style={{ background: "var(--panel-glass)", backdropFilter: "blur(20px)" }}>
+          <div className="h-16 flex items-center gap-5 px-6">
+            {logo}
+            <PortalSwitcher layout={layout} current={portalId} onPick={pickPortal} compact />
+            <div className="flex-1" />
             {scopePicker}
-
-            {/* Export.
-
-                The `export` capability has existed since the roles were
-                written and nothing ever checked it. A cashier could take the
-                whole dashboard away as a PDF — every figure their role is
-                barred from seeing on screen, in a file, off the premises. The
-                nav gating was doing real work and this button quietly went
-                round it.
-
-                Gated on the capability rather than on a role list, so it
-                follows the same rule as everything else and an owner granting
-                a tab does not accidentally grant the ability to export it. */}
-            {data && !unconnectedAccount && can("export") && (
-              <div className="relative">
-                <button onClick={() => setExportOpen((v) => !v)}
-                  className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold"
-                  style={{ background: "linear-gradient(135deg, rgba(139,92,246,0.12), rgba(6,182,212,0.06))", border: "1px solid rgba(139,92,246,0.2)", color: C.ink }}>
-                  <Download size={14} /><span className="flex-1 text-start">{t.export.title}</span>
-                  <ChevronDown size={12} style={{ color: C.slate }} />
-                </button>
-                {exportOpen && <ExportMenu data={data} screen={tab} dateRange={dateRange}
-                  business={account?.account?.business} onClose={() => setExportOpen(false)} />}
-              </div>
-            )}
-
-            <div className="flex items-center gap-2">
-              <LanguagePicker /><ThemeToggle compact />
-              <NotificationBell data={data} staff={staff} capabilities={scope?.capabilities} onAsk={(q) => { startNewChat(); setPending(q); go("ask"); }} />
-            </div>
-            <div className="flex items-center justify-between gap-2 pt-3" style={{ borderTop: `1px solid ${C.hairline}` }}>
-              <span className="text-xs truncate" style={{ color: C.slate }}>
-                {t.settings.signedInAs} <span className="font-medium">{user || "—"}</span>
-              </span>
-              <button onClick={onLogout} className="shrink-0 p-1.5 rounded-lg" style={{ color: C.rose }}
-                aria-label={t.common.signOut} title={t.common.signOut}>
-                <LogOut size={15} className="flip-rtl" />
+            {liveDot}
+            <button onClick={() => setPalette(true)} className="flex items-center gap-2 px-3 py-2 rounded-full text-xs"
+              style={{ background: "var(--chip-bg)", color: C.slate }}>
+              <Search size={13} /><span>{t.palette.open}</span>
+              <kbd className="data text-[10px] px-1.5 rounded" dir="ltr">⌘K</kbd>
+            </button>
+            {exportButton}
+            <NotificationBell data={data} staff={staff} capabilities={scope?.capabilities} onAsk={(q) => { startNewChat(); setPending(q); go("ask"); }} />
+            <AccountMenu user={user} business={account?.account?.business} onGo={go} onLogout={onLogout} items={accountTabs} locked={isLocked} />
+          </div>
+          <SectionTabs portal={portal} tab={tab} onGo={go} locked={isLocked} />
+        </header>
+        <div className="flex-1 min-h-0 flex relative z-10" style={{ flexDirection: rtl ? "row-reverse" : "row" }}>
+          <main className="flex-1 min-w-0 overflow-hidden relative">{content}</main>
+          {tab === "ask" && (
+            <div className="shrink-0 overflow-hidden" style={{ width: chatsOpen ? 256 : 44, borderInlineStart: `1px solid ${C.hairline}` }}>
+              {chatsOpen ? (
+                <ChatSidebar conversations={conversations} activeId={activeId}
+                  onSelect={openConversation} onNew={startNewChat} onDelete={removeConversation} online={Boolean(data)} />
+              ) : null}
+              <button onClick={() => setChatsOpen((v) => !v)} className="absolute bottom-4 p-2 rounded-full"
+                style={{ insetInlineEnd: 8, background: "var(--chip-bg)", color: C.slate }} aria-label={t.chats.title}>
+                {chatsOpen ? <PanelRightClose size={15} /> : <PanelRightOpen size={15} />}
               </button>
             </div>
-          </div>
-        </aside>
+          )}
+        </div>
         {paletteEl}{connectEl}
       </div>
     );
   }
 
-  /* ---------------- Mobile ---------------- */
-  const mobileSheet = mobileMenu && (
-    <div className="absolute inset-0 z-40" style={{ background: C.scrim }} onClick={() => setMobileMenu(false)}
-      role="presentation">
-      {/* A drawer off the trailing edge rather than a lid over a bottom bar.
-
-          `inset-inline-end` is the whole reason this needs no second layout for
-          Arabic: it resolves to the right in a left-to-right page and the left
-          in a right-to-left one, which is the same edge in both — the one the
-          thumb holding the phone reaches. A hardcoded `right-0` would have put
-          the Arabic drawer under the user's palm. */}
-      <div className="absolute inset-y-0 w-[82%] max-w-[330px] overflow-y-auto p-4 space-y-4 drawer-in"
-        style={{ insetInlineEnd: 0, background: "var(--panel-solid)", backdropFilter: "blur(20px)",
-          borderInlineStart: `1px solid ${C.hairline}`,
-          paddingTop: "calc(var(--safe-top) + 16px)",
-          paddingBottom: "calc(env(safe-area-inset-bottom) + 16px)" }}
-        onClick={(e) => e.stopPropagation()}
-        role="menu" aria-label={t.nav.menu}>
-        <Greeting user={user} business={account?.account?.business} />
-        {scopePicker}
-        {/* Every tab, in nav order, with no second tier. The bottom bar's
-            hand-written list of five had already gone stale once — Bill scan,
-            a cashier's whole shift, was in neither list and unreachable on a
-            phone. One list that comes from the nav cannot drift from it. */}
-        <div className="flex flex-col gap-1" role="none">
-          {navTabs.map(({ id }) => {
-            const Icon = TAB_ICONS[id]; const on = tab === id;
-            const locked = !entitlements(account).has(SCREEN_FEATURE[id]);
-            return (
-              <button key={id} onClick={() => go(id)} role="menuitem"
-                className="w-full flex items-center gap-3 px-3 py-3 rounded-xl text-start"
-                style={{
-                  minHeight: 48,
-                  color: on ? C.iris : C.ink,
-                  background: on ? C.irisWash : "transparent",
-                }}
-                aria-current={on ? "page" : undefined}>
-                <Icon size={19} strokeWidth={on ? 2.3 : 1.8} className="shrink-0" />
-                <span className="text-sm font-medium truncate-safe flex-1">{t[id].tab}</span>
-                {locked && <Lock size={12} style={{ color: C.slate }} className="shrink-0" />}
-              </button>
-            );
-          })}
-        </div>
-        {/* Export on mobile.
-
-            A second copy of the same control, and the reason gating the
-            sidebar was not enough: the desktop button was hidden and these two
-            were not, so a cashier on a phone could still take the dashboard
-            away. Two buttons doing one job in two places is how half a fix
-            ships and looks whole. */}
-        {data && !unconnectedAccount && can("export") && (
-          <div className="flex gap-2">
-            <button onClick={() => { exportPDF(tab, data, dateRange, account?.account?.business); setMobileMenu(false); }}
-              className="flex-1 gpill gpill-primary py-2.5 text-sm font-semibold flex items-center justify-center gap-2">
-              <FileText size={15} /> PDF
-            </button>
-            <button onClick={() => { exportCSV(tab, data, dateRange, account?.account?.business); setMobileMenu(false); }}
-              className="flex-1 gpill gpill-ghost py-2.5 text-sm font-semibold flex items-center justify-center gap-2">
-              <Table size={15} /> CSV
-            </button>
-          </div>
-        )}
-        <div className="flex items-center justify-between gap-3">
-          <span className="micro" style={{ color: C.slate }}>{t.settings.language}</span><LanguagePicker />
-        </div>
-        <div><div className="micro mb-2" style={{ color: C.slate }}>{t.theme.label}</div><ThemeToggle /></div>
-        <button onClick={onLogout} className="w-full inline-flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold"
-          style={{ border: `1px solid ${C.hairline}`, color: C.rose }}>
-          <LogOut size={15} className="flip-rtl" /> {t.common.signOut}
-        </button>
-      </div>
+  /* ---------------- Phone ---------------- */
+  const mobileExport = data && !unconnectedAccount && can("export") && (
+    <div className="mx-4 mb-3 flex gap-2">
+      <button onClick={() => { exportPDF(tab, data, dateRange, account?.account?.business); setMobileMenu(false); }}
+        className="flex-1 gpill gpill-primary py-2.5 text-sm font-semibold flex items-center justify-center gap-2">
+        <FileText size={15} /> PDF
+      </button>
+      <button onClick={() => { exportCSV(tab, data, dateRange, account?.account?.business); setMobileMenu(false); }}
+        className="flex-1 gpill gpill-ghost py-2.5 text-sm font-semibold flex items-center justify-center gap-2">
+        <Table size={15} /> CSV
+      </button>
     </div>
   );
 
   return (
-    <MobileShell tab={tab} go={go} tabIcons={TAB_ICONS} labelFor={labelFor} liveDot={liveDot}
-      onOpenChats={() => setChatsOpen(true)} onOpenMenu={() => setMobileMenu((v) => !v)} menuOpen={mobileMenu} sheet={mobileSheet}
-      bell={<NotificationBell data={data} staff={staff} capabilities={scope?.capabilities} onAsk={(q) => { startNewChat(); setPending(q); go("ask"); }} />}
-      /* Shown once there is somewhere to go back to. The landing tab is
-         whatever this person's role opens on, so back from there would leave
-         the app — which is the browser's job, not a button in our header. */
-      canGoBack={tab !== firstAllowed}
-      onBack={() => window.history.back()}>
-      <AmbientBackground />
-      <div className="relative z-10 h-full">{content}</div>
-      {!desktop && chatsOpen && tab === "ask" && (
+    <div className="h-screen flex flex-col relative overflow-hidden" style={{ background: C.bone }}>
+      <header className="shrink-0 z-20" style={{ background: "var(--panel-glass)", backdropFilter: "blur(20px)", paddingTop: "var(--safe-top)" }}>
+        <div className="h-12 flex items-center justify-between px-3 gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <BrandMark size={28} />
+            <span className="display font-bold text-base truncate-safe">{t[tab]?.tab || t.name}</span>
+          </div>
+          <div className="flex items-center gap-1 shrink-0">
+            {liveDot}
+            <NotificationBell data={data} staff={staff} capabilities={scope?.capabilities} onAsk={(q) => { startNewChat(); setPending(q); go("ask"); }} />
+            {tab === "ask" && (
+              <button onClick={() => setChatsOpen(true)} className="p-2.5 rounded-full" style={{ color: C.slate }} aria-label={t.chats.title}>
+                <MessageSquare size={19} />
+              </button>
+            )}
+          </div>
+        </div>
+        <PortalSwitcher layout={layout} current={portalId} onPick={pickPortal} />
+        {scopePicker && <div className="px-3 pb-2">{scopePicker}</div>}
+      </header>
+      <main className="flex-1 min-h-0 overflow-hidden relative">
+        <AmbientBackground />
+        <div className="relative z-10 h-full">{content}</div>
+      </main>
+      <BottomBar portal={portal} tab={tab} onGo={go} icons={TAB_ICONS} onMore={() => setMobileMenu((v) => !v)} moreOpen={mobileMenu} />
+      <MoreSheet open={mobileMenu} onClose={() => setMobileMenu(false)} portal={portal} tab={tab} onGo={go} icons={TAB_ICONS}
+        locked={isLocked} account={accountTabs} extra={mobileExport} onLogout={onLogout} user={user} />
+      {chatsOpen && tab === "ask" && (
         <div className="fixed inset-0 z-50 flex" style={{ background: C.scrim, flexDirection: rtl ? "row-reverse" : "row" }}
           onClick={() => setChatsOpen(false)}>
           <div className="flex-1" />
@@ -880,6 +824,6 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
         </div>
       )}
       {paletteEl}{connectEl}
-    </MobileShell>
+    </div>
   );
 }

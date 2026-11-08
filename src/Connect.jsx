@@ -122,9 +122,16 @@ export function ConnectDialog({ open, onClose, onConnected, token, dismissible =
 
 /* What sits behind the dialog on a brand-new account: an honestly empty
    table rather than a dashboard full of numbers that aren't theirs. */
-export function EmptyTable({ onConnect }) {
+/* A business with no sales yet.
+
+   This used to say "connect your POS", as if the app could not work without
+   somebody else's till. It can: the register is a till. So the first thing
+   offered is to start selling, and connecting another POS stays available
+   underneath for a business that already has one and wants its history. */
+export function EmptyTable({ onOpenRegister, onConnect }) {
   const C = useC();
   const { t } = useLang();
+  const E = t.pos.empty;
   return (
     <div className="h-full flex items-center justify-center p-8">
       <div className="max-w-sm text-center">
@@ -134,15 +141,20 @@ export function EmptyTable({ onConnect }) {
         >
           <Table2 size={24} style={{ color: C.iris }} />
         </div>
-        <h3 className="display font-extrabold text-xl mb-2">{t.connect.emptyTitle}</h3>
-        <p className="text-sm leading-relaxed mb-6" style={{ color: C.slate }}>{t.connect.emptyLead}</p>
+        <h3 className="display font-extrabold text-xl mb-2">{E.title}</h3>
+        <p className="text-sm leading-relaxed mb-6" style={{ color: C.slate }}>{E.lead}</p>
         <button
-          onClick={onConnect}
-          className="px-5 py-2.5 rounded-lg text-sm font-semibold"
+          onClick={onOpenRegister}
+          className="px-5 py-3 rounded-full text-sm font-semibold"
           style={{ background: C.iris, color: C.onPrimary }}
         >
-          {t.connect.emptyAction}
+          {E.action}
         </button>
+        {onConnect && (
+          <button onClick={onConnect} className="block mx-auto mt-4 text-xs font-semibold underline" style={{ color: C.slate }}>
+            {E.connect}
+          </button>
+        )}
       </div>
     </div>
   );

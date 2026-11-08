@@ -133,6 +133,10 @@ export function aggregate({ receipts, limitedHistory, catalogue, storeNames, now
 
     currentSales += value;
     currentReceipts += 1;
+    /* Declared, reported and never added to: every dashboard said no
+       discounts were given. A receipt states what was knocked off it — the
+       till's and the register's alike — so the figure is simply summed. */
+    totalDiscounts += Math.abs(Number(r.total_discount) || 0);
 
     const d = new Date(ts);
     const key = d.toISOString().slice(0, 10);

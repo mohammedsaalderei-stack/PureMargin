@@ -49,6 +49,26 @@
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>PureMargin lets you choose a photograph of a supplier invoice you have already taken, so its lines can be read and added to your stock.</string>
 
+	<!-- The register's printers. Receipt and kitchen printers sit on the
+	     shop's own network, and iOS asks before an app reaches anything on
+	     it; the wording is what the cashier reads in that prompt. The
+	     Bonjour type is the one receipt printers announce themselves under,
+	     so they can be picked from a list rather than typed in by address.
+
+	     Local networking is also what lets a test build reach a server on
+	     the same Wi-Fi by its address. It allows nothing on the internet. -->
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>PureMargin connects to the receipt printers, kitchen printers and cash drawer on your shop's network so the register can print and open the drawer.</string>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_pdl-datastream._tcp</string>
+	</array>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
+
 	<!-- Export compliance. The app uses HTTPS and nothing else, which is
 	     exempt; declaring it here means App Store Connect stops asking the
 	     same question on every single upload. -->

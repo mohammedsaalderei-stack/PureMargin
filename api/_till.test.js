@@ -114,7 +114,9 @@ await test("a payment of no known kind is refused", async () => {
 });
 
 await test("an order type is required, and a table only means something dining in", async () => {
-  assert.equal(build(sale({ orderType: "delivery" })).error, "ordertype");
+  /* Delivery became an order type of its own; anything else is still refused. */
+  assert.equal(build(sale({ orderType: "teleport" })).error, "ordertype");
+  assert.equal(build(sale({ orderType: "delivery" })).receipt.order_type, "delivery");
   assert.equal(build(sale({ orderType: "takeaway", table: "5" })).receipt.table, null);
   assert.equal(build(sale()).receipt.table, "5");
 });

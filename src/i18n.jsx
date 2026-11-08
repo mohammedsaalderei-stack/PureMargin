@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { ADMIN_STRINGS } from "./i18n-admin.js";
+import { POS_STRINGS } from "./i18n-pos.js";
 
 /* Every string in the product, in both languages.
    Arabic is written for a Gulf business audience: plain, direct, no formal padding. */
@@ -9990,7 +9991,7 @@ export function LanguageProvider({ children }) {
       lang,
       dir: STRINGS[lang].dir,
       rtl: STRINGS[lang].dir === "rtl",
-      t: { ...STRINGS[lang], admin: ADMIN_STRINGS[lang] || ADMIN_STRINGS.en },
+      t: { ...STRINGS[lang], admin: ADMIN_STRINGS[lang] || ADMIN_STRINGS.en, pos: POS_STRINGS[lang] || POS_STRINGS.en },
       set: (next) => LANGS.includes(next) && setLang(next),
       /* Kept so existing call sites still work: cycles through the list. */
       toggle: () => setLang((l) => LANGS[(LANGS.indexOf(l) + 1) % LANGS.length]),

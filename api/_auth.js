@@ -15,6 +15,13 @@ function sign(payload) {
   return crypto.createHmac("sha256", secret()).update(payload).digest("base64url");
 }
 
+/* A signature for something that is not a session — the register's operator
+   token, say — under its own label, so a value signed for one purpose can
+   never be replayed as another. */
+export function signScoped(label, payload) {
+  return crypto.createHmac("sha256", `${secret()}:${label}`).update(payload).digest("base64url");
+}
+
 /* The version is stamped into the token and checked against the account on
    every request. Bumping it on the account invalidates every token issued
    before — which is what makes "change my password" and "sign out

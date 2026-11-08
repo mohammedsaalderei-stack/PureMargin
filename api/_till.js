@@ -29,14 +29,20 @@ import { listRecipes } from "./_recipes.js";
 import { REGISTER_BRANCH, REGISTER_WINDOW_DAYS, branchList } from "./_data.js";
 import { posTokenFor } from "./_accounts.js";
 import { orgFor } from "./_org.js";
+import {
+  DEFAULT_VAT_PCT, ORDER_TYPES, PAYMENT_TYPES, PAYMENT_KINDS, DEFAULT_PAYMENT_TYPES, VAT_MODES,
+  readVat, receiptNumber, readDiscount, buildSale, buildRefund,
+} from "../shared/tillprice.js";
+
+/* The pricing lives in `shared/tillprice.js` so a till offline can run it too. */
+export {
+  DEFAULT_VAT_PCT, ORDER_TYPES, PAYMENT_TYPES, PAYMENT_KINDS, DEFAULT_PAYMENT_TYPES, VAT_MODES,
+  readVat, receiptNumber, readDiscount, buildSale, buildRefund,
+};
 
 export { REGISTER_BRANCH };
-export const ORDER_TYPES = ["dine_in", "takeaway", "car"];
-export const PAYMENT_TYPES = ["cash", "card"];
-export const DEFAULT_VAT_PCT = 5;
 
-const MAX_LINES = 100;
-const MAX_QTY = 999;
+
 const MAX_ADDONS = 20;
 const MAX_PRICE = 100000;
 const DAY = 24 * 60 * 60 * 1000;
@@ -68,24 +74,34 @@ export function monthsBetween(sinceMs, nowMs) {
 
 export async function getSettings(orgId) {
   const saved = (await getJSON(settingsKey(orgId))) || {};
+  const obj = (v) => (v && typeof v === "object" && !Array.isArray(v) ? v : {});
   return {
     vatPct: Number.isFinite(saved.vatPct) ? saved.vatPct : DEFAULT_VAT_PCT,
-    addons: saved.addons && typeof saved.addons === "object" ? saved.addons : {},
+    vatMode: VAT_MODES.includes(saved.vatMode) ? saved.vatMode : "exclusive",
+    addons: obj(saved.addons),
     usedAt: saved.usedAt || null,
+    /* Everything below is the register as a till of its own: what it takes
+       money as, what it may knock off, what it prints, and whether a cashier
+       has to open a shift before selling. */
+    paymentTypes: Array.isArray(saved.paymentTypes) && saved.paymentTypes.length
+      ? saved.paymentTypes : DEFAULT_PAYMENT_TYPES,
+    discounts: Array.isArray(saved.discounts) ? saved.discounts : [],
+    receipt: obj(saved.receipt),
+    loyaltyPct: Number.isFinite(saved.loyaltyPct) ? saved.loyaltyPct : 0,
+    useShifts: saved.useShifts !== false,
+    /* Things sold that have no recipe — a can of soda, a bottle of water. */
+    products: obj(saved.products),
+    /* Barcode, SKU and tile colour for a dish, kept beside the recipe rather
+       than on it: they are facts about selling it, not about making it. */
+    itemMeta: obj(saved.itemMeta),
   };
 }
 
-async function putSettings(orgId, next) {
+export async function putSettings(orgId, next) {
   await setJSON(settingsKey(orgId), next);
   return next;
 }
 
-/* VAT is a rate, between none and anything a government has actually set. */
-export function readVat(value) {
-  const n = Number(value);
-  if (!Number.isFinite(n) || n < 0 || n > 50) return { error: "vat" };
-  return { vatPct: round2(n) };
-}
 
 export async function saveVat(orgId, value) {
   const vat = readVat(value);
@@ -143,150 +159,134 @@ export async function saveAddons(orgId, itemId, list) {
    sets the price from the register; nobody can sell a dish at no price
    (`buildSale` refuses one). */
 export function catalogueOf(recipes, settings) {
-  return (recipes || [])
+  const meta = settings?.itemMeta || {};
+  const dishes = (recipes || [])
     .filter((r) => r && !r.archived)
-    .map((r) => ({
-      id: String(r.id),
-      name: String(r.menuItem || "").trim(),
-      category: String(r.category || "").trim(),
-      price: Number(r.sellPrice) > 0 ? round2(r.sellPrice) : null,
-      priced: Number(r.sellPrice) > 0,
-      addons: settings?.addons?.[String(r.id)] || [],
-    }))
+    .map((r) => {
+      const m = meta[String(r.id)] || {};
+      return {
+        id: String(r.id),
+        kind: "recipe",
+        name: String(r.menuItem || "").trim(),
+        category: String(r.category || "").trim(),
+        price: Number(r.sellPrice) > 0 ? round2(r.sellPrice) : null,
+        priced: Number(r.sellPrice) > 0,
+        addons: settings?.addons?.[String(r.id)] || [],
+        barcode: m.barcode || "",
+        sku: m.sku || "",
+        color: m.color || "",
+        hidden: Boolean(m.hidden),
+      };
+    });
+  /* Products sold as they come. Ids carry a prefix so one can never collide
+     with a recipe's, whatever either is called. */
+  const products = Object.entries(settings?.products || {})
+    .filter(([, p]) => p && !p.archived)
+    .map(([id, p]) => ({
+      id,
+      kind: "product",
+      name: String(p.name || "").trim(),
+      category: String(p.category || "").trim(),
+      price: Number(p.price) > 0 ? round2(p.price) : null,
+      priced: Number(p.price) > 0,
+      addons: settings?.addons?.[id] || [],
+      barcode: p.barcode || "",
+      sku: p.sku || "",
+      color: p.color || "",
+      cost: Number.isFinite(p.cost) ? p.cost : null,
+      hidden: Boolean(p.hidden),
+    }));
+  return [...dishes, ...products]
     .filter((item) => item.name)
     .sort((a, b) => a.category.localeCompare(b.category) || a.name.localeCompare(b.name));
 }
 
 export async function catalogueFor(orgId) {
   const [recipes, settings] = await Promise.all([listRecipes(orgId), getSettings(orgId)]);
-  return { items: catalogueOf(recipes, settings), vatPct: settings.vatPct };
+  return { items: catalogueOf(recipes, settings), vatPct: settings.vatPct, settings };
 }
 
 /* ── A sale ──────────────────────────────────────────────────────────────── */
 
-/* A receipt number no till issues. Time first so they sort, then a few
-   random characters so two tills in the same second still differ. */
-export function receiptNumber(at, random = Math.random) {
-  const d = new Date(at);
-  const p = (n) => String(n).padStart(2, "0");
-  const stamp = `${String(d.getUTCFullYear()).slice(2)}${p(d.getUTCMonth() + 1)}${p(d.getUTCDate())}`
-    + `-${p(d.getUTCHours())}${p(d.getUTCMinutes())}${p(d.getUTCSeconds())}`;
-  const tail = Math.floor(random() * 36 ** 3).toString(36).toUpperCase().padStart(3, "0");
-  return `PM-${stamp}-${tail}`;
-}
 
 /* Turn what the cashier rang up into a receipt, or say what is wrong with it.
 
    `input` comes from the request and is trusted for nothing but which dish,
    how many and which add-ons. Everything with a price on it comes from
    `catalogue`. */
-export function buildSale(input, { catalogue, vatPct = DEFAULT_VAT_PCT, branchId, at = Date.now(), number, cashier = "" }) {
-  const lines = Array.isArray(input?.lines) ? input.lines : [];
-  if (!lines.length) return { error: "empty" };
-  if (lines.length > MAX_LINES) return { error: "toomany", limit: MAX_LINES };
 
-  const orderType = ORDER_TYPES.includes(input?.orderType) ? input.orderType : null;
-  if (!orderType) return { error: "ordertype" };
-  const table = orderType === "dine_in" ? text(input?.table, 10) : "";
 
-  const byId = new Map((catalogue || []).map((item) => [item.id, item]));
-  const lineItems = [];
-  let subtotal = 0;
 
-  for (const raw of lines) {
-    const item = byId.get(String(raw?.itemId ?? ""));
-    if (!item) return { error: "item", itemId: raw?.itemId ?? null };
-    if (!(Number(item.price) > 0)) return { error: "noprice", item: item.name };
-    const qty = Number(raw?.qty);
-    if (!Number.isInteger(qty) || qty < 1 || qty > MAX_QTY) return { error: "qty", item: item.name };
-
-    const wanted = Array.isArray(raw?.addons) ? raw.addons.map(String) : [];
-    const offered = new Map(item.addons.map((a) => [a.id, a]));
-    const chosen = [];
-    for (const id of wanted) {
-      const addon = offered.get(id);
-      if (!addon) return { error: "addon", item: item.name, addonId: id };
-      chosen.push(addon);
-    }
-
-    const unit = round2(item.price + chosen.reduce((sum, a) => sum + a.price, 0));
-    const total = round2(unit * qty);
-    subtotal = round2(subtotal + total);
-    const addonCost = chosen.some((a) => a.cost !== null)
-      ? round2(chosen.reduce((sum, a) => sum + (a.cost || 0), 0) * qty)
-      : null;
-
-    lineItems.push({
-      /* The recipe, by id, where the till would put its catalogue id. Stock
-         depletion matches by this first and by the dish name after. */
-      item_id: `recipe:${item.id}`,
-      variant_id: "",
-      item_name: item.name,
-      variant_name: "",
-      quantity: qty,
-      price: unit,
-      total_money: total,
-      line_modifiers: chosen.map((a) => ({ id: a.id, name: a.name, price: a.price, cost: a.cost })),
-      /* What the add-ons cost the business, for this line. Not the dish's own
-         cost, which comes from its recipe like any sale's. */
-      addon_cost: addonCost,
-    });
-  }
-
-  const rate = readVat(vatPct).error ? DEFAULT_VAT_PCT : Number(vatPct);
-  const tax = round2((subtotal * rate) / 100);
-  const totalMoney = round2(subtotal + tax);
-
-  const payType = PAYMENT_TYPES.includes(input?.payment?.type) ? input.payment.type : null;
-  if (!payType) return { error: "payment" };
-  let received = totalMoney;
-  if (payType === "cash" && input.payment.received !== undefined && input.payment.received !== null && input.payment.received !== "") {
-    received = round2(input.payment.received);
-    if (!Number.isFinite(received) || received < totalMoney) return { error: "short", total: totalMoney };
-  }
-  const change = payType === "cash" ? round2(received - totalMoney) : 0;
-
-  const iso = new Date(at).toISOString();
-  const id = number || receiptNumber(at);
-  return {
-    receipt: {
-      id,
-      receipt_number: id,
-      receipt_type: "SALE",
-      source: "register",
-      receipt_date: iso,
-      created_at: iso,
-      store_id: String(branchId || REGISTER_BRANCH.id),
-      order_type: orderType,
-      table: table || null,
-      cashier: text(cashier, 60),
-      vat_pct: rate,
-      subtotal_money: subtotal,
-      total_tax: tax,
-      total_money: totalMoney,
-      line_items: lineItems,
-      payments: [{
-        type: payType === "cash" ? "CASH" : "CARD",
-        /* The name the dashboard groups payments by, as a till would call it. */
-        name: payType === "cash" ? "Cash" : "Card",
-        money_amount: totalMoney,
-        received,
-        change,
-      }],
-    },
-  };
-}
 
 /* ── Storage ─────────────────────────────────────────────────────────────── */
 
 export async function recordSale(orgId, receipt) {
+  /* A sale sent twice is one sale. A till that lost its signal keeps a sale
+     and sends it when it is back, and may send it again if the first answer
+     never arrived; the id the till gave it is how the second copy is known. */
+  if (receipt.client_id) {
+    const seen = await getJSON(clientKey(orgId, receipt.client_id));
+    if (seen) {
+      const existing = await findReceipt(orgId, seen);
+      if (existing) return { ...existing, duplicate: true };
+    }
+  }
   const at = new Date(receipt.receipt_date).getTime();
   await setJSON(`${receiptPrefix(orgId, monthOf(at))}${receipt.id}`, receipt);
+  if (receipt.client_id) await setJSON(clientKey(orgId, receipt.client_id), receipt.id);
+  if (receipt.receipt_type === "REFUND" && receipt.refund_for) {
+    const list = (await getJSON(refundsKey(orgId, receipt.refund_for))) || [];
+    await setJSON(refundsKey(orgId, receipt.refund_for), [...list, receipt.id]);
+  }
   /* Marks the organization as one that sells through the register, which is
      how an account with no POS still gets a dashboard (see `branchList`). */
   const settings = await getSettings(orgId);
   if (!settings.usedAt) await putSettings(orgId, { ...settings, usedAt: at });
   return receipt;
+}
+
+const clientKey = (orgId, id) => `register:${orgId}:client:${String(id).slice(0, 80)}`;
+const refundsKey = (orgId, number) => `register:${orgId}:refunds:${number}`;
+
+/* The month a register receipt is filed under, read off its number. */
+export function monthOfNumber(number) {
+  const m = /^PM-(\d{2})(\d{2})\d{2}-\d{6}-[0-9A-Z]{3,6}$/.exec(String(number || ""));
+  return m ? `20${m[1]}-${m[2]}` : null;
+}
+
+export async function findReceipt(orgId, number) {
+  const month = monthOfNumber(number);
+  if (!orgId || !month) return null;
+  return getJSON(`${receiptPrefix(orgId, month)}${number}`);
+}
+
+/* What earlier refunds of a sale already gave back, per line. */
+export async function refundedSoFar(orgId, number) {
+  const ids = (await getJSON(refundsKey(orgId, number))) || [];
+  const out = {};
+  for (const id of ids) {
+    const r = await findReceipt(orgId, id);
+    for (const li of r?.line_items || []) {
+      out[li.line_index] = (out[li.line_index] || 0) + Number(li.quantity || 0);
+    }
+  }
+  return { lines: out, refunds: ids };
+}
+
+/* A receipt number proposed by a till that sold while offline.
+
+   It printed that number on the customer's receipt, so the record has to
+   carry the same one. Accepted only in the register's own format, dated the
+   same day as the sale, and never over a number already used. */
+export async function acceptNumber(orgId, proposed, at) {
+  const month = monthOfNumber(proposed);
+  if (!month) return null;
+  const d = new Date(at);
+  const p = (n) => String(n).padStart(2, "0");
+  const stamp = `${String(d.getUTCFullYear()).slice(2)}${p(d.getUTCMonth() + 1)}${p(d.getUTCDate())}`;
+  if (String(proposed).slice(3, 9) !== stamp) return null;
+  if (await findReceipt(orgId, proposed)) return null;
+  return String(proposed);
 }
 
 /* Register receipts inside a window, oldest first. */
