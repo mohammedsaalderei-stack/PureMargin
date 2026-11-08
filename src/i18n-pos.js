@@ -18,6 +18,7 @@ const en = {
     add: "Add a store", edit: "Edit", archive: "Archive", restore: "Restore", archived: "Archived",
     name: "Store name", address: "Address", phone: "Phone", trn: "Tax number (TRN)",
     optional: "Leave blank to print the business's own.", save: "Save store", cancel: "Cancel",
+    locked: "Not in your plan", lockedLead: "Your plan covers {n} open store. Stores past that are saved but stay off the register and reports until an extra branch is added to your plan.",
     errors: { name: "Give the store a name.", toomany: "That's the most stores one business can have.", last: "A business needs at least one open store.", notfound: "That store no longer exists.", generic: "That didn't save. Try again." },
   },
   device: {
@@ -214,6 +215,7 @@ const ar = {
     add: "إضافة فرع", edit: "تعديل", archive: "أرشفة", restore: "استعادة", archived: "مؤرشف",
     name: "اسم الفرع", address: "العنوان", phone: "الهاتف", trn: "الرقم الضريبي (TRN)",
     optional: "اتركه فارغًا لطباعة بيانات النشاط نفسه.", save: "حفظ الفرع", cancel: "إلغاء",
+    locked: "خارج باقتك", lockedLead: "تغطي باقتك {n} فرعًا مفتوحًا. الفروع الزائدة محفوظة لكنها لا تظهر في الكاشير والتقارير حتى يُضاف فرع إضافي إلى باقتك.",
     errors: { name: "أعطِ الفرع اسمًا.", toomany: "هذا أقصى عدد من الفروع لنشاط واحد.", last: "يحتاج النشاط إلى فرع مفتوح واحد على الأقل.", notfound: "هذا الفرع لم يعد موجودًا.", generic: "لم يُحفظ. حاول مرة أخرى." },
   },
   device: {
@@ -410,6 +412,7 @@ const hi = {
     add: "स्टोर जोड़ें", edit: "बदलें", archive: "संग्रह करें", restore: "वापस लाएँ", archived: "संग्रहित",
     name: "स्टोर का नाम", address: "पता", phone: "फ़ोन", trn: "टैक्स नंबर (TRN)",
     optional: "खाली छोड़ें तो व्यवसाय का अपना छपेगा।", save: "स्टोर सहेजें", cancel: "रद्द करें",
+    locked: "आपके प्लान में नहीं", lockedLead: "आपका प्लान {n} खुला स्टोर कवर करता है। उससे ज़्यादा स्टोर सहेजे रहते हैं, पर प्लान में अतिरिक्त ब्रांच जुड़ने तक रजिस्टर और रिपोर्ट में नहीं आते।",
     errors: { name: "स्टोर को नाम दीजिए।", toomany: "एक व्यवसाय में इससे ज़्यादा स्टोर नहीं हो सकते।", last: "व्यवसाय में कम से कम एक खुला स्टोर चाहिए।", notfound: "वह स्टोर अब मौजूद नहीं है।", generic: "सहेजा नहीं गया। फिर कोशिश करें।" },
   },
   device: {
@@ -606,6 +609,7 @@ const ur = {
     add: "اسٹور شامل کریں", edit: "ترمیم", archive: "محفوظ کریں", restore: "بحال کریں", archived: "محفوظ شدہ",
     name: "اسٹور کا نام", address: "پتا", phone: "فون", trn: "ٹیکس نمبر (TRN)",
     optional: "خالی چھوڑیں تو کاروبار کا اپنا چھپے گا۔", save: "اسٹور محفوظ کریں", cancel: "منسوخ",
+    locked: "آپ کے پلان میں نہیں", lockedLead: "آپ کا پلان {n} کھلا اسٹور کور کرتا ہے۔ اس سے زیادہ اسٹور محفوظ رہتے ہیں مگر پلان میں اضافی برانچ شامل ہونے تک رجسٹر اور رپورٹوں میں نہیں آتے۔",
     errors: { name: "اسٹور کو نام دیں۔", toomany: "ایک کاروبار میں اس سے زیادہ اسٹور نہیں ہو سکتے۔", last: "کاروبار میں کم از کم ایک کھلا اسٹور ہونا چاہیے۔", notfound: "وہ اسٹور اب موجود نہیں۔", generic: "محفوظ نہیں ہوا۔ دوبارہ کوشش کریں۔" },
   },
   device: {
@@ -802,6 +806,7 @@ const tl = {
     add: "Magdagdag ng tindahan", edit: "I-edit", archive: "I-archive", restore: "Ibalik", archived: "Naka-archive",
     name: "Pangalan ng tindahan", address: "Address", phone: "Telepono", trn: "Tax number (TRN)",
     optional: "Iwanang blangko para ang sa negosyo ang malimbag.", save: "I-save ang tindahan", cancel: "Kanselahin",
+    locked: "Wala sa plan mo", lockedLead: "Sakop ng plan mo ang {n} bukas na tindahan. Naka-save ang sobra pero wala sa register at mga ulat hanggang madagdagan ng branch ang plan mo.",
     errors: { name: "Bigyan ng pangalan ang tindahan.", toomany: "Ito na ang pinakamaraming tindahan para sa isang negosyo.", last: "Kailangan ng negosyo ng kahit isang bukas na tindahan.", notfound: "Wala na ang tindahang iyon.", generic: "Hindi na-save. Subukan ulit." },
   },
   device: {

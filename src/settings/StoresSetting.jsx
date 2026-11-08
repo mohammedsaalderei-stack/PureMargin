@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Store, Plus, Pencil, Archive, RotateCcw, Loader2 } from "lucide-react";
 import { useC } from "../theme.jsx";
-import { useLang } from "../i18n.jsx";
+import { useLang, fill } from "../i18n.jsx";
 
 /* The business's stores — its branches — added here rather than read from
    somebody else's till.
@@ -19,6 +19,8 @@ export default function StoresSetting({ token }) {
   const S = t.pos.stores;
   const [stores, setStores] = useState([]);
   const [canManage, setCanManage] = useState(false);
+  const [locked, setLocked] = useState([]);
+  const [allowance, setAllowance] = useState(null);
   const [form, setForm] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -39,6 +41,8 @@ export default function StoresSetting({ token }) {
       const out = await call("GET");
       setStores(out.stores || []);
       setCanManage(Boolean(out.canManage));
+      setLocked(out.locked || []);
+      setAllowance(out.allowance ?? null);
     } catch { /* the panel stays hidden */ }
   };
   useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [token]);
@@ -91,6 +95,7 @@ export default function StoresSetting({ token }) {
               <div className="text-sm font-semibold truncate">
                 {st.name}
                 {st.archived && <span className="ms-2 text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: "var(--chip-bg)", color: C.slate }}>{S.archived}</span>}
+                {!st.archived && locked.includes(st.id) && <span className="ms-2 text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: "rgba(251,191,36,0.14)", color: C.amber }}>{S.locked}</span>}
               </div>
               {(st.address || st.trn) && (
                 <div className="text-xs truncate" style={{ color: C.slate }}>{[st.address, st.trn && `TRN ${st.trn}`].filter(Boolean).join(" · ")}</div>
@@ -108,6 +113,9 @@ export default function StoresSetting({ token }) {
         ))}
       </div>
 
+      {locked.length > 0 && (
+        <p className="text-xs mt-3 leading-relaxed" style={{ color: C.amber }}>{fill(S.lockedLead, { n: allowance ?? 1 })}</p>
+      )}
       {error && !form && <p className="text-sm mt-3" style={{ color: C.rose }}>{error}</p>}
 
       {form && (

@@ -10,7 +10,7 @@
    branch-scoped roles are assigned against these ids. */
 
 import { requireAuth } from "./_auth.js";
-import { scopeFor } from "./_org.js";
+import { scopeFor, lockedBranches } from "./_org.js";
 import { listStores, saveStore, archiveStore } from "./_stores.js";
 import { recordAudit } from "./_audit.js";
 
@@ -27,9 +27,16 @@ export default async function handler(req, res) {
     res.setHeader("Cache-Control", "no-store");
 
     if (req.method === "GET") {
+      const stores = await listStores(org.id, { includeArchived: canManage, orgName });
+      /* Stores past what the plan covers exist but cannot be used until an
+         extra branch is added to the plan; said here so the owner is not left
+         wondering why a store they made is missing from the register. */
+      const open = stores.filter((s) => !s.archived).map((s) => s.id);
       return res.status(200).json({
-        stores: await listStores(org.id, { includeArchived: canManage, orgName }),
+        stores,
         canManage,
+        locked: lockedBranches(org, open),
+        allowance: org.branchAllowance ?? null,
       });
     }
 
