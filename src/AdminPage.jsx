@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import {
-  ShieldCheck, Loader2, LogOut, RefreshCw, Trash2, Check, X, UserCog, Plug,
+  ShieldCheck, Loader2, LogOut, RefreshCw, Trash2, Check, X, UserCog,
 } from "lucide-react";
 import { useC } from "./theme.jsx";
 import BrandMark from "./BrandMark.jsx";
@@ -244,11 +244,6 @@ export default function AdminPage() {
                       {a.isAdmin && (
                         <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: C.irisWash, color: C.iris }}>
                           {s.adminBadge}
-                        </span>
-                      )}
-                      {a.posConnected && (
-                        <span className="inline-flex items-center gap-1 text-[10px] font-semibold" style={{ color: C.iris }}>
-                          <Plug size={10} /> {s.posConnected}
                         </span>
                       )}
                       <span className="text-[11px] ms-auto" style={{ color: C.slate }}>

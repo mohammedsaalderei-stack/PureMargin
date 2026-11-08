@@ -10,24 +10,15 @@ import { requireAuth } from "./_auth.js";
 import { scopeFor, ROLES } from "./_org.js";
 import { allowedTabs } from "./_tabs.js";
 import { normaliseType, orderTabs, availableFeatures } from "./_types.js";
-import { posTokenFor } from "./_accounts.js";
-import { branchList } from "./_data.js";
+import { rosterFor } from "./_till.js";
 
 export default async function handler(req, res) {
   const session = await requireAuth(req, res);
   if (!session) return;
 
   try {
-    /* Branches come from the POS, so an account with no connection simply has
-       none yet — not an error. */
-    let branches = [];
-    try {
-      const posToken = await posTokenFor(session.username);
-      /* No till: the register is the branch, from the start (see rosterFor). */
-      branches = await branchList(posToken, { register: !posToken });
-    } catch {
-      branches = [];
-    }
+    /* The business's own stores (`_stores.js`). */
+    const branches = await rosterFor(session.account);
 
     const scope = await scopeFor(session.account, branches.map((b) => b.id));
     const allowed = new Set(scope.authorized);

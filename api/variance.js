@@ -15,9 +15,8 @@
 import { requireAuth } from "./_auth.js";
 import { getMeta } from "./_inventory.js";
 import { scopeFor, effectiveBranches, parseBranchParam } from "./_org.js";
-import { posTokenFor } from "./_accounts.js";
-import { branchList, salesLines, NotConnected, PosUnreachable } from "./_data.js";
-import { registerContext } from "./_till.js";
+import { salesLines } from "./_data.js";
+import { registerContext, rosterFor } from "./_till.js";
 import { COST_METHODS, DEFAULT_COST_METHOD } from "./_costing.js";
 import { varianceReport } from "./_variance.js";
 import { listEdits } from "./_saleedits.js";
@@ -31,13 +30,12 @@ export default async function handler(req, res) {
   if (req.method !== "GET") return res.status(405).json({ error: "Use GET." });
 
   try {
-    const posToken = await posTokenFor(session.username);
     /* Sales rung up on PureMargin's own register count like the till's. */
-    const { register, used } = await registerContext(session.account);
+    const { register, names } = await registerContext(session.account);
 
     let roster = [];
     try {
-      roster = await branchList(posToken, { register: used });
+      roster = await rosterFor(session.account);
     } catch {
       /* No POS, or unreachable. The ledger half still works and says so below. */
     }
@@ -63,10 +61,9 @@ export default async function handler(req, res) {
     let sales = { lines: [], fetch: null };
     let salesError = null;
     try {
-      sales = await salesLines(posToken, { from, to, branches, edits: await listEdits(orgId), register });
+      sales = await salesLines({ from, to, branches, edits: await listEdits(orgId), register, names });
     } catch (err) {
-      salesError = err instanceof NotConnected ? "notconnected"
-        : err instanceof PosUnreachable ? "unreachable" : "failed";
+      salesError = "failed";
     }
 
     const report = await varianceReport(orgId, branches, {

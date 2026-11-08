@@ -19,10 +19,9 @@ import { getJSON, setJSON, del } from "./_store.js";
 
    ── What the key is, and what it honestly is not ─────────────────────────
 
-   An unguessable string that resolves to exactly one organization. The same
-   shape as the POS webhook token in `_loyversehook.js`, for the same reason:
-   the URL is the authentication, because the thing at the other end of it
-   cannot hold a session.
+   An unguessable string that resolves to exactly one organization. The URL
+   is the authentication, because the thing at the other end of it cannot
+   hold a session.
 
    It is a bearer credential. Whoever has the link can see that business's
    branches and staff names and can record a punch. That is a much smaller

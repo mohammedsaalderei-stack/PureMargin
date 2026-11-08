@@ -2,7 +2,7 @@ import { requireAuth } from "./_auth.js";
 import { getMetrics, toContext, salesLines } from "./_data.js";
 import { registerContext, rosterFor } from "./_till.js";
 import { redactContext, redactionNote } from "./_askscope.js";
-import { posTokenFor, noteQuestion, getAccount, activeItems, normaliseFeatures } from "./_accounts.js";
+import { noteQuestion, getAccount, activeItems, normaliseFeatures } from "./_accounts.js";
 import { getJSON } from "./_store.js";
 import { groundingFor, ANSWER_CONTRACT } from "./_grounding.js";
 import { parseBranchParam, effectiveBranches, scopeFor } from "./_org.js";
@@ -186,14 +186,13 @@ export default async function handler(req, res) {
     const capabilities = askerScope?.capabilities || [];
 
     const overrides = (await getJSON(`costs:${session.username}`)) || {};
-    const posToken = await posTokenFor(session.username);
     /* The same corrections the screens read. An assistant quoting the till's
        uncorrected total while the dashboard shows the corrected one is worse
        than an assistant with no figures at all: two authoritative answers that
        disagree, with nothing on screen to explain which is which. */
     const saleEdits = await listEdits(askerScope?.org?.id).catch(() => ({}));
     /* Register sales, so an answer about takings counts what the screens count. */
-    const { register } = await registerContext(session.account).catch(() => ({ register: [] }));
+    const { register, names } = await registerContext(session.account).catch(() => ({ register: [], names: {} }));
     /* No sales source is a reason to have no sales figures, not a reason to
        refuse the question. This answered 409 "not connected" before reading
        anything else, so a kitchen that keeps its stock, recipes and costs here
@@ -202,7 +201,7 @@ export default async function handler(req, res) {
        have. Any other failure still stops the answer, as it did. */
     let metrics = null;
     try {
-      metrics = await getMetrics(posToken, { overrides, edits: saleEdits, register });
+      metrics = await getMetrics({ overrides, edits: saleEdits, register, names });
     } catch (err) {
       if (err?.code !== "notconnected") throw err;
     }
@@ -214,7 +213,7 @@ export default async function handler(req, res) {
     try {
       const to = Date.now();
       const from = to - 30 * 864e5;
-      const sales = await salesLines(posToken, { from, to, edits: saleEdits, register }).catch(() => ({ lines: [], fetch: null }));
+      const sales = await salesLines({ from, to, edits: saleEdits, register, names }).catch(() => ({ lines: [], fetch: null }));
       grounding = await groundingFor(session.account, {
         allBranchIds: roster.map((b) => b.id),
         branchNames: Object.fromEntries(roster.map((b) => [b.id, b.name])),
@@ -255,10 +254,6 @@ export default async function handler(req, res) {
       features,
       method: "wavg",
       metrics: metrics || {},
-      /* The till connection, so the receipts tool reads transactions from the
-         same place the Sales screen does rather than from a second copy that
-         would disagree the first time a sale was corrected. */
-      posToken,
     };
 
     const payload = {

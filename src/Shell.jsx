@@ -38,7 +38,7 @@ import CommandPalette from "./CommandPalette.jsx";
 import LanguagePicker from "./LanguagePicker.jsx";
 import ThemeToggle from "./ThemeToggle.jsx";
 import Skeleton from "./Skeleton.jsx";
-import { ConnectDialog, EmptyTable } from "./Connect.jsx";
+import EmptyTable from "./EmptyTable.jsx";
 import LiveDot from "./LiveDot.jsx";
 import { PortalSwitcher, SectionTabs, BottomBar, MoreSheet, AccountMenu } from "./AppChrome.jsx";
 import { layoutFor, portalOf, landingOf, ACCOUNT } from "./nav.js";
@@ -233,7 +233,7 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
   const [typeError, setTypeError] = useState("");
   const [error, setError] = useState("");
   const [refreshing, setRefreshing] = useState(false);
-  const [needsPos, setNeedsPos] = useState(false);
+  const [noSales, setNoSales] = useState(false);
   const [mobileMenu, setMobileMenu] = useState(false);
   const [fetchedAt, setFetchedAt] = useState(null);
   const [exportOpen, setExportOpen] = useState(false);
@@ -321,10 +321,6 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
   const [activeId, setActiveId] = useState(null);
   const [messages, setMessages] = useState([]);
   const [account, setAccount] = useState(null);
-  const [connectOpen, setConnectOpen] = useState(false);
-  const [skipped, setSkipped] = useState(() => {
-    try { return localStorage.getItem(`sufra_pos_skipped_${user}`) === "1"; } catch { return false; }
-  });
   const [chatsOpen, setChatsOpen] = useState(() => typeof window !== "undefined" && window.matchMedia("(min-width: 1024px)").matches);
   /* Back closes what is open before it moves between tabs. On a phone this is
      the difference between the gesture closing a menu and the gesture leaving
@@ -379,15 +375,10 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
       const res = await fetch(`/api/metrics${qs ? `?${qs}` : ""}`, { headers: { Authorization: `Bearer ${token}` } });
       const json = await res.json();
       if (res.status === 402) return;
-      if (res.status === 409) { setNeedsPos(true); return; }
-      /* 502 means a POS is connected and refused or could not be reached, so
-         the account is no longer one without a POS. Left set from the 409
-         before connecting, `needsPos` won the render over the error, and a
-         rejected token looked like a connection that had never happened:
-         "connect your POS" again, with Loyverse's reason nowhere on screen. */
-      if (res.status === 502) { setNeedsPos(false); if (!quiet) setError(json.detail || t.connect.failed); return; }
+      /* 409: the register has not rung anything up yet. */
+      if (res.status === 409) { setNoSales(true); return; }
       if (!res.ok) throw new Error(json.error || t.watch.failedTitle);
-      setNeedsPos(false); setData(json); setFetchedAt(Date.now());
+      setNoSales(false); setData(json); setFetchedAt(Date.now());
 
       /* Bring the ledger up to date with the sales just read.
 
@@ -453,19 +444,7 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
     try {
       const res = await fetch("/api/account", { headers: { Authorization: `Bearer ${token}` } });
       if (!res.ok) return;
-      const json = await res.json(); setAccount(json);
-      /* Only the person who can actually connect a till gets the prompt. A
-         member reads through the owner's connection, so pushing them at a
-         connect screen would be asking a cashier for a credential they have no
-         way to obtain and no business holding. */
-      const shouldPrompt = json.account
-        && json.pos?.canConnect !== false
-        && !json.pos?.connected
-        && !json.account.posConnected
-        && !json.serverToken;
-      /* No longer opened on its own. The register is the till; connecting
-         another POS is an option in Settings, not a gate on the way in. */
-      void shouldPrompt;
+      setAccount(await res.json());
     } catch { /* */ }
   }
 
@@ -553,11 +532,8 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
 
   useSwipe(mainRef, { enabled: !desktop, onNext: () => step(rtl ? -1 : 1), onPrev: () => step(rtl ? 1 : -1) });
 
-  /* Only a genuine "no figures at all" state (the 409 the API used to return
-     when nothing was connected) hides the dashboard. With sample data served
-     for unconnected accounts, the table renders and is simply labelled as
-     demo rather than live. */
-  const unconnectedAccount = needsPos;
+  /* No figures at all: the register has not sold anything yet. */
+  const unconnectedAccount = noSales;
 
   const noticedLine = (() => {
     const o = data?.observations?.[0]; if (!o) return "";
@@ -575,7 +551,7 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
   if (tab === "billing") { body = <Plans token={token} account={account} onChanged={refreshEverything} />; }
   else if (tab === "settings") {
     body = <Settings data={data || EMPTY_METRICS} user={user} onRefresh={() => load({ fresh: true })} refreshing={refreshing}
-      token={token} conversationCount={conversations.length} account={account} onConnect={() => setConnectOpen(true)}
+      token={token} conversationCount={conversations.length} account={account}
       onAccountChange={refreshEverything} onSeePlans={() => go("billing")} onSession={onSession} onLogout={onLogout} />;
   } else if (tab === "team") { body = <Team token={token} />; }
   else if (tab === "employees") { body = <Employees token={token} branches={branches} />; }
@@ -602,7 +578,7 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
       }}
       messages={messages} onMessagesChange={updateMessages} data={unconnectedAccount ? null : data}
       noticedLine={unconnectedAccount ? "" : noticedLine} branches={branches} />;
-  } else if (unconnectedAccount) { body = <EmptyTable onOpenRegister={() => go("till")} onConnect={() => setConnectOpen(true)} />; }
+  } else if (unconnectedAccount) { body = <EmptyTable onOpenRegister={() => go("till")} />; }
   else if (!data && error) {
     body = (
       <div className="h-full flex items-center justify-center p-8">
@@ -635,9 +611,6 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
     </Transition>
   );
 
-  const connectEl = <ConnectDialog open={connectOpen} token={token}
-    onClose={() => { setConnectOpen(false); setSkipped(true); try { localStorage.setItem(`sufra_pos_skipped_${user}`, "1"); } catch { /* */ } }}
-    onConnected={() => { setConnectOpen(false); refreshEverything(); }} />;
 
   const paletteEl = <CommandPalette open={palette} onClose={() => setPalette(false)} onGo={go}
     onAsk={(q) => { setPending(q); go("ask"); }} />;
@@ -710,7 +683,6 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
         <RegisterApp token={token} user={user} business={account?.account?.business || scope?.organization?.name || ""}
           onExit={() => go(lastIn.current.backOffice && lastIn.current.backOffice !== "till" ? lastIn.current.backOffice : firstAllowed === "till" ? "settings" : firstAllowed)}
           onLogout={onLogout} portals={layout} onPortal={pickPortal} />
-        {connectEl}
       </>
     );
   }
@@ -765,7 +737,7 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
             </div>
           )}
         </div>
-        {paletteEl}{connectEl}
+        {paletteEl}
       </div>
     );
   }
@@ -823,7 +795,7 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
           </div>
         </div>
       )}
-      {paletteEl}{connectEl}
+      {paletteEl}
     </div>
   );
 }

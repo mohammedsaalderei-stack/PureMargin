@@ -1,9 +1,8 @@
 import { requireAuth } from "./_auth.js";
-import { posTokenFor } from "./_accounts.js";
 import { scopeFor, effectiveBranches, parseBranchParam } from "./_org.js";
 import { recordAudit } from "./_audit.js";
-import { branchList, rawReceipts, NotConnected, PosUnreachable } from "./_data.js";
-import { registerContext } from "./_till.js";
+import { rawReceipts } from "./_data.js";
+import { registerContext, rosterFor } from "./_till.js";
 import {
   listEdits, saveEdit, removeEdit, applyEdit, snapshotOf, isStale,
   differenceOf, receiptIdOf, EDIT_REASONS,
@@ -32,10 +31,9 @@ export default async function handler(req, res) {
   if (!session) return;
 
   try {
-    const posToken = await posTokenFor(session.username);
     /* Register sales are listed and corrected like the till's. */
-    const { register, used } = await registerContext(session.account);
-    const allBranches = (await branchList(posToken, { register: used })).map((b) => b.id);
+    const { register } = await registerContext(session.account);
+    const allBranches = (await rosterFor(session.account)).map((b) => b.id);
     const scope = await scopeFor(session.account, allBranches);
     const orgId = scope.org?.id;
     if (!orgId) return res.status(403).json({ error: "noorg" });
@@ -50,7 +48,7 @@ export default async function handler(req, res) {
     if (req.method === "GET") {
       const days = Math.min(Math.max(Number(req.query?.days) || 7, 1), MAX_DAYS);
       const edits = await listEdits(orgId);
-      const receipts = await rawReceipts(posToken, { days, register });
+      const receipts = await rawReceipts({ days, register });
 
       const allowed = new Set(requested.map(String));
       const rows = [];
@@ -99,7 +97,7 @@ export default async function handler(req, res) {
          sends an id; the original total, the branch and the line shape all
          come from the till, so a body claiming a receipt was 9,000 cannot
          make the recorded correction look small. */
-      const receipts = await rawReceipts(posToken, { days: MAX_DAYS, register });
+      const receipts = await rawReceipts({ days: MAX_DAYS, register });
       const receipt = receipts.find((r) => receiptIdOf(r) === receiptId);
       if (!receipt) return res.status(404).json({ error: "notfound" });
 
@@ -153,8 +151,6 @@ export default async function handler(req, res) {
 
     return res.status(405).json({ error: "Use GET, POST or DELETE." });
   } catch (err) {
-    if (err instanceof NotConnected) return res.status(409).json({ error: "notconnected" });
-    if (err instanceof PosUnreachable) return res.status(502).json({ error: "pos", detail: err.detail });
     console.error("sales failed:", err?.message || err);
     return res.status(500).json({ error: "server" });
   }

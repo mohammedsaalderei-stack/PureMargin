@@ -27,8 +27,6 @@
 import { requireAuth } from "./_auth.js";
 import { scopeFor, effectiveBranches, parseBranchParam, can } from "./_org.js";
 import { getMeta } from "./_inventory.js";
-import { posTokenFor } from "./_accounts.js";
-import { receiptsFor } from "./_data.js";
 import { depleteFromSales } from "./_salesdepletion.js";
 import { recordAudit } from "./_audit.js";
 import { listIngredients, ensureIngredient, learnConversions } from "./_inventory.js";
@@ -41,7 +39,7 @@ import {
   MOVEMENT_KEYS, recordMovement, recordTransfer, reverseMovement,
   listMovements, balances, getPolicy, savePolicy,
 } from "./_movements.js";
-import { rosterFor } from "./_till.js";
+import { rosterFor, registerReceipts, forDepletion } from "./_till.js";
 
 /* Branches come from the POS (phase 1's decision: a branch is a store, not a
    local table), so a missing connection means no branches rather than an error. */
@@ -206,13 +204,11 @@ export default async function handler(req, res) {
         const branch = permitted(body.branchId);
         if (!branch.length) return res.status(403).json({ error: "branch" });
 
-        let receipts = [];
-        try {
-          receipts = await receiptsFor(await posTokenFor(session.username), branch[0]);
-        } catch (err) {
-          console.error("sales depletion could not read the till:", err?.message || err);
-          return res.status(502).json({ error: "pos" });
-        }
+        /* The last week of the branch's register sales. Each is depleted when
+           it is rung up; this catches any that a failure left behind. */
+        const receipts = (await registerReceipts(orgId, { since: Date.now() - 7 * 864e5 }))
+          .filter((r) => r.receipt_type === "SALE" && String(r.store_id) === String(branch[0]))
+          .map(forDepletion);
 
         const out = await depleteFromSales(orgId, branch[0], receipts, { actor: session.username });
         if (out.movements) {

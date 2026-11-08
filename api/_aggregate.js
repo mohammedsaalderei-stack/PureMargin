@@ -89,9 +89,8 @@ export function aggregate({ receipts, limitedHistory, catalogue, storeNames, now
 
        ── The cost deliberately stays ──────────────────────────────────────
 
-       Only the money comes back. `drawsStock` in `_loyversehook.js` already
-       refuses to return the food to the shelf — a served burger does not — and
-       the same reasoning applies here: the ingredients were consumed, so they
+       Only the money comes back. A refund never returns the food to the
+       shelf — a served burger does not — and the same reasoning applies here: the ingredients were consumed, so they
        remain a cost. Netting them off as well would make a refunded meal look
        free to produce. */
     if (r.receipt_type === "REFUND") {

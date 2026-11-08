@@ -23,7 +23,6 @@
 
 import { requireAuth } from "./_auth.js";
 import { scopeFor, setBusinessType } from "./_org.js";
-import { posTokenFor } from "./_accounts.js";
 import { recordAudit } from "./_audit.js";
 import { BUSINESS_TYPES, normaliseType, availableFeatures } from "./_types.js";
 
@@ -43,11 +42,8 @@ export default async function handler(req, res) {
     const org = scope.org;
     if (!org) return res.status(403).json({ error: "noorg" });
 
-    /* Whether a till is actually attached, which decides if sales are a real
-       module or an empty screen. Failure is not an error here: an account with
-       no connection simply has none. */
-    let posConnected = false;
-    try { posConnected = Boolean(await posTokenFor(session.username)); } catch { /* none */ }
+    /* Sales are always a real module: the register is the till. */
+    const posConnected = true;
 
     const body = () => ({
       id: org.id,

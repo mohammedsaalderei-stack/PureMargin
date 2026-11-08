@@ -1,23 +1,19 @@
 import { requireAuth } from "./_auth.js";
-import { getMetrics, branchList, cacheAge, NotConnected, PosUnreachable } from "./_data.js";
-import { posTokenFor } from "./_accounts.js";
+import { getMetrics, NotConnected } from "./_data.js";
 import { getJSON } from "./_store.js";
 import { scopeFor, effectiveBranches, parseBranchParam } from "./_org.js";
 import { applyScope } from "./_scope-metrics.js";
 import { provenance } from "./_provenance.js";
-import { noteSync, lastSync } from "./_sync.js";
+import { lastSync } from "./_sync.js";
 import { listEdits } from "./_saleedits.js";
 import { netProfit } from "./_profit.js";
-import { registerContext } from "./_till.js";
+import { registerContext, rosterFor } from "./_till.js";
 
 export default async function handler(req, res) {
   const session = await requireAuth(req, res);
   if (!session) return;
 
   try {
-    const posToken = await posTokenFor(session.username);
-    // ?fresh=1 skips the cache — used by the manual refresh button.
-    const fresh = String(req.query?.fresh || "") === "1";
     const overrides = (await getJSON(`costs:${session.username}`)) || {};
     /* Branch scope. The POS reports which branches exist; the session decides
        which of those this user may read; the query string may only narrow that
@@ -29,11 +25,9 @@ export default async function handler(req, res) {
        The branch roster is read first, so the scope is resolved before any
        figures are aggregated: the receipts outside it are never counted, rather
        than counted and filtered afterwards. */
-    /* Sales rung up on PureMargin's own register, joined to the till's inside
-       getMetrics. An organization with no till that uses the register gets the
-       register as its one branch. */
-    const { register, used } = await registerContext(session.account);
-    const allBranches = (await branchList(posToken, { register: used })).map((b) => b.id);
+    /* The business's sales, and its own stores as the branches. */
+    const { register, names } = await registerContext(session.account);
+    const allBranches = (await rosterFor(session.account)).map((b) => b.id);
     const scope = await scopeFor(session.account, allBranches);
     const effective = effectiveBranches(parseBranchParam(req.query?.branches), scope.authorized);
 
@@ -42,28 +36,14 @@ export default async function handler(req, res) {
        series rather than subtracted from the headline alone. */
     const edits = await listEdits(scope.org?.id);
 
-    const metrics = await getMetrics(posToken, {
+    const metrics = await getMetrics({
       overrides,
       edits,
       register,
+      names,
       branches: effective,
-      ...(fresh ? { maxAge: 0 } : {}),
     });
     const scoped = applyScope(metrics, effective, allBranches);
-
-    /* Only a real upstream read is an event. Recorded against the organization
-       rather than the user, because it's the account's connection that synced —
-       whoever's poll happened to trigger it is incidental. */
-    if (metrics.fetch?.wentUpstream) {
-      await noteSync(scope.org?.id, {
-        ok: true,
-        receipts: metrics.fetch.receiptCount,
-        branches: allBranches.length,
-        since: metrics.fetch.since,
-        limitedHistory: Boolean(metrics.fetch.limitedHistory),
-        triggeredBy: session.username,
-      });
-    }
 
     const { fetch: _fetch, allBranches: _all, ...payload } = scoped;
 
@@ -96,30 +76,16 @@ export default async function handler(req, res) {
       ...payload,
       profit,
       scope: { ...scoped.scope, role: scope.role },
-      ageSeconds: cacheAge(posToken) ?? 0,
+      ageSeconds: 0,
       provenance: provenance(scoped, {
         role: scope.role,
-        ageSeconds: cacheAge(posToken) ?? 0,
+        ageSeconds: 0,
         lastSync: await lastSync(scope.org?.id),
       }),
     });
   } catch (err) {
     if (err instanceof NotConnected) {
       return res.status(409).json({ error: "notconnected" });
-    }
-    if (err instanceof PosUnreachable) {
-      /* A failed sync is the more useful half of the log: it's what separates
-         "no sales" from "we couldn't ask". Best-effort, and never allowed to
-         turn a 502 into a 500. */
-      try {
-        const scope = await scopeFor(session.account);
-        await noteSync(scope.org?.id, {
-          ok: false,
-          error: err.detail || err.message || "unreachable",
-          triggeredBy: session.username,
-        });
-      } catch { /* the log is not worth failing the response over */ }
-      return res.status(502).json({ error: "pos", detail: err.detail });
     }
     console.error("metrics failed:", err);
     return res.status(500).json({ error: "server" });

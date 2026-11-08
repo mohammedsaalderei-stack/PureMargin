@@ -76,6 +76,7 @@ export default async function handler(req, res) {
     const can = (capability) => scope.capabilities.includes(capability);
     const what = String(req.query?.what || (req.method === "GET" ? "catalogue" : ""));
     const names = Object.fromEntries(roster.map((b) => [String(b.id), b.name]));
+    const storeById = Object.fromEntries(roster.map((b) => [String(b.id), b]));
     const authorized = scope.authorized.map(String);
     const body = req.body || {};
     const now = Date.now();
@@ -112,7 +113,12 @@ export default async function handler(req, res) {
         loyaltyPct: settings.loyaltyPct,
         useShifts: settings.useShifts,
         orderTypes: ORDER_TYPES,
-        branches: authorized.map((id) => ({ id, name: names[id] || id })),
+        /* Each store's own address, phone and tax number, which its receipts
+           print in place of the business-wide ones when set. */
+        branches: authorized.map((id) => ({
+          id, name: names[id] || id,
+          address: storeById[id]?.address || "", phone: storeById[id]?.phone || "", trn: storeById[id]?.trn || "",
+        })),
         pinsRequired: needsOperator,
         operator,
         can: {

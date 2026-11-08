@@ -495,40 +495,18 @@ export async function getMeta(orgId) {
       ? true
       : Boolean(meta.autoDepleteFromSales),
 
-    /* Which side keeps the stock: this app, or the till.
-
-       "puremargin" is the default and the fuller answer — ingredients with
-       units, pack sizes, suppliers and a cost per unit taken from what was
-       actually paid. "pos" reads levels straight from the till instead, which
-       is less work and less information, and the till's own adapter says what
-       is lost.
-
-       They are alternatives rather than settings that combine. Both sides
-       deducting the same sale would double it, so choosing the till turns
-       automatic depletion off and the switch says so rather than leaving
-       somebody to find a balance falling twice as fast as it should. */
-    stockSource: meta.stockSource === "pos" ? "pos" : "puremargin",
   };
 }
 
-export async function saveMeta(orgId, { categories, locations, autoDepleteFromSales, stockSource }) {
+export async function saveMeta(orgId, { categories, locations, autoDepleteFromSales }) {
   const clean = (list) =>
     [...new Set((list || []).map((v) => String(v).trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
   const meta = {
     categories: clean(categories ?? (await getMeta(orgId)).categories),
     locations: clean(locations ?? (await getMeta(orgId)).locations),
-    stockSource: stockSource === undefined
-      ? (await getMeta(orgId)).stockSource
-      : (stockSource === "pos" ? "pos" : "puremargin"),
-
-    /* Forced off when the till keeps the stock. Leaving it on would deduct
-       every sale twice — once here and once there — and the balance would fall
-       at double the rate with nothing on screen explaining why. */
-    autoDepleteFromSales: (stockSource ?? (await getMeta(orgId)).stockSource) === "pos"
-      ? false
-      : (autoDepleteFromSales === undefined
-        ? (await getMeta(orgId)).autoDepleteFromSales
-        : Boolean(autoDepleteFromSales)),
+    autoDepleteFromSales: autoDepleteFromSales === undefined
+      ? (await getMeta(orgId)).autoDepleteFromSales
+      : Boolean(autoDepleteFromSales),
   };
   await setJSON(META(orgId), meta);
   return meta;

@@ -11,9 +11,8 @@
 
 import { requireAuth } from "./_auth.js";
 import { scopeFor, effectiveBranches, parseBranchParam } from "./_org.js";
-import { posTokenFor } from "./_accounts.js";
-import { branchList, salesLines, NotConnected, PosUnreachable } from "./_data.js";
-import { registerContext } from "./_till.js";
+import { salesLines } from "./_data.js";
+import { registerContext, rosterFor } from "./_till.js";
 import { COST_METHODS, DEFAULT_COST_METHOD } from "./_costing.js";
 import { buildAlerts, saveTargets } from "./_alerts.js";
 import { recordAudit } from "./_audit.js";
@@ -26,13 +25,12 @@ export default async function handler(req, res) {
   if (!session) return;
 
   try {
-    const posToken = await posTokenFor(session.username);
     /* Sales rung up on PureMargin's own register count like the till's. */
-    const { register, used } = await registerContext(session.account);
+    const { register, names } = await registerContext(session.account);
 
     let roster = [];
     try {
-      roster = await branchList(posToken, { register: used });
+      roster = await rosterFor(session.account);
     } catch {
       /* The stock half of these alerts doesn't need the POS at all. */
     }
@@ -67,10 +65,9 @@ export default async function handler(req, res) {
     let sales = { lines: [], fetch: null };
     let salesError = null;
     try {
-      sales = await salesLines(posToken, { from, to, branches, edits: await listEdits(orgId), register });
+      sales = await salesLines({ from, to, branches, edits: await listEdits(orgId), register, names });
     } catch (err) {
-      salesError = err instanceof NotConnected ? "notconnected"
-        : err instanceof PosUnreachable ? "unreachable" : "failed";
+      salesError = "failed";
     }
 
     const out = await buildAlerts(orgId, branches, { salesRows: sales.lines, from, to, method });

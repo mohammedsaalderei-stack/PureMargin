@@ -93,6 +93,8 @@ export const AUDIT_ACTIONS = {
   "register.pin": "register PIN changed",
   "register.settings": "register settings changed",
   "register.product": "register product changed",
+  "store.save": "store added or changed",
+  "store.archive": "store archived or restored",
 
   /* Stage 4, phase 7 — targets. A threshold decides what the whole organization
      is warned about, so moving one is a sensitive change like a permission. */

@@ -21,7 +21,7 @@ export function provenance(metrics, { role, ageSeconds, lastSync }) {
   const days = f.limitedHistory ? 30 : 60;
 
   return {
-    source: metrics.source || "Loyverse POS",
+    source: metrics.source || "PureMargin",
     connected: Boolean(metrics.connected),
 
     /* Two different times, and the difference matters: `fetchedAt` is when the

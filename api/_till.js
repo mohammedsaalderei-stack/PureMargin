@@ -26,8 +26,8 @@
 
 import { getJSON, setJSON, listJSON } from "./_store.js";
 import { listRecipes } from "./_recipes.js";
-import { REGISTER_BRANCH, REGISTER_WINDOW_DAYS, branchList } from "./_data.js";
-import { posTokenFor } from "./_accounts.js";
+import { REGISTER_BRANCH, REGISTER_WINDOW_DAYS } from "./_data.js";
+import { listStores, storeNames } from "./_stores.js";
 import { orgFor } from "./_org.js";
 import {
   DEFAULT_VAT_PCT, ORDER_TYPES, PAYMENT_TYPES, PAYMENT_KINDS, DEFAULT_PAYMENT_TYPES, VAT_MODES,
@@ -325,35 +325,34 @@ export function forDepletion(receipt) {
     at: new Date(receipt.receipt_date).getTime(),
     lines: (receipt.line_items || []).map((li) => ({
       itemId: li.item_id || "",
-      variantId: "",
+      variantId: li.variant_id || "",
       name: li.item_name || "",
-      variant: "",
+      variant: li.variant_name || "",
       qty: Number(li.quantity) || 0,
       revenue: Number(li.total_money) || 0,
     })),
   };
 }
 
-/* What a report route needs to include register sales: the organization's
-   register receipts, and whether it uses the register at all (an account with
-   no till that does is given the register as its branch). Two reads for an
-   organization that has never used it. */
+/* What a report route needs: the organization's receipts over the longest
+   window any report reads, and the names of its stores. */
 export async function registerContext(account) {
   const org = account ? await orgFor(account) : null;
   const orgId = org?.id || null;
   const used = await usesRegister(orgId);
-  return { orgId, used, register: used ? await registerReceipts(orgId) : [] };
+  return {
+    orgId,
+    used,
+    register: used ? await registerReceipts(orgId) : [],
+    names: orgId ? await storeNames(orgId, org?.name) : {},
+  };
 }
 
-/* The branches a route works with, for a signed-in account: the till's, or,
-   with no till, the register.
-
-   With no till the register is the branch from the start, not from the first
-   sale. A business opening without a POS stocks the shelf before it sells
-   anything, and a branch that only appeared after the first sale refused the
-   delivery that has to come first. The dashboard is unaffected: it still says
-   there is nothing to show until a sale exists (`getMetrics`). */
+/* The branches a route works with, for a signed-in account: the stores the
+   business has set up (one, named after it, until it adds more). */
 export async function rosterFor(account) {
-  const posToken = await posTokenFor(account.username);
-  return branchList(posToken, { register: !posToken });
+  const org = account ? await orgFor(account) : null;
+  if (!org?.id) return [];
+  return (await listStores(org.id, { orgName: org.name }))
+    .map((st) => ({ id: st.id, name: st.name, address: st.address || "", phone: st.phone || "", trn: st.trn || "" }));
 }

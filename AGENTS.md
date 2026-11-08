@@ -22,8 +22,6 @@ Vercel-style serverless API functions in `/api/*.js` (each exports
 ## Secrets
 - `ANTHROPIC_API_KEY` — required for the Ask (اسأل) chat screen only. The app
   boots and all other screens work without it (chat returns a clear error).
-- `LOYVERSE_ACCESS_TOKEN` — optional; without it the dashboard runs on labelled
-  demo data.
 - `FEEDBACK_WEBHOOK_URL` — optional.
 - `SESSION_SECRET` — has a dev fallback in `.env.base44-defaults`.
 - `REDIS_URL` is wired by compose to the local redis service (not a secret).
@@ -126,14 +124,34 @@ they override the defaults).
   150 g wrap leaves 4.85 kg), because the faults that reach people live between
   modules rather than inside them.
 
+## No outside till
+- **Loyverse is gone.** The webhook (`loyverse-webhook.js`, `_loyversehook.js`),
+  the POS adapter (`_pos.js`), the deliveries feed, the POS token on accounts
+  and the "connect your POS" screens are all deleted. Sales come from one place:
+  the register's receipts (`register:<org>:r:*`, `api/_till.js`).
+- `api/_data.js` is register-only: `getMetrics({ register, names, branches })`,
+  `salesLines(...)`, `rawReceipts(...)` take the receipts `registerContext()`
+  read. With nothing sold `getMetrics` throws `NotConnected` → 409 → the
+  dashboard's "open the register" empty state.
+- **Stores** (`api/_stores.js`, key `org:<orgId>:stores`, route `api/stores.js`,
+  UI `src/settings/StoresSetting.jsx`). Every business starts with one store
+  under the id `register` — the id early receipts were filed under, so nothing
+  moves. New stores get `s-<slug>` ids that never change on rename. Archived,
+  never deleted; the last open store can't be archived. Each store's address,
+  phone and TRN print on its own receipts in place of the business's.
+  `rosterFor(account)` is the roster every scoped route resolves against.
+  Changing stores is `manage:users` (owner).
+- The `stockSource: "pos"` option (stock kept on the till) is gone with it.
+- History in the sections below still mentions the till where that is how
+  something came about; the code no longer has one.
+
 ## Multi-branch authorization (stage 1 of the product direction)
 - `api/_org.js` — organizations, roles, membership, scope resolution. Every
   account owns an organization from registration (`orgFor` backfills accounts
   that predate this). Roles: `owner`, `ops`, `branch_manager`, `chef`,
   `accountant`; each has capabilities and a scope rule (`all` | `assigned`).
-- **Branches are POS stores, not a local table.** `branchList()` in `_data.js`
-  reads `/stores`. Permissions only decide who may see which of those ids, so
-  there is nothing to keep in sync.
+- **Branches are the business's own stores** (`api/_stores.js`, see *No
+  outside till* below). Permissions only decide who may see which of those ids.
 - The rule from the document, in `effectiveBranches()`:
   `requested ∩ authorized`. Empty request = everything you're allowed to see,
   which is what keeps an owner's dashboard one consolidated view.
@@ -181,10 +199,6 @@ they override the defaults).
   `allBranches` from the response so internals don't reach the client.
 - Both logs are returned by `GET /api/team` (owner-only, same `manage:users`
   gate) rather than a new endpoint.
-- **`branchList()` wraps upstream failures in `PosUnreachable`.** It moved ahead
-  of `getMetrics` in stage 2, and unwrapped it made a POS outage a generic 500
-  with no failed-sync entry — the exact "no sales" vs "couldn't ask" confusion
-  this stage exists to remove. Keep it wrapped.
 - Front end: `src/Provenance.jsx` (collapsed one-liner under the Overview,
   expands to the full account; shouts only when the last sync failed) and
   `src/TeamActivity.jsx` (`SyncLog` + `AuditLog`, read-only, rendered in the Team

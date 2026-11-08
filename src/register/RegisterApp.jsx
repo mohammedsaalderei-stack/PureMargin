@@ -85,10 +85,17 @@ export default function RegisterApp({ token, user, business, onExit, onLogout })
   const [notice, setNotice] = useState("");
   const [pricing, setPricing] = useState(null);
 
-  const printCtx = useMemo(() => ({
-    labels: P.print, locale: localeFor(lang), rtl,
-    settings: { receipt: { business, ...(catalogue?.receipt || {}) } },
-  }), [P.print, lang, rtl, business, catalogue?.receipt]);
+  /* A store's own address, phone and tax number replace the business-wide
+     ones on its receipts, field by field, so a second branch prints where it
+     is rather than where the first one is. */
+  const printCtx = useMemo(() => {
+    const store = catalogue?.branches?.find((b) => b.id === branchId) || {};
+    const own = Object.fromEntries(["address", "phone", "trn"].filter((k) => store[k]).map((k) => [k, store[k]]));
+    return {
+      labels: P.print, locale: localeFor(lang), rtl,
+      settings: { receipt: { business, ...(catalogue?.receipt || {}), ...own } },
+    };
+  }, [P.print, lang, rtl, business, catalogue?.receipt, catalogue?.branches, branchId]);
 
   const load = useCallback(async () => {
     try {

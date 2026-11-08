@@ -56,12 +56,10 @@ import { listRecipes, costedList, costedRecipe, effectiveVersion } from "./_reci
 import { listIngredients, listSuppliers, getMeta } from "./_inventory.js";
 import { balances, listMovements } from "./_movements.js";
 import { costBasis, costFrom } from "./_costing.js";
-import { ingestionStatus } from "./_loyversehook.js";
 import { listOrders } from "./_purchasing.js";
 import { rawReceipts } from "./_data.js";
 import { usesRegister, registerReceipts } from "./_till.js";
 import { listEdits, applyEdit, receiptIdOf } from "./_saleedits.js";
-import { provider } from "./_pos.js";
 import { listEmployees, listPunches, onShift, shiftsFrom } from "./_employees.js";
 import { buildAlerts } from "./_alerts.js";
 import { normaliseText } from "./_text.js";
@@ -287,9 +285,8 @@ export async function getInventoryLevels(ctx, { search } = {}) {
     settings: await (async () => {
       const meta = await getMeta(ctx.orgId);
       return {
-        stockSource: meta.stockSource,
         autoDepleteFromSales: meta.autoDepleteFromSales,
-        deductsFromSales: meta.stockSource !== "pos" && meta.autoDepleteFromSales,
+        deductsFromSales: meta.autoDepleteFromSales,
       };
     })(),
     note: "Warehouse stock only. Not recipe quantities and not operating costs.",
@@ -434,18 +431,7 @@ export async function getPosSalesMetrics(ctx, { } = {}) {
       revenue: i.revenue,
     })),
 
-    /* How these sales are reaching us, which the assistant had no way to know.
-
-       Asked "is my webhook connected?" or "why has stock stopped moving?", it
-       could only talk about the figures — it was never told whether live
-       ingestion existed, let alone whether anything had arrived on it. Both
-       questions are really about this, and both were unanswerable.
-
-       It belongs in this domain rather than a fifth one: it is a fact about
-       how POS sales get here, not a new kind of money. */
-    ingestion: await ingestionStatus(ctx.orgId),
-
-    note: "Till revenue and sold counts only. Contains no cost of any kind. `ingestion` says how these sales reach PureMargin — live webhook, or read when someone opens the dashboard.",
+    note: "Register revenue and sold counts only. Contains no cost of any kind.",
   };
 }
 
@@ -472,26 +458,10 @@ export async function getRecentReceipts(ctx, { days = 7, limit = 25, dish_name: 
   const register = (await usesRegister(ctx.orgId).catch(() => false))
     ? await registerReceipts(ctx.orgId).catch(() => [])
     : [];
-  if (!ctx.posToken && !register.length) {
-    return {
-      domain: DOMAIN.POS_SALES,
-      error: "notconnected",
-      message: "No point-of-sale connection, so there are no receipts to read.",
-      receipts: [],
-    };
+  if (!register.length) {
+    return { domain: DOMAIN.POS_SALES, error: "nosales", message: "Nothing has been sold yet, so there are no receipts to read.", receipts: [] };
   }
-
-  let raw;
-  try {
-    raw = await rawReceipts(ctx.posToken, { days: Math.min(Math.max(Number(days) || 7, 1), 31), register });
-  } catch {
-    return {
-      domain: DOMAIN.POS_SALES,
-      error: "pos",
-      message: "The till could not be reached just now.",
-      receipts: [],
-    };
-  }
+  const raw = await rawReceipts({ days: Math.min(Math.max(Number(days) || 7, 1), 31), register });
 
   const edits = await listEdits(ctx.orgId).catch(() => ({}));
   const branches = new Set(ctx.branches.map(String));
@@ -509,7 +479,12 @@ export async function getRecentReceipts(ctx, { days = 7, limit = 25, dish_name: 
 
     const edit = edits[id] || null;
     const corrected = applyEdit(r, edit);
-    const receipt = provider().receipt(corrected);
+    const receipt = {
+      at: new Date(corrected.receipt_date).getTime(),
+      lines: (corrected.line_items || []).map((li) => ({
+        name: li.item_name || "", variant: li.variant_name || "", qty: Number(li.quantity) || 0, revenue: Number(li.total_money) || 0,
+      })),
+    };
 
     if (wanted && !receipt.lines.some((l) => l.name.toLowerCase().includes(wanted))) continue;
 
@@ -704,9 +679,7 @@ export const TOOLS = [
     description:
       "Till revenue and what sold: gross revenue, receipts, average ticket, and "
       + "quantity sold per item. Use this for sales, revenue or best sellers. "
-      + "Also reports how sales reach PureMargin, so use it for any question "
-      + "about whether the Loyverse webhook or live sync is connected and "
-      + "working, or why stock has stopped updating. "
+      + "Sales are rung up on PureMargin's own register. "
       + "Contains NO cost of any kind — cost comes from get_recipe_details.",
     input_schema: { type: "object", properties: {} },
   },
@@ -967,7 +940,6 @@ Rules:
   it is called "packaging".
 - If a tool returns an error or a refusal, say what you cannot see. Do not fill
   the gap from another domain.
-- Questions about the Loyverse connection, the webhook, or why stock is not
-  moving are answered from get_pos_sales_metrics, whose ingestion field says
-  whether live receipts are arriving and when the last one did. Do not guess at
-  the state of an integration.`;
+- Sales come from PureMargin's own register. Why stock is not moving is
+  answered from get_inventory_levels, whose settings say whether sales deduct
+  stock.`;
