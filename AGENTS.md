@@ -141,6 +141,14 @@ they override the defaults).
   phone and TRN print on its own receipts in place of the business's.
   `rosterFor(account)` is the roster every scoped route resolves against.
   Changing stores is `manage:users` (owner).
+- **The first read of a business's store list writes it**, adopting every
+  branch id it already has data under (`inv:<org>:moves:<id>` ledgers, members'
+  assigned branches) as a store with that same id, named "Branch N" until the
+  owner renames it. Without this, a business that ran on Loyverse would have
+  lost sight of its stock and its managers' scope the day the till went.
+- `vercel.json`: `usb=(self)` in Permissions-Policy (it was `usb=()`, which
+  disabled WebUSB receipt printers on the site entirely), and
+  `/api/itemimage` is cacheable, overriding the `/api` no-store.
 - The `stockSource: "pos"` option (stock kept on the till) is gone with it.
 - History in the sections below still mentions the till where that is how
   something came about; the code no longer has one.

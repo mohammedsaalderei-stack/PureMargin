@@ -11,7 +11,7 @@
    ledgers and staff assignments point at its id; and the last open store
    cannot be archived, since a business with no store has nowhere to sell. */
 
-import { getJSON, setJSON } from "./_store.js";
+import { getJSON, setJSON, listKeys } from "./_store.js";
 
 const KEY = (orgId) => `org:${orgId}:stores`;
 const text = (v, max) => String(v ?? "").trim().slice(0, max);
@@ -23,9 +23,39 @@ function defaults(orgName) {
   return [{ id: FIRST_STORE_ID, name: text(orgName, 60) || "Main store", address: "", phone: "", trn: "", archived: false }];
 }
 
+/* A business's first store list, written once.
+
+   Businesses that ran on a connected till already have data filed under that
+   till's store ids — a stock ledger per branch, managers assigned to
+   branches. Those ids are not in a fresh list, so all of it would have
+   dropped out of every screen the day the till went. So the first time the
+   list is read, every branch id the business already has data under becomes
+   a store of its own, with the same id, under a placeholder name the owner
+   can change (a rename keeps the id). Written, so it is worked out once and
+   not on every request. */
+async function firstList(orgId, orgName) {
+  const ids = new Set();
+  const prefix = `inv:${orgId}:moves:`;
+  for (const key of await listKeys(prefix)) ids.add(key.slice(prefix.length));
+  const org = await getJSON(`org:${orgId}`);
+  for (const member of Object.values(org?.members || {})) {
+    for (const b of member?.branches || []) ids.add(String(b));
+  }
+  ids.delete(FIRST_STORE_ID);
+  ids.delete("");
+  const list = [
+    ...defaults(orgName),
+    ...[...ids].sort().slice(0, MAX_STORES - 1).map((id, i) => ({
+      id, name: `Branch ${i + 2}`, address: "", phone: "", trn: "", archived: false,
+    })),
+  ];
+  await setJSON(KEY(orgId), list);
+  return list;
+}
+
 export async function listStores(orgId, { includeArchived = false, orgName = "" } = {}) {
   const saved = orgId ? await getJSON(KEY(orgId)) : null;
-  const list = Array.isArray(saved) && saved.length ? saved : defaults(orgName);
+  const list = Array.isArray(saved) && saved.length ? saved : orgId ? await firstList(orgId, orgName) : defaults(orgName);
   return includeArchived ? list : list.filter((s) => !s.archived);
 }
 

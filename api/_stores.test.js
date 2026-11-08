@@ -77,5 +77,20 @@ await test("one business's stores are not another's", async () => {
   assert.deepEqual((await st.listStores("org2")).map((s) => s.id), ["register"]);
 });
 
+await test("branches a business already has data under become stores, ids kept", async () => {
+  const { setJSON } = await import("./_store.js");
+  /* A ledger and a manager filed under the old till's store ids. */
+  await setJSON("inv:org9:moves:42f1c0de", [{ id: "m1" }]);
+  await setJSON("inv:org9:moves:register", [{ id: "m2" }]);
+  await setJSON("org:org9", { id: "org9", members: { sara: { role: "branch_manager", branches: ["9a77b001"] } } });
+  const list = await st.listStores("org9", { orgName: "Olive House" });
+  assert.deepEqual(list.map((s) => s.id), ["register", "42f1c0de", "9a77b001"]);
+  assert.equal(list[0].name, "Olive House");
+  assert.equal(list[1].name, "Branch 2");
+  const renamed = await st.saveStore("org9", { id: "42f1c0de", name: "Marina" });
+  assert.equal(renamed.store.id, "42f1c0de", "renaming keeps the id the old data is under");
+  assert.deepEqual((await st.listStores("org9")).map((s) => s.name), ["Olive House", "Marina", "Branch 3"]);
+});
+
 console.log(failures ? `\n${failures} failed` : "\nall passed");
 process.exit(failures ? 1 : 0);
