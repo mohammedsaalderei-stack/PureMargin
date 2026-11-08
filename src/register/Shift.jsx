@@ -11,7 +11,7 @@ import { useState } from "react";
 import { Wallet, ArrowDownToLine, ArrowUpFromLine, Printer, Lock, History, Inbox } from "lucide-react";
 import { useC } from "../theme.jsx";
 import { useLang, fill } from "../i18n.jsx";
-import { Btn, Sheet, Row, Empty, Keypad, keyInto, Field, money } from "./ui.jsx";
+import { Btn, Tile, Sheet, Row, Empty, Keypad, keyInto, Field, money } from "./ui.jsx";
 
 /* An amount taken off, shown with its minus only when there is one. */
 const less = (n) => (Number(n) > 0 ? `−${money(n)}` : money(0));
@@ -53,10 +53,11 @@ export default function Shift({ token, branchId, shift, summary, onChanged, prin
           <div className="data text-4xl font-extrabold" dir="ltr">{money(s?.cash.expected || 0)}</div>
         </div>
 
-        <div className="grid grid-cols-3 gap-2">
-          <Btn kind="ghost" onClick={() => setMove("in")}><ArrowDownToLine size={16} />{P.shift.payIn}</Btn>
-          <Btn kind="ghost" onClick={() => setMove("out")}><ArrowUpFromLine size={16} />{P.shift.payOut}</Btn>
-          <Btn kind="ghost" onClick={async () => { try { await openDrawer(); } catch { say(P.print.noDrawer); } }}><Inbox size={16} />{P.shift.drawer}</Btn>
+        <div className="grid grid-cols-4 gap-2">
+          <Tile icon={ArrowDownToLine} label={P.shift.payIn} onClick={() => setMove("in")} />
+          <Tile icon={ArrowUpFromLine} label={P.shift.payOut} onClick={() => setMove("out")} />
+          <Tile icon={Inbox} label={P.shift.drawer} onClick={async () => { try { await openDrawer(); } catch { say(P.print.noDrawer); } }} />
+          <Tile icon={Printer} label={P.shift.printX} onClick={async () => { const r = await printShift(shift, s, { ...printCtx, business }); if (!r[0]?.ok) say(P.print.failed); }} />
         </div>
 
         {s && (
@@ -79,9 +80,10 @@ export default function Shift({ token, branchId, shift, summary, onChanged, prin
           </div>
         )}
 
-        <div className="flex gap-2">
-          <Btn kind="ghost" onClick={async () => { const r = await printShift(shift, s, { ...printCtx, business }); if (!r[0]?.ok) say(P.print.failed); }}><Printer size={16} />{P.shift.printX}</Btn>
-          <Btn full kind="danger" onClick={() => setClosing(true)}><Lock size={16} />{P.shift.close}</Btn>
+        {/* Ending the shift is the one action here that cannot be taken back,
+            so it sits apart and is no louder than it needs to be. */}
+        <div className="flex justify-center pt-1">
+          <Btn kind="danger" onClick={() => setClosing(true)}><Lock size={15} />{P.shift.close}</Btn>
         </div>
         {notice && <p className="text-sm text-center" style={{ color: C.amber }}>{notice}</p>}
       </div>

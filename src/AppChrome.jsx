@@ -89,7 +89,7 @@ export function BottomBar({ portal, tab, onGo, icons, onMore, moreOpen }) {
         background: "var(--panel-solid)",
         backdropFilter: "blur(20px)",
         borderTop: `1px solid ${C.hairline}`,
-        paddingBottom: "env(safe-area-inset-bottom)",
+        paddingBottom: "var(--inset-bottom)",
       }}>
       {items.map((id) => {
         const Icon = icons[id];
@@ -133,7 +133,7 @@ export function MoreSheet({ open, onClose, portal, tab, onGo, icons, locked, acc
     );
   };
   return (
-    <div className="fixed inset-0 z-40 flex items-end" style={{ background: C.scrim }} onClick={onClose}>
+    <div className="fixed inset-0 z-40 flex items-end own-insets" style={{ background: C.scrim }} onClick={onClose}>
       <div className="w-full rounded-t-3xl max-h-[80vh] overflow-y-auto palette-in"
         style={{ background: C.surface, paddingBottom: "calc(env(safe-area-inset-bottom) + 12px)" }}
         onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">

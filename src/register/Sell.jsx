@@ -162,8 +162,12 @@ export default function Sell({ token, catalogue, order, setOrder, branchId, wide
     return { value: v, label: P.orderTypes[v], icon: Icon ? <Icon size={14} /> : null };
   });
 
+  /* Beside the menu on a tablet the panel fills its column; in the sheet on a
+     phone it is as tall as the order, up to most of the screen, so two items
+     do not sit above a screen of empty space with the total pushed to the
+     bottom. */
   const panel = (
-    <div className="h-full flex flex-col min-h-0">
+    <div className={`${wide ? "h-full" : "flex-1"} flex flex-col min-h-0`}>
       <div className="px-4 pt-3 space-y-2.5 shrink-0">
         <div className="overflow-x-auto no-scrollbar"><Seg options={orderTypes} value={order.orderType} onChange={(v) => setOrder((o) => ({ ...o, orderType: v }))} /></div>
         <div className="flex gap-2">
@@ -215,7 +219,7 @@ export default function Sell({ token, catalogue, order, setOrder, branchId, wide
         })}
       </div>
 
-      <div className="px-4 pt-2 shrink-0" style={{ borderTop: `1px solid ${C.hairline}`, paddingBottom: "calc(env(safe-area-inset-bottom) + 12px)" }}>
+      <div className="px-4 pt-2 shrink-0" style={{ borderTop: `1px solid ${C.hairline}`, paddingBottom: wide ? "calc(var(--inset-bottom) + 12px)" : "calc(env(safe-area-inset-bottom) + 12px)" }}>
         {receipt && (
           <div className="py-1">
             <Row label={P.order.subtotal} value={money(receipt.subtotal_money)} muted />
@@ -265,13 +269,14 @@ export default function Sell({ token, catalogue, order, setOrder, branchId, wide
       {wide && <aside className="w-[380px] shrink-0 min-h-0" style={{ borderInlineStart: `1px solid ${C.hairline}`, background: "var(--panel-glass)" }}>{panel}</aside>}
 
       {!wide && orderSheet && (
-        <div className="fixed inset-0 z-40 flex items-end" style={{ background: C.scrim }} onClick={() => setOrderSheet(false)}>
-          <div className="w-full h-[88vh] rounded-t-3xl overflow-hidden palette-in flex flex-col" style={{ background: C.surface }} onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-4 pt-4">
+        <div className="fixed inset-0 z-40 flex items-end own-insets" style={{ background: C.scrim }} onClick={() => setOrderSheet(false)}>
+          <div className="w-full max-h-[90dvh] rounded-t-3xl overflow-hidden palette-in flex flex-col" style={{ background: C.surface }} onClick={(e) => e.stopPropagation()}>
+            <div className="mx-auto mt-2 w-10 h-1 rounded-full shrink-0" style={{ background: C.hairline }} />
+            <div className="flex items-center justify-between px-4 pt-2 shrink-0">
               <span className="display font-bold text-lg">{P.order.title}</span>
               <button onClick={() => setOrderSheet(false)} className="w-9 h-9 rounded-full flex items-center justify-center" style={{ background: "var(--chip-bg)" }}><X size={16} /></button>
             </div>
-            <div className="flex-1 min-h-0">{panel}</div>
+            {panel}
           </div>
         </div>
       )}

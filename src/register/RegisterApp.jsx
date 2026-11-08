@@ -274,7 +274,7 @@ export default function RegisterApp({ token, user, business, onExit, onLogout })
   );
 
   return (
-    <div className="h-screen flex flex-col" style={{ background: C.bone, color: C.ink, paddingTop: "var(--safe-top)" }}>
+    <div className="h-screen flex flex-col" style={{ background: C.bone, color: C.ink, paddingTop: "var(--inset-top)" }}>
       {topBar}
       <div className="flex-1 min-h-0 flex">
         {wide && (
@@ -289,7 +289,7 @@ export default function RegisterApp({ token, user, business, onExit, onLogout })
         <main className="flex-1 min-w-0 min-h-0 relative">{body}</main>
       </div>
       {!wide && (
-        <nav className="shrink-0 grid grid-cols-5" style={{ background: "var(--panel-solid)", borderTop: `1px solid ${C.hairline}`, paddingBottom: "env(safe-area-inset-bottom)" }}>
+        <nav className="shrink-0 grid grid-cols-5" style={{ background: "var(--panel-solid)", borderTop: `1px solid ${C.hairline}`, paddingBottom: "var(--inset-bottom)" }}>
           {VIEWS.slice(0, 4).map(({ id, icon: Icon }) => (
             <button key={id} onClick={() => { setView(id); setMore(false); }} className="flex flex-col items-center justify-center gap-1 py-2 min-h-[56px]"
               style={{ color: view === id && !more ? C.iris : C.slate }}>
@@ -339,7 +339,7 @@ export default function RegisterApp({ token, user, business, onExit, onLogout })
 
 function Frame({ children }) {
   const C = useC();
-  return <div className="h-screen" style={{ background: C.bone, color: C.ink, paddingTop: "var(--safe-top)" }}>{children}</div>;
+  return <div className="h-screen" style={{ background: C.bone, color: C.ink, paddingTop: "var(--inset-top)" }}>{children}</div>;
 }
 
 /* After the sale: the change to hand back, and the receipt. */

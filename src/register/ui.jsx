@@ -12,8 +12,8 @@ export const money = (n) => (Number(n) || 0).toFixed(2);
 export function Sheet({ title, onClose, children, footer, wide = false }) {
   const C = useC();
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-6" style={{ background: C.scrim }} onClick={onClose}>
-      <div className={`w-full ${wide ? "sm:max-w-2xl" : "sm:max-w-md"} rounded-t-3xl sm:rounded-3xl max-h-[92vh] flex flex-col palette-in`}
+    <div className="fixed inset-0 z-50 flex items-end own-insets sm:items-center justify-center sm:p-6" style={{ background: C.scrim }} onClick={onClose}>
+      <div className={`w-full ${wide ? "sm:max-w-2xl" : "sm:max-w-md"} rounded-t-3xl sm:rounded-3xl max-h-[92dvh] flex flex-col palette-in`}
         style={{ background: C.surface, border: `1px solid ${C.hairline}` }}
         onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
         <div className="flex items-center justify-between px-5 pt-5 pb-3 shrink-0">
@@ -41,7 +41,7 @@ export function Btn({ children, onClick, kind = "primary", disabled, className =
   const pad = size === "lg" ? "px-5 py-4 text-base" : size === "sm" ? "px-3 py-2 text-xs" : "px-4 py-3 text-sm";
   return (
     <button type={type} onClick={onClick} disabled={disabled}
-      className={`${pad} ${full ? "w-full" : ""} rounded-2xl font-bold inline-flex items-center justify-center gap-2 whitespace-nowrap shrink-0 disabled:opacity-40 active:scale-[0.98] transition-transform ${className}`}
+      className={`${pad} ${full ? "w-full min-w-0 overflow-hidden" : "shrink-0"} rounded-2xl font-bold inline-flex items-center justify-center gap-2 whitespace-nowrap disabled:opacity-40 active:scale-[0.98] transition-transform ${className}`}
       style={styles[kind]}>
       {children}
     </button>
@@ -59,6 +59,22 @@ export function Field({ label, value, onChange, placeholder, type = "text", inpu
         style={{ background: "var(--chip-bg)", color: C.ink, border: `1px solid ${C.hairline}` }} />
       {hint && <span className="block text-[11px] mt-1" style={{ color: C.slate }}>{hint}</span>}
     </label>
+  );
+}
+
+/* A small square action: icon over a label that may wrap, for a row of
+   several on a phone where a word like "Open drawer" would not fit beside
+   its neighbours on one line. */
+export function Tile({ icon: Icon, label, onClick, kind = "ghost", disabled }) {
+  const C = useC();
+  const tone = kind === "danger" ? { background: "rgba(244,63,94,0.12)", color: C.rose } : { background: "var(--chip-bg)", color: C.ink };
+  return (
+    <button onClick={onClick} disabled={disabled}
+      className="min-w-0 rounded-2xl px-2 py-3 flex flex-col items-center justify-center gap-1.5 text-[12px] leading-tight font-semibold text-center disabled:opacity-40 active:scale-[0.97] transition-transform"
+      style={tone}>
+      {Icon && <Icon size={18} />}
+      <span className="break-words">{label}</span>
+    </button>
   );
 }
 

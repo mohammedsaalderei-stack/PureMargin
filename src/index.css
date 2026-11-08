@@ -192,6 +192,28 @@ html { overscroll-behavior-y: none; }
   height: calc(100vh - var(--safe-top) - var(--safe-bottom));
 }
 
+/* In a phone's browser 100vh is the height with the toolbars hidden, so a
+   full-height screen's bottom bar sat under Safari's toolbar. The dynamic
+   unit is the space actually showing. */
+@supports (height: 100dvh) {
+  .h-screen { height: 100dvh; }
+  .is-native .h-screen { height: calc(100dvh - var(--safe-top) - var(--safe-bottom)); }
+}
+
+/* Insets for bars that sit in the page's flow (a top header, a bottom tab
+   bar). In the app the body is already padded clear of the status bar and
+   the home indicator, so these are zero there — adding the inset again is
+   what squeezed the register and the back office between two gaps. In a
+   browser nothing pads the body, so they are the real insets. */
+:root {
+  --inset-top: env(safe-area-inset-top, 0px);
+  --inset-bottom: env(safe-area-inset-bottom, 0px);
+}
+.is-native {
+  --inset-top: 0px;
+  --inset-bottom: 0px;
+}
+
 /* Pages that scroll the document (landing, pricing, clock-in, admin) pin
    their header with `sticky top-0`, which is the top of the glass. Pin it
    under the status bar instead, and put a strip of the page's colour behind
@@ -218,6 +240,12 @@ html { overscroll-behavior-y: none; }
 .is-native .fixed.inset-0.items-end {
   padding-top: var(--safe-top);
   padding-bottom: var(--safe-bottom);
+}
+
+/* Sheets that run to the bottom edge and pad their own footer clear of the
+   home indicator, so no strip of backdrop shows beneath them. */
+.is-native .fixed.inset-0.items-end.own-insets {
+  padding-bottom: 0;
 }
 
 .is-native .auth-bar {

@@ -758,7 +758,7 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
 
   return (
     <div className="h-screen flex flex-col relative overflow-hidden" style={{ background: C.bone }}>
-      <header className="shrink-0 z-20" style={{ background: "var(--panel-glass)", backdropFilter: "blur(20px)", paddingTop: "var(--safe-top)" }}>
+      <header className="shrink-0 z-20" style={{ background: "var(--panel-glass)", backdropFilter: "blur(20px)", paddingTop: "var(--inset-top)" }}>
         <div className="h-12 flex items-center justify-between px-3 gap-2">
           <div className="flex items-center gap-2 min-w-0">
             <BrandMark size={28} />
