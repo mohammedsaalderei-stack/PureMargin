@@ -39,6 +39,7 @@ import LanguagePicker from "./LanguagePicker.jsx";
 import ThemeToggle from "./ThemeToggle.jsx";
 import Skeleton from "./Skeleton.jsx";
 import EmptyTable from "./EmptyTable.jsx";
+import { useAppFrame } from "./appFrame.js";
 import LiveDot from "./LiveDot.jsx";
 import { PortalSwitcher, SectionTabs, BottomBar, MoreSheet, AccountMenu } from "./AppChrome.jsx";
 import { layoutFor, portalOf, landingOf, ACCOUNT } from "./nav.js";
@@ -237,6 +238,7 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
   const [typeError, setTypeError] = useState("");
   const [error, setError] = useState("");
   const [refreshing, setRefreshing] = useState(false);
+  useAppFrame();
   const [noSales, setNoSales] = useState(false);
   const [mobileMenu, setMobileMenu] = useState(false);
   const [fetchedAt, setFetchedAt] = useState(null);
@@ -656,7 +658,7 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
      organization settings is not shown a choice they cannot make. */
   if (typePrompt) {
     return (
-      <div className="h-screen overflow-y-auto">
+      <div className="h-screen overflow-y-auto" style={{ paddingTop: "var(--inset-top)", paddingBottom: "var(--inset-bottom)" }}>
         <BusinessTypePicker
           value={scope?.businessType ?? null}
           busy={savingType}
@@ -713,9 +715,9 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
   /* ---------------- Desktop ---------------- */
   if (desktop) {
     return (
-      <div className="h-screen flex flex-col">
+      <div className="h-screen flex flex-col" style={{ paddingBottom: "var(--inset-bottom)" }}>
         <AmbientBackground />
-        <header className="shrink-0 relative z-20" style={{ background: "var(--panel-glass)", backdropFilter: "blur(20px)" }}>
+        <header className="shrink-0 relative z-20" style={{ background: "var(--panel-glass)", backdropFilter: "blur(20px)", paddingTop: "var(--inset-top)" }}>
           <div className="h-16 flex items-center gap-5 px-6">
             {logo}
             <PortalSwitcher layout={layout} current={portalId} onPick={pickPortal} compact />

@@ -6,13 +6,14 @@
    to somebody allowed to change it. */
 
 import { useEffect, useState } from "react";
-import { Printer, CreditCard, Percent, ReceiptText, SlidersHorizontal, Package, KeyRound, ChevronRight, Plus, Trash2, Radar, Check } from "lucide-react";
+import { Printer, CreditCard, Percent, ReceiptText, SlidersHorizontal, Package, KeyRound, ChevronRight, Plus, Trash2, Radar, Check, ImagePlus } from "lucide-react";
 import { useC } from "../theme.jsx";
 import { useLang, fill } from "../i18n.jsx";
 import { Btn, Sheet, Field, Seg, Toggle, money } from "./ui.jsx";
 import { call, RegisterError } from "./api.js";
 import { loadPrinters, savePrinters, newPrinter, connectionsAvailable, discover, discoverBluetooth, pickBluetoothAccessory, pairDevice, testPrint } from "../print/printers.js";
 import { isNativePlatform } from "../platform.js";
+import { shrinkImage, pictureSrc } from "./itemImage.js";
 
 export default function RegisterSettings({ token, catalogue, onChanged, printCtx }) {
   const C = useC();
@@ -321,6 +322,15 @@ function Items({ token, P, catalogue, onClose }) {
         stock: stockItem ? { ingredientId: stockItem.id, qty: Number(e.stockQty), unit: e.stockUnit || stockItem.stockUnit } : null,
       });
     if (!out) return;
+    /* The photo, once the item has an id to hang it on. */
+    const itemId = e.kind === "recipe" ? e.id : out.id;
+    try {
+      if (e.newImage) await call(token, "image", { method: "PUT", body: { itemId, image: e.newImage } });
+      else if (e.dropImage && e.image) await call(token, "image", { method: "DELETE", query: { id: itemId } });
+    } catch {
+      setVariantError(V.photoFailed);
+      return;
+    }
     if (!e.variantsFromRecipes) {
       try {
         await call(token, "variants", { method: "PUT", body: {
@@ -355,6 +365,30 @@ function Items({ token, P, catalogue, onClose }) {
       {editing && (
         <Sheet title={editing.name || S.addProduct} onClose={() => setEditing(null)}
           footer={<div>{(error || variantError) && <p className="text-sm mb-2" style={{ color: "#F43F5E" }}>{variantError || (P.variants.errors[error] || error)}</p>}<Btn full disabled={busy} onClick={save}>{P.common.save}</Btn></div>}>
+          {/* The photo on the Sell screen tile. Shrunk to a 480-pixel square
+              here before it is sent (`itemImage.js`). */}
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-20 h-20 rounded-2xl overflow-hidden shrink-0 flex items-center justify-center" style={{ background: "var(--chip-bg)", border: `1px solid ${C.hairline}` }}>
+              {editing.newImage || (editing.image && !editing.dropImage)
+                ? <img src={editing.newImage || pictureSrc(editing.image)} alt="" className="w-full h-full object-cover" />
+                : <ImagePlus size={22} style={{ color: C.slate }} />}
+            </div>
+            <div className="flex flex-col items-start gap-1.5 min-w-0">
+              <label className="px-3.5 py-2 rounded-xl text-sm font-semibold cursor-pointer" style={{ background: "var(--chip-bg)", color: C.ink }}>
+                {editing.newImage || (editing.image && !editing.dropImage) ? V.changePhoto : V.addPhoto}
+                <input type="file" accept="image/*" className="hidden" onChange={async (ev) => {
+                  const file = ev.target.files?.[0];
+                  ev.target.value = "";
+                  if (!file) return;
+                  try { setEditing((x) => ({ ...x, newImage: null })); const data = await shrinkImage(file); setEditing((x) => ({ ...x, newImage: data, dropImage: false })); setVariantError(""); }
+                  catch { setVariantError(V.photoFailed); }
+                }} />
+              </label>
+              {(editing.newImage || (editing.image && !editing.dropImage)) && (
+                <button onClick={() => setEditing({ ...editing, newImage: null, dropImage: true })} className="text-xs font-semibold" style={{ color: C.rose }}>{V.removePhoto}</button>
+              )}
+            </div>
+          </div>
           {editing.kind === "product" ? (
             <>
               <Field label={S.name} value={editing.name} onChange={(v) => setEditing({ ...editing, name: v })} />

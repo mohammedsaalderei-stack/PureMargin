@@ -21,13 +21,14 @@
 
    GET  ?what=catalogue | day | receipts | receipt | tickets | customers | shift | shifts | pins | stockitems
    POST ?what=sale | refund | pin | shift-open | shift-move | shift-close | email | device
-   PUT  ?what=ticket | customer | addons | variants | price | vat | settings | product | item | pins
-   DELETE ?what=ticket | product | pins
+   PUT  ?what=ticket | customer | addons | variants | image | price | vat | settings | product | item | pins
+   DELETE ?what=ticket | product | pins | image
 */
 
 import { requireAuth, issueDeviceToken } from "./_auth.js";
 import { sendMail, configured as mailConfigured } from "./_mail.js";
 import { receiptMail, receiptLanguages, allowSend, validEmail } from "./_receiptmail.js";
+import { saveImage, removeImage } from "./_itemimages.js";
 import { scopeFor, effectiveBranches, parseBranchParam } from "./_org.js";
 import { getMeta, listIngredients } from "./_inventory.js";
 import { UNIT_KEYS, dimensionOf } from "./_units.js";
@@ -116,7 +117,7 @@ export default async function handler(req, res) {
     if (req.method === "GET" && what === "catalogue") {
       const [recipes, settings] = await Promise.all([listRecipes(orgId), getSettings(orgId)]);
       return res.status(200).json({
-        items: catalogueOf(recipes, settings),
+        items: catalogueOf(recipes, settings, { orgId }),
         vatPct: settings.vatPct,
         vatMode: settings.vatMode,
         paymentTypes: settings.paymentTypes,
@@ -499,6 +500,27 @@ export default async function handler(req, res) {
       const out = await saveItemMeta(orgId, body.itemId, body);
       if (out.error) return res.status(422).json(out);
       return res.status(200).json(out);
+    }
+
+    /* A picture for an item, already shrunk on the device (`itemImage.js`);
+       checked and capped here all the same. */
+    if (req.method === "PUT" && what === "image") {
+      if (!can("manage:recipes")) return res.status(403).json({ error: "forbidden" });
+      const [recipes, settings] = await Promise.all([listRecipes(orgId), getSettings(orgId)]);
+      const itemId = String(body.itemId || "");
+      const known = recipes.some((r) => String(r.id) === itemId) || Boolean(settings.products[itemId]);
+      if (!known) return res.status(404).json({ error: "item" });
+      const out = await saveImage(orgId, itemId, body.image);
+      if (out.error) return res.status(out.error === "toolarge" ? 413 : 422).json(out);
+      await audit("register.image", { itemId, bytes: out.bytes });
+      return res.status(200).json(out);
+    }
+
+    if (req.method === "DELETE" && what === "image") {
+      if (!can("manage:recipes")) return res.status(403).json({ error: "forbidden" });
+      await removeImage(orgId, String(req.query?.id || ""));
+      await audit("register.image", { itemId: String(req.query?.id || ""), removed: true });
+      return res.status(200).json({ removed: true });
     }
 
     if (req.method === "PUT" && what === "variants") {

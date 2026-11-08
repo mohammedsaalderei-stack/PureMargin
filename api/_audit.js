@@ -84,6 +84,7 @@ export const AUDIT_ACTIONS = {
 
   "register.addons": "register add-ons changed",
   "register.variants": "register variants changed",
+  "register.image": "item picture changed",
   "register.vat": "register VAT rate changed",
   "register.price": "dish price set from the register",
   "register.refund": "register refund",

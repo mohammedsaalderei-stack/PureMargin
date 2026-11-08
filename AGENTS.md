@@ -267,6 +267,31 @@ they override the defaults).
 - The sales card says how much of it is VAT (`daily[].tax`).
 - Tests: `api/_overview.test.js`.
 
+## Item pictures, motion, and edge-to-edge frames
+- **Pictures**: `PUT /api/till?what=image { itemId, image }` / `DELETE ?what=image&id=`
+  (`manage:recipes`). Stored one per item at `register:<org>:img:<itemId>`
+  (`_itemimages.js`), never inside settings — settings are read on every sale.
+  Type is sniffed from the bytes (JPEG/PNG/WebP only), 400 KB cap; the device
+  shrinks to a 480 px square JPEG first (`src/register/itemImage.js`).
+- Served by **`GET /api/itemimage?o&i&v&s`** with no session (an `<img>` can't
+  send one; a register-only device must still draw its menu). The HMAC
+  (`_imageurl.js`, `signScoped("itemimage")`) covers org, item and version, and
+  the version must be current, so a replaced picture's old address 404s and
+  current addresses are `immutable`. `_imageurl.js` is separate so `_till.js`
+  can sign without importing the storage module (which imports `_till.js`).
+  `catalogueOf(recipes, settings, { orgId })` adds `image`; native resolves it
+  against the API origin (`pictureSrc`). Tests: `api/_itemimages.test.js`.
+- **Motion** (`index.css`): `sheet-in/out`, `backdrop-in/out`, `pane-in`,
+  `line-in`, `bar-up`; sheets close through `useExit` (ui.jsx), which animates
+  then calls `onClose` and restores itself if the caller refuses to close.
+  All off under `prefers-reduced-motion`.
+- **Edge to edge in the app**: `useAppFrame()` (`src/appFrame.js`) puts
+  `app-frame-on` on `<html>` while the back office or register is mounted. In
+  the native app that drops the body's safe-area padding and sets
+  `--inset-top/--inset-bottom` to the real insets, so headers and tab bars
+  extend behind the status bar and home indicator with their content clear of
+  them. Pages that scroll as documents keep the old body padding.
+
 ## Multi-branch authorization (stage 1 of the product direction)
 - `api/_org.js` — organizations, roles, membership, scope resolution. Every
   account owns an organization from registration (`orgFor` backfills accounts

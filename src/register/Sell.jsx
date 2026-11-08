@@ -17,8 +17,9 @@ import { Search, Plus, Minus, Trash2, Percent, UserRound, StickyNote, Save, Shop
 import { useC } from "../theme.jsx";
 import { useLang, fill } from "../i18n.jsx";
 import { buildSale } from "../../shared/tillprice.js";
-import { Sheet, Btn, Field, Seg, Row, Empty, money } from "./ui.jsx";
+import { Sheet, Btn, Field, Seg, Row, Empty, money, useExit } from "./ui.jsx";
 import Charge from "./Charge.jsx";
+import { pictureSrc } from "./itemImage.js";
 import CustomerPicker from "./CustomerPicker.jsx";
 
 export const ORDER_ICONS = { dine_in: Utensils, takeaway: ShoppingBag, car: Car, delivery: Bike };
@@ -66,6 +67,7 @@ export default function Sell({ token, catalogue, order, setOrder, branchId, wide
   const [charging, setCharging] = useState(false);
   const [saveOpen, setSaveOpen] = useState(false);
   const [flash, setFlash] = useState("");
+  const [sheetLeaving, closeOrderSheet] = useExit(() => setOrderSheet(false));
 
   const items = useMemo(() => (catalogue.items || []).filter((i) => !i.hidden), [catalogue.items]);
   const categories = useMemo(() => [...new Set(items.map((i) => i.category).filter(Boolean))], [items]);
@@ -154,9 +156,17 @@ export default function Sell({ token, catalogue, order, setOrder, branchId, wide
           <div className="grid gap-2.5" style={{ gridTemplateColumns: `repeat(auto-fill, minmax(${wide ? 150 : 130}px, 1fr))` }}>
             {shown.map((item) => (
               <button key={item.id} onClick={() => tap(item)} disabled={!item.priced && !can.manageItems}
-                className="relative text-start rounded-2xl p-3 min-h-[96px] flex flex-col justify-between overflow-hidden active:scale-[0.97] transition-transform"
+                className="relative text-start rounded-2xl overflow-hidden flex flex-col active:scale-[0.97] transition-transform"
                 style={{ background: C.surface, border: `1px ${item.priced ? "solid" : "dashed"} ${C.hairline}`, opacity: item.priced ? 1 : 0.55 }}>
-                <span className="absolute top-0 inset-x-0 h-1" style={{ background: item.color || "transparent" }} />
+                {/* A picture when the item has one; otherwise its colour as a
+                    strip along the top, as before. */}
+                {item.image ? (
+                  <img src={pictureSrc(item.image)} alt="" loading="lazy" decoding="async"
+                    className="w-full aspect-[4/3] object-cover" style={{ background: "var(--chip-bg)" }} />
+                ) : (
+                  <span className="absolute top-0 inset-x-0 h-1" style={{ background: item.color || "transparent" }} />
+                )}
+                <span className={`flex-1 flex flex-col justify-between p-3 ${item.image ? "pt-2" : "min-h-[96px]"}`}>
                 <span className="font-semibold text-sm leading-snug line-clamp-2" style={{ color: C.ink }}>{item.name}</span>
                 <span className="flex items-center justify-between gap-1 mt-2">
                   <span className="data text-sm font-bold" dir="ltr" style={{ color: item.priced ? C.iris : C.slate }}>
@@ -165,6 +175,7 @@ export default function Sell({ token, catalogue, order, setOrder, branchId, wide
                       : (can.manageItems ? P.sell.setPrice : P.sell.noPrice)}
                   </span>
                   {(item.addons?.length > 0 || sellable(item).length > 1) && <Plus size={13} style={{ color: C.slate }} />}
+                </span>
                 </span>
               </button>
             ))}
@@ -208,7 +219,7 @@ export default function Sell({ token, catalogue, order, setOrder, branchId, wide
           const item = byId.get(line.itemId);
           const li = receipt?.line_items?.[i];
           return (
-            <div key={line.key} className="flex items-center gap-2 py-2.5" style={{ borderBottom: `1px solid ${C.hairline}` }}>
+            <div key={line.key} className="flex items-center gap-2 py-2.5 line-in rounded-lg" style={{ borderBottom: `1px solid ${C.hairline}` }}>
               <button onClick={() => setEditing(line.key)} className="flex-1 min-w-0 text-start">
                 <span className="block text-sm font-semibold truncate" style={{ color: C.ink }}>{lineName(item, line, P)}</span>
                 {line.addons.length > 0 && (
@@ -274,7 +285,7 @@ export default function Sell({ token, catalogue, order, setOrder, branchId, wide
           </div>
         )}
         {!wide && order.lines.length > 0 && (
-          <div className="absolute inset-x-0 bottom-0 p-3" style={{ background: `linear-gradient(transparent, ${C.bone} 35%)` }}>
+          <div className="absolute inset-x-0 bottom-0 p-3 bar-up" style={{ background: `linear-gradient(transparent, ${C.bone} 35%)` }}>
             <button onClick={() => setOrderSheet(true)} className="w-full flex items-center justify-between gap-3 px-5 py-4 rounded-2xl font-bold shadow-xl"
               style={{ background: C.iris, color: "#fff" }}>
               <span className="flex items-center gap-2"><ChevronUp size={18} />{fill(P.order.items, { n: count })}</span>
@@ -286,12 +297,12 @@ export default function Sell({ token, catalogue, order, setOrder, branchId, wide
       {wide && <aside className="w-[380px] shrink-0 min-h-0" style={{ borderInlineStart: `1px solid ${C.hairline}`, background: "var(--panel-glass)" }}>{panel}</aside>}
 
       {!wide && orderSheet && (
-        <div className="fixed inset-0 z-40 flex items-end own-insets" style={{ background: C.scrim }} onClick={() => setOrderSheet(false)}>
-          <div className="w-full max-h-[90dvh] rounded-t-3xl overflow-hidden palette-in flex flex-col" style={{ background: C.surface }} onClick={(e) => e.stopPropagation()}>
+        <div className={`fixed inset-0 z-40 flex items-end own-insets ${sheetLeaving ? "backdrop-out" : "backdrop-in"}`} style={{ background: C.scrim }} onClick={() => closeOrderSheet()}>
+          <div className={`w-full max-h-[90dvh] rounded-t-3xl overflow-hidden flex flex-col ${sheetLeaving ? "sheet-out" : "sheet-in"}`} style={{ background: C.surface }} onClick={(e) => e.stopPropagation()}>
             <div className="mx-auto mt-2 w-10 h-1 rounded-full shrink-0" style={{ background: C.hairline }} />
             <div className="flex items-center justify-between px-4 pt-2 shrink-0">
               <span className="display font-bold text-lg">{P.order.title}</span>
-              <button onClick={() => setOrderSheet(false)} className="w-9 h-9 rounded-full flex items-center justify-center" style={{ background: "var(--chip-bg)" }}><X size={16} /></button>
+              <button onClick={() => closeOrderSheet()} className="w-9 h-9 rounded-full flex items-center justify-center" style={{ background: "var(--chip-bg)" }}><X size={16} /></button>
             </div>
             {panel}
           </div>

@@ -38,6 +38,7 @@ const en = {
     fromRecipes: "Sizes come from the recipes named {name} on the Recipes screen, each with its own ingredients. Change them there.",
     stockTitle: "Stock", stockLead: "Take a stock item off the shelf each time this sells — for things bought in and sold as they are.",
     stockNone: "Not tracked", stockQty: "Per sale", stockUnit: "Unit",
+    photo: "Photo", addPhoto: "Add a photo", changePhoto: "Change photo", removePhoto: "Remove photo", photoFailed: "That picture couldn't be used. Try another one.",
     errors: { scale: "Portions must be between 0.05 and 20.", stock: "That stock item no longer exists.", stockqty: "Say how much one sale takes.", stockunit: "That unit doesn't measure this stock item.", price: "Every variant needs a price.", name: "Every variant needs a name." },
   },
   email: {
@@ -235,6 +236,7 @@ const ar = {
     fromRecipes: "الأحجام مأخوذة من الوصفات المسماة {name} في شاشة الوصفات، ولكل منها مكوّناته. عدّلها هناك.",
     stockTitle: "المخزون", stockLead: "اسحب صنفًا من المخزون في كل مرة يُباع فيها — لما يُشترى ويُباع كما هو.",
     stockNone: "غير متتبَّع", stockQty: "لكل عملية بيع", stockUnit: "الوحدة",
+    photo: "الصورة", addPhoto: "إضافة صورة", changePhoto: "تغيير الصورة", removePhoto: "إزالة الصورة", photoFailed: "تعذّر استخدام هذه الصورة. جرّب صورة أخرى.",
     errors: { scale: "يجب أن تكون الحصص بين 0.05 و20.", stock: "صنف المخزون هذا لم يعد موجودًا.", stockqty: "حدّد الكمية التي تسحبها عملية البيع الواحدة.", stockunit: "هذه الوحدة لا تقيس صنف المخزون هذا.", price: "كل خيار يحتاج إلى سعر.", name: "كل خيار يحتاج إلى اسم." },
   },
   email: {
@@ -432,6 +434,7 @@ const hi = {
     fromRecipes: "साइज़ रेसिपी स्क्रीन पर {name} नाम की रेसिपियों से आते हैं, हर एक की अपनी सामग्री। वहीं बदलें।",
     stockTitle: "स्टॉक", stockLead: "हर बार बिकने पर एक स्टॉक आइटम शेल्फ़ से घटाएँ — जो चीज़ें ख़रीदकर वैसे ही बेची जाती हैं।",
     stockNone: "ट्रैक नहीं", stockQty: "हर बिक्री पर", stockUnit: "इकाई",
+    photo: "फ़ोटो", addPhoto: "फ़ोटो जोड़ें", changePhoto: "फ़ोटो बदलें", removePhoto: "फ़ोटो हटाएँ", photoFailed: "यह तस्वीर इस्तेमाल नहीं हो सकी। दूसरी आज़माएँ।",
     errors: { scale: "पोर्शन 0.05 और 20 के बीच होना चाहिए।", stock: "वह स्टॉक आइटम अब मौजूद नहीं है।", stockqty: "बताइए एक बिक्री कितना लेती है।", stockunit: "यह इकाई इस स्टॉक आइटम को नहीं मापती।", price: "हर वैरिएंट की कीमत चाहिए।", name: "हर वैरिएंट का नाम चाहिए।" },
   },
   email: {
@@ -629,6 +632,7 @@ const ur = {
     fromRecipes: "سائز ترکیبوں کی اسکرین پر {name} نام کی ترکیبوں سے آتے ہیں، ہر ایک کے اپنے اجزا۔ وہیں تبدیل کریں۔",
     stockTitle: "اسٹاک", stockLead: "ہر بار بکنے پر ایک اسٹاک آئٹم شیلف سے گھٹائیں — جو چیزیں خرید کر ویسے ہی بیچی جاتی ہیں۔",
     stockNone: "ٹریک نہیں", stockQty: "ہر فروخت پر", stockUnit: "اکائی",
+    photo: "تصویر", addPhoto: "تصویر شامل کریں", changePhoto: "تصویر بدلیں", removePhoto: "تصویر ہٹائیں", photoFailed: "یہ تصویر استعمال نہیں ہو سکی۔ کوئی اور آزمائیں۔",
     errors: { scale: "پورشن 0.05 اور 20 کے درمیان ہونا چاہیے۔", stock: "وہ اسٹاک آئٹم اب موجود نہیں۔", stockqty: "بتائیں ایک فروخت کتنا لیتی ہے۔", stockunit: "یہ اکائی اس اسٹاک آئٹم کو نہیں ناپتی۔", price: "ہر ویریئنٹ کی قیمت چاہیے۔", name: "ہر ویریئنٹ کا نام چاہیے۔" },
   },
   email: {
@@ -826,6 +830,7 @@ const tl = {
     fromRecipes: "Galing ang mga laki sa mga recipe na {name} sa Recipes, bawat isa may sariling sangkap. Doon ito baguhin.",
     stockTitle: "Stock", stockLead: "Bawasan ang isang stock item tuwing nabebenta ito — para sa binibili at ibinebenta nang ganoon.",
     stockNone: "Hindi sinusubaybayan", stockQty: "Bawat benta", stockUnit: "Unit",
+    photo: "Larawan", addPhoto: "Magdagdag ng larawan", changePhoto: "Palitan ang larawan", removePhoto: "Alisin ang larawan", photoFailed: "Hindi magamit ang larawang iyon. Subukan ang iba.",
     errors: { scale: "Dapat nasa pagitan ng 0.05 at 20 ang portion.", stock: "Wala na ang stock item na iyon.", stockqty: "Sabihin kung gaano karami ang kinukuha ng isang benta.", stockunit: "Hindi sinusukat ng unit na iyon ang stock item na ito.", price: "Kailangan ng presyo ng bawat variant.", name: "Kailangan ng pangalan ng bawat variant." },
   },
   email: {

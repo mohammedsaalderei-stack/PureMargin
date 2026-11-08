@@ -17,6 +17,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { ShoppingCart, ClipboardList, Receipt, Wallet, Users, Settings, LogOut, Lock, WifiOff, CloudUpload, MoreHorizontal, Printer, Check, ArrowLeftRight, KeyRound, Mail } from "lucide-react";
 import { LockDeviceSheet, UnlockSheet } from "./DeviceLock.jsx";
 import EmailReceipt from "./EmailReceipt.jsx";
+import { useAppFrame } from "../appFrame.js";
 import { useC } from "../theme.jsx";
 import { useLang, fill, localeFor } from "../i18n.jsx";
 import BrandMark from "../BrandMark.jsx";
@@ -68,6 +69,7 @@ export default function RegisterApp({ token, user, business: businessProp, onExi
   const C = useC();
   const { t, lang, rtl } = useLang();
   const P = t.pos;
+  useAppFrame();
   const wide = useWide();
 
   const [catalogue, setCatalogue] = useState(null);
@@ -260,7 +262,9 @@ export default function RegisterApp({ token, user, business: businessProp, onExi
   );
 
   const topBar = (
-    <header className="shrink-0 flex items-center gap-3 px-3 sm:px-4 h-14" style={{ background: "var(--panel-glass)", borderBottom: `1px solid ${C.hairline}`, backdropFilter: "blur(20px)" }}>
+    /* The header's own background runs up behind the status bar; its contents
+       sit below it. */
+    <header className="shrink-0 flex items-center gap-3 px-3 sm:px-4" style={{ height: "calc(3.5rem + var(--inset-top))", paddingTop: "var(--inset-top)", background: "var(--panel-glass)", borderBottom: `1px solid ${C.hairline}`, backdropFilter: "blur(20px)" }}>
       <button onClick={exit} className="flex items-center gap-2 pe-2 rounded-xl min-w-0" aria-label={exitLabel}>
         <BrandMark size={28} />
         <span className="min-w-0 text-start">
@@ -293,11 +297,11 @@ export default function RegisterApp({ token, user, business: businessProp, onExi
   );
 
   return (
-    <div className="h-screen flex flex-col" style={{ background: C.bone, color: C.ink, paddingTop: "var(--inset-top)" }}>
+    <div className="h-screen flex flex-col" style={{ background: C.bone, color: C.ink }}>
       {topBar}
       <div className="flex-1 min-h-0 flex">
         {wide && (
-          <nav className="w-[92px] shrink-0 flex flex-col gap-1 p-2" style={{ borderInlineEnd: `1px solid ${C.hairline}`, background: "var(--panel-glass)" }}>
+          <nav className="w-[92px] shrink-0 flex flex-col gap-1 p-2" style={{ borderInlineEnd: `1px solid ${C.hairline}`, background: "var(--panel-glass)", paddingBottom: "calc(var(--inset-bottom) + 0.5rem)" }}>
             {VIEWS.map(railItem)}
             <div className="flex-1" />
             <button onClick={exit} className="w-full flex flex-col items-center gap-1 py-3 rounded-2xl" style={{ color: C.slate }}>
@@ -305,7 +309,9 @@ export default function RegisterApp({ token, user, business: businessProp, onExi
             </button>
           </nav>
         )}
-        <main className="flex-1 min-w-0 min-h-0 relative">{body}</main>
+        {/* Keyed by view, so moving between Sell, Receipts and Shift eases the
+            new one in rather than swapping it under the cashier's thumb. */}
+        <main className="flex-1 min-w-0 min-h-0 relative"><div key={view} className="h-full pane-in">{body}</div></main>
       </div>
       {!wide && (
         <nav className="shrink-0 grid grid-cols-5" style={{ background: "var(--panel-solid)", borderTop: `1px solid ${C.hairline}`, paddingBottom: "var(--inset-bottom)" }}>

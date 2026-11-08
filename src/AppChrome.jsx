@@ -133,8 +133,8 @@ export function MoreSheet({ open, onClose, portal, tab, onGo, icons, locked, acc
     );
   };
   return (
-    <div className="fixed inset-0 z-40 flex items-end own-insets" style={{ background: C.scrim }} onClick={onClose}>
-      <div className="w-full rounded-t-3xl max-h-[80vh] overflow-y-auto palette-in"
+    <div className="fixed inset-0 z-40 flex items-end own-insets backdrop-in" style={{ background: C.scrim }} onClick={onClose}>
+      <div className="w-full rounded-t-3xl max-h-[80dvh] overflow-y-auto sheet-in"
         style={{ background: C.surface, paddingBottom: "calc(env(safe-area-inset-bottom) + 12px)" }}
         onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
         <div className="flex items-center justify-between px-4 pt-4 pb-2">

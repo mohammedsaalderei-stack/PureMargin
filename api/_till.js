@@ -27,6 +27,7 @@
 import { getJSON, setJSON, listJSON } from "./_store.js";
 import { listRecipes } from "./_recipes.js";
 import { REGISTER_BRANCH, REGISTER_WINDOW_DAYS } from "./_data.js";
+import { imageUrl } from "./_imageurl.js";
 import { listStores, storeNames } from "./_stores.js";
 import { orgFor } from "./_org.js";
 import {
@@ -80,6 +81,7 @@ export async function getSettings(orgId) {
     vatMode: VAT_MODES.includes(saved.vatMode) ? saved.vatMode : "exclusive",
     addons: obj(saved.addons),
     variants: obj(saved.variants),
+    images: obj(saved.images),
     usedAt: saved.usedAt || null,
     /* Everything below is the register as a till of its own: what it takes
        money as, what it may knock off, what it prints, and whether a cashier
@@ -199,8 +201,11 @@ export async function saveAddons(orgId, itemId, list) {
    empty to somebody looking at six dishes on the Recipes screen. A manager
    sets the price from the register; nobody can sell a dish at no price
    (`buildSale` refuses one). */
-export function catalogueOf(recipes, settings) {
+export function catalogueOf(recipes, settings, { orgId = null } = {}) {
   const meta = settings?.itemMeta || {};
+  /* A picture's signed address, when the item has one and the organization is
+     known; null otherwise, and a tile shows its colour instead. */
+  const pictureOf = (id) => imageUrl(orgId, id, settings?.images?.[String(id)]) || null;
   const own = settings?.variants || {};
   const priceOf = (r) => (Number(r.sellPrice) > 0 ? round2(r.sellPrice) : null);
 
@@ -236,6 +241,7 @@ export function catalogueOf(recipes, settings) {
       priced: variants.length ? prices.length > 0 : priceOf(base) !== null,
       variants,
       variantsFromRecipes: fromRecipes.length > 0,
+      image: pictureOf(base.id),
       addons: settings?.addons?.[String(base.id)] || [],
       barcode: m.barcode || "",
       sku: m.sku || "",
@@ -257,6 +263,7 @@ export function catalogueOf(recipes, settings) {
       variants: own[id] || [],
       variantsFromRecipes: false,
       stock: p.stock?.ingredientId ? p.stock : null,
+      image: pictureOf(id),
       addons: settings?.addons?.[id] || [],
       barcode: p.barcode || "",
       sku: p.sku || "",
@@ -271,7 +278,7 @@ export function catalogueOf(recipes, settings) {
 
 export async function catalogueFor(orgId) {
   const [recipes, settings] = await Promise.all([listRecipes(orgId), getSettings(orgId)]);
-  return { items: catalogueOf(recipes, settings), vatPct: settings.vatPct, settings };
+  return { items: catalogueOf(recipes, settings, { orgId }), vatPct: settings.vatPct, settings };
 }
 
 /* ── A sale ──────────────────────────────────────────────────────────────── */

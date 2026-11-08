@@ -4,21 +4,46 @@
    tabular figures so columns line up, and the primary action of any sheet is
    the widest, lowest thing on it — where a thumb ends up. */
 
+import { useCallback, useEffect, useRef, useState } from "react";
 import { X, Delete } from "lucide-react";
 import { useC } from "../theme.jsx";
 
 export const money = (n) => (Number(n) || 0).toFixed(2);
 
+/* Closing with the way out shown: `leaving` is true for the moment the sheet
+   is sinking away, and `close` calls the real `onClose` once it has. A caller
+   that refuses to close (busy, say) gets its sheet back rather than a closed
+   one left on screen invisibly. */
+export function useExit(onClose, ms = 210) {
+  const [leaving, setLeaving] = useState(false);
+  const timer = useRef(null);
+  useEffect(() => () => clearTimeout(timer.current), []);
+  const close = useCallback((...args) => {
+    if (leaving) return;
+    const still = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    if (still) { onClose?.(...args); return; }
+    setLeaving(true);
+    timer.current = setTimeout(() => {
+      onClose?.(...args);
+      timer.current = setTimeout(() => setLeaving(false), 60);
+    }, ms);
+  }, [leaving, onClose, ms]);
+  return [leaving, close];
+}
+
 export function Sheet({ title, onClose, children, footer, wide = false }) {
   const C = useC();
+  const [leaving, close] = useExit(onClose);
   return (
-    <div className="fixed inset-0 z-50 flex items-end own-insets sm:items-center justify-center sm:p-6" style={{ background: C.scrim }} onClick={onClose}>
-      <div className={`w-full ${wide ? "sm:max-w-2xl" : "sm:max-w-md"} rounded-t-3xl sm:rounded-3xl max-h-[92dvh] flex flex-col palette-in`}
+    <div className={`fixed inset-0 z-50 flex items-end own-insets sm:items-center justify-center sm:p-6 ${leaving ? "backdrop-out" : "backdrop-in"}`}
+      style={{ background: C.scrim }} onClick={() => close()}>
+      <div className={`w-full ${wide ? "sm:max-w-2xl" : "sm:max-w-md"} rounded-t-3xl sm:rounded-3xl max-h-[92dvh] flex flex-col sheet-card ${leaving ? "sheet-out" : "sheet-in"}`}
         style={{ background: C.surface, border: `1px solid ${C.hairline}` }}
         onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
-        <div className="flex items-center justify-between px-5 pt-5 pb-3 shrink-0">
+        <div className="sm:hidden mx-auto mt-2 w-10 h-1 rounded-full shrink-0" style={{ background: C.hairline }} />
+        <div className="flex items-center justify-between px-5 pt-3 sm:pt-5 pb-3 shrink-0">
           <h3 className="display font-bold text-lg" style={{ color: C.ink }}>{title}</h3>
-          <button onClick={onClose} className="w-9 h-9 rounded-full flex items-center justify-center" style={{ background: "var(--chip-bg)", color: C.slate }} aria-label="close">
+          <button onClick={() => close()} className="w-9 h-9 rounded-full flex items-center justify-center" style={{ background: "var(--chip-bg)", color: C.slate }} aria-label="close">
             <X size={17} />
           </button>
         </div>
