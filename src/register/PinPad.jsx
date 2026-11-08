@@ -8,7 +8,7 @@ import BrandMark from "../BrandMark.jsx";
 import { Keypad, keyInto } from "./ui.jsx";
 import { call, RegisterError } from "./api.js";
 
-export default function PinPad({ token, onSignedIn, onExit, business }) {
+export default function PinPad({ token, onSignedIn, onExit, exitLabel, business }) {
   const C = useC();
   const { t } = useLang();
   const P = t.pos;
@@ -55,7 +55,7 @@ export default function PinPad({ token, onSignedIn, onExit, business }) {
         </button>
         {error && <p className="text-sm mt-3" style={{ color: C.rose }}>{error}</p>}
         <button onClick={onExit} className="mt-6 inline-flex items-center gap-1.5 text-sm font-semibold" style={{ color: C.slate }}>
-          <ArrowLeftRight size={14} />{P.nav.backOffice}
+          <ArrowLeftRight size={14} />{exitLabel || P.nav.backOffice}
         </button>
       </div>
     </div>

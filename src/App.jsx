@@ -7,13 +7,14 @@ import Register from "./Register.jsx";
 import Pricing from "./Pricing.jsx";
 import Attendance from "./Attendance.jsx";
 import Shell from "./Shell.jsx";
+import RegisterApp from "./register/RegisterApp.jsx";
 import Splash from "./Splash.jsx";
 import AdminPage from "./AdminPage.jsx";
 import { LanguageProvider } from "./i18n.jsx";
 import { ThemeProvider } from "./theme.jsx";
 import { prefersReducedMotion } from "./hooks.js";
 import { useRoute, navigate, useBackspaceBack } from "./router.js";
-import { readSession, writeSession, clearSession, TOKEN_KEY, USER_KEY } from "./session.js";
+import { readSession, writeSession, clearSession, isDeviceToken, TOKEN_KEY, USER_KEY } from "./session.js";
 import { isNativePlatform } from "./platform.js";
 
 const OUT_MS = 260;
@@ -128,6 +129,20 @@ function Routes() {
        the link stays out of access logs and out of whatever site the phone
        opens next. */
     screen = <Attendance clockKey={route.param} onBack={() => setView("landing")} />;
+  } else if (token && isDeviceToken(token)) {
+    /* A device handed to staff opens on the register and nothing else; the
+       server refuses its token everywhere but the register's route anyway.
+       A manager signing in brings back the whole app. */
+    screen = (
+      <RegisterApp token={token} user={user} deviceLocked onLogout={signOut}
+        onUnlocked={(tk, name) => {
+          writeSession(TOKEN_KEY, tk);
+          writeSession(USER_KEY, name);
+          setToken(tk);
+          setUser(name);
+          navigate("app/overview");
+        }} />
+    );
   } else if (token) {
     screen = (
       <Shell

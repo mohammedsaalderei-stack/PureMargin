@@ -682,7 +682,7 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
       <>
         <RegisterApp token={token} user={user} business={account?.account?.business || scope?.organization?.name || ""}
           onExit={() => go(lastIn.current.backOffice && lastIn.current.backOffice !== "till" ? lastIn.current.backOffice : firstAllowed === "till" ? "settings" : firstAllowed)}
-          onLogout={onLogout} portals={layout} onPortal={pickPortal} />
+          onLogout={onLogout} onSession={onSession} portals={layout} onPortal={pickPortal} />
       </>
     );
   }

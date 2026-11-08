@@ -93,6 +93,7 @@ export const AUDIT_ACTIONS = {
   "register.pin": "register PIN changed",
   "register.settings": "register settings changed",
   "register.product": "register product changed",
+  "register.device": "a device was set to register-only",
   "store.save": "store added or changed",
   "store.archive": "store archived or restored",
 

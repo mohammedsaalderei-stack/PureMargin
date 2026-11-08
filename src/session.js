@@ -28,6 +28,11 @@
 import { isNativePlatform } from "./platform.js";
 
 export const TOKEN_KEY = "sufra_token";
+
+/* A register-only device's token (`issueDeviceToken` in `api/_auth.js`)
+   starts with "R.". Telling them apart here only decides which screen to
+   draw; what the token can reach is decided by the server. */
+export const isDeviceToken = (token) => String(token || "").startsWith("R.");
 export const USER_KEY = "sufra_user";
 
 /* Private browsing, a locked-down enterprise profile, or a WKWebView with

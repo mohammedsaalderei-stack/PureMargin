@@ -25,7 +25,7 @@
    DELETE ?what=ticket | product | pins
 */
 
-import { requireAuth } from "./_auth.js";
+import { requireAuth, issueDeviceToken } from "./_auth.js";
 import { scopeFor, effectiveBranches, parseBranchParam } from "./_org.js";
 import { getMeta } from "./_inventory.js";
 import { depleteFromSales } from "./_salesdepletion.js";
@@ -42,6 +42,7 @@ import { saveSection, saveProduct, archiveProduct, saveItemMeta } from "./_tills
 import { listEmployees } from "./_employees.js";
 
 const DAY = 24 * 60 * 60 * 1000;
+const DEVICE_MANAGER_CAPS = ["adjust:sales", "manage:recipes", "manage:costs", "manage:staff"];
 
 /* The branches a sale may be rung up in: the till's, or the register's own
    when there is no till. An unreachable till leaves none, rather than letting
@@ -73,7 +74,6 @@ export default async function handler(req, res) {
     if (!orgId) return res.status(403).json({ error: "noorg" });
     if (!scope.capabilities.includes("use:till")) return res.status(403).json({ error: "forbidden" });
 
-    const can = (capability) => scope.capabilities.includes(capability);
     const what = String(req.query?.what || (req.method === "GET" ? "catalogue" : ""));
     const names = Object.fromEntries(roster.map((b) => [String(b.id), b.name]));
     const storeById = Object.fromEntries(roster.map((b) => [String(b.id), b]));
@@ -86,6 +86,15 @@ export default async function handler(req, res) {
        the account's own permissions do. */
     const operator = readOperator(req.headers?.["x-register-operator"], orgId, now);
     const needsOperator = await pinsInUse(orgId);
+
+    /* On a register-only device the account behind it is not the person at
+       the counter, so its permissions do not apply: whoever is there sells,
+       and only a manager's PIN reaches what a manager may do. Everywhere else
+       the account's own permissions do. */
+    const registerOnly = Boolean(session.registerOnly);
+    const can = (capability) => (registerOnly
+      ? operator?.role === "manager" && DEVICE_MANAGER_CAPS.includes(capability)
+      : scope.capabilities.includes(capability));
     const manager = operator ? operator.role === "manager" : can("adjust:sales");
     const actor = operator ? `${operator.name} (${session.username})` : session.username;
     const sellingAs = operator?.name || session.username;
@@ -121,6 +130,10 @@ export default async function handler(req, res) {
         })),
         pinsRequired: needsOperator,
         operator,
+        device: {
+          registerOnly,
+          canLock: !registerOnly && (scope.capabilities.includes("manage:staff") || Boolean(scope.isOwner)),
+        },
         can: {
           manageItems: can("manage:recipes"),
           manageSettings: can("manage:costs"),
@@ -206,6 +219,20 @@ export default async function handler(req, res) {
       if (!can("manage:staff")) return res.status(403).json({ error: "forbidden" });
       const [pins, employees] = await Promise.all([listPins(orgId), listEmployees(orgId)]);
       return res.status(200).json({ pins, employees: employees.map((e) => ({ id: e.id, name: e.name, title: e.title || "" })) });
+    }
+
+    /* ── Handing a device to staff ──
+
+       Swaps this device's session for one that reaches the register and
+       nothing else (`issueDeviceToken`). Taken by somebody signed in properly
+       who may manage staff; a device that is already register-only cannot
+       mint another. Leaving the mode is signing in again with a password. */
+    if (req.method === "POST" && what === "device") {
+      if (registerOnly || !(scope.capabilities.includes("manage:staff") || scope.isOwner)) {
+        return res.status(403).json({ error: "forbidden" });
+      }
+      await audit("register.device", {});
+      return res.status(200).json({ token: issueDeviceToken(session.username, session.account.tokenVersion || 0) });
     }
 
     /* ── Who is at the register ── */

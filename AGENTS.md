@@ -145,6 +145,25 @@ they override the defaults).
 - History in the sections below still mentions the till where that is how
   something came about; the code no longer has one.
 
+## Staff devices (register-only)
+- Register → More → "Use as a staff register" (`manage:staff` or owner) calls
+  `POST /api/till?what=device`, which returns a **device token**
+  (`issueDeviceToken` in `api/_auth.js`): `R.<user>.<expires>.<version>.<sig>`,
+  signed under its own `signScoped("device")` label so it can't be replayed as a
+  session, stamped with the account's `tokenVersion` so "sign out everywhere"
+  ends it, valid a year.
+- **`requireAuth` refuses a device token on every route but `REGISTER_ONLY_ROUTES`
+  (`till`)** with 403 `registeronly`. The check is in `requireAuth`, not in each
+  route, so a new route is closed to devices without anyone remembering to.
+- In `till.js`, on a device the account's capabilities don't apply: `can()` is
+  true only for a manager PIN and only for `DEVICE_MANAGER_CAPS`. No PIN means
+  cashier-level selling, no refunds, no settings.
+- Client: `isDeviceToken` (`src/session.js`) makes `App.jsx` render `RegisterApp`
+  with `deviceLocked` instead of the Shell. The way out is `UnlockSheet`
+  (`src/register/DeviceLock.jsx`): signing in with the account password via
+  `/api/login`, which replaces the device token with a normal session.
+- Tests: `api/_device.test.js`.
+
 ## Multi-branch authorization (stage 1 of the product direction)
 - `api/_org.js` — organizations, roles, membership, scope resolution. Every
   account owns an organization from registration (`orgFor` backfills accounts

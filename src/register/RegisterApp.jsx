@@ -14,7 +14,8 @@
    top bar, with the number of sales waiting to be sent. */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ShoppingCart, ClipboardList, Receipt, Wallet, Users, Settings, LogOut, Lock, WifiOff, CloudUpload, MoreHorizontal, Printer, Check, ArrowLeftRight } from "lucide-react";
+import { ShoppingCart, ClipboardList, Receipt, Wallet, Users, Settings, LogOut, Lock, WifiOff, CloudUpload, MoreHorizontal, Printer, Check, ArrowLeftRight, KeyRound } from "lucide-react";
+import { LockDeviceSheet, UnlockSheet } from "./DeviceLock.jsx";
 import { useC } from "../theme.jsx";
 import { useLang, fill, localeFor } from "../i18n.jsx";
 import BrandMark from "../BrandMark.jsx";
@@ -62,7 +63,7 @@ function kitchenLines(order, items) {
     }));
 }
 
-export default function RegisterApp({ token, user, business, onExit, onLogout }) {
+export default function RegisterApp({ token, user, business: businessProp, onExit, onLogout, onSession, deviceLocked = false, onUnlocked }) {
   const C = useC();
   const { t, lang, rtl } = useLang();
   const P = t.pos;
@@ -84,10 +85,19 @@ export default function RegisterApp({ token, user, business, onExit, onLogout })
   const [more, setMore] = useState(false);
   const [notice, setNotice] = useState("");
   const [pricing, setPricing] = useState(null);
+  const [lockOpen, setLockOpen] = useState(false);
+  const [unlockOpen, setUnlockOpen] = useState(false);
+  /* A staff device has no back office to go back to: the way out is a
+     manager signing in. */
+  const exit = deviceLocked ? () => setUnlockOpen(true) : onExit;
+  const ExitIcon = deviceLocked ? KeyRound : ArrowLeftRight;
+  const exitLabel = deviceLocked ? P.device.exit : P.nav.backOffice;
 
   /* A store's own address, phone and tax number replace the business-wide
      ones on its receipts, field by field, so a second branch prints where it
      is rather than where the first one is. */
+  const business = businessProp || catalogue?.receipt?.business || "";
+
   const printCtx = useMemo(() => {
     const store = catalogue?.branches?.find((b) => b.id === branchId) || {};
     const own = Object.fromEntries(["address", "phone", "trn"].filter((k) => store[k]).map((k) => [k, store[k]]));
@@ -197,16 +207,24 @@ export default function RegisterApp({ token, user, business, onExit, onLogout })
     if (receipt.customer_id) loadCustomers();
   };
 
+  const deviceSheets = (
+    <>
+      {lockOpen && <LockDeviceSheet token={token} pinsRequired={catalogue?.pinsRequired}
+        onClose={() => setLockOpen(false)} onLocked={(tk) => { setLockOpen(false); onSession?.(tk); }} />}
+      {unlockOpen && <UnlockSheet onClose={() => setUnlockOpen(false)} onUnlocked={(tk, name) => { setUnlockOpen(false); onUnlocked?.(tk, name); }} />}
+    </>
+  );
+
   /* ── What stands between the cashier and the grid ── */
 
   if (loadError) {
-    return <Frame><Empty icon={ShoppingCart} title={loadError} action={<div className="flex gap-2 justify-center"><Btn onClick={load}>{P.common.retry}</Btn><Btn kind="ghost" onClick={onExit}>{P.nav.backOffice}</Btn></div>} /></Frame>;
+    return <Frame><Empty icon={ShoppingCart} title={loadError} action={<div className="flex gap-2 justify-center"><Btn onClick={load}>{P.common.retry}</Btn><Btn kind="ghost" onClick={exit}>{exitLabel}</Btn></div>} />{deviceSheets}</Frame>;
   }
   if (!catalogue) {
     return <Frame><Empty icon={ShoppingCart} title={P.common.loading} /></Frame>;
   }
   if (catalogue.pinsRequired && !operator) {
-    return <Frame><PinPad token={token} onSignedIn={signIn} onExit={onExit} business={business} /></Frame>;
+    return <Frame><PinPad token={token} onSignedIn={signIn} onExit={exit} exitLabel={exitLabel} business={business} />{deviceSheets}</Frame>;
   }
 
   const needsShift = catalogue.useShifts && shift === null && view === "sell";
@@ -242,7 +260,7 @@ export default function RegisterApp({ token, user, business, onExit, onLogout })
 
   const topBar = (
     <header className="shrink-0 flex items-center gap-3 px-3 sm:px-4 h-14" style={{ background: "var(--panel-glass)", borderBottom: `1px solid ${C.hairline}`, backdropFilter: "blur(20px)" }}>
-      <button onClick={onExit} className="flex items-center gap-2 pe-2 rounded-xl min-w-0" aria-label={P.nav.backOffice}>
+      <button onClick={exit} className="flex items-center gap-2 pe-2 rounded-xl min-w-0" aria-label={exitLabel}>
         <BrandMark size={28} />
         <span className="min-w-0 text-start">
           <span className="block text-sm font-bold truncate leading-tight">{P.nav.register}</span>
@@ -281,8 +299,8 @@ export default function RegisterApp({ token, user, business, onExit, onLogout })
           <nav className="w-[92px] shrink-0 flex flex-col gap-1 p-2" style={{ borderInlineEnd: `1px solid ${C.hairline}`, background: "var(--panel-glass)" }}>
             {VIEWS.map(railItem)}
             <div className="flex-1" />
-            <button onClick={onExit} className="w-full flex flex-col items-center gap-1 py-3 rounded-2xl" style={{ color: C.slate }}>
-              <ArrowLeftRight size={20} /><span className="text-[11px] font-semibold text-center leading-tight">{P.nav.backOffice}</span>
+            <button onClick={exit} className="w-full flex flex-col items-center gap-1 py-3 rounded-2xl" style={{ color: C.slate }}>
+              <ExitIcon size={20} /><span className="text-[11px] font-semibold text-center leading-tight">{exitLabel}</span>
             </button>
           </nav>
         )}
@@ -315,16 +333,24 @@ export default function RegisterApp({ token, user, business, onExit, onLogout })
                 <Lock size={18} />{P.pin.switch}
               </button>
             )}
-            <button onClick={onExit} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl text-sm font-semibold" style={{ background: "var(--chip-bg)" }}>
-              <ArrowLeftRight size={18} />{P.nav.backOffice}
+            {catalogue.device?.canLock && onSession && (
+              <button onClick={() => { setMore(false); setLockOpen(true); }} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl text-sm font-semibold" style={{ background: "var(--chip-bg)" }}>
+                <Lock size={18} />{P.device.lock}
+              </button>
+            )}
+            <button onClick={() => { setMore(false); exit(); }} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl text-sm font-semibold" style={{ background: "var(--chip-bg)" }}>
+              <ExitIcon size={18} />{exitLabel}
             </button>
-            <button onClick={onLogout} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl text-sm font-semibold" style={{ color: C.rose }}>
-              <LogOut size={18} className="flip-rtl" />{t.common.signOut}
-            </button>
+            {!deviceLocked && (
+              <button onClick={onLogout} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl text-sm font-semibold" style={{ color: C.rose }}>
+                <LogOut size={18} className="flip-rtl" />{t.common.signOut}
+              </button>
+            )}
           </div>
         </Sheet>
       )}
 
+      {deviceSheets}
       {done && <Done sold={done} P={P} printCtx={printCtx} customers={customers} onClose={() => setDone(null)} />}
       {pricing && <PriceSheet token={token} item={pricing} P={P} onClose={() => setPricing(null)} onSaved={() => { setPricing(null); load(); }} />}
 
