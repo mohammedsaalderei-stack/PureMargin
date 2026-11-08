@@ -193,8 +193,8 @@ export const REGISTER_WINDOW_DAYS = 62;
 
 /* The receipts in reporting shape: the window a period is compared with, and
    the names of the stores they were sold in. */
-export function registerOnlyRaw(register, now = Date.now(), names = {}) {
-  const since = now - REGISTER_WINDOW_DAYS * DAY;
+export function registerOnlyRaw(register, now = Date.now(), names = {}, windowDays = REGISTER_WINDOW_DAYS) {
+  const since = now - windowDays * DAY;
   const receipts = (register || []).filter((r) => new Date(r.receipt_date).getTime() >= since);
   const sold = receipts.map((r) => String(r.store_id || REGISTER_BRANCH.id));
   const branches = [...new Set([...Object.keys(names), ...sold])];
@@ -207,7 +207,7 @@ export function registerOnlyRaw(register, now = Date.now(), names = {}) {
     registerCount: receipts.length,
     receipts,
     limitedHistory: false,
-    historyDays: REGISTER_WINDOW_DAYS,
+    historyDays: windowDays,
     catalogue: new Map(),
     storeNames: Object.fromEntries(branches.map((id) => [id, names[id] || (id === REGISTER_BRANCH.id ? REGISTER_BRANCH.name : id)])),
     allBranches: branches,
@@ -216,9 +216,43 @@ export function registerOnlyRaw(register, now = Date.now(), names = {}) {
 
 /* What every report reads. A business that has sold nothing yet is told so
    (`NotConnected`) rather than shown a dashboard of zeros. */
-function salesRaw(register, names, now = Date.now()) {
+function salesRaw(register, names, now = Date.now(), windowDays = REGISTER_WINDOW_DAYS) {
   if (!register?.length) throw new NotConnected();
-  return registerOnlyRaw(register, now, names);
+  return registerOnlyRaw(register, now, names, windowDays);
+}
+
+/* A long period's days, grouped so a chart of a year is fifty-odd bars and
+   not three hundred and sixty-five: by day up to a quarter, by week up to a
+   little over a year, by month beyond. Each bucket keeps the date it starts
+   on, and the sums are exact, so the bars add up to the period's total. */
+export function bucketSeries(daily, timeZone = "Asia/Dubai") {
+  const days = daily.length;
+  const bucket = days <= 92 ? "day" : days <= 400 ? "week" : "month";
+  if (bucket === "day") return { bucket, series: daily };
+  const groups = [];
+  for (const [i, d] of daily.entries()) {
+    const key = bucket === "week" ? Math.floor(i / 7) : d.date.slice(0, 7);
+    let g = groups[groups.length - 1];
+    if (!g || g.key !== key) {
+      const at = new Date(`${d.date}T12:00:00Z`);
+      g = {
+        key,
+        date: d.date,
+        label: bucket === "week"
+          ? at.toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone })
+          : at.toLocaleDateString("en-GB", { month: "short", year: "numeric", timeZone }),
+        sales: 0, receipts: 0, tax: 0,
+      };
+      groups.push(g);
+    }
+    g.sales += d.sales || 0;
+    g.receipts += d.receipts || 0;
+    g.tax += d.tax || 0;
+  }
+  return {
+    bucket,
+    series: groups.map(({ key, ...g }) => ({ ...g, sales: Math.round(g.sales * 100) / 100, tax: Math.round(g.tax * 100) / 100 })),
+  };
 }
 
 /* Receipts as the register wrote them, with no corrections applied.
@@ -230,8 +264,12 @@ export async function rawReceipts({ days = 7, register = null, now = Date.now() 
   return (register || []).filter((r) => new Date(r.receipt_date).getTime() >= since);
 }
 
-export async function getMetrics({ overrides = {}, branches = null, edits = {}, register = null, names = {}, costs = null, timeZone, now = Date.now() } = {}) {
-  const raw = salesRaw(register, names, now);
+export async function getMetrics({ overrides = {}, branches = null, edits = {}, register = null, names = {}, costs = null, timeZone, period = null, now = Date.now() } = {}) {
+  /* The usual figures are the last 30 days. `period` asks for a longer one as
+     well — `{ key, days }` — read over twice its length so it has a period
+     before it to compare with. */
+  const windowDays = period?.days ? Math.max(REGISTER_WINDOW_DAYS, period.days * 2 + 2) : REGISTER_WINDOW_DAYS;
+  const raw = salesRaw(register, names, now, windowDays);
 
   /* `branches` is already authorized and intersected by the caller. null means
      the whole organization. */
@@ -248,10 +286,29 @@ export async function getMetrics({ overrides = {}, branches = null, edits = {}, 
   const corrected = { ...raw, catalogue: costs || raw.catalogue, receipts: applyEdits(raw.receipts, edits) };
 
   const shaped = finish(aggregate(corrected, { overrides, branches: scoped, timeZone }));
+
+  let longer = null;
+  if (period?.days > 30) {
+    const long = aggregate(corrected, { overrides, branches: scoped, timeZone, periodDays: period.days });
+    const { bucket, series } = bucketSeries(long.daily, timeZone);
+    longer = {
+      key: period.key,
+      days: period.days,
+      from: long.daily[0]?.date || null,
+      bucket,
+      series,
+      totals: {
+        sales: long.totals.sales, receipts: long.totals.receipts, avgTicket: long.totals.avgTicket,
+        tax: long.totals.tax, salesExVat: long.totals.salesExVat,
+        salesDelta: long.totals.salesDelta, receiptsDelta: long.totals.receiptsDelta, avgTicketDelta: long.totals.avgTicketDelta,
+      },
+    };
+  }
   return {
     ...shaped,
     connected: true,
     source: "PureMargin",
+    period: longer,
     allBranches: raw.allBranches,
     /* Provenance inputs, passed through rather than recomputed downstream so
        there is exactly one account of where a figure came from. */

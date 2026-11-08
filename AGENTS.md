@@ -249,6 +249,22 @@ they override the defaults).
 - `costedMarginPct` = margin on the costed dishes only; profit purity
   (`pureScore`) scores that, not the headline margin that counts uncosted
   dishes as free.
+- **Periods are calendar days**: the 30 days are today and the 29 before it
+  (the days the chart draws), the comparison the 30 before that. They were
+  30×24h back from now, and "prior" was everything older in the window. Daily
+  sales keep fils (rounding each day first made them not add up); totals carry
+  2 decimals so net profit and gross profit agree.
+- Range labels say what they cover ("Last 7 days", "Last 30 days"), not "This
+  week/month".
+- **Longer history**: `GET /api/metrics?period=90|365|all`. The register keeps
+  every sale, so `registerContext(account, { days })` reads 2×period (or from
+  the first sale, `settings.usedAt` less a week, for `all` — never from 1970).
+  `getMetrics` returns the usual 30 days plus `period: { key, days, from,
+  bucket, series, totals }`; `bucketSeries` groups by day ≤ 92 days, week
+  ≤ 400, month beyond. Profit, advice and the margin layer stay on 30 days
+  (running costs are a 30-day window). `firstSaleAt` lets the screen say
+  "Sales since …" when a range is longer than the history.
+- The sales card says how much of it is VAT (`daily[].tax`).
 - Tests: `api/_overview.test.js`.
 
 ## Multi-branch authorization (stage 1 of the product direction)

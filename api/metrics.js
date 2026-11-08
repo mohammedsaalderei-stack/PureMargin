@@ -26,8 +26,21 @@ export default async function handler(req, res) {
        The branch roster is read first, so the scope is resolved before any
        figures are aggregated: the receipts outside it are never counted, rather
        than counted and filtered afterwards. */
+    /* A longer period than the usual 30 days, when the overview asks for one:
+       90 days, a year, or everything since the first sale. Sales are the
+       register's own, so how far back is up to the business, not a till's
+       API. Anything else asked for is the usual 30 days. */
+    const asked = String(req.query?.period || "");
+    const PERIODS = { 90: 90, 365: 365 };
     /* The business's sales, and its own stores as the branches. */
-    const { register, names } = await registerContext(session.account);
+    const { register, names, firstSaleAt } = await registerContext(session.account, {
+      days: asked === "all" ? "all" : PERIODS[asked] ? PERIODS[asked] * 2 + 2 : undefined,
+    });
+    const DAY = 864e5;
+    const historyDays = firstSaleAt ? Math.max(1, Math.ceil((Date.now() - firstSaleAt) / DAY)) : 0;
+    const period = asked === "all"
+      ? { key: "all", days: Math.max(31, historyDays) }
+      : PERIODS[asked] ? { key: asked === "90" ? "quarter" : "year", days: PERIODS[asked] } : null;
     const allBranches = (await rosterFor(session.account)).map((b) => b.id);
     const scope = await scopeFor(session.account, allBranches);
     const effective = effectiveBranches(parseBranchParam(req.query?.branches), scope.authorized);
@@ -49,6 +62,7 @@ export default async function handler(req, res) {
       names,
       costs,
       timeZone: scope.org?.timezone || "Asia/Dubai",
+      period,
       branches: effective,
     });
     const scoped = applyScope(metrics, effective, allBranches);
@@ -86,6 +100,10 @@ export default async function handler(req, res) {
     res.setHeader("Cache-Control", "no-store");
     return res.status(200).json({
       ...payload,
+      /* How far back this business's sales go, so the screen can say where a
+         long period starts rather than drawing a flat line with a confident
+         label. */
+      firstSaleAt: firstSaleAt ? new Date(firstSaleAt + 7 * DAY).toISOString() : null,
       profit,
       scope: { ...scoped.scope, role: scope.role },
       ageSeconds: 0,

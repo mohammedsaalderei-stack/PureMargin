@@ -45,12 +45,14 @@ function localParts(ts, timeZone) {
   return { date: `${p.year}-${p.month}-${p.day}`, hour: Number(p.hour) % 24 };
 }
 export const DEFAULT_TIMEZONE = "Asia/Dubai";
+const round2 = (n) => Math.round((Number(n) + Number.EPSILON) * 100) / 100;
 
 /* One pass over the receipts. Everything downstream is derived from what this
    accumulates, so a branch filter applied here reaches every figure —
    including the item, daily and hourly series that a post-hoc filter on the
    finished payload could never split. */
-export function aggregate({ receipts, limitedHistory, catalogue, storeNames, now }, { overrides = {}, branches = null, timeZone = DEFAULT_TIMEZONE } = {}) {
+export function aggregate({ receipts, limitedHistory, catalogue, storeNames, now }, { overrides = {}, branches = null, timeZone = DEFAULT_TIMEZONE, periodDays = 30 } = {}) {
+  const span = Math.max(1, Math.floor(Number(periodDays) || 30));
   const zone = (() => { try { localParts(0, timeZone); return timeZone; } catch { return DEFAULT_TIMEZONE; } })();
   const dayOf = (ts) => localParts(ts, zone).date;
   /* Restrict to the scoped branches before anything is counted. */
@@ -96,7 +98,17 @@ export function aggregate({ receipts, limitedHistory, catalogue, storeNames, now
   let lineRevenue = 0, costedRevenue = 0, costedCost = 0;
   const imageFor = (itemName) => catalogue.get(itemName)?.image || null;
 
-  const cutoff = now - 30 * DAY;
+  /* The period is the last 30 days by the business's calendar — today and
+     the 29 before it, the same days the chart draws — and the period before
+     it is the 30 days ahead of that. It was 30×24 hours back from this
+     moment, so the headline took in part of a day the chart did not, and the
+     "previous period" was everything older still in the window, not 30 days. */
+  const currentFrom = dayOf(now - (span - 1) * DAY);
+  const priorFrom = dayOf(now - (2 * span - 1) * DAY);
+  const periodOf = (ts) => {
+    const key = dayOf(ts);
+    return key >= currentFrom ? "current" : key >= priorFrom ? "prior" : null;
+  };
 
   const byDay = new Map();
   const byHour = new Map();
@@ -144,16 +156,18 @@ export function aggregate({ receipts, limitedHistory, catalogue, storeNames, now
        free to produce. */
     if (r.receipt_type === "REFUND") {
       const refunded = Math.abs(Number(r.total_money) || 0);
-      if (ts < cutoff) priorRefunds += refunded;
-      else {
+      const period = periodOf(ts);
+      if (period === "prior") priorRefunds += refunded;
+      else if (period === "current") {
         currentRefunds += refunded;
         currentRefundTax += Math.abs(Number(r.total_tax) || 0);
 
         /* Taken off the day and the branch it was refunded on, so the chart
            and the branch ranking still add up to the headline figure. */
         const rk = dayOf(ts);
-        const rd = byDay.get(rk) || { sales: 0, receipts: 0 };
+        const rd = byDay.get(rk) || { sales: 0, receipts: 0, tax: 0 };
         rd.sales -= refunded;
+        rd.tax -= Math.abs(Number(r.total_tax) || 0);
         byDay.set(rk, rd);
 
         const rsid = r.store_id || "unknown";
@@ -174,7 +188,9 @@ export function aggregate({ receipts, limitedHistory, catalogue, storeNames, now
 
     const value = Number(r.total_money) || 0;
 
-    if (ts < cutoff) {
+    const period = periodOf(ts);
+    if (!period) continue;
+    if (period === "prior") {
       priorSales += value;
       priorReceipts += 1;
       continue;
@@ -190,9 +206,10 @@ export function aggregate({ receipts, limitedHistory, catalogue, storeNames, now
 
     const local = localParts(ts, zone);
     const key = local.date;
-    const day = byDay.get(key) || { sales: 0, receipts: 0 };
+    const day = byDay.get(key) || { sales: 0, receipts: 0, tax: 0 };
     day.sales += value;
     day.receipts += 1;
+    day.tax += Math.abs(Number(r.total_tax) || 0);
     byDay.set(key, day);
 
     const h = local.hour;
@@ -242,15 +259,18 @@ export function aggregate({ receipts, limitedHistory, catalogue, storeNames, now
   }
 
   const daily = [];
-  for (let i = 29; i >= 0; i--) {
+  for (let i = span - 1; i >= 0; i--) {
     const d = new Date(now - i * DAY);
     const key = dayOf(d.getTime());
-    const row = byDay.get(key) || { sales: 0, receipts: 0 };
+    const row = byDay.get(key) || { sales: 0, receipts: 0, tax: 0 };
     daily.push({
       date: key,
       label: d.toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: zone }),
-      sales: Math.round(row.sales),
+      /* To the fil, so the days add up to the period's total; rounding each
+         day to a whole dirham first let the two drift apart. */
+      sales: Math.round(row.sales * 100) / 100,
       receipts: row.receipts,
+      tax: Math.round((row.tax || 0) * 100) / 100,
     });
   }
 
@@ -367,15 +387,17 @@ export function aggregate({ receipts, limitedHistory, catalogue, storeNames, now
         image: i.image,
       })),
     totals: {
-      sales: Math.round(netSales),
+      sales: Math.round(netSales * 100) / 100,
       receipts: currentReceipts,
       avgTicket: netSales / Math.max(currentReceipts, 1),
-      cost: Math.round(totalCost),
+      /* To the fil: net profit is worked from these, and rounding each to a
+         whole dirham first made it disagree with the gross profit beside it. */
+      cost: round2(totalCost),
       /* VAT collected in the period, net of refunds, and sales without it —
          the base that profit and margin are worked on. */
-      tax: Math.round(currentTax - currentRefundTax),
-      salesExVat: Math.round(salesExVat),
-      grossProfit: Math.round(grossProfit),
+      tax: round2(currentTax - currentRefundTax),
+      salesExVat: round2(salesExVat),
+      grossProfit: round2(grossProfit),
       costedMarginPct: costedMarginPct === null ? null : Number(costedMarginPct.toFixed(1)),
       /* The old name, still emitted and carrying the same number it always
          did. The Flutter client reads it, and renaming a field out from under

@@ -203,6 +203,10 @@ function ExportMenu({ data, screen, dateRange, business, onClose }) {
   );
 }
 
+/* Overview ranges worked out on the server rather than sliced from the
+   30 days every screen loads. */
+const LONG_PERIODS = { quarter: "90", year: "365", all: "all" };
+
 export default function Shell({ token, user, onLogout, onSession, justRegistered = false }) {
   const C = useC();
   const { t, rtl } = useLang();
@@ -371,6 +375,10 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
       if (fresh) query.set("fresh", "1");
       // Only sent when narrowed; the server treats an absent list as "all mine".
       if (branches.length) query.set("branches", branches.join(","));
+      /* A range longer than 30 days is worked out on the server, over the
+         register's own history. */
+      const longPeriod = LONG_PERIODS[dateRange];
+      if (longPeriod) query.set("period", longPeriod);
       const qs = query.toString();
       const res = await fetch(`/api/metrics${qs ? `?${qs}` : ""}`, { headers: { Authorization: `Bearer ${token}` } });
       const json = await res.json();
@@ -509,13 +517,16 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
   useEffect(() => { load(); loadAccount(); loadScope(); // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  /* A change of branch scope is a different question, so it refetches. */
+  /* A change of branch scope is a different question, so it refetches; so
+     is moving to or between the long periods. The short ones are slices of
+     the 30 days already loaded. */
   const firstScope = useRef(true);
+  const periodAsked = LONG_PERIODS[dateRange] || "";
   useEffect(() => {
     if (firstScope.current) { firstScope.current = false; return; }
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [branches]);
+  }, [branches, periodAsked]);
 
   useEffect(() => {
     const onKey = (e) => {

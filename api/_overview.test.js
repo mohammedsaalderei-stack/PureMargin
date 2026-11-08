@@ -75,8 +75,8 @@ await test("what sold is costed from recipes, variants, products and add-ons", a
     { item_name: "Latte", quantity: 1, total_money: 14, addon_cost: 1 },                    // 3 + 1
     { item_name: "Mystery", quantity: 1, total_money: 14 },                                 // unknown
   ])], { catalogue });
-  /* 4 + 6 + 5 + 4.5 + 4 = 23.5, reported rounded. */
-  assert.equal(m.totals.cost, 24);
+  /* 4 + 6 + 5 + 4.5 + 4 */
+  assert.equal(m.totals.cost, 23.5);
   assert.equal(m.items.find((i) => i.name === "Fries").cost, 10);
   assert.ok(m.costCoverage < 100, "an uncosted dish keeps coverage below 100%");
   assert.ok(m.missingCosts.some((i) => i.name === "Mystery"));
@@ -187,6 +187,41 @@ await test("the dashboard's net profit is worked without VAT and knows how much 
   assert.equal(out.costCoverage, 50);
   assert.equal(out.profit.netSales, 20);
   assert.equal(out.profit.costCoverage, 0.5, "a share, so the screen can say the figure is an upper bound");
+});
+
+await test("the days add up to the total, to the fil, over the same 30 days", async () => {
+  /* Three sales of 10.40: rounding each day first made the days sum to 30,
+     not 31.20. And a sale 30 days and some hours ago is in neither, since the
+     period is today and the 29 days before it — exactly the days drawn. */
+  const m = run([
+    sale(new Date(NOW - 3600e3).toISOString(), 10.4),
+    sale(new Date(NOW - 2 * DAY).toISOString(), 10.4),
+    sale(new Date(NOW - 29 * DAY).toISOString(), 10.4),
+    sale(new Date(NOW - 30 * DAY - 6 * 3600e3).toISOString(), 99),
+  ]);
+  const days = m.daily.reduce((a, d) => a + d.sales, 0);
+  assert.equal(Math.round(days * 100) / 100, 31.2);
+  assert.equal(m.totals.sales, 31.2);
+  assert.equal(m.totals.salesDelta, -68.5, "the 99 is the period before, compared like for like");
+});
+
+await test("a longer period has its own totals, comparison and grouped chart", async () => {
+  const { bucketSeries } = await import("./_data.js");
+  const receipts = [
+    sale(new Date(NOW - 3600e3).toISOString(), 20),
+    sale(new Date(NOW - 200 * DAY).toISOString(), 30),
+    sale(new Date(NOW - 500 * DAY).toISOString(), 25),
+  ];
+  const year = aggregate({ receipts, limitedHistory: false, catalogue: new Map(), storeNames: {}, now: NOW }, { periodDays: 365 });
+  assert.equal(year.daily.length, 365);
+  assert.equal(year.totals.sales, 50);
+  assert.equal(year.totals.salesDelta, 100, "50 this year against 25 the year before");
+  const { bucket, series } = bucketSeries(year.daily);
+  assert.equal(bucket, "week");
+  assert.ok(series.length >= 52 && series.length <= 53);
+  assert.equal(series.reduce((a, d) => a + d.sales, 0), 50);
+  assert.equal(bucketSeries(year.daily.slice(-90)).bucket, "day");
+  assert.equal(bucketSeries(new Array(700).fill(0).map((_, i) => ({ date: new Date(NOW - (699 - i) * DAY).toISOString().slice(0, 10), sales: 1, receipts: 1 }))).bucket, "month");
 });
 
 console.log(failures ? `\n${failures} failed` : "\nall passed");

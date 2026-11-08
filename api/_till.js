@@ -406,14 +406,21 @@ export function forDepletion(receipt) {
 
 /* What a report route needs: the organization's receipts over the longest
    window any report reads, and the names of its stores. */
-export async function registerContext(account) {
+export async function registerContext(account, { days = REGISTER_WINDOW_DAYS } = {}) {
   const org = account ? await orgFor(account) : null;
   const orgId = org?.id || null;
-  const used = await usesRegister(orgId);
+  const settings = orgId ? await getSettings(orgId) : null;
+  const used = Boolean(settings?.usedAt);
+  /* The first sale, less a week for sales rung up offline before it was
+     sent. Nothing is read from before it, which is what keeps "all time"
+     from asking storage for every month since 1970. */
+  const firstSaleAt = used ? new Date(settings.usedAt).getTime() - 7 * DAY : null;
+  const since = days === "all" ? firstSaleAt : Math.max(Date.now() - days * DAY, firstSaleAt ?? 0);
   return {
     orgId,
     used,
-    register: used ? await registerReceipts(orgId) : [],
+    firstSaleAt,
+    register: used ? await registerReceipts(orgId, { since }) : [],
     names: orgId ? await storeNames(orgId, org?.name) : {},
   };
 }
