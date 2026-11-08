@@ -83,10 +83,13 @@ export default function BranchScope({ branches = [], locked = [], orgName = "", 
       </button>
 
       {open && (
-        <div className="absolute bottom-full mb-2 w-full z-30 rounded-xl overflow-hidden py-1"
+        /* Opens downward. It used to sit at the foot of the sidebar and open
+           upward; at the top of the screen that ran it off the top edge, under
+           the status bar. Capped and scrollable for a long list of stores. */
+        <div className="absolute top-full mt-2 w-full z-40 rounded-xl overflow-y-auto overscroll-contain py-1 max-h-[min(60vh,420px)] palette-in"
           style={{ background: "var(--panel-solid, var(--panel-glass))", backdropFilter: "blur(20px)", border: `1px solid ${C.hairline}`, boxShadow: "0 12px 32px rgba(0,0,0,0.18)" }}>
           <button onClick={() => { onChange([]); setOpen(false); }}
-            className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-start"
+            className="w-full flex items-center gap-2 px-3 py-3 sm:py-2 text-sm sm:text-xs font-semibold text-start"
             style={{ color: C.ink }}>
             <span className="w-3.5 shrink-0">{all && <Check size={13} style={{ color: C.iris }} />}</span>
             <span className="flex-1 truncate">{t.scope.all}</span>
@@ -99,7 +102,7 @@ export default function BranchScope({ branches = [], locked = [], orgName = "", 
             const on = !all && selected.includes(b.id);
             return (
               <button key={b.id} onClick={() => toggle(b.id)}
-                className="w-full flex items-center gap-2 px-3 py-2 text-xs text-start"
+                className="w-full flex items-center gap-2 px-3 py-3 sm:py-2 text-sm sm:text-xs text-start"
                 style={{ color: on ? C.ink : C.slate }}>
                 <span className="w-3.5 shrink-0">{on && <Check size={13} style={{ color: C.iris }} />}</span>
                 <span className="flex-1 truncate">{b.name}</span>

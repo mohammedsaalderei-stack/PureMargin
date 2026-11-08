@@ -77,6 +77,10 @@ export function FilterBar({ dateRange, onDateChange, data }) {
 }
 
 /* ─── Derived totals by date range ───────────────────────── */
+/* Change against the period just before, or null when that period sold
+   nothing — no comparison, rather than a flat one. */
+const change = (now, before) => (before > 0 ? Number((((now - before) / before) * 100).toFixed(1)) : null);
+
 export function useDateRangeData(data, range) {
   return useMemo(() => {
     const daily = data.daily || [];
@@ -84,10 +88,27 @@ export function useDateRangeData(data, range) {
     const days = (DATE_RANGES.find((r) => r.key === range) || {}).days;
     const slice = days ? daily.slice(-days) : daily;
     if (!slice.length) return { totals: data.totals || {}, series: [] };
-    const sales = slice.reduce((s, d) => s + (d.sales || 0), 0);
-    const receipts = slice.reduce((s, d) => s + (d.receipts || 0), 0);
+    const sum = (rows, k) => rows.reduce((s, d) => s + (d[k] || 0), 0);
+    const sales = sum(slice, "sales");
+    const receipts = sum(slice, "receipts");
     const avgTicket = receipts > 0 ? sales / receipts : 0;
-    return { totals: { ...data.totals, sales, receipts, avgTicket }, series: slice };
+
+    /* Each range against the one before it: today against yesterday, this
+       week against last week. The cards used to show the 30-day comparison
+       whatever range was picked, so "today" quoted a month's change. The
+       30-day range keeps the server's, which can see the month before. */
+    let deltas = {};
+    if (days && days < daily.length && daily.length >= days * 2) {
+      const prior = daily.slice(-days * 2, -days);
+      const pSales = sum(prior, "sales");
+      const pReceipts = sum(prior, "receipts");
+      deltas = {
+        salesDelta: change(sales, pSales),
+        receiptsDelta: change(receipts, pReceipts),
+        avgTicketDelta: pReceipts > 0 && receipts > 0 ? change(avgTicket, pSales / pReceipts) : null,
+      };
+    }
+    return { totals: { ...data.totals, sales, receipts, avgTicket, ...deltas }, series: slice };
   }, [data, range]);
 }
 
@@ -383,11 +404,18 @@ export default function Overview({ data, dateRange, onDateRangeChange, onAsk, on
                 style={{ background: "rgba(6,182,212,0.12)", color: C.cyan, border: "1px solid rgba(6,182,212,0.2)" }}>
                 {fill(t.overview.marginPct, { n: data.totals?.marginPct ?? 0 })}
               </span>
+              {/* The profit above is the last 30 days, so its comparison is
+                  too, whichever range the cards below are showing. */}
               <div className="flex items-center gap-2">
-                <TrendIndicator value={filteredTotals.salesDelta} />
+                <TrendIndicator value={data.totals?.salesDelta} />
                 <span className="text-xs" style={{ color: C.slate }}>{t.watch.vsPrior}</span>
               </div>
             </div>
+            {/* A margin over sales whose costs are unknown is not a margin:
+                every uncosted dish counts as free. Said where the number is. */}
+            {(data.costCoverage ?? 0) < 100 && (data.totals?.sales || 0) > 0 && (
+              <p className="text-xs mt-3" style={{ color: C.amber }}>{fill(t.overview.coverage, { n: data.costCoverage ?? 0 })}</p>
+            )}
           </div>
 
           {/* What is left after the doors are paid for.

@@ -59,7 +59,11 @@ export function SectionLabel({ children, className = "", style = {} }) {
 }
 
 export function TrendIndicator({ value, size = 13 }) {
-  if (value === null || value === undefined) return null;
+  /* No earlier period to compare with: a dash, never a 0.0% that reads as
+     "flat". */
+  if (value === null || value === undefined) {
+    return <span className="inline-flex items-center text-xs font-semibold" style={{ color: "var(--slate)" }} dir="ltr">—</span>;
+  }
   const up = value >= 0;
   return (
     <span

@@ -566,6 +566,23 @@ export async function costedList(orgId, branchIds, { at = Date.now(), method, in
     });
 }
 
+/* What one portion of each dish costs, for the sales figures: keyed by dish
+   name, and by "name||variant" for a variant with a recipe of its own. Only
+   dishes whose cost is known — an unknown cost is left out, never 0, so the
+   overview counts that dish as uncosted rather than free. */
+export async function menuCosts(orgId, branchIds, { at = Date.now() } = {}) {
+  const map = new Map();
+  if (!orgId) return map;
+  for (const r of await costedList(orgId, branchIds, { at })) {
+    const cost = Number(r.effectivePerPortion);
+    if (!(cost > 0)) continue;
+    const name = String(r.menuItem || "").trim();
+    const variant = String(r.variant || "").trim();
+    map.set(variant ? `${name}||${variant}` : name, { cost });
+  }
+  return map;
+}
+
 /* ── Simulation ───────────────────────────────────────────── */
 
 /* "What if this ingredient's price moved, or the portion changed, or we charged

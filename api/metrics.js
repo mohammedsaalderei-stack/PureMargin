@@ -8,6 +8,7 @@ import { lastSync } from "./_sync.js";
 import { listEdits } from "./_saleedits.js";
 import { netProfit } from "./_profit.js";
 import { registerContext, rosterFor } from "./_till.js";
+import { menuCosts } from "./_recipes.js";
 
 export default async function handler(req, res) {
   const session = await requireAuth(req, res);
@@ -36,11 +37,18 @@ export default async function handler(req, res) {
        series rather than subtracted from the headline alone. */
     const edits = await listEdits(scope.org?.id);
 
+    /* Each dish's cost from its recipe, priced from the deliveries the
+       branches in view actually received — the same figure the Recipes
+       screen shows. Without it every dish read as costing nothing. */
+    const costs = await menuCosts(scope.org?.id, effective);
+
     const metrics = await getMetrics({
       overrides,
       edits,
       register,
       names,
+      costs,
+      timeZone: scope.org?.timezone || "Asia/Dubai",
       branches: effective,
     });
     const scoped = applyScope(metrics, effective, allBranches);
@@ -64,9 +72,13 @@ export default async function handler(req, res) {
     const wholeBusiness = effective.length === 0 || effective.length === allBranches.length;
     const profit = scope.capabilities.includes("view:profitability") && wholeBusiness
       ? await netProfit(scope.org?.id, {
-        netSales: payload.totals?.sales ?? 0,
+        /* Without VAT, which is owed, not earned; and coverage as the 0–1
+           share `netProfit` expects. It was handed the percentage, so 78%
+           costed read as 78 and the "this is an upper bound" warning, which
+           checks for less than 1, never showed. */
+        netSales: payload.totals?.salesExVat ?? payload.totals?.sales ?? 0,
         cogs: payload.totals?.cost ?? 0,
-        coverage: payload.costCoverage ?? null,
+        coverage: Number.isFinite(payload.costCoverage) ? payload.costCoverage / 100 : null,
       })
       : null;
 

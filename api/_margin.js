@@ -11,8 +11,11 @@ const GOOD_MARGIN = 30;
 const THIN_MARGIN = 12;
 
 export function pureScore(m) {
-  const margin = m.totals.marginPct ?? 0;
   const coverage = m.costCoverage ?? 0;
+  /* Scored on the dishes whose cost is known. The headline margin counts an
+     uncosted dish as free, so a menu half-costed would score as if the other
+     half made pure profit. */
+  const margin = m.totals.costedMarginPct ?? m.totals.marginPct ?? 0;
 
   /* Without cost data the margin is fiction, so the score says so rather
      than reporting a confident 100. */

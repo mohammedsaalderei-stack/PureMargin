@@ -38,14 +38,17 @@ function Snapshot({ data, onAsk, noticedLine }) {
             <span className="text-xs font-semibold" style={{ color: C.irisDeep }}>
               {t.snapshot.salesToday}
             </span>
-            <span
-              className="data inline-flex items-center gap-0.5 text-[11px] font-medium"
-              style={{ color: up ? C.iris : C.rose }}
-              dir="ltr"
-            >
-              {up ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />}
-              {Math.abs(today.delta ?? 0).toFixed(1)}%
-            </span>
+            {/* Nothing sold yesterday is no comparison at all, not a flat one. */}
+            {today.delta !== null && today.delta !== undefined && (
+              <span
+                className="data inline-flex items-center gap-0.5 text-[11px] font-medium"
+                style={{ color: up ? C.iris : C.rose }}
+                dir="ltr"
+              >
+                {up ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />}
+                {Math.abs(today.delta).toFixed(1)}%
+              </span>
+            )}
           </div>
           <div className="display text-2xl font-extrabold leading-none">
             <Money value={Math.round(sales)} />

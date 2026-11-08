@@ -1,5 +1,6 @@
 import { requireAuth } from "./_auth.js";
 import { getMetrics, toContext, salesLines } from "./_data.js";
+import { menuCosts } from "./_recipes.js";
 import { registerContext, rosterFor } from "./_till.js";
 import { redactContext, redactionNote } from "./_askscope.js";
 import { noteQuestion, getAccount, activeItems, normaliseFeatures } from "./_accounts.js";
@@ -201,7 +202,10 @@ export default async function handler(req, res) {
        have. Any other failure still stops the answer, as it did. */
     let metrics = null;
     try {
-      metrics = await getMetrics({ overrides, edits: saleEdits, register, names });
+      /* Dish costs from recipes and the business's own day, as the overview
+         reads them, so an answer about margin is the margin on screen. */
+      const costs = await menuCosts(askerScope?.org?.id, askerScope?.authorized || []).catch(() => null);
+      metrics = await getMetrics({ overrides, edits: saleEdits, register, names, costs, timeZone: askerScope?.org?.timezone || "Asia/Dubai" });
     } catch (err) {
       if (err?.code !== "notconnected") throw err;
     }

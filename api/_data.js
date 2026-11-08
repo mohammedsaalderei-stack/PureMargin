@@ -22,8 +22,6 @@ const hourLabel = (h) => {
   const hour = h % 12 === 0 ? 12 : h % 12;
   return `${hour}${suffix}`;
 };
-const pctChange = (now, before) =>
-  before > 0 ? Number((((now - before) / before) * 100).toFixed(1)) : 0;
 
 /* ------------------------------------------------------------------ */
 /*  Forecast — trend plus widening uncertainty                          */
@@ -232,7 +230,7 @@ export async function rawReceipts({ days = 7, register = null, now = Date.now() 
   return (register || []).filter((r) => new Date(r.receipt_date).getTime() >= since);
 }
 
-export async function getMetrics({ overrides = {}, branches = null, edits = {}, register = null, names = {}, now = Date.now() } = {}) {
+export async function getMetrics({ overrides = {}, branches = null, edits = {}, register = null, names = {}, costs = null, timeZone, now = Date.now() } = {}) {
   const raw = salesRaw(register, names, now);
 
   /* `branches` is already authorized and intersected by the caller. null means
@@ -247,9 +245,9 @@ export async function getMetrics({ overrides = {}, branches = null, edits = {}, 
      figure derived from an uncorrected receipt and adjusted afterwards can
      only ever be the headline total — the item, daily and hourly series would
      still carry the sale the owner said never happened. */
-  const corrected = { ...raw, receipts: applyEdits(raw.receipts, edits) };
+  const corrected = { ...raw, catalogue: costs || raw.catalogue, receipts: applyEdits(raw.receipts, edits) };
 
-  const shaped = finish(aggregate(corrected, { overrides, branches: scoped }));
+  const shaped = finish(aggregate(corrected, { overrides, branches: scoped, timeZone }));
   return {
     ...shaped,
     connected: true,
@@ -324,18 +322,22 @@ export async function salesLines({ from, to = Date.now(), branches = null, edits
 /* A compact text version of the same numbers, for the model to reason over. */
 export function toContext(m) {
   const money = (n) => `${m.currency} ${Math.round(n).toLocaleString("en-AE")}`;
+  /* No earlier sales means no comparison, and the model must not be handed a
+     number to quote as one. */
+  const change = (d) => (d === null || d === undefined ? "no earlier sales to compare with" : `${d >= 0 ? "+" : ""}${d}% vs the 30 days before`);
   const busiest = [...m.hours].sort((a, b) => b.receipts - a.receipts).slice(0, 3);
   const quietest = [...m.hours].filter((h) => h.receipts > 0).sort((a, b) => a.receipts - b.receipts).slice(0, 3);
 
   return `SOURCE: ${m.source}${m.connected ? "" : " — tell the user these are sample figures if they ask about accuracy"}
 PERIOD: last 30 days, compared with the 30 days before.
 
-Total sales ${money(m.totals.sales)} (${m.totals.salesDelta >= 0 ? "+" : ""}${m.totals.salesDelta}%).
-Cost of goods ${money(m.totals.cost || 0)}. GROSS PROFIT ${money(m.totals.grossProfit || 0)}, a gross margin of ${m.totals.marginPct ?? 0}%.
+Total sales ${money(m.totals.sales)} (${change(m.totals.salesDelta)}).
+Of that, VAT collected ${money(m.totals.tax || 0)}; sales without VAT ${money(m.totals.salesExVat ?? m.totals.sales)} — profit is worked on this.
+Cost of goods ${money(m.totals.cost || 0)}. GROSS PROFIT ${money(m.totals.grossProfit || 0)}, a gross margin of ${m.totals.marginPct ?? 0}% (${m.totals.costedMarginPct ?? "unknown"}% on the dishes whose cost is known).
 Discounts given ${money(m.totals.discounts || 0)}.
 Cost data covers ${m.costCoverage ?? 0}% of turnover.
-Orders ${m.totals.receipts.toLocaleString()} (${m.totals.receiptsDelta >= 0 ? "+" : ""}${m.totals.receiptsDelta}%).
-Average ticket ${money(m.totals.avgTicket)} (${m.totals.avgTicketDelta >= 0 ? "+" : ""}${m.totals.avgTicketDelta}%).
+Orders ${m.totals.receipts.toLocaleString()} (${change(m.totals.receiptsDelta)}).
+Average ticket ${money(m.totals.avgTicket)} (${change(m.totals.avgTicketDelta)}).
 
 BRANCHES: ${m.stores.map((s) => `${s.name} — ${money(s.sales)}, ${s.receipts} orders`).join("; ")}.
 

@@ -225,6 +225,32 @@ they override the defaults).
   (needs CocoaPods' xcodeproj gem: `GEM_HOME="$(brew --prefix cocoapods)/libexec"`).
 - Not tested against real Bluetooth hardware yet.
 
+## Overview figures (audited)
+- **No comparison is `null`, not 0.** `pctChange` returned 0 when the earlier
+  period sold nothing, so a first week read "up 0.0%". Now null everywhere;
+  `TrendIndicator` draws "—". Each overview range compares with the period just
+  before it (today vs yesterday, week vs week) in `useDateRangeData`; the hero's
+  30-day profit keeps the server's 30-day comparison.
+- **Days and hours are the business's** (`org.timezone`, default Asia/Dubai) via
+  `localParts` in `_aggregate.js`. They were UTC days and server-zone hours.
+- **Dish costs come from recipes** (`menuCosts` in `_recipes.js`, the Recipes
+  screen's own per-portion figure), then a variant's own recipe, then a
+  product's `cost` on the receipt line, then the plain recipe × `variant_scale`,
+  plus `addon_cost`. Before this the overview only knew hand-typed costs, so
+  margins read 100% and profit purity never scored.
+- **Profit is worked without VAT.** `totals.sales` stays what customers paid;
+  `totals.tax` and `totals.salesExVat` are new; `grossProfit`, `marginPct`, item
+  `marginPct` and net profit all use the ex-VAT base. Including VAT overstated
+  gross profit by the whole VAT amount.
+- `costCoverage` is line revenue with a known cost ÷ all line revenue, both
+  ex-VAT (it was over receipt totals incl. VAT, so it could never reach 100%).
+  `netProfit` takes it as a 0–1 share — it was handed the percentage, so its
+  "upper bound" warning never showed. Item `marginPct` is null when uncosted.
+- `costedMarginPct` = margin on the costed dishes only; profit purity
+  (`pureScore`) scores that, not the headline margin that counts uncosted
+  dishes as free.
+- Tests: `api/_overview.test.js`.
+
 ## Multi-branch authorization (stage 1 of the product direction)
 - `api/_org.js` — organizations, roles, membership, scope resolution. Every
   account owns an organization from registration (`orgFor` backfills accounts

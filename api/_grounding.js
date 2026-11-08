@@ -288,9 +288,11 @@ No sell price or no recipe, so no margin: ${noPrice.slice(0, 8).map((d) => d.men
   if (can("view:profitability") && paidFor(SECTION_FEATURE.profit)
       && evidence.scope.complete && totals) {
     const profit = await netProfit(orgId, {
-      netSales: totals.sales ?? 0,
+      /* The same inputs the dashboard gives it: sales without VAT, and
+         coverage as a 0–1 share rather than the percentage it arrives as. */
+      netSales: totals.salesExVat ?? totals.sales ?? 0,
       cogs: totals.cost ?? 0,
-      coverage: totals.costCoverage ?? null,
+      coverage: Number.isFinite(totals.costCoverage) ? totals.costCoverage / 100 : null,
       now: to,
     });
     evidence.profit = profit;
