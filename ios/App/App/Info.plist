@@ -57,6 +57,13 @@
 
 	     Local networking is also what lets a test build reach a server on
 	     the same Wi-Fi by its address. It allows nothing on the internet. -->
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>PureMargin connects to Bluetooth receipt printers so the register can print receipts and kitchen orders.</string>
+	<key>UISupportedExternalAccessoryProtocols</key>
+	<array>
+		<string>com.epson.escpos</string>
+		<string>jp.star-m.starpro</string>
+	</array>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>PureMargin connects to the receipt printers, kitchen printers and cash drawer on your shop's network so the register can print and open the drawer.</string>
 	<key>NSBonjourServices</key>

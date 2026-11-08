@@ -2,16 +2,20 @@
 #
 #   ruby scripts/ios/add-printer-plugin.rb
 #
-# Two Swift files live in ios/App/App: PrinterPlugin.swift (raw printing to
-# receipt printers, Bonjour discovery, AirPrint) and ViewController.swift
-# (registers it with Capacitor; the storyboard names this class). A file on
+# It needs the xcodeproj gem. CocoaPods ships one, so if Ruby can't find it:
+#   GEM_HOME="$(brew --prefix cocoapods)/libexec" ruby scripts/ios/add-printer-plugin.rb
+#
+# Three Swift files live in ios/App/App: PrinterPlugin.swift (raw printing to
+# receipt printers, Bonjour discovery, AirPrint), BluetoothPrinters.swift
+# (Bluetooth LE and Epson/Star MFi printers) and ViewController.swift
+# (registers the plugin with Capacitor; the storyboard names this class). A file on
 # disk is not compiled until the target's Sources phase names it, which is
 # what this does. Safe to run twice: a file already in the phase is skipped.
 
 require "xcodeproj"
 
 PROJECT = File.expand_path("../../ios/App/App.xcodeproj", __dir__)
-FILES = %w[PrinterPlugin.swift ViewController.swift]
+FILES = %w[PrinterPlugin.swift BluetoothPrinters.swift ViewController.swift]
 
 project = Xcodeproj::Project.open(PROJECT)
 target = project.targets.find { |t| t.name == "App" }
@@ -30,4 +34,4 @@ FILES.each do |name|
 end
 
 project.save
-puts added.empty? ? "Nothing to do — both files are already in the target." : "Added: #{added.join(', ')}"
+puts added.empty? ? "Nothing to do — every file is already in the target." : "Added: #{added.join(', ')}"

@@ -24,9 +24,49 @@ public class PrinterPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "send", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "discover", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "airPrint", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "bluetoothScan", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "bluetoothSend", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "pickAccessory", returnType: CAPPluginReturnPromise),
     ]
 
     private let queue = DispatchQueue(label: "ae.puremargin.printer")
+    /* Made on first use, so the Bluetooth permission is asked for when
+       somebody looks for a Bluetooth printer, not when the app opens. */
+    private lazy var bluetooth = BluetoothPrinters()
+
+    /* Bluetooth printers in reach: LE ones advertising nearby, and the Epson
+       or Star MFi printers already paired with this device. */
+    @objc func bluetoothScan(_ call: CAPPluginCall) {
+        let timeout = Double(call.getInt("timeout") ?? 4000) / 1000
+        let paired = bluetooth.accessories()
+        bluetooth.scan(timeout: timeout) { found, error in
+            if found.isEmpty && paired.isEmpty, let error = error { call.reject(error); return }
+            call.resolve(["printers": paired + found])
+        }
+    }
+
+    @objc func bluetoothSend(_ call: CAPPluginCall) {
+        guard let encoded = call.getString("data"), let data = Data(base64Encoded: encoded) else {
+            call.reject("No data to print.")
+            return
+        }
+        guard let id = call.getString("id"), !id.isEmpty else { call.reject("No printer chosen."); return }
+        let done: (String?) -> Void = { error in
+            if let error = error { call.reject(error) } else { call.resolve(["sent": data.count]) }
+        }
+        if call.getString("kind") == "mfi" {
+            bluetooth.sendAccessory(id: id, proto: call.getString("protocol") ?? MFI_PROTOCOLS[0], data: data, done: done)
+        } else {
+            bluetooth.send(id: id, data: data, done: done)
+        }
+    }
+
+    /* iOS's own picker for an MFi Bluetooth printer not yet paired. */
+    @objc func pickAccessory(_ call: CAPPluginCall) {
+        bluetooth.pickAccessory { error in
+            if let error = error { call.reject(error) } else { call.resolve(["printers": self.bluetooth.accessories()]) }
+        }
+    }
 
     @objc func send(_ call: CAPPluginCall) {
         guard let encoded = call.getString("data"), let data = Data(base64Encoded: encoded) else {

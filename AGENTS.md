@@ -202,6 +202,29 @@ they override the defaults).
   to send yet) and the receipt detail. Prefilled from the customer's email.
 - Tests: `api/_receiptmail.test.js`.
 
+## Bluetooth printers
+- Connection `bluetooth` in `src/print/printers.js`. Every raw-byte path now goes
+  through `sendRaw()` (network, usb, serial, bluetooth), including the drawer.
+- iOS (`ios/App/App/BluetoothPrinters.swift`, exposed by `PrinterPlugin` as
+  `bluetoothScan` / `bluetoothSend` / `pickAccessory`):
+  - **BLE** via CoreBluetooth: connect, discover every service, write to a known
+    print characteristic (`PRINT_CHARACTERISTICS`: 2AF1, Feasycom, Microchip
+    ISSC, FFxx) or else the first writable one — **never** in a firmware-update
+    service (`NEVER_WRITE_SERVICES`). Packets sized by
+    `maximumWriteValueLength`, flow-controlled by `canSendWriteWithoutResponse`.
+  - **MFi** (Epson TM, Star) via ExternalAccessory, protocols
+    `com.epson.escpos` / `jp.star-m.starpro` declared in Info.plist
+    `UISupportedExternalAccessoryProtocols`. Star must be in ESC/POS emulation.
+    Shipping MFi printing through the App Store needs the printer maker's MFi
+    PPID submission — fine for development builds as is.
+  - `NSBluetoothAlwaysUsageDescription` added. The manager is created lazily, so
+    the permission is asked when someone looks for a Bluetooth printer.
+- Web: Web Bluetooth (Chrome/Edge, not Safari), LE only, `BLE_SERVICES` must be
+  listed up front as `optionalServices`.
+- New Swift files go into the target with `scripts/ios/add-printer-plugin.rb`
+  (needs CocoaPods' xcodeproj gem: `GEM_HOME="$(brew --prefix cocoapods)/libexec"`).
+- Not tested against real Bluetooth hardware yet.
+
 ## Multi-branch authorization (stage 1 of the product direction)
 - `api/_org.js` — organizations, roles, membership, scope resolution. Every
   account owns an organization from registration (`orgFor` backfills accounts

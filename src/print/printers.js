@@ -15,11 +15,16 @@
    usb       A printer plugged into a computer, from Chrome or Edge on the
              website (WebUSB). Windows needs the WinUSB driver for it.
    serial    The same over a serial or USB-serial port (Web Serial).
+   bluetooth Bluetooth printers. In the app: Bluetooth LE printers (most
+             portable and budget ones) found by scanning, and Epson or Star
+             printers paired in iPhone Settings (MFi). On the website: Chrome
+             or Edge on Android or a computer, LE printers only (Web
+             Bluetooth); Safari has no Bluetooth at all.
    browser   The browser's own print dialog — always available, and the
              answer for any printer the computer already has installed.
 
    A cash drawer plugs into the receipt printer, so it opens through the
-   printer on network, usb and serial connections. */
+   printer on network, usb, serial and bluetooth connections. */
 
 import { registerPlugin, Capacitor } from "@capacitor/core";
 import { job, drawerOnly, toBase64, dotsFor } from "./escpos.js";
@@ -36,6 +41,7 @@ export function connectionsAvailable() {
     airprint: Boolean(native()),
     usb: !native() && Boolean(nav.usb),
     serial: !native() && Boolean(nav.serial),
+    bluetooth: Boolean(native()) || Boolean(nav.bluetooth),
     browser: !native(),
   };
 }
@@ -82,6 +88,21 @@ export async function discover() {
   }
 }
 
+/* Bluetooth printers in reach, in the app: LE printers advertising nearby
+   and Epson/Star printers paired with this device. */
+export async function discoverBluetooth() {
+  if (!native()) return [];
+  const out = await NativePrinter.bluetoothScan({ timeout: 4000 });
+  return out?.printers || [];
+}
+
+/* iOS's own picker for an Epson or Star Bluetooth printer not paired yet. */
+export async function pickBluetoothAccessory() {
+  if (!native()) return [];
+  const out = await NativePrinter.pickAccessory();
+  return out?.printers || [];
+}
+
 /* ── Transports ── */
 
 async function sendNetwork(printer, bytes) {
@@ -115,6 +136,60 @@ async function sendUsb(printer, bytes) {
   }
 }
 
+/* The GATT services Web Bluetooth may open, which it must be told up front:
+   the 18F0 service most budget printers share, the Feasycom and Microchip
+   serial bridges, and the FFxx serial profiles. */
+const BLE_SERVICES = [
+  0x18f0, "e7810a71-73ae-499d-8c15-faa9aef0c3f2", "49535343-fe7d-4ae5-8fa9-9fafd205e455",
+  0xff00, 0xffe0, 0xfff0,
+];
+const webDevices = new Map();
+
+async function webBluetoothDevice(printer) {
+  if (webDevices.has(printer.btId)) return webDevices.get(printer.btId);
+  const known = navigator.bluetooth.getDevices ? await navigator.bluetooth.getDevices() : [];
+  const device = known.find((d) => d.id === printer.btId);
+  if (!device) throw new Error("bluetooth-not-paired");
+  webDevices.set(device.id, device);
+  return device;
+}
+
+async function sendWebBluetooth(printer, bytes) {
+  const device = await webBluetoothDevice(printer);
+  const server = device.gatt.connected ? device.gatt : await device.gatt.connect();
+  let target = null;
+  for (const service of await server.getPrimaryServices()) {
+    for (const ch of await service.getCharacteristics()) {
+      if (ch.properties.writeWithoutResponse || ch.properties.write) { target = ch; break; }
+    }
+    if (target) break;
+  }
+  if (!target) throw new Error("bluetooth-not-a-printer");
+  const fast = target.properties.writeWithoutResponse;
+  for (let i = 0; i < bytes.length; i += 180) {
+    const chunk = bytes.subarray(i, i + 180);
+    if (fast) await target.writeValueWithoutResponse(chunk);
+    else await target.writeValueWithResponse(chunk);
+  }
+}
+
+async function sendBluetooth(printer, bytes) {
+  if (native()) {
+    await NativePrinter.bluetoothSend({ id: printer.btId, kind: printer.btKind || "ble", protocol: printer.btProtocol || undefined, data: toBase64(bytes) });
+    return;
+  }
+  await sendWebBluetooth(printer, bytes);
+}
+
+/* One way out for raw bytes, whichever connection the printer is on. */
+async function sendRaw(printer, bytes) {
+  if (printer.connection === "network") await sendNetwork(printer, bytes);
+  else if (printer.connection === "usb") await sendUsb(printer, bytes);
+  else if (printer.connection === "serial") await sendSerial(printer, bytes);
+  else if (printer.connection === "bluetooth") await sendBluetooth(printer, bytes);
+  else throw new Error("no-raw-connection");
+}
+
 async function sendSerial(printer, bytes) {
   const ports = await navigator.serial.getPorts();
   const port = ports[printer.portIndex || 0];
@@ -134,6 +209,11 @@ export async function pairDevice(printer) {
     const port = await navigator.serial.requestPort();
     const ports = await navigator.serial.getPorts();
     return { ...printer, portIndex: Math.max(0, ports.indexOf(port)) };
+  }
+  if (printer.connection === "bluetooth" && !native()) {
+    const device = await navigator.bluetooth.requestDevice({ acceptAllDevices: true, optionalServices: BLE_SERVICES });
+    webDevices.set(device.id, device);
+    return { ...printer, btId: device.id, btKind: "ble", btName: device.name || "", name: printer.name || device.name || "Bluetooth printer" };
   }
   return printer;
 }
@@ -169,9 +249,7 @@ async function deliver(printer, canvas, { drawer = false } = {}) {
   const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
   for (let c = 0; c < copies; c += 1) {
     const bytes = job(imageData, { drawer: drawer && c === 0 && printer.drawer });
-    if (printer.connection === "network") await sendNetwork(printer, bytes);
-    else if (printer.connection === "usb") await sendUsb(printer, bytes);
-    else if (printer.connection === "serial") await sendSerial(printer, bytes);
+    await sendRaw(printer, bytes);
   }
 }
 
@@ -232,10 +310,7 @@ export async function testPrint(printer, ctx) {
 
 /* The drawer on its own — "no sale". */
 export async function openDrawer() {
-  const printer = loadPrinters().find((p) => p.role === "receipt" && p.drawer && ["network", "usb", "serial"].includes(p.connection));
+  const printer = loadPrinters().find((p) => p.role === "receipt" && p.drawer && ["network", "usb", "serial", "bluetooth"].includes(p.connection));
   if (!printer) throw new Error("no-drawer");
-  const bytes = drawerOnly();
-  if (printer.connection === "network") await sendNetwork(printer, bytes);
-  else if (printer.connection === "usb") await sendUsb(printer, bytes);
-  else await sendSerial(printer, bytes);
+  await sendRaw(printer, drawerOnly());
 }

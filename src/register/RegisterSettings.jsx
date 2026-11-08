@@ -11,7 +11,8 @@ import { useC } from "../theme.jsx";
 import { useLang, fill } from "../i18n.jsx";
 import { Btn, Sheet, Field, Seg, Toggle, money } from "./ui.jsx";
 import { call, RegisterError } from "./api.js";
-import { loadPrinters, savePrinters, newPrinter, connectionsAvailable, discover, pairDevice, testPrint } from "../print/printers.js";
+import { loadPrinters, savePrinters, newPrinter, connectionsAvailable, discover, discoverBluetooth, pickBluetoothAccessory, pairDevice, testPrint } from "../print/printers.js";
+import { isNativePlatform } from "../platform.js";
 
 export default function RegisterSettings({ token, catalogue, onChanged, printCtx }) {
   const C = useC();
@@ -88,7 +89,7 @@ function Printers({ P, catalogue, printCtx, onClose }) {
         <button key={p.id} onClick={() => setEditing(p)} className="w-full flex items-center justify-between gap-3 px-4 py-3.5 rounded-2xl mb-2 text-start" style={{ background: "var(--chip-bg)" }}>
           <span className="min-w-0">
             <span className="block text-sm font-bold truncate">{p.name || P.settings.printers.unnamed}</span>
-            <span className="block text-xs" style={{ color: C.slate }}>{P.settings.printers.roles[p.role]} · {P.settings.printers.connections[p.connection]}{p.host ? ` · ${p.host}` : ""} · {p.paper} mm</span>
+            <span className="block text-xs" style={{ color: C.slate }}>{P.settings.printers.roles[p.role]} · {P.settings.printers.connections[p.connection]}{p.host ? ` · ${p.host}` : ""}{p.btName ? ` · ${p.btName}` : ""} · {p.paper} mm</span>
           </span>
           <ChevronRight size={16} className="flip-rtl" style={{ color: C.slate }} />
         </button>
@@ -141,6 +142,28 @@ function PrinterForm({ P, printer, categories, printCtx, onClose, onSave, onRemo
           <Field label={S.host} value={p.host} onChange={(v) => set({ host: v.trim(), service: "" })} placeholder="192.168.1.50" inputMode="decimal" dir="ltr" />
           <Field label={S.port} value={String(p.port)} onChange={(v) => set({ port: Number(v) || 9100 })} inputMode="numeric" dir="ltr" />
         </>
+      )}
+      {p.connection === "bluetooth" && isNativePlatform() && (
+        <>
+          <Btn kind="ghost" full className="mb-2" onClick={async () => {
+            setFound([]);
+            try { setFound(await discoverBluetooth()); } catch (err) { setFound([]); setStatus(fill(S.btFailed, { error: String(err?.message || err) })); }
+          }}><Radar size={16} />{S.btFind}</Btn>
+          <button className="w-full text-xs font-semibold mb-3 underline" style={{ color: C.slate }}
+            onClick={async () => { try { const list = await pickBluetoothAccessory(); if (list.length) setFound(list); } catch { /* cancelled */ } }}>{S.btPairMfi}</button>
+          {found && (found.length ? found.map((f) => (
+            <button key={f.id} onClick={() => set({ btId: f.id, btKind: f.kind, btProtocol: f.protocol || "", btName: f.name, name: p.name || f.name })}
+              className="w-full flex items-center justify-between px-4 py-3 rounded-2xl mb-2 text-sm font-semibold"
+              style={{ background: p.btId === f.id ? C.irisWash : "var(--chip-bg)" }}>
+              <span>{f.name}{f.kind === "mfi" && <span className="ms-2 text-[10px] font-bold" style={{ color: C.slate }}>MFi</span>}</span>
+              {p.btId === f.id && <Check size={15} />}
+            </button>
+          )) : <p className="text-xs mb-3" style={{ color: C.slate }}>{S.btNone}</p>)}
+          {p.btId && !found && <p className="text-xs mb-3" style={{ color: C.slate }}>{fill(S.btChosen, { name: p.btName || p.btId })}</p>}
+        </>
+      )}
+      {p.connection === "bluetooth" && !isNativePlatform() && (
+        <Btn kind="ghost" full className="mb-3" onClick={async () => { try { setP(await pairDevice(p)); setStatus(S.paired); } catch { setStatus(S.pairFailed); } }}>{S.pair}</Btn>
       )}
       {(p.connection === "usb" || p.connection === "serial") && (
         <Btn kind="ghost" full className="mb-3" onClick={async () => { try { setP(await pairDevice(p)); setStatus(S.paired); } catch { setStatus(S.pairFailed); } }}>{S.pair}</Btn>
