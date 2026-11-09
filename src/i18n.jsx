@@ -156,7 +156,7 @@ export const STRINGS = {
     hero: {
       eyebrow: "For restaurants, cafés and cloud kitchens",
       title: "Every receipt is telling you something.",
-      lead: "PureMargin reads your sales the moment they happen and answers in plain language — which dish is carrying the menu, which branch is slipping, what next month looks like.",
+      lead: "PureMargin is your till and your numbers in one. Ring up a sale and it answers in plain language — which dish is carrying the menu, which branch is slipping, what next month looks like.",
       see: "See how it works",
       ticketTable: "Table 12",
       ticketMeta: "Friday · 8:42 PM · Al Jimi",
@@ -172,10 +172,10 @@ export const STRINGS = {
 
     sources: {
       eyebrow: "What PureMargin reads",
-      title: "It reads what you already run.",
-      lead: "Nothing about service changes. PureMargin connects to the POS your team already uses, reads what's there, and keeps it current.",
+      title: "The till is part of it.",
+      lead: "Nothing else to connect. Sales are rung up on PureMargin's own register — on a phone, a tablet or the counter — and every figure starts from those receipts.",
       items: [
-        { title: "Your POS", body: "Sales, receipts, and payments, exactly as your staff rang them up." },
+        { title: "Your register", body: "Sales, receipts and payments, exactly as your staff rang them up — even offline." },
         { title: "Each branch", body: "Every location keeps its own view and adds to the whole." },
         { title: "Menu and stock", body: "Dishes, categories, and costs, so takings can become margin." },
       ],
@@ -184,7 +184,7 @@ export const STRINGS = {
     capabilities: {
       eyebrow: "What you get",
       title: "Three ways into the same set of numbers.",
-      lead: "Ask a question, watch the week unfold, or look at what's coming. They all draw on the same connected data.",
+      lead: "Ask a question, watch the week unfold, or look at what's coming. They all draw on the same sales, straight from your register.",
       demoAsk: "A conversation built on your data",
       demoAskAnswer: "Mixed grill contributed most: it lifted the category 18% against last month, and it did it on 9% fewer covers.",
       demoWatch: "One unified dashboard",
@@ -215,7 +215,7 @@ export const STRINGS = {
       eyebrow: "Getting started",
       title: "Three steps, and none of them are yours to maintain.",
       items: [
-        { t: "Connect your POS", b: "One access token from your point-of-sale. Nothing changes about how your team works." },
+        { t: "Open the register", b: "Add your menu and prices, connect the printer you already have, and start selling — on a phone, a tablet or a computer." },
         { t: "The numbers get organised", b: "Receipts, items, and branches are cleaned and joined into one picture that stays current." },
         { t: "You ask, you decide", b: "PureMargin shows the number and explains the why. The call is still yours to make." },
       ],
@@ -1245,7 +1245,7 @@ export const STRINGS = {
     core: {
       eyebrow: "How it comes together",
       title: "Everything ends up on one table.",
-      lead: "Your POS, your branches, your menu — set out side by side instead of scattered across five screens that quietly disagree with each other.",
+      lead: "Your register, your branches, your menu — set out side by side instead of scattered across five screens that quietly disagree with each other.",
       sourcesLabel: "What you bring",
       coreTitle: "One table",
       coreBody: "Cleaned, matched, and laid out — so no two screens argue about last Tuesday.",
@@ -1280,10 +1280,10 @@ export const STRINGS = {
       terms: { 1: "1 month", 3: "3 months", 6: "6 months", 12: "12 months" },
       billedAs: "{total} for {n} months, paid once",
       onRequest: "Quoted",
-      onRequestNote: "Depends on your POS and how many branches",
+      onRequestNote: "Depends on the hardware and how many branches",
       offer: "First year · half price",
       wasPrice: "Normally",
-      note: "Monthly per business, not per branch. Setting up the link to your POS is quoted once, up front, and never as a surprise on the invoice.",
+      note: "Monthly per business, not per branch. The register comes with every account; hardware, if you need it, is quoted once, up front, and never as a surprise on the invoice.",
       helpTitle: "Not sure where to start?",
       helpLead: "Tell us how you run service and we'll say which piece is worth it first — including if that's none of them yet.",
       contact: "Talk to us",
@@ -1327,7 +1327,7 @@ export const STRINGS = {
         },
         hardware: {
           name: "Till hardware",
-          body: "A cashier machine or a full POS setup, supplied, configured and connected. Quoted per order against what the site needs, never charged monthly. Your existing tills work too — this is only if you need the hardware.",
+          body: "Card readers, receipt printers, cash drawers and tablets for the counter, supplied and set up with the register. Quoted per order against what the site needs, never charged monthly. Printers you already have work too — this is only if you need the hardware.",
         },
       },
     },
@@ -1462,7 +1462,7 @@ export const STRINGS = {
       requiredLegend: "* Required",
       nav: "Create account", title: "See your PureMargin",
       noAccount: "No account yet?",
-      lead: "One account for your business. You can connect your POS now or later.",
+      lead: "One account for your business. The register is ready the moment you sign in.",
       business: "Business name", businessHint: "What your customers call you",
       email: "Email address",
       emailHint: "Used to sign in, and to reach you about the account",
@@ -2044,7 +2044,7 @@ export const STRINGS = {
     hero: {
       eyebrow: "للمطاعم والمقاهي والمطابخ السحابية",
       title: "أرقام مبيعاتك تحمل إجابات.",
-      lead: "يقرأ PureMargin مبيعاتك أولًا بأول ويعرضها بلغة واضحة: أي طبق يحقق أعلى عائد، وأي فرع يتراجع، وما المتوقع للشهر القادم.",
+      lead: "PureMargin هو الكاشير والأرقام في مكان واحد. سجّل البيع ويجيبك بلغة واضحة: أي طبق يحقق أعلى عائد، وأي فرع يتراجع، وما المتوقع للشهر القادم.",
       see: "تعرّف على طريقة العمل",
       ticketTable: "طاولة 12",
       ticketMeta: "الجمعة · 8:42 مساءً · الجيمي",
@@ -2060,10 +2060,10 @@ export const STRINGS = {
 
     sources: {
       eyebrow: "ماذا يقرأ PureMargin",
-      title: "يقرأ من الأنظمة التي تستخدمها بالفعل.",
-      lead: "لا يتغيّر شيء في طريقة عملكم. يتصل PureMargin بنظام نقاط البيع لديكم، ويقرأ بياناته، ويبقيها محدّثة.",
+      title: "الكاشير جزء منه.",
+      lead: "لا شيء آخر لربطه. تُسجَّل المبيعات على كاشير PureMargin نفسه — على الهاتف أو الجهاز اللوحي أو جهاز الصندوق — ومن فواتيره تبدأ كل الأرقام.",
       items: [
-        { title: "نظام نقاط البيع", body: "المبيعات والفواتير والمدفوعات، كما سجّلها موظفوك تمامًا." },
+        { title: "الكاشير", body: "المبيعات والفواتير والمدفوعات، كما سجّلها موظفوك تمامًا — حتى دون اتصال." },
         { title: "كل فرع", body: "كل موقع يحتفظ بمشهده الخاص ويضيف إلى الكل." },
         { title: "القائمة والمخزون", body: "الأصناف والفئات والتكاليف، ليتحول المقبوض إلى هامش." },
       ],
@@ -2072,7 +2072,7 @@ export const STRINGS = {
     capabilities: {
       eyebrow: "ماذا تحصل",
       title: "ثلاثة مداخل إلى البيانات نفسها.",
-      lead: "اطرح سؤالًا، أو راجع أداء الأسبوع، أو اطّلع على المتوقع. جميعها تعتمد على البيانات المتصلة نفسها.",
+      lead: "اطرح سؤالًا، أو راجع أداء الأسبوع، أو اطّلع على المتوقع. جميعها تعتمد على المبيعات نفسها، مباشرة من الكاشير.",
       demoAsk: "محادثة مبنية على بياناتك",
       demoAskAnswer: "المشاوي المشكلة الأعلى مساهمة؛ رفعت مبيعات الفئة 18٪ مقارنة بالشهر السابق، وبعدد زبائن أقل بـ 9٪.",
       demoWatch: "لوحة تحليلية موحّدة",
@@ -2103,7 +2103,7 @@ export const STRINGS = {
       eyebrow: "البداية",
       title: "ثلاث خطوات، ولا واحدة منها تحتاج متابعة منك.",
       items: [
-        { t: "اربط نظام الكاشير", b: "رمز وصول واحد من نظامك. لا شيء يتغير في طريقة عمل فريقك." },
+        { t: "افتح الكاشير", b: "أضف قائمتك وأسعارك، واربط الطابعة الموجودة لديك، وابدأ البيع — على هاتف أو جهاز لوحي أو كمبيوتر." },
         { t: "تُنظَّم الأرقام", b: "الفواتير والأصناف والفروع تُنظّف وتُجمع في صورة واحدة تبقى محدثة." },
         { t: "أنت تسأل، وأنت تقرر", b: "PureMargin يعرض الرقم ويشرح السبب. القرار يبقى بيدك." },
       ],
@@ -3133,7 +3133,7 @@ export const STRINGS = {
     core: {
       eyebrow: "كيف تجتمع الأمور",
       title: "كل شيء ينتهي على PureMargin واحدة.",
-      lead: "نقاط البيع والفروع والقائمة في مكان واحد، بدل توزّعها على شاشات متعدّدة قد تتعارض أرقامها.",
+      lead: "الكاشير والفروع والقائمة في مكان واحد، بدل توزّعها على شاشات متعدّدة قد تتعارض أرقامها.",
       sourcesLabel: "ما تُحضره",
       coreTitle: "PureMargin واحدة",
       coreBody: "بيانات منظّمة ومطابَقة في جدول واحد، فلا تتعارض شاشتان حول الفترة نفسها.",
@@ -3215,7 +3215,7 @@ export const STRINGS = {
         },
         hardware: {
           name: "أجهزة الكاشير",
-          body: "جهاز كاشير أو نظام نقاط بيع كامل، يُورَّد ويُهيَّأ ويُوصَل. يُسعَّر لكل طلب حسب احتياج الموقع، لا شهريًا. أجهزتك الحالية تعمل أيضًا — هذا فقط إن احتجت الأجهزة.",
+          body: "أجهزة الدفع بالبطاقة وطابعات الإيصالات وأدراج النقود والأجهزة اللوحية للصندوق، تُورَّد وتُهيَّأ مع الكاشير. تُسعَّر لكل طلب حسب احتياج الموقع، لا شهريًا. الطابعات الموجودة لديك تعمل أيضًا — هذا فقط إن احتجت الأجهزة.",
         },
       },
     },
@@ -3350,7 +3350,7 @@ export const STRINGS = {
       requiredLegend: "* مطلوب",
       nav: "أنشئ حسابًا", title: "اعرف هامشك الصافي",
       noAccount: "ليس لديك حساب بعد؟",
-      lead: "حساب واحد لمنشأتك. يمكن ربط نظام نقاط البيع الآن أو لاحقًا.",
+      lead: "حساب واحد لمنشأتك. الكاشير جاهز لحظة تسجيل الدخول.",
       business: "اسم النشاط", businessHint: "الاسم كما يظهر على الفواتير.",
       email: "البريد الإلكتروني",
       emailHint: "يُستخدم لتسجيل الدخول وللتواصل معك بشأن الحساب",
@@ -3913,7 +3913,7 @@ export const STRINGS = {
     hero: {
       eyebrow: "रेस्टोरेंट, कैफ़े और क्लाउड किचन के लिए",
       title: "हर बिल आपको कुछ बता रहा है।",
-      lead: "PureMargin आपकी बिक्री उसी वक़्त पढ़ता है और सीधी भाषा में जवाब देता है — कौन-सी डिश मेन्यू को सँभाल रही है, कौन-सी शाखा पिछड़ रही है, अगला महीना कैसा दिखता है।",
+      lead: "PureMargin आपका काउंटर भी है और आपके आँकड़े भी। बिक्री दर्ज कीजिए, और यह सीधी भाषा में जवाब देता है — कौन-सी डिश मेन्यू को सँभाल रही है, कौन-सी शाखा फिसल रही है, अगला महीना कैसा दिखता है।",
       see: "देखें यह कैसे काम करता है",
       ticketTable: "टेबल 12",
       ticketMeta: "शुक्रवार · रात 8:42 · Al Jimi",
@@ -3929,10 +3929,10 @@ export const STRINGS = {
 
     sources: {
       eyebrow: "PureMargin क्या पढ़ता है",
-      title: "जो आप पहले से चला रहे हैं, वही पढ़ता है।",
-      lead: "सेवा में कुछ नहीं बदलता। PureMargin उसी काउंटर से जुड़ता है जो आपकी टीम पहले से इस्तेमाल करती है, वहाँ जो है उसे पढ़ता है, और ताज़ा रखता है।",
+      title: "काउंटर इसी का हिस्सा है।",
+      lead: "जोड़ने को और कुछ नहीं। बिक्री PureMargin के अपने रजिस्टर पर दर्ज होती है — फ़ोन, टैबलेट या काउंटर पर — और हर आँकड़ा उन्हीं रसीदों से शुरू होता है।",
       items: [
-        { title: "आपका काउंटर", body: "बिक्री, रसीदें और भुगतान — ठीक वैसे जैसे आपके स्टाफ़ ने दर्ज किए।" },
+        { title: "आपका रजिस्टर", body: "बिक्री, रसीदें और भुगतान — ठीक वैसे जैसे आपके स्टाफ़ ने दर्ज किए, ऑफ़लाइन भी।" },
         { title: "हर शाखा", body: "हर जगह अपना नज़रिया रखती है और पूरे में जुड़ती है।" },
         { title: "मेन्यू और स्टॉक", body: "व्यंजन, श्रेणियाँ और लागत — ताकि वसूली मुनाफ़े में बदल सके।" },
       ],
@@ -3941,7 +3941,7 @@ export const STRINGS = {
     capabilities: {
       eyebrow: "आपको क्या मिलता है",
       title: "एक ही आँकड़ों तक पहुँचने के तीन रास्ते।",
-      lead: "सवाल पूछें, हफ़्ते पर नज़र रखें, या आगे क्या आ रहा है देखें। तीनों एक ही जुड़े डेटा पर चलते हैं।",
+      lead: "सवाल पूछें, हफ़्ते पर नज़र रखें, या आगे क्या आ रहा है देखें। तीनों उन्हीं बिक्रियों पर चलते हैं, सीधे आपके रजिस्टर से।",
       demoAsk: "आपके डेटा पर बनी बातचीत",
       demoAskAnswer: "सबसे ज़्यादा योगदान मिक्स्ड ग्रिल का रहा: इसने श्रेणी की बिक्री पिछले महीने से 18% बढ़ाई, वह भी 9% कम ग्राहकों पर।",
       demoWatch: "एक एकीकृत डैशबोर्ड",
@@ -3972,7 +3972,7 @@ export const STRINGS = {
       eyebrow: "शुरुआत करें",
       title: "तीन क़दम, और एक भी आपको सँभालना नहीं है।",
       items: [
-        { t: "अपना POS जोड़ें", b: "आपके पॉइंट-ऑफ़-सेल से एक ऐक्सेस टोकन। टीम के काम में कोई बदलाव नहीं।" },
+        { t: "रजिस्टर खोलिए", b: "अपना मेन्यू और कीमतें जोड़िए, जो प्रिंटर पहले से है उसे जोड़िए, और बेचना शुरू कीजिए — फ़ोन, टैबलेट या कंप्यूटर पर।" },
         { t: "आँकड़े व्यवस्थित होते हैं", b: "बिल, आइटम और शाखाएँ साफ़ होकर एक तस्वीर में जुड़ती हैं, जो ताज़ा रहती है।" },
         { t: "आप पूछें, आप तय करें", b: "PureMargin आँकड़ा दिखाता है और वजह बताता है। फ़ैसला आपका ही रहता है।" },
       ],
@@ -5017,7 +5017,7 @@ export const STRINGS = {
     core: {
       eyebrow: "यह सब कैसे जुड़ता है",
       title: "सब कुछ एक ही मेज़ पर आ जाता है।",
-      lead: "आपका काउंटर, आपकी शाखाएँ, आपका मेन्यू — साथ-साथ रखे हुए, न कि पाँच स्क्रीनों पर बिखरे जो चुपचाप एक-दूसरे से अलग बोलती हैं।",
+      lead: "आपका रजिस्टर, आपकी शाखाएँ, आपका मेन्यू — साथ-साथ रखे हुए, न कि पाँच स्क्रीनों पर बिखरे जो चुपचाप एक-दूसरे से अलग बोलती हैं।",
       sourcesLabel: "आप क्या लाते हैं",
       coreTitle: "एक मेज़",
       coreBody: "साफ़, मिलाया और सजाया हुआ — ताकि पिछले मंगलवार पर दो स्क्रीनें न झगड़ें।",
@@ -5052,10 +5052,10 @@ export const STRINGS = {
       terms: { 1: "1 माह", 3: "3 माह", 6: "6 माह", 12: "12 माह" },
       billedAs: "{n} माह के लिए {total}, एक बार में",
       onRequest: "कोटेशन पर",
-      onRequestNote: "आपके काउंटर और शाखाओं की संख्या पर निर्भर",
+      onRequestNote: "हार्डवेयर और शाखाओं की संख्या पर निर्भर",
       offer: "पहला साल · आधी क़ीमत",
       wasPrice: "सामान्यतः",
-      note: "हर कारोबार के लिए मासिक, हर शाखा के लिए नहीं। काउंटर से जोड़ने का ख़र्च एक बार, पहले ही बताया जाता है — बिल में अचानक नहीं आता।",
+      note: "हर कारोबार के लिए मासिक, हर शाखा के लिए नहीं। रजिस्टर हर खाते के साथ आता है; हार्डवेयर चाहिए तो उसका ख़र्च एक बार, पहले ही बताया जाता है — बिल में अचानक नहीं आता।",
       helpTitle: "पता नहीं कहाँ से शुरू करें?",
       helpLead: "बताइए आप सेवा कैसे चलाते हैं, हम कहेंगे कौन-सा हिस्सा पहले सही रहेगा — यह भी कि शायद अभी कोई नहीं।",
       contact: "हमसे बात करें",
@@ -5099,7 +5099,7 @@ export const STRINGS = {
         },
         hardware: {
           name: "टिल हार्डवेयर",
-          body: "कैशियर मशीन या पूरा POS सेटअप, दिया, सेट किया और जोड़ा हुआ। जगह की ज़रूरत के हिसाब से प्रति ऑर्डर क़ीमत, मासिक नहीं। आपकी मौजूदा मशीनें भी चलती हैं — यह सिर्फ़ तब जब हार्डवेयर चाहिए।",
+          body: "कार्ड रीडर, रसीद प्रिंटर, कैश ड्रॉअर और काउंटर के लिए टैबलेट, रजिस्टर के साथ दिए और सेट किए हुए। जगह की ज़रूरत के हिसाब से प्रति ऑर्डर कीमत, मासिक नहीं। आपके मौजूदा प्रिंटर भी चलते हैं — यह सिर्फ़ तब, जब हार्डवेयर चाहिए।",
         },
       },
     },
@@ -5234,7 +5234,7 @@ export const STRINGS = {
       requiredLegend: "* ज़रूरी",
       nav: "खाता बनाएँ", title: "अपना शुद्ध मार्जिन देखिए",
       noAccount: "अभी खाता नहीं है?",
-      lead: "आपके कारोबार के लिए एक खाता। काउंटर अभी जोड़िए या बाद में।",
+      lead: "आपके कारोबार के लिए एक खाता। साइन इन करते ही रजिस्टर तैयार है।",
       business: "कारोबार का नाम", businessHint: "जिस नाम से ग्राहक आपको जानते हैं",
       email: "ईमेल पता",
       emailHint: "साइन इन के लिए, और खाते के बारे में संपर्क के लिए",
@@ -6106,7 +6106,7 @@ export const STRINGS = {
       nav: "اکاؤنٹ بنائیے",
       title: "اپنا خالص منافع دیکھیے",
       noAccount: "اکاؤنٹ نہیں ہے؟",
-      lead: "آپ کے کاروبار کے لیے ایک اکاؤنٹ۔ کاؤنٹر ابھی جوڑیے یا بعد میں۔",
+      lead: "آپ کے کاروبار کے لیے ایک اکاؤنٹ۔ سائن اِن کرتے ہی رجسٹر تیار ہے۔",
       business: "کاروبار کا نام",
       businessHint: "جیسا رسیدوں پر چھپتا ہے۔",
       email: "ای میل",
@@ -7450,14 +7450,14 @@ export const STRINGS = {
         },
         hardware: {
           name: "کاؤنٹر مشین",
-          body: "کیشیئر مشین یا پورا POS سیٹ اپ، فراہم، ترتیب اور منسلک۔ جگہ کی ضرورت کے مطابق فی آرڈر قیمت، ماہانہ نہیں۔ آپ کی موجودہ مشینیں بھی چلتی ہیں — یہ صرف تب جب ہارڈ ویئر درکار ہو۔",
+          body: "کارڈ ریڈر، رسید پرنٹر، کیش دراز اور کاؤنٹر کے لیے ٹیبلیٹ، رجسٹر کے ساتھ فراہم اور ترتیب شدہ۔ جگہ کی ضرورت کے مطابق فی آرڈر قیمت، ماہانہ نہیں۔ آپ کے موجودہ پرنٹر بھی چلتے ہیں — یہ صرف تب جب ہارڈ ویئر درکار ہو۔",
         },
       },
     },
     hero: {
       eyebrow: "ریستورانوں، کیفے اور کلاؤڈ کچن کے لیے",
       title: "ہر رسید آپ سے کچھ کہہ رہی ہے۔",
-      lead: "PureMargin آپ کی فروخت اُسی وقت پڑھتا ہے جب وہ ہوتی ہے، اور سیدھی زبان میں جواب دیتا ہے — کون سی ڈش مینو کو سنبھالے ہوئے ہے، کون سی برانچ پھسل رہی ہے، اگلا مہینہ کیسا لگتا ہے۔",
+      lead: "PureMargin آپ کا کاؤنٹر بھی ہے اور آپ کے اعداد بھی۔ فروخت درج کیجیے، اور یہ سیدھی زبان میں جواب دیتا ہے — کون سی ڈش مینو کو سنبھالے ہوئے ہے، کون سی برانچ پھسل رہی ہے، اگلا مہینہ کیسا لگتا ہے۔",
       see: "دیکھیے یہ کیسے کام کرتا ہے",
       ticketTable: "میز 12",
       ticketMeta: "جمعہ · رات 8:42 · الجیمی",
@@ -7468,12 +7468,12 @@ export const STRINGS = {
     },
     sources: {
       eyebrow: "PureMargin کیا پڑھتا ہے",
-      title: "جو آپ پہلے سے چلا رہے ہیں، یہ وہی پڑھتا ہے۔",
-      lead: "خدمت کے طریقے میں کچھ نہیں بدلتا۔ PureMargin اُسی کاؤنٹر سے جڑتا ہے جو آپ کی ٹیم پہلے سے استعمال کرتی ہے، جو وہاں ہے وہ پڑھتا ہے، اور اسے تازہ رکھتا ہے۔",
+      title: "کاؤنٹر اسی کا حصہ ہے۔",
+      lead: "جوڑنے کو اور کچھ نہیں۔ فروخت PureMargin کے اپنے رجسٹر پر درج ہوتی ہے — فون، ٹیبلیٹ یا کاؤنٹر پر — اور ہر عدد انہی رسیدوں سے شروع ہوتا ہے۔",
       items: [
         {
-          title: "آپ کا کاؤنٹر",
-          body: "فروخت، رسیدیں اور ادائیگیاں، بالکل جیسے آپ کے عملے نے درج کیں۔",
+          title: "آپ کا رجسٹر",
+          body: "فروخت، رسیدیں اور ادائیگیاں، بالکل جیسے آپ کے عملے نے درج کیں — آف لائن بھی۔",
         },
         {
           title: "آپ کی لاگتیں",
@@ -7488,7 +7488,7 @@ export const STRINGS = {
     capabilities: {
       eyebrow: "آپ کو کیا ملتا ہے",
       title: "انہی اعداد تک پہنچنے کے تین راستے۔",
-      lead: "سوال پوچھیے، ہفتے کو کھلتا ہوا دیکھیے، یا آنے والے وقت پر نظر ڈالیے۔ تینوں ایک ہی منسلک ڈیٹا سے نکلتے ہیں۔",
+      lead: "سوال پوچھیے، ہفتے کو کھلتا ہوا دیکھیے، یا آنے والے وقت پر نظر ڈالیے۔ تینوں انہی فروختوں سے نکلتے ہیں، سیدھے آپ کے رجسٹر سے۔",
       demoAsk: "آپ کے ڈیٹا پر بنی گفتگو",
       demoAskAnswer: "سب سے زیادہ حصہ مکسڈ گرل کا رہا: اس نے پچھلے مہینے کے مقابلے میں زمرے کو 18% اوپر اٹھایا، اور یہ 9% کم گاہکوں کے ساتھ کیا۔",
       demoWatch: "ایک ہی جامع ڈیش بورڈ",
@@ -7519,8 +7519,8 @@ export const STRINGS = {
       title: "تین قدم، اور ان میں سے کوئی آپ کے سنبھالنے کا نہیں۔",
       items: [
         {
-          t: "اپنا کاؤنٹر جوڑیے",
-          b: "پوائنٹ آف سیل سے ایک رسائی ٹوکن۔ آپ کی ٹیم کے کام کرنے کے طریقے میں کچھ نہیں بدلتا۔",
+          t: "رجسٹر کھولیے",
+          b: "اپنا مینو اور قیمتیں شامل کیجیے، جو پرنٹر پہلے سے ہے اسے جوڑیے، اور بیچنا شروع کیجیے — فون، ٹیبلیٹ یا کمپیوٹر پر۔",
         },
         {
           t: "اپنی لاگتیں شامل کیجیے",
@@ -7849,7 +7849,7 @@ export const STRINGS = {
     hero: {
       eyebrow: "Para sa restawran, café at cloud kitchen",
       title: "May sinasabi sa iyo ang bawat resibo.",
-      lead: "Binabasa ng PureMargin ang benta mo habang nangyayari, at sumasagot sa simpleng salita — aling putahe ang bumubuhay sa menu, aling sangay ang bumababa, at ano ang hitsura ng susunod na buwan.",
+      lead: "Ang PureMargin ang till mo at ang mga numero mo sa iisa. Mag-ring up ng benta at sasagot ito sa simpleng salita — aling putahe ang bumubuhay sa menu, aling sangay ang bumababa, at ano ang hitsura ng susunod na buwan.",
       see: "Tingnan kung paano ito gumagana",
       ticketTable: "Mesa 12",
       ticketMeta: "Biyernes · 8:42 PM · Al Jimi",
@@ -7865,10 +7865,10 @@ export const STRINGS = {
 
     sources: {
       eyebrow: "Ano ang binabasa ng PureMargin",
-      title: "Binabasa nito ang pinapatakbo mo na.",
-      lead: "Walang nagbabago sa serbisyo. Kumokonekta ang PureMargin sa POS na ginagamit na ng team mo, binabasa ang nandoon, at pinapanatiling sariwa.",
+      title: "Kasama na ang till.",
+      lead: "Wala nang ibang ikokonekta. Itinatala ang benta sa sariling register ng PureMargin — sa phone, tablet o counter — at doon nagsisimula ang bawat numero.",
       items: [
-        { title: "Ang POS mo", body: "Benta, resibo at bayad, eksakto kung paano itinala ng staff mo." },
+        { title: "Ang register mo", body: "Benta, resibo at bayad, eksakto kung paano itinala ng staff mo — kahit offline." },
         { title: "Bawat sangay", body: "May sariling tanaw ang bawat lugar at nakadagdag sa kabuuan." },
         { title: "Menu at stock", body: "Putahe, kategorya at gastos, para maging margin ang kinita." },
       ],
@@ -7877,7 +7877,7 @@ export const STRINGS = {
     capabilities: {
       eyebrow: "Ano ang makukuha mo",
       title: "Tatlong daan papunta sa parehong mga numero.",
-      lead: "Magtanong, bantayan ang linggo, o tingnan ang parating. Pareho lang ang konektadong datos na pinagkukunan.",
+      lead: "Magtanong, bantayan ang linggo, o tingnan ang parating. Iisang benta ang pinagkukunan, diretso mula sa register mo.",
       demoAsk: "Usapang nakabatay sa datos mo",
       demoAskAnswer: "Ang mixed grill ang pinakamalaki ang naiambag: itinaas nito ang kategorya nang 18% kumpara noong nakaraang buwan, at sa 9% na mas kaunting customer.",
       demoWatch: "Isang pinag-isang dashboard",
@@ -7908,7 +7908,7 @@ export const STRINGS = {
       eyebrow: "Pagsisimula",
       title: "Tatlong hakbang, at wala kang kailangang alagaan.",
       items: [
-        { t: "Ikonekta ang POS mo", b: "Isang access token mula sa point-of-sale. Walang magbabago sa trabaho ng team." },
+        { t: "Buksan ang register", b: "Idagdag ang menu at presyo mo, ikonekta ang printer na mayroon ka na, at magsimulang magbenta — sa phone, tablet o computer." },
         { t: "Inaayos ang mga numero", b: "Nililinis at pinagsasama ang resibo, item at sangay sa isang larawang laging sariwa." },
         { t: "Ikaw ang nagtatanong, ikaw ang magpapasya", b: "Ipinapakita ng PureMargin ang numero at ipinapaliwanag ang dahilan. Sa iyo pa rin ang desisyon." },
       ],
@@ -8953,7 +8953,7 @@ export const STRINGS = {
     core: {
       eyebrow: "Paano ito nagsasama-sama",
       title: "Napupunta ang lahat sa iisang mesa.",
-      lead: "Ang POS mo, mga sangay mo, menu mo — magkatabing nakahain, hindi nakakalat sa limang screen na tahimik na hindi magkasundo.",
+      lead: "Ang register mo, mga sangay mo, menu mo — magkatabing nakahain, hindi nakakalat sa limang screen na tahimik na hindi magkasundo.",
       sourcesLabel: "Ang dala mo",
       coreTitle: "Isang mesa",
       coreBody: "Nalinis, natugma, at nahain — para walang dalawang screen na nagtatalo tungkol sa nakaraang Martes.",
@@ -8988,10 +8988,10 @@ export const STRINGS = {
       terms: { 1: "1 buwan", 3: "3 buwan", 6: "6 buwan", 12: "12 buwan" },
       billedAs: "{total} para sa {n} buwan, isang bayad",
       onRequest: "May quote",
-      onRequestNote: "Depende sa POS mo at bilang ng sangay",
+      onRequestNote: "Depende sa hardware at bilang ng sangay",
       offer: "Unang taon · kalahating presyo",
       wasPrice: "Karaniwan",
-      note: "Buwanan kada negosyo, hindi kada sangay. Isang beses na quote ang pag-uugnay sa POS mo, sinasabi nang maaga — hindi sorpresa sa bill.",
+      note: "Buwanan kada negosyo, hindi kada sangay. Kasama ang register sa bawat account; ang hardware, kung kailangan mo, isang beses na quote at sinasabi nang maaga — hindi sorpresa sa bill.",
       helpTitle: "Hindi sigurado kung saan magsisimula?",
       helpLead: "Sabihin mo kung paano ka nagpapatakbo ng serbisyo at sasabihin namin kung alin ang sulit muna — kasama na kung wala pa pala.",
       contact: "Kausapin kami",
@@ -9035,7 +9035,7 @@ export const STRINGS = {
         },
         hardware: {
           name: "Kagamitan sa till",
-          body: "Cashier machine o buong POS setup, ibinibigay, isinasaayos at ikinokonekta. Presyo kada order ayon sa kailangan ng lugar, hindi buwanan. Gumagana rin ang kasalukuyan mong till — para lang ito kung kailangan mo ng kagamitan.",
+          body: "Card reader, resibo printer, cash drawer at tablet para sa counter, ibinibigay at isinasaayos kasama ang register. Presyo kada order ayon sa kailangan ng lugar, hindi buwanan. Gumagana rin ang mga printer mo ngayon — para lang ito kung kailangan mo ng kagamitan.",
         },
       },
     },
@@ -9170,7 +9170,7 @@ export const STRINGS = {
       requiredLegend: "* Kailangan",
       nav: "Gumawa ng account", title: "Tingnan ang tunay mong margin",
       noAccount: "Wala pang account?",
-      lead: "Isang account para sa negosyo mo. Puwedeng ikonekta ang POS ngayon o mamaya.",
+      lead: "Isang account para sa negosyo mo. Handa na ang register sa sandaling mag-sign in ka.",
       business: "Pangalan ng negosyo", businessHint: "Ang tawag sa iyo ng mga customer",
       email: "Email address",
       emailHint: "Ginagamit sa pag-sign in, at para maabot ka tungkol sa account",
