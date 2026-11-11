@@ -273,9 +273,14 @@ export async function getMetrics({ overrides = {}, branches = null, edits = {}, 
 
   /* `branches` is already authorized and intersected by the caller. null means
      the whole organization. */
+  /* The whole organization only when the list really does cover every branch
+     there is. This compared the two lengths, which is not the same thing: one
+     permitted branch against one branch with sales are equal in number and
+     can be different branches — a manager of a store that had not sold yet
+     was handed the figures of the one that had. */
+  const asked = branches === null ? null : new Set(branches.map(String));
   const scoped =
-    branches === null ||
-    (raw.allBranches.length > 0 && branches.length === raw.allBranches.length)
+    asked === null || (raw.allBranches.length > 0 && raw.allBranches.every((b) => asked.has(String(b))))
       ? null
       : branches;
 

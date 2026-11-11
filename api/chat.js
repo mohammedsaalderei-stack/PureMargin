@@ -205,7 +205,13 @@ export default async function handler(req, res) {
       /* Dish costs from recipes and the business's own day, as the overview
          reads them, so an answer about margin is the margin on screen. */
       const costs = await menuCosts(askerScope?.org?.id, askerScope?.authorized || []).catch(() => null);
-      metrics = await getMetrics({ overrides, edits: saleEdits, register, names, costs, timeZone: askerScope?.org?.timezone || "Asia/Dubai" });
+      metrics = await getMetrics({
+        overrides, edits: saleEdits, register, names, costs, timeZone: askerScope?.org?.timezone || "Asia/Dubai",
+        /* The asker's own branches, narrowed by the scope they asked in. The
+           sales brief used to be the whole organization's whoever asked, so a
+           branch manager's assistant knew every other branch's takings. */
+        branches: effectiveBranches(parseBranchParam(requestedBranches), askerScope?.authorized || []),
+      });
     } catch (err) {
       if (err?.code !== "notconnected") throw err;
     }
@@ -258,6 +264,8 @@ export default async function handler(req, res) {
       features,
       method: "wavg",
       metrics: metrics || {},
+      timeZone: askerScope?.org?.timezone || "Asia/Dubai",
+      orgName: askerScope?.org?.name || "",
     };
 
     const payload = {

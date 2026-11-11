@@ -69,6 +69,17 @@ await test("a store's figures are its own sales and nobody else's", async () => 
   assert.deepEqual(names, ["Latte"]);
 });
 
+await test("a store that has sold nothing is not shown the store that has", async () => {
+  /* One store with sales, one permitted store without: equal in number, and
+     not the same store. Counting them used to be mistaken for covering them. */
+  const register = [sold("PM-1", "fries", 2)];
+  const m = await getMetrics({ register, branches: ["s-marina"] });
+  assert.equal(m.totals.sales, 0);
+  assert.deepEqual(m.items || [], []);
+  const all = await getMetrics({ register, branches: ["register", "s-marina"] });
+  assert.equal(all.totals.receipts, 1);
+});
+
 await test("with no sales at all, there is nothing to show rather than invented figures", async () => {
   await assert.rejects(() => getMetrics({}), NotConnected);
   await assert.rejects(() => getMetrics({ register: [] }), NotConnected);

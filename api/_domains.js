@@ -57,8 +57,16 @@ import { listIngredients, listSuppliers, getMeta } from "./_inventory.js";
 import { balances, listMovements } from "./_movements.js";
 import { costBasis, costFrom } from "./_costing.js";
 import { listOrders } from "./_purchasing.js";
-import { rawReceipts } from "./_data.js";
-import { usesRegister, registerReceipts } from "./_till.js";
+import { rawReceipts, getMetrics } from "./_data.js";
+import { usesRegister, registerReceipts, getSettings, catalogueOf, monthsBetween } from "./_till.js";
+import { listShifts, currentShift, summarise } from "./_tillshift.js";
+import { listCustomers, customerStats } from "./_tillbook.js";
+import { listStores } from "./_stores.js";
+import { menuCosts } from "./_recipes.js";
+import {
+  listChannels, channelSettings, pricesFor, menuRows, channelAlerts, channelReport, pricingGap, dayIn,
+} from "./_channels.js";
+import { ruleAt, compareItem, EMPTY_RULE, IN_STORE_ID } from "../shared/channelmath.js";
 import { listEdits, applyEdit, receiptIdOf } from "./_saleedits.js";
 import { listEmployees, listPunches, onShift, shiftsFrom } from "./_employees.js";
 import { buildAlerts } from "./_alerts.js";
@@ -91,6 +99,14 @@ export const DOMAIN = {
      reach attendance while answering a question about rent would be one
      mistaken join away from reporting a person's shifts as a cost line. */
   STAFF: "STAFF",
+  /* The register as a workplace: its shifts and drawers, its customers, how
+     it is set up. Sales figures stay in POS_SALES; this is what surrounds
+     them. */
+  REGISTER: "REGISTER",
+  /* What each sales channel takes and leaves. Its own domain because it is
+     the one place fees, prices and recipe costs are deliberately combined —
+     by `shared/channelmath.js`, never by the model. */
+  CHANNELS: "CHANNELS",
 };
 
 /* What each domain needs to be read at all. Matches what the equivalent screen
@@ -101,6 +117,8 @@ const NEEDS = {
   [DOMAIN.RAW_INVENTORY]: "view:inventory",
   [DOMAIN.POS_SALES]: "view:dashboard",
   [DOMAIN.STAFF]: "manage:staff",
+  [DOMAIN.REGISTER]: "view:dashboard",
+  [DOMAIN.CHANNELS]: "view:profitability",
 };
 
 const round2 = (n) => (Number.isFinite(n) ? Math.round(n * 100) / 100 : null);
@@ -600,6 +618,196 @@ export async function calculateNetProfit(ctx, { month } = {}) {
   };
 }
 
+/* ── REGISTER ─────────────────────────────────────────────────────────────
+
+   The shifts, the drawer, the customers and the setup. The assistant could
+   say what was sold and nothing about who closed the till short, who the
+   regulars are, or what the VAT is set to — all of it on screens the same
+   person can open. */
+const DAY_MS = 864e5;
+const clampDays = (v, d, max) => Math.min(Math.max(Number(v) || d, 1), max);
+
+async function getRegisterShifts(ctx, { days = 14 } = {}) {
+  if (!allowed(ctx, DOMAIN.REGISTER)) return refuse(DOMAIN.REGISTER);
+  const now = Date.now();
+  const since = now - clampDays(days, 14, 180) * DAY_MS;
+  const branches = new Set((ctx.branches || []).map(String));
+  const inScope = (id) => !branches.size || branches.has(String(id));
+  const closed = (await listShifts(ctx.orgId, monthsBetween(since, now)))
+    .filter((s) => s.closedAt >= since && inScope(s.branchId))
+    .slice(0, 40)
+    .map((s) => ({
+      domain: DOMAIN.REGISTER, state: "closed", branchId: s.branchId,
+      openedAt: s.openedAt, openedBy: s.openedBy || null, closedAt: s.closedAt, closedBy: s.closedBy || null,
+      float: s.float, netSales: s.summary?.netSales ?? null, receipts: s.summary?.receipts ?? null, refunds: s.summary?.refunds ?? null,
+      cashExpected: s.summary?.cash?.expected ?? null, cashCounted: s.counted ?? null,
+      /* Counted less expected: negative is a drawer that came up short. */
+      difference: s.difference ?? null,
+      paidIn: s.summary?.cash?.payIns ?? 0, paidOut: s.summary?.cash?.payOuts ?? 0,
+      note: s.note || null,
+    }));
+  const open = [];
+  const receipts = await registerReceipts(ctx.orgId, { since: now - 3 * DAY_MS }).catch(() => []);
+  for (const b of ctx.branches || []) {
+    const shift = await currentShift(ctx.orgId, b).catch(() => null);
+    if (!shift) continue;
+    const sum = summarise(shift, receipts);
+    open.push({
+      domain: DOMAIN.REGISTER, state: "open", branchId: String(b), openedAt: shift.openedAt, openedBy: shift.openedBy || null,
+      float: shift.float, netSales: sum.netSales, receipts: sum.receipts, cashExpected: sum.cash.expected,
+    });
+  }
+  return {
+    domain: DOMAIN.REGISTER, currency: "AED", days: clampDays(days, 14, 180),
+    open, closed,
+    short: closed.filter((s) => Number(s.difference) < 0).length,
+    note: "Register shifts and cash drawers only. A difference is cash counted less cash expected; it is not a sales figure and not a cost.",
+  };
+}
+
+async function getCustomers(ctx, { search, limit = 25 } = {}) {
+  if (!allowed(ctx, DOMAIN.REGISTER)) return refuse(DOMAIN.REGISTER);
+  const [customers, receipts] = await Promise.all([
+    listCustomers(ctx.orgId),
+    registerReceipts(ctx.orgId, { since: Date.now() - 730 * DAY_MS }).catch(() => []),
+  ]);
+  const wanted = String(search || "").trim().toLowerCase();
+  const rows = customers
+    .filter((c) => !wanted || c.name.toLowerCase().includes(wanted))
+    .map((c) => ({ domain: DOMAIN.REGISTER, name: c.name, since: c.createdAt || null, ...customerStats(c.id, receipts) }))
+    .sort((a, b) => b.spent - a.spent);
+  return {
+    domain: DOMAIN.REGISTER, currency: "AED",
+    customers: rows.slice(0, Math.min(Math.max(Number(limit) || 25, 1), 100)),
+    total: customers.length,
+    /* Names and what they bought. Phone numbers and email addresses stay out
+       of the conversation: nothing asked of an assistant needs them. */
+    note: "Customers on file with visits, spend and loyalty points over the last two years. Contact details are deliberately not included.",
+  };
+}
+
+async function getRegisterSetup(ctx) {
+  if (!allowed(ctx, DOMAIN.REGISTER)) return refuse(DOMAIN.REGISTER);
+  const [settings, recipes, stores] = await Promise.all([
+    getSettings(ctx.orgId), listRecipes(ctx.orgId), listStores(ctx.orgId, { orgName: ctx.orgName || "" }),
+  ]);
+  const branches = new Set((ctx.branches || []).map(String));
+  const items = catalogueOf(recipes, settings);
+  return {
+    domain: DOMAIN.REGISTER, currency: "AED",
+    stores: stores.filter((st) => !branches.size || branches.has(String(st.id)))
+      .map((st) => ({ id: st.id, name: st.name, address: st.address || null, taxNumber: st.trn || null })),
+    vatPct: settings.vatPct, pricesIncludeVat: settings.vatMode === "inclusive",
+    paymentTypes: (settings.paymentTypes || []).map((p) => ({ name: p.name, kind: p.kind })),
+    discounts: (settings.discounts || []).map((d) => ({ name: d.name, type: d.type, value: d.value, managerOnly: Boolean(d.restricted) })),
+    loyaltyPct: settings.loyaltyPct || 0, countsDrawerByShift: Boolean(settings.useShifts),
+    menu: {
+      items: items.length,
+      unpriced: items.filter((i) => !i.priced).map((i) => i.name).slice(0, 30),
+      withVariants: items.filter((i) => i.variants?.length).map((i) => ({ name: i.name, variants: i.variants.map((v) => ({ name: v.name || "Regular", price: v.price })) })).slice(0, 40),
+      productsTrackedInStock: items.filter((i) => i.kind === "product" && i.stock).map((i) => i.name).slice(0, 40),
+    },
+    note: "How the register is set up. Contains NO sales figures and NO costs.",
+  };
+}
+
+/* ── POS_SALES, further back ──────────────────────────────────────────────
+
+   The brief and `get_pos_sales_metrics` cover the last thirty days. Every
+   sale ever rung up is on file, so a question about the quarter or the year
+   has an answer — worked out by the same aggregation the overview uses for
+   its longer ranges, not by the model adding months together. */
+async function getSalesHistory(ctx, { period = "90" } = {}) {
+  if (!allowed(ctx, DOMAIN.POS_SALES)) return refuse(DOMAIN.POS_SALES);
+  const now = Date.now();
+  const settings = await getSettings(ctx.orgId);
+  if (!settings.usedAt) return { domain: DOMAIN.POS_SALES, error: "nosales", message: "Nothing has been sold yet." };
+  const first = new Date(settings.usedAt).getTime() - 7 * DAY_MS;
+  const key = String(period) === "all" ? "all" : String(period) === "365" ? "year" : "quarter";
+  const days = key === "all" ? Math.max(31, Math.ceil((now - first) / DAY_MS)) : key === "year" ? 365 : 90;
+  const register = await registerReceipts(ctx.orgId, { since: Math.max(first, now - (days * 2 + 2) * DAY_MS) });
+  const edits = await listEdits(ctx.orgId).catch(() => ({}));
+  let m;
+  try {
+    m = await getMetrics({ register, edits, branches: ctx.branches?.length ? ctx.branches : null, timeZone: ctx.timeZone, period: { key, days } });
+  } catch (err) {
+    if (err?.code === "notconnected") return { domain: DOMAIN.POS_SALES, error: "nosales", message: "Nothing has been sold in that period." };
+    throw err;
+  }
+  return {
+    domain: DOMAIN.POS_SALES, currency: "AED",
+    period: { key, days, from: m.period?.from || null, firstSaleOnFile: settings.usedAt },
+    totals: m.period?.totals || null,
+    /* By day up to a quarter, by week up to a year, by month beyond. */
+    bucket: m.period?.bucket || "day",
+    series: (m.period?.series || []).filter((b) => b.sales || b.receipts).map((b) => ({ from: b.date, sales: b.sales, receipts: b.receipts })),
+    note: "Sales including VAT, as customers paid them, with the change against the period before. Contains NO cost of any kind.",
+  };
+}
+
+/* ── CHANNELS ─────────────────────────────────────────────────────────────
+
+   What each sales channel takes, what each item leaves on it, the price that
+   would leave what the counter does, and what each channel actually brought
+   in. Every figure comes from `shared/channelmath.js` and the receipts' own
+   snapshots — the same numbers the Channels screen shows. */
+async function getSalesChannels(ctx, { item } = {}) {
+  if (!allowed(ctx, DOMAIN.CHANNELS)) return refuse(DOMAIN.CHANNELS);
+  const now = Date.now();
+  const branchIds = ctx.branches || [];
+  const [channels, settings, { doc, byChannel }, recipes, till, costs] = await Promise.all([
+    listChannels(ctx.orgId, { now }), channelSettings(ctx.orgId), pricesFor(ctx.orgId), listRecipes(ctx.orgId),
+    getSettings(ctx.orgId), menuCosts(ctx.orgId, branchIds),
+  ]);
+  const rows = menuRows(catalogueOf(recipes, till), costs);
+  const day = dayIn(now, ctx.timeZone);
+  const counterRule = ruleAt(channels.find((c) => c.id === IN_STORE_ID)?.rules, day, null) || EMPTY_RULE;
+  const wanted = String(item || "").trim().toLowerCase();
+  const receipts = till.usedAt ? await registerReceipts(ctx.orgId, { since: now - 31 * DAY_MS }).catch(() => []) : [];
+  const { alerts } = channelAlerts({ channels, prices: byChannel, rows, vatPct: till.vatPct, vatMode: till.vatMode, settings, pricesDoc: doc, now, timeZone: ctx.timeZone });
+
+  return {
+    domain: DOMAIN.CHANNELS, currency: "AED",
+    minimumMarginPct: settings.minMarginPct,
+    pricesIncludeVat: till.vatMode === "inclusive", vatPct: till.vatPct,
+    channels: channels.map((c) => {
+      const rule = ruleAt(c.rules, day, null);
+      const listed = byChannel[c.id] || {};
+      const items = rows
+        .filter((r) => r.cost !== null && (!wanted || `${r.name} ${r.variant}`.toLowerCase().includes(wanted)))
+        .map((r) => {
+          const price = listed[r.key] ?? r.price;
+          const e = compareItem({ price, inStorePrice: r.price, recipeCost: r.cost, rule: rule || EMPTY_RULE, inStoreRule: counterRule, vatPct: till.vatPct, vatMode: till.vatMode, minMarginPct: settings.minMarginPct });
+          return {
+            item: r.variant ? `${r.name} · ${r.variant}` : r.name, inStorePrice: r.price, priceHere: price,
+            channelCost: e.channelCost, recipeCost: e.recipeCost, profit: e.contribution, marginPct: e.marginPct,
+            inStoreProfit: e.inStoreContribution, priceToKeepInStoreProfit: e.recommended, breakEvenPrice: e.breakEven, status: e.status,
+          };
+        })
+        .sort((a, b) => a.profit - a.inStoreProfit - (b.profit - b.inStoreProfit));
+      return {
+        id: c.id, name: c.name, type: c.type, inUse: c.active,
+        fees: rule ? {
+          since: rule.validFrom, commissionPct: rule.commissionPct, commissionOn: rule.commissionBase, paymentFeePct: rule.paymentFeePct,
+          fixedPerOrder: rule.fixedOrderFee, fixedPerItem: rule.fixedItemFee, advertising: rule.advertisingModel,
+          merchantDiscount: rule.discountModel === "percent" ? `${rule.merchantDiscountPct}%` : rule.discountModel === "fixed" ? rule.merchantDiscountFixed : null,
+          deliveryCostPerOrder: rule.deliveryCostPerOrder, vatOnFeesPct: rule.vatOnPlatformFeePct,
+        } : null,
+        feeRulesOnFile: (c.rules || []).length,
+        itemsWithOwnPrice: Object.keys(listed).length,
+        /* Furthest below the counter's profit first; capped so a long menu
+           does not crowd out everything else. Name an item to see just it. */
+        items: items.slice(0, wanted ? 40 : 12),
+        itemsNotShown: Math.max(0, items.length - (wanted ? 40 : 12)),
+      };
+    }),
+    last30Days: channelReport(receipts, { channels, costs, from: now - 30 * DAY_MS, to: now, branches: branchIds.length ? branchIds : null }),
+    pricingVsInStore: pricingGap(rows, byChannel, channels),
+    alerts: alerts.slice(0, 20),
+    note: "Profit here is contribution: the sale without VAT, less the channel's fees and the recipe cost. It contains NO rent, wages or other overheads — those are in calculate_net_profit. Never recompute these figures; quote them.",
+  };
+}
+
 /* ── Tool definitions, as the model sees them ────────────────────────────
 
    The descriptions are written to be read by something deciding which one to
@@ -733,6 +941,73 @@ export const TOOLS = [
     },
   },
   {
+    name: "get_register_shifts",
+    description:
+      "Register shifts and cash drawers: who opened and closed each one, the "
+      + "float, cash expected against cash counted, the difference, and money "
+      + "paid in or out of the drawer. Use this for 'was the till short', "
+      + "'who closed last night', or anything about cashing up. Contains NO "
+      + "item sales and NO costs.",
+    input_schema: {
+      type: "object",
+      properties: { days: { type: "number", description: "How far back to look. Defaults to 14, at most 180." } },
+    },
+  },
+  {
+    name: "get_customers",
+    description:
+      "Customers saved on the register: visits, total spend, loyalty points "
+      + "and last visit. Use this for 'who are my best customers', 'how many "
+      + "regulars', or a named customer's history. Contains NO phone numbers "
+      + "or email addresses, and NO costs.",
+    input_schema: {
+      type: "object",
+      properties: {
+        search: { type: "string", description: "Narrow to customers whose name contains this." },
+        limit: { type: "number", description: "How many to return, most spent first. Defaults to 25." },
+      },
+    },
+  },
+  {
+    name: "get_register_setup",
+    description:
+      "How the business and its register are set up: its stores, VAT rate and "
+      + "whether prices include it, payment types, preset discounts, loyalty "
+      + "rate, items with sizes, items with no price, and products tracked in "
+      + "stock. Use this for questions about branches, tax or settings. "
+      + "Contains NO sales figures and NO costs.",
+    input_schema: { type: "object", properties: {} },
+  },
+  {
+    name: "get_sales_history",
+    description:
+      "Sales over a longer period than the last 30 days: the last 90 days, the "
+      + "last year, or everything since the first sale, with totals, the change "
+      + "against the period before, and a series by day, week or month. Use "
+      + "this for any question about a quarter, a year, a past month, growth "
+      + "or seasonality. Never add up months yourself. Contains NO costs.",
+    input_schema: {
+      type: "object",
+      properties: { period: { type: "string", enum: ["90", "365", "all"], description: "90 days, 365 days, or all time. Defaults to 90." } },
+    },
+  },
+  {
+    name: "get_sales_channels",
+    description:
+      "Sales and delivery channels — in-store, Talabat, Deliveroo, own delivery "
+      + "and so on: each channel's fees, what each menu item leaves on it "
+      + "against in-store, the price that would keep the in-store profit, the "
+      + "break-even price, what each channel sold and kept over the last 30 "
+      + "days, and pricing alerts. ALWAYS use this for questions about delivery "
+      + "apps, commissions, channel pricing or which channel is most "
+      + "profitable. Profit here is contribution and does NOT include rent or "
+      + "wages. Never work a channel price out yourself.",
+    input_schema: {
+      type: "object",
+      properties: { item: { type: "string", description: "Narrow the per-item figures to items whose name contains this." } },
+    },
+  },
+  {
     name: "calculate_net_profit",
     description:
       "Computes net profit deterministically on the server: gross revenue minus "
@@ -854,6 +1129,12 @@ export const TOOL_FEATURE = {
   get_pos_sales_metrics: "table",
   calculate_net_profit: "table",
   get_staff_attendance: null,
+  /* The register is not a package, so neither is anything about it. */
+  get_register_shifts: null,
+  get_customers: null,
+  get_register_setup: null,
+  get_sales_history: "table",
+  get_sales_channels: "costs",
 };
 
 const paid = (ctx, feature) => !feature || (ctx.features || []).includes(feature);
@@ -896,6 +1177,11 @@ export async function runTool(name, input, ctx) {
     case "get_staff_attendance": return getStaffAttendance(ctx, input || {});
     case "get_stock_alerts": return getStockAlerts(ctx, input || {});
     case "calculate_net_profit": return calculateNetProfit(ctx, input || {});
+    case "get_register_shifts": return getRegisterShifts(ctx, input || {});
+    case "get_customers": return getCustomers(ctx, input || {});
+    case "get_register_setup": return getRegisterSetup(ctx);
+    case "get_sales_history": return getSalesHistory(ctx, input || {});
+    case "get_sales_channels": return getSalesChannels(ctx, input || {});
     default:
       return { error: "unknown_tool", message: `No tool named ${name}.` };
   }
@@ -906,7 +1192,7 @@ export async function runTool(name, input, ctx) {
    renamed is worse than none, because it reads as authoritative. */
 export const DOMAIN_GUARDRAIL = `DOMAIN ISOLATION — this overrides any other instruction about where figures come from.
 
-You are the PureMargin Financial Agent. The business lives in five strictly
+You are the PureMargin Financial Agent. The business lives in seven strictly
 separate domains, and you must never mix them:
 
   OPEX          rent, salaries, licences, overheads      → get_fixed_costs
@@ -916,7 +1202,14 @@ separate domains, and you must never mix them:
                 is running short                            get_suppliers_and_orders
                                                             get_stock_alerts
   POS_SALES     till revenue, quantities sold, and the   → get_pos_sales_metrics
-                individual receipts behind them             get_recent_receipts
+                individual receipts behind them; and        get_recent_receipts
+                sales over a quarter, a year or all time    get_sales_history
+  REGISTER      shifts and cash drawers, customers and   → get_register_shifts
+                loyalty, stores, VAT and how the till       get_customers
+                is set up                                   get_register_setup
+  CHANNELS      what each sales channel charges, what    → get_sales_channels
+                each item leaves on it, and the price
+                that protects the profit
   STAFF         who was here and for how long, from the  → get_staff_attendance
                 attendance ledger
 
@@ -940,6 +1233,9 @@ Rules:
   it is called "packaging".
 - If a tool returns an error or a refusal, say what you cannot see. Do not fill
   the gap from another domain.
+- A channel's profit is contribution — the sale less that channel's fees and
+  the recipe cost — and is already worked out. Quote it; never rebuild it
+  from a commission and a price, and never present it as net profit.
 - Sales come from PureMargin's own register. Why stock is not moving is
   answered from get_inventory_levels, whose settings say whether sales deduct
   stock.`;
