@@ -76,6 +76,10 @@ export function buildSale(input, {
   catalogue, vatPct = DEFAULT_VAT_PCT, branchId, at = Date.now(), number, cashier = "",
   vatMode = "exclusive", paymentTypes = DEFAULT_PAYMENT_TYPES, discounts = [],
   loyaltyPct = 0, pointsBalance = 0, employeeId = "", shiftId = "", clientId = "",
+  /* The sales channel the order came through — `{ id, name, prices }` — when
+     it is not the counter. A channel may list an item at a price of its own
+     (`prices[itemKey]`), which is what the customer there is charged. */
+  channel = null,
 }) {
   const lines = Array.isArray(input?.lines) ? input.lines : [];
   if (!lines.length) return { error: "empty" };
@@ -102,7 +106,8 @@ export function buildSale(input, {
     const variants = Array.isArray(item.variants) ? item.variants : [];
     const variant = variants.length ? variants.find((v) => v.id === String(raw?.variantId ?? "")) : null;
     if (variants.length && !variant) return { error: "variant", item: item.name };
-    const basePrice = variant ? variant.price : item.price;
+    const listedOn = Number(channel?.prices?.[variant ? `${item.id}::${variant.id}` : String(item.id)]);
+    const basePrice = listedOn > 0 ? listedOn : variant ? variant.price : item.price;
     if (!(Number(basePrice) > 0)) return { error: "noprice", item: variant ? `${item.name} · ${variant.name}` : item.name };
     const scale = variant && !variant.recipeId && Number(variant.scale) > 0 ? Number(variant.scale) : 1;
     const qty = Number(raw?.qty);
@@ -256,6 +261,8 @@ export function buildSale(input, {
       created_at: iso,
       store_id: String(branchId || REGISTER_BRANCH_ID),
       order_type: orderType,
+      channel_id: channel?.id ? text(channel.id, 60) : null,
+      channel_name: channel?.name ? text(channel.name, 40) : null,
       table: table || null,
       ticket_name: text(input?.ticketName, 40) || null,
       note: text(input?.note, 200) || null,
@@ -331,6 +338,10 @@ export function buildRefund(sale, { lines, at = Date.now(), number, reason = "",
       created_at: iso,
       store_id: sale.store_id,
       order_type: sale.order_type,
+      /* The channel the sale came through, so the money given back comes off
+         that channel's figures and not the counter's. */
+      channel_id: sale.channel_id || null,
+      channel_name: sale.channel_name || null,
       reason: text(reason, 200) || null,
       cashier: text(cashier, 60),
       employee_id: text(employeeId, 60) || null,

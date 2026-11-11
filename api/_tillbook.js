@@ -65,6 +65,7 @@ export async function saveTicket(orgId, input, { by = "", branchId = "", at = Da
     name: text(input?.name, 40) || null,
     table: text(input?.table, 10) || null,
     orderType: text(input?.orderType, 20) || "dine_in",
+    channelId: text(input?.channelId, 60) || null,
     customerId: text(input?.customerId, 60) || null,
     discount: input?.discount || null,
     note: text(input?.note, 200) || null,

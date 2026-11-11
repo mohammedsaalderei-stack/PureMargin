@@ -29,6 +29,8 @@ import { requireAuth, issueDeviceToken } from "./_auth.js";
 import { sendMail, configured as mailConfigured } from "./_mail.js";
 import { receiptMail, receiptLanguages, allowSend, validEmail } from "./_receiptmail.js";
 import { saveImage, removeImage } from "./_itemimages.js";
+import { channelsForRegister, channelForSale, receiptEconomics, lineCostFrom } from "./_channels.js";
+import { menuCosts } from "./_recipes.js";
 import { scopeFor, effectiveBranches, parseBranchParam } from "./_org.js";
 import { getMeta, listIngredients } from "./_inventory.js";
 import { UNIT_KEYS, dimensionOf } from "./_units.js";
@@ -126,6 +128,10 @@ export default async function handler(req, res) {
         loyaltyPct: settings.loyaltyPct,
         useShifts: settings.useShifts,
         orderTypes: ORDER_TYPES,
+        /* Where an order can come from — the counter, a delivery app — each
+           with the prices it lists and its fees, so a till with no connection
+           still charges the right price for the channel. */
+        channels: await channelsForRegister(orgId, authorized, { now, timeZone: scope.org?.timezone }),
         /* Each store's own address, phone and tax number, which its receipts
            print in place of the business-wide ones when set. */
         branches: authorized.map((id) => ({
@@ -315,8 +321,16 @@ export default async function handler(req, res) {
         }
       }
 
+      /* Where the order came from. The counter when nothing is said; otherwise
+         a channel that exists, is in use and runs at this branch. Its listed
+         prices are what the customer there was charged, and the fee rule in
+         force when the order was made is the one it is costed under. */
+      const via = await channelForSale(orgId, body.channelId, branch, { at, timeZone: scope.org?.timezone });
+      if (via.error) return res.status(422).json({ error: "channel" });
+
       const built = buildSale(body, {
         catalogue: catalogueOf(recipes, settings),
+        channel: via.channel,
         vatPct: settings.vatPct,
         vatMode: settings.vatMode,
         paymentTypes: settings.paymentTypes,
@@ -337,6 +351,23 @@ export default async function handler(req, res) {
          to give. Checked against what was actually applied, after building. */
       const needsManager = (built.receipt.discounts || []).some((d) => d.custom || d.restricted);
       if (needsManager && !manager) return res.status(403).json({ error: "discount" });
+
+      /* What this order is worth on its channel, written onto the receipt
+         with a copy of the fee rule it was worked out under — so a commission
+         changed next month moves nothing about this sale. Recipe costs are
+         today's, which is what "what did this order make" means on the day.
+         Best-effort: a sale is never refused because it could not be costed. */
+      try {
+        const costOf = lineCostFrom(await menuCosts(orgId, [branch], { at }));
+        for (const li of built.receipt.line_items) {
+          const unit = costOf(li);
+          if (unit !== null) li.recipe_cost = Math.round(unit * 10000) / 10000;
+        }
+        built.receipt.channel_fee_rule = via.rule;
+        built.receipt.channel_economics = receiptEconomics(built.receipt, via.rule, costOf, { at: now });
+      } catch (err) {
+        console.error("channel economics failed:", err?.message || err);
+      }
 
       const saved = await recordSale(orgId, built.receipt);
       if (saved.duplicate) return res.status(200).json({ receipt: saved, duplicate: true });

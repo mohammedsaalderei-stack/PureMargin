@@ -1,11 +1,16 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { ADMIN_STRINGS } from "./i18n-admin.js";
 import { POS_STRINGS } from "./i18n-pos.js";
+import { CHANNEL_STRINGS } from "./i18n-channels.js";
 
 /* Every string in the product, in both languages.
    Arabic is written for a Gulf business audience: plain, direct, no formal padding. */
 export const STRINGS = {
   en: {
+    channels: {
+      tab: "Channels",
+    },
+
     till: {
       orderTypes: { dine_in: "Dine in", takeaway: "Takeaway", car: "Car" },
       tab: "Register",
@@ -1894,6 +1899,10 @@ export const STRINGS = {
   },
 
   ar: {
+    channels: {
+      tab: "قنوات البيع",
+    },
+
     till: {
       orderTypes: { dine_in: "محلي", takeaway: "سفري", car: "سيارة" },
       tab: "الكاشير",
@@ -3782,6 +3791,10 @@ export const STRINGS = {
   },
 
   hi: {
+    channels: {
+      tab: "चैनल",
+    },
+
     till: {
       orderTypes: { dine_in: "यहीं खाएँ", takeaway: "पैक करें", car: "कार" },
       tab: "रजिस्टर",
@@ -5687,6 +5700,10 @@ export const STRINGS = {
      through withFallback below. That is a visible gap, and a smaller lie than
      machine-translating a thousand lines of advisory prose nobody has read. */
   ur: {
+    channels: {
+      tab: "چینل",
+    },
+
     till: {
       orderTypes: { dine_in: "یہیں کھائیں", takeaway: "ساتھ لے جائیں", car: "گاڑی" },
       tab: "کیشیئر",
@@ -7718,6 +7735,10 @@ export const STRINGS = {
   },
 
   tl: {
+    channels: {
+      tab: "Mga channel",
+    },
+
     till: {
       orderTypes: { dine_in: "Dine in", takeaway: "Takeaway", car: "Sa kotse" },
       tab: "Kahera",
@@ -9696,7 +9717,7 @@ export function LanguageProvider({ children }) {
       lang,
       dir: STRINGS[lang].dir,
       rtl: STRINGS[lang].dir === "rtl",
-      t: { ...STRINGS[lang], admin: ADMIN_STRINGS[lang] || ADMIN_STRINGS.en, pos: POS_STRINGS[lang] || POS_STRINGS.en },
+      t: { ...STRINGS[lang], admin: ADMIN_STRINGS[lang] || ADMIN_STRINGS.en, pos: POS_STRINGS[lang] || POS_STRINGS.en, ch: CHANNEL_STRINGS[lang] || CHANNEL_STRINGS.en },
       set: (next) => LANGS.includes(next) && setLang(next),
       /* Kept so existing call sites still work: cycles through the list. */
       toggle: () => setLang((l) => LANGS[(LANGS.indexOf(l) + 1) % LANGS.length]),
