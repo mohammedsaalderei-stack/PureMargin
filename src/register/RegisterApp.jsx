@@ -180,7 +180,7 @@ export default function RegisterApp({ token, user, business: businessProp, onExi
     try {
       const printed = await sendToKitchen(order);
       await call(token, "ticket", { method: "PUT", body: {
-        id: order.ticketId, name: order.ticketName, table: order.table, orderType: order.orderType,
+        id: order.ticketId, name: order.ticketName, table: order.table, orderType: order.orderType, channelId: order.channelId || "",
         customerId: order.customerId, discount: order.discount, note: order.note, lines: order.lines, printed, branchId,
       } });
       setOrder(emptyOrder(order.orderType));

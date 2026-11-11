@@ -93,8 +93,12 @@ export async function sell(token, order, catalogue) {
   } catch (err) {
     if (!isNetworkError(err)) throw err;
     const op = savedOperator();
+    /* The channel's own prices, from the copy of them kept on this device, so
+       a delivery order rung up offline is charged what that channel lists. */
+    const via = (catalogue.channels || []).find((c) => c.id === order.channelId);
     const built = buildSale(body, {
       catalogue: catalogue.items,
+      channel: via ? { id: via.id, name: via.name, prices: via.prices || {} } : null,
       vatPct: catalogue.vatPct,
       vatMode: catalogue.vatMode,
       paymentTypes: catalogue.paymentTypes,

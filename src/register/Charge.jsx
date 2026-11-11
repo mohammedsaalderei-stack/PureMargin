@@ -46,8 +46,10 @@ export default function Charge({ token, order, catalogue, preview, customer, bra
   /* Points change the total, so it is priced again with them. */
   const priced = useMemo(() => {
     if (!usePoints) return preview;
+    const via = (catalogue.channels || []).find((c) => c.id === order.channelId);
     const out = buildSale({ ...order, redeemPoints: usePoints, payments: [{ type: types[0]?.id }] }, {
       catalogue: catalogue.items, vatPct: catalogue.vatPct, vatMode: catalogue.vatMode,
+      channel: via ? { id: via.id, name: via.name, prices: via.prices || {} } : null,
       paymentTypes: types, discounts: catalogue.discounts, loyaltyPct: catalogue.loyaltyPct,
       pointsBalance: customer?.points || 0,
     });

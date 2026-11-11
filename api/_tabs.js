@@ -60,6 +60,9 @@ export const TAB_ACCESS = {
   employees: "manage:staff",
   watch: "view:profitability",
   menu: "view:profitability",
+  /* What each sales channel leaves behind, item by item. Profit, so the same
+     people who may read the margin. */
+  channels: "view:profitability",
   forecast: "view:forecast",
   advice: "view:profitability",
   /* The board and team administration are hidden rather than removed.

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   BarChart3, LineChart, MessageSquare, Settings as Cog, UtensilsCrossed, Users,
   Search, Lightbulb, PanelRightClose, PanelRightOpen, LogOut, Lock, Wallet,
-  LayoutDashboard, Download, FileText, Table, ChevronDown, Package, ChefHat, Scale, BellRing, ShoppingCart, Calculator, Receipt, MessagesSquare, Store,} from "lucide-react";
+  LayoutDashboard, Download, FileText, Table, ChevronDown, Package, ChefHat, Scale, BellRing, ShoppingCart, Calculator, Receipt, MessagesSquare, Store, Bike,} from "lucide-react";
 import { useC } from "./theme.jsx";
 import BrandMark from "./BrandMark.jsx";
 import { useLang, fill } from "./i18n.jsx";
@@ -39,6 +39,7 @@ import LanguagePicker from "./LanguagePicker.jsx";
 import ThemeToggle from "./ThemeToggle.jsx";
 import Skeleton from "./Skeleton.jsx";
 import EmptyTable from "./EmptyTable.jsx";
+import Channels from "./screens/Channels.jsx";
 import { useAppFrame } from "./appFrame.js";
 import LiveDot from "./LiveDot.jsx";
 import { PortalSwitcher, SectionTabs, BottomBar, MoreSheet, AccountMenu } from "./AppChrome.jsx";
@@ -129,6 +130,8 @@ const SALES_TAB = { id: "sales", icon: Receipt };
 /* PureMargin's own register. Second in the nav: for a cashier it is the job,
    and for an owner it sits beside the figures it feeds. */
 const TILL_TAB = { id: "till", icon: Store };
+/* Sales channels: the counter, the delivery apps, and what each one keeps. */
+const CHANNELS_TAB = { id: "channels", icon: Bike };
 
 /* Every tab there is, in the order the nav shows them.
 
@@ -153,7 +156,7 @@ const TILL_TAB = { id: "till", icon: Store };
 const ALL_TABS = (() => {
   const byId = Object.fromEntries(TAB_META.map((tb) => [tb.id, tb]));
   return [
-    byId.overview, TILL_TAB, SALES_TAB, byId.costs, byId.ask,
+    byId.overview, TILL_TAB, SALES_TAB, byId.costs, byId.ask, CHANNELS_TAB,
     INVENTORY_TAB, ALERTS_TAB, PLAN_TAB, RECIPES_TAB, VARIANCE_TAB, EMPLOYEES_TAB,
     byId.watch, byId.menu, byId.forecast, byId.advice,
     MESSAGES_TAB, TEAM_TAB,
@@ -574,6 +577,7 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
      no scanner to hand a document to; documents route to Inventory or Recipes. */
   else if (tab === "costs") { body = <Costs token={token} />; }
   else if (tab === "sales") { body = <Sales token={token} branches={branches} />; }
+  else if (tab === "channels") { body = <Channels token={token} />; }
   else if (tab === "inventory") { body = <Inventory token={token} pendingDoc={pendingDoc} onDocUsed={() => setPendingDoc(null)} />; }
   else if (tab === "recipes") { body = <Recipes token={token} pendingDoc={pendingDoc} onDocUsed={() => setPendingDoc(null)} />; }
   else if (tab === "variance") { body = <Variance token={token} branches={branches} />; }
