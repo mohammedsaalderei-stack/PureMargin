@@ -13,7 +13,10 @@ const t = { notices: Object.fromEntries(
   ["firstTitle","peakTitle","marginTitle","eodTitle","swingUpTitle","swingDownTitle",
    "weeklyTitle","ordersTitle","goalTitle","targetTitle"].map((k) => [k, k])
   .concat(["firstBody","peakBody","marginBody","eodBody","swingBody","weeklyBody",
-   "ordersBody","goalBody","targetBody"].map((k) => [k, `${k} {pct}{hour}{orders}{n}`]))) };
+   "ordersBody","goalBody","targetBody"].map((k) => [k, `${k} {pct}{hour}{orders}{n}`]))
+  .concat([["stockOutTitle", "out {name}"], ["stockLowTitle", "low {name}"], ["stockOutBody", "none{at}"],
+    ["stockLowBody", "{qty} {unit}{at} level {level}"], ["stockLowBodyDelivery", "{qty} {unit}{at} fifth"],
+    ["stockMoreTitle", "{n} more"], ["stockMoreBody", "see all"], ["stockAt", " at {branch}"], ["stockAsk", "what to order"]])) };
 
 /* The real `fill`, near enough: substitute what is given, drop what is not. */
 const fill = (s, vars = {}) =>
@@ -30,9 +33,48 @@ ok("every notice declares who it is for", () => {
 });
 ok("a cashier receives nothing", () => assert.deepEqual(run(["view:dashboard"]), []));
 ok("a chef receives nothing", () => assert.deepEqual(run(["view:inventory","manage:recipes"]), []));
-ok("neither has a bell", () => {
+ok("a cashier has no bell; a chef has one, for the shelf", () => {
   assert.equal(noticesApply(["view:dashboard"]), false);
-  assert.equal(noticesApply(["view:inventory"]), false);
+  assert.equal(noticesApply(["view:inventory"]), true);
+});
+
+/* ── The shelf ── */
+const stock = [
+  { ingredientId: "chicken", name: "Chicken", branchId: "register", qty: 0, unit: "kg", state: "out", threshold: null, basis: null },
+  { ingredientId: "flour", name: "Flour", branchId: "register", qty: 2, unit: "kg", state: "low", threshold: 5, basis: "reorder" },
+  { ingredientId: "oil", name: "Oil", branchId: "s-marina", branchName: "Marina", qty: 0.8, unit: "l", state: "low", threshold: 1, basis: "delivery" },
+];
+const shelf = (prefs = {}, caps = ["view:inventory"], list = stock) => buildNotices(null, prefs, { t, fill, capabilities: caps, stock: list });
+
+ok("stock running low reaches whoever keeps the shelf, each item its own notice", () => {
+  const n = shelf();
+  assert.deepEqual(n.map((x) => x.id), ["stock:register:chicken", "stock:register:flour", "stock:s-marina:oil"]);
+  assert.equal(n[0].title, "out Chicken");
+  assert.equal(n[0].tone, "warn");
+  assert.equal(n[1].body, "2 kg level 5");
+  assert.equal(n[2].body, "0.8 l at Marina fifth", "the branch is named when there is more than one");
+  assert.equal(n[1].ask, "what to order");
+});
+ok("it can be turned off, and is on until somebody does", () => {
+  assert.equal(shelf({ alertStock: false }).length, 0);
+  assert.equal(shelf({}).length, 3);
+  assert.equal(DEFAULT_ALERTS.alertStock, true);
+});
+ok("somebody who cannot see the stock is not told about it", () => {
+  assert.equal(shelf({}, ["view:dashboard", "view:reports"]).length, 0);
+});
+ok("a notice read at two kilos comes back at one, and not before", () => {
+  const seen = rememberSeen(shelf(), []);
+  assert.equal(countUnseen(shelf(), seen), 0);
+  const lower = stock.map((x) => (x.ingredientId === "flour" ? { ...x, qty: 1 } : x));
+  assert.equal(countUnseen(shelf({}, ["view:inventory"], lower), seen), 1);
+});
+ok("a long list is a few notices and a count, not a wall", () => {
+  const many = Array.from({ length: 12 }, (_, i) => ({ ...stock[1], ingredientId: `i${i}`, name: `Item ${i}` }));
+  const n = shelf({}, ["view:inventory"], many);
+  assert.equal(n.length, 5);
+  assert.equal(n[4].id, "stock:more");
+  assert.equal(n[4].title, "8 more");
 });
 ok("a branch manager does", () => {
   assert.ok(run(["view:dashboard","view:reports","view:profitability"]).length > 0);

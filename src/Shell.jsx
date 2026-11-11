@@ -210,6 +210,7 @@ function ExportMenu({ data, screen, dateRange, business, onClose }) {
 /* Overview ranges worked out on the server rather than sliced from the
    30 days every screen loads. */
 const LONG_PERIODS = { quarter: "90", year: "365", all: "all" };
+const STOCK_POLL_MS = 5 * 60 * 1000;
 
 export default function Shell({ token, user, onLogout, onSession, justRegistered = false }) {
   const C = useC();
@@ -234,6 +235,7 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
   const [direction, setDirection] = useState(1);
   const [data, setData] = useState(null);
   const [staff, setStaff] = useState([]);
+  const [lowStock, setLowStock] = useState([]);
   /* Dismissed as soon as it is answered, so the picker does not reappear
      while the fresh scope is still in flight. */
   const [typeAnswered, setTypeAnswered] = useState(false);
@@ -519,6 +521,32 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
   useEffect(() => { loadStaff(); // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scope?.capabilities]);
 
+  /* What is running low on the shelf, for the bell.
+
+     Fetched here for the same reason arrivals are: a warning that the chicken
+     has run out is for somebody looking at something else. Only for people
+     who keep the stock and a business whose plan includes it; read when the
+     app opens and every few minutes while it is on screen. */
+  const stockFor = `${(scope?.capabilities || []).includes("view:inventory")}|${(scope?.branches || []).map((b) => b.id).join(",")}|${entitlements(account).has(SCREEN_FEATURE.inventory)}`;
+  useEffect(() => {
+    if (!stockFor.startsWith("true") || !stockFor.endsWith("true")) { setLowStock([]); return undefined; }
+    let cancelled = false;
+    const names = Object.fromEntries((scope?.branches || []).map((b) => [String(b.id), b.name]));
+    const many = (scope?.branches || []).length > 1;
+    const read = async () => {
+      try {
+        const res = await fetch("/api/stock?what=low", { headers: { Authorization: `Bearer ${token}` } });
+        if (!res.ok) return;
+        const json = await res.json();
+        if (!cancelled) setLowStock((json.items || []).map((i) => ({ ...i, branchName: many ? names[i.branchId] || "" : "" })));
+      } catch { /* the bell simply carries one fewer thing */ }
+    };
+    read();
+    const timer = setInterval(() => { if (document.visibilityState === "visible") read(); }, STOCK_POLL_MS);
+    return () => { cancelled = true; clearInterval(timer); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, stockFor]);
+
   useEffect(() => { load(); loadAccount(); loadScope(); // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -734,7 +762,7 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
               <kbd className="data text-[10px] px-1.5 rounded" dir="ltr">⌘K</kbd>
             </button>
             {exportButton}
-            <NotificationBell data={data} staff={staff} capabilities={scope?.capabilities} onAsk={(q) => { startNewChat(); setPending(q); go("ask"); }} />
+            <NotificationBell data={data} staff={staff} stock={lowStock} capabilities={scope?.capabilities} onAsk={(q) => { startNewChat(); setPending(q); go("ask"); }} />
             <AccountMenu user={user} business={account?.account?.business} onGo={go} onLogout={onLogout} items={accountTabs} locked={isLocked} />
           </div>
           <SectionTabs portal={portal} tab={tab} onGo={go} locked={isLocked} />
@@ -783,7 +811,7 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
           </div>
           <div className="flex items-center gap-1 shrink-0">
             {liveDot}
-            <NotificationBell data={data} staff={staff} capabilities={scope?.capabilities} onAsk={(q) => { startNewChat(); setPending(q); go("ask"); }} />
+            <NotificationBell data={data} staff={staff} stock={lowStock} capabilities={scope?.capabilities} onAsk={(q) => { startNewChat(); setPending(q); go("ask"); }} />
             {tab === "ask" && (
               <button onClick={() => setChatsOpen(true)} className="p-2.5 rounded-full" style={{ color: C.slate }} aria-label={t.chats.title}>
                 <MessageSquare size={19} />

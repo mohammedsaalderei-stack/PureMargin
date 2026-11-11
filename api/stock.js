@@ -37,8 +37,7 @@ import { resolveUnit, isPackaging } from "./_unitwords.js";
 import { fingerprint, findRepeat, rememberInvoice, getInvoice, markUndone } from "./_invoicelog.js";
 import {
   MOVEMENT_KEYS, recordMovement, recordTransfer, reverseMovement,
-  listMovements, balances, getPolicy, savePolicy,
-} from "./_movements.js";
+  listMovements, balances, getPolicy, savePolicy, lowStock } from "./_movements.js";
 import { rosterFor, registerReceipts, forDepletion } from "./_till.js";
 
 /* Branches come from the POS (phase 1's decision: a branch is a store, not a
@@ -84,6 +83,14 @@ export default async function handler(req, res) {
             from: Number(req.query?.from) || undefined,
             to: Number(req.query?.to) || undefined,
           }),
+        });
+      }
+
+      /* What is running low or has run out, for the notification bell. */
+      if (what === "low") {
+        const scoped = effectiveBranches(parseBranchParam(req.query?.branches), allowed);
+        return res.status(200).json({
+          items: await lowStock(orgId, scoped, { ingredients: await listIngredients(orgId) }),
         });
       }
 

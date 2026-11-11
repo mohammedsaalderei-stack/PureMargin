@@ -54,6 +54,9 @@ export const NOTICE_NEEDS = {
      does not need telling that the margin slipped; the person who keeps the
      rota does need telling that the opening shift has not arrived. */
   alertStaff: "manage:staff",
+  /* The shelf, for whoever keeps it. A chef who cannot see the takings still
+     needs to know the chicken has run out; an accountant does not. */
+  alertStock: "view:inventory",
 };
 
 /* Whether this person can receive anything at all. Used to decide if the bell
@@ -64,7 +67,7 @@ export function noticesApply(capabilities = []) {
 
 export const ALERT_KEYS = [
   "alertEod", "alertSwing", "alertMargin", "alertOrder",
-  "alertTarget", "alertFirst", "alertPeak", "alertWeekly", "alertGoal", "alertStaff",
+  "alertTarget", "alertFirst", "alertPeak", "alertWeekly", "alertGoal", "alertStaff", "alertStock",
 ];
 
 /* ── The preferences, and the one place that reads them ──────────────────
@@ -95,6 +98,7 @@ export const DEFAULT_ALERTS = {
   alertEod: true, alertSwing: true, alertMargin: true, alertOrder: false,
   alertTarget: true, alertFirst: true, alertPeak: true, alertWeekly: true, alertGoal: false,
   alertStaff: true,
+  alertStock: true,
 };
 
 /* Shown in Settings and used by the bell, because they have to be the same
@@ -160,9 +164,16 @@ function pref(prefs, key) {
    away for the rest. */
 const MAX_STAFF_NOTICES = 5;
 
+/* And how many items running low. Past this, one line says how many more —
+   a kitchen with thirty items under their level needs the alerts screen, not
+   thirty notices. */
+const MAX_STOCK_NOTICES = 4;
+const tidy = (n) => String(Math.round(Number(n) * 100) / 100);
+
 export function buildNotices(data, prefs = {}, opts = {}) {
   const punches = opts.staff || [];
-  if (!data && punches.length === 0) return [];
+  const lowStock = opts.stock || [];
+  if (!data && punches.length === 0 && lowStock.length === 0) return [];
   /* Absent means unrestricted, so a caller that does not know about
      capabilities — a test, a preview — still gets everything. */
   const caps = opts.capabilities;
@@ -202,6 +213,27 @@ export function buildNotices(data, prefs = {}, opts = {}) {
         opts.fill(p.kind === "in" ? t.notices.staffIn : t.notices.staffOut, { name: p.name }),
         opts.fill(t.notices.staffAt, { time: p.time }),
         t.notices.staffAsk);
+    }
+  }
+
+  /* The shelf. Each item is its own notice, keyed on the item and the branch,
+     and its body carries how much is left — so a notice read at two kilos
+     comes back at one, and does not come back while nothing has changed. */
+  if (pref(prefs, "alertStock") && lowStock.length) {
+    for (const s of lowStock.slice(0, MAX_STOCK_NOTICES)) {
+      const at = s.branchName ? opts.fill(t.notices.stockAt, { branch: s.branchName }) : "";
+      const out = s.state === "out";
+      add(`stock:${s.branchId}:${s.ingredientId}`, "alertStock", out ? "warn" : "info",
+        opts.fill(out ? t.notices.stockOutTitle : t.notices.stockLowTitle, { name: s.name }),
+        out ? opts.fill(t.notices.stockOutBody, { at })
+          : opts.fill(s.basis === "reorder" ? t.notices.stockLowBody : t.notices.stockLowBodyDelivery,
+            { qty: tidy(s.qty), unit: s.unit, level: tidy(s.threshold), at }),
+        t.notices.stockAsk);
+    }
+    if (lowStock.length > MAX_STOCK_NOTICES) {
+      add("stock:more", "alertStock", "info",
+        opts.fill(t.notices.stockMoreTitle, { n: lowStock.length - MAX_STOCK_NOTICES }),
+        t.notices.stockMoreBody, t.notices.stockAsk);
     }
   }
 
