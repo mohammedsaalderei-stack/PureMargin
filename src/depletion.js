@@ -17,8 +17,14 @@ export async function depleteFromSales(token, branches) {
   /* The scope's branches are store records; the endpoint takes an id. Sent
      whole, each one arrived as "[object Object]" and was refused as a
      branch nobody may use, so this never caught anything up. */
-  const list = branches?.length ? branches.map((b) => (b && typeof b === "object" ? b.id : b)) : [null];
+  /* And with no store to name there is nothing to ask. This used to send one
+     request for "no store in particular", which the endpoint can only
+     refuse — and the first refresh of every visit did exactly that, because
+     the sales arrive before the list of stores does. */
+  const list = (branches || []).map((b) => (b && typeof b === "object" ? b.id : b)).filter(Boolean);
+  let asked = 0;
   for (const branchId of list) {
+    asked += 1;
     try {
       await fetch("/api/stock?what=deplete-sales", {
         method: "POST",
@@ -31,4 +37,5 @@ export async function depleteFromSales(token, branches) {
          not. */
     }
   }
+  return asked;
 }

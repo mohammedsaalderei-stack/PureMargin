@@ -401,16 +401,6 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
       if (res.status === 409) { setNoSales(true); return; }
       if (!res.ok) throw new Error(json.error || t.watch.failedTitle);
       setNoSales(false); setData(json); setFetchedAt(Date.now());
-
-      /* Bring the ledger up to date with the sales just read.
-
-         Fired here rather than on a timer, so it runs while somebody is
-         looking at the numbers and never in the background against an account
-         nobody is using. Idempotent by receipt id, so a refresh a minute later
-         does nothing the second time. Deliberately not awaited — the dashboard
-         should not wait on the ledger, and a failure here must not blank a
-         screen that has already loaded. */
-      depleteFromSales(token, scope?.branches);
     } catch (err) { if (!quiet) setError(err.message || t.watch.failedTitle); }
     finally { setRefreshing(false); }
   }
@@ -550,6 +540,29 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
      has run out is for somebody looking at something else. Only for people
      who keep the stock and a business whose plan includes it; read when the
      app opens and every few minutes while it is on screen. */
+  /* Bring the ledger up to date with the sales just read.
+
+     After each read of the sales rather than on a timer, so it runs while
+     somebody is looking at the numbers and never in the background against
+     an account nobody is using. Idempotent by receipt id, so a refresh a
+     minute later does nothing the second time. Not awaited — the dashboard
+     should not wait on the ledger, and a failure here must not blank a screen
+     that has already loaded.
+
+     Only once the stores are known, and only for somebody who may change
+     stock on a plan that has it. It used to fire from inside the sales read,
+     which on the first load of every visit finishes before `/api/scope`
+     does: it named no store and was refused, every time. And for a cashier
+     or an accountant it was a refusal on every refresh for as long as the
+     tab stayed open. */
+  const depleteFor = (scope?.capabilities || []).includes("manage:inventory") && entitlements(account).has(SCREEN_FEATURE.inventory)
+    ? (scope?.branches || []).map((b) => b.id).join("|")
+    : "";
+  useEffect(() => {
+    if (!fetchedAt || !depleteFor) return;
+    depleteFromSales(token, depleteFor.split("|"));
+  }, [fetchedAt, depleteFor, token]);
+
   const stockFor = `${(scope?.capabilities || []).includes("view:inventory")}|${(scope?.branches || []).map((b) => b.id).join(",")}|${entitlements(account).has(SCREEN_FEATURE.inventory)}`;
   useEffect(() => {
     if (!stockFor.startsWith("true") || !stockFor.endsWith("true")) { setLowStock([]); return undefined; }
