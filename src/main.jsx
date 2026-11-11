@@ -2,7 +2,8 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App.jsx";
 import ErrorBoundary from "./ErrorBoundary.jsx";
-import { initPlatform } from "./platform.js";
+import { initPlatform, isNativePlatform } from "./platform.js";
+import { installOfflineCache } from "./offline.js";
 import { initNativeShell, hideSplash } from "./native/shell.js";
 import "./index.css";
 
@@ -13,6 +14,19 @@ import "./index.css";
    API on the phone; this points those at the real one. See `platform.js` for
    why it is a boundary adapter rather than eighty-eight edited call sites. */
 initPlatform();
+
+/* After the platform, so this sits on top of it: every read of the
+   business's data is kept as it arrives and shown again when the network
+   cannot be reached (`offline.js`). */
+installOfflineCache();
+
+/* On the website, the app's own files are kept by a service worker so an
+   installed copy opens with no connection. The iPhone app carries its files
+   in the bundle and needs none. Production only: in development it would
+   serve yesterday's code. */
+if (import.meta.env.PROD && !isNativePlatform() && "serviceWorker" in navigator) {
+  window.addEventListener("load", () => { navigator.serviceWorker.register("/sw.js").catch(() => {}); });
+}
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>

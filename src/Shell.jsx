@@ -40,6 +40,7 @@ import ThemeToggle from "./ThemeToggle.jsx";
 import Skeleton from "./Skeleton.jsx";
 import EmptyTable from "./EmptyTable.jsx";
 import Channels from "./screens/Channels.jsx";
+import OfflineBanner, { useOffline } from "./OfflineBanner.jsx";
 import { useAppFrame } from "./appFrame.js";
 import LiveDot from "./LiveDot.jsx";
 import { PortalSwitcher, SectionTabs, BottomBar, MoreSheet, AccountMenu } from "./AppChrome.jsx";
@@ -521,6 +522,16 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
   useEffect(() => { loadStaff(); // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scope?.capabilities]);
 
+  /* Back on a connection after working from what was saved: read it all
+     again now rather than at the next tick. */
+  const { offline } = useOffline();
+  const wasOffline = useRef(false);
+  useEffect(() => {
+    if (wasOffline.current && !offline) { load({ quiet: true }); loadScope(); loadAccount(); }
+    wasOffline.current = offline;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [offline]);
+
   /* What is running low on the shelf, for the bell.
 
      Fetched here for the same reason arrivals are: a warning that the chicken
@@ -767,6 +778,7 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
           </div>
           <SectionTabs portal={portal} tab={tab} onGo={go} locked={isLocked} />
         </header>
+        <OfflineBanner />
         <div className="flex-1 min-h-0 flex relative z-10" style={{ flexDirection: rtl ? "row-reverse" : "row" }}>
           <main className="flex-1 min-w-0 overflow-hidden relative">{content}</main>
           {tab === "ask" && (
@@ -822,6 +834,7 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
         <PortalSwitcher layout={layout} current={portalId} onPick={pickPortal} />
         {scopePicker && <div className="px-3 pb-2">{scopePicker}</div>}
       </header>
+      <OfflineBanner />
       <main className="flex-1 min-h-0 overflow-hidden relative">
         <AmbientBackground />
         <div className="relative z-10 h-full">{content}</div>

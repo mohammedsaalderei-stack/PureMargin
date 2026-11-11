@@ -58,6 +58,20 @@ export function isNativePlatform(scope = globalThis) {
   }
 }
 
+/* True when the app has been put on the device on purpose: the iPhone app,
+   or the website added to a home screen and opened from there. That is the
+   line between "a browser tab on whatever tablet is to hand" and "this
+   person's app", and it decides whether a sign-in and the figures kept for
+   offline use outlive the window (`session.js`, `offline.js`). */
+export function isInstalledApp(scope = globalThis) {
+  if (isNativePlatform(scope)) return true;
+  try {
+    return Boolean(scope.matchMedia?.("(display-mode: standalone)")?.matches || scope.navigator?.standalone === true);
+  } catch {
+    return false;
+  }
+}
+
 /* The origin the native build talks to, fixed at build time.
 
    Read from the environment so a TestFlight build can be pointed at a staging

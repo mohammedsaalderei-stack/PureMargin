@@ -31,6 +31,10 @@ const en = {
     username: "Username or email", password: "Password", unlock: "Sign in",
     wrong: "That username and password don't match.", tooMany: "Too many tries. Wait a few minutes.", failed: "Couldn't sign in. Try again.",
   },
+  offline: {
+    saved: "No connection — showing what was saved at {time}.", none: "No connection.",
+    changes: "Changes need a connection; the register keeps selling.",
+  },
   variants: {
     regular: "Regular", choose: "Choose one", from: "from {price}",
     title: "Variants", lead: "Sizes or flavours, each with its own price. Portions is how much of the recipe or stock item one draws: 1.5 for a large that is half as much again.",
@@ -228,6 +232,10 @@ const ar = {
     unlockTitle: "الخروج من وضع الموظفين", unlockLead: "سجّل الدخول بحساب النشاط لفتح الإدارة على هذا الجهاز.",
     username: "اسم المستخدم أو البريد", password: "كلمة المرور", unlock: "تسجيل الدخول",
     wrong: "اسم المستخدم وكلمة المرور غير متطابقين.", tooMany: "محاولات كثيرة. انتظر بضع دقائق.", failed: "تعذّر تسجيل الدخول. حاول مرة أخرى.",
+  },
+  offline: {
+    saved: "لا يوجد اتصال — تُعرض البيانات المحفوظة عند {time}.", none: "لا يوجد اتصال.",
+    changes: "التعديلات تحتاج إلى اتصال؛ الكاشير يواصل البيع.",
   },
   variants: {
     regular: "عادي", choose: "اختر واحدًا", from: "من {price}",
@@ -427,6 +435,10 @@ const hi = {
     username: "यूज़रनेम या ईमेल", password: "पासवर्ड", unlock: "साइन इन",
     wrong: "यूज़रनेम और पासवर्ड मेल नहीं खाते।", tooMany: "बहुत ज़्यादा कोशिशें। कुछ मिनट रुकें।", failed: "साइन इन नहीं हो पाया। फिर कोशिश करें।",
   },
+  offline: {
+    saved: "कनेक्शन नहीं है — {time} पर सहेजा गया डेटा दिख रहा है।", none: "कनेक्शन नहीं है।",
+    changes: "बदलाव के लिए कनेक्शन चाहिए; रजिस्टर बेचता रहेगा।",
+  },
   variants: {
     regular: "सामान्य", choose: "एक चुनें", from: "{price} से",
     title: "वैरिएंट", lead: "साइज़ या फ़्लेवर, हर एक की अपनी कीमत। पोर्शन बताता है कि एक वैरिएंट रेसिपी या स्टॉक आइटम से कितना लेता है: बड़े के लिए 1.5 जो आधा और ज़्यादा है।",
@@ -625,6 +637,10 @@ const ur = {
     username: "یوزرنیم یا ای میل", password: "پاس ورڈ", unlock: "سائن اِن",
     wrong: "یوزرنیم اور پاس ورڈ میل نہیں کھاتے۔", tooMany: "بہت زیادہ کوششیں۔ چند منٹ انتظار کریں۔", failed: "سائن اِن نہیں ہو سکا۔ دوبارہ کوشش کریں۔",
   },
+  offline: {
+    saved: "کنکشن نہیں ہے — {time} پر محفوظ کیا گیا ڈیٹا دکھایا جا رہا ہے۔", none: "کنکشن نہیں ہے۔",
+    changes: "تبدیلیوں کے لیے کنکشن چاہیے؛ رجسٹر فروخت جاری رکھتا ہے۔",
+  },
   variants: {
     regular: "عام", choose: "ایک منتخب کریں", from: "{price} سے",
     title: "ویریئنٹ", lead: "سائز یا ذائقے، ہر ایک کی اپنی قیمت۔ پورشن بتاتا ہے کہ ایک ویریئنٹ ترکیب یا اسٹاک آئٹم سے کتنا لیتا ہے: بڑے کے لیے 1.5 جو آدھا اور زیادہ ہے۔",
@@ -822,6 +838,10 @@ const tl = {
     unlockTitle: "Umalis sa staff mode", unlockLead: "Mag-sign in gamit ang account ng negosyo para buksan ang back office sa device na ito.",
     username: "Username o email", password: "Password", unlock: "Mag-sign in",
     wrong: "Hindi tugma ang username at password.", tooMany: "Sobrang daming subok. Maghintay ng ilang minuto.", failed: "Hindi naka-sign in. Subukan ulit.",
+  },
+  offline: {
+    saved: "Walang koneksyon — ipinapakita ang na-save noong {time}.", none: "Walang koneksyon.",
+    changes: "Kailangan ng koneksyon para sa mga pagbabago; tuloy ang benta sa register.",
   },
   variants: {
     regular: "Regular", choose: "Pumili ng isa", from: "mula {price}",

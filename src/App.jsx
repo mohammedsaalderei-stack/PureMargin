@@ -16,6 +16,7 @@ import { prefersReducedMotion } from "./hooks.js";
 import { useRoute, navigate, useBackspaceBack } from "./router.js";
 import { readSession, writeSession, clearSession, isDeviceToken, TOKEN_KEY, USER_KEY } from "./session.js";
 import { isNativePlatform } from "./platform.js";
+import { clearOfflineCache } from "./offline.js";
 
 const OUT_MS = 260;
 
@@ -107,6 +108,9 @@ function Routes() {
   });
 
   const signOut = () => transition(() => {
+    /* And the figures kept for offline use: signing out leaves nothing of
+       the business on the device. */
+    clearOfflineCache();
     clearSession();
     setToken("");
     setUser("");

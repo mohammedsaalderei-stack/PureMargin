@@ -25,7 +25,7 @@
    `sufra_seen`, the splash flag, stays too: it is not a credential, and the
    native build has its own launch screen. */
 
-import { isNativePlatform } from "./platform.js";
+import { isInstalledApp } from "./platform.js";
 
 export const TOKEN_KEY = "sufra_token";
 
@@ -43,7 +43,11 @@ export const USER_KEY = "sufra_user";
 const memory = new Map();
 
 function backing(scope = globalThis) {
-  const name = isNativePlatform(scope) ? "localStorage" : "sessionStorage";
+  /* The durable store for the iPhone app and for the website installed to a
+     home screen — an installed app that signs you out whenever it is closed,
+     and so cannot be opened with no connection, is not much of an app. An
+     ordinary browser tab keeps to the session, as it always has. */
+  const name = isInstalledApp(scope) ? "localStorage" : "sessionStorage";
   try {
     const store = scope[name];
     /* Touch it. Safari in private mode hands back a real object whose
