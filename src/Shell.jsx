@@ -23,6 +23,7 @@ import Forecast from "./screens/Forecast.jsx";
 import Settings from "./screens/Settings.jsx";
 import Team from "./screens/Team.jsx";
 import Messages from "./screens/Messages.jsx";
+import { rememberScope, rememberedScope } from "./session.js";
 import Inventory from "./screens/Inventory.jsx";
 import Recipes from "./screens/Recipes.jsx";
 import Variance from "./screens/Variance.jsx";
@@ -253,7 +254,7 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
   /* The user's authorization scope, from the server. `branches` is what the
      interface is asking for; empty means every branch they're allowed to see,
      the same convention the API uses. */
-  const [scope, setScope] = useState(null);
+  const [scope, setScope] = useState(() => rememberedScope(user));
 
   /* What this person may open.
 
@@ -264,7 +265,12 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
      a screen the other refuses to feed is the one people report as a bug.
 
      Until scope arrives, nothing but the tabs that need no permission — a
-     brief empty nav is better than one that offers a tab and withdraws it. */
+     brief empty nav is better than one that offers a tab and withdraws it.
+
+     The one exception is the server's own last answer for this person, kept
+     with the sign-in (`rememberedScope`): it is what the nav opens on, so
+     that with no connection the register and the saved screens can still be
+     reached, and it is replaced the moment the server answers again. */
   /* Tabs that need no permission at all — the assistant answers within
      whatever scope a person already has, the board is how the team reaches
      each other, and settings is their own account.
@@ -453,8 +459,14 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
     try {
       const res = await fetch("/api/scope", { headers: { Authorization: `Bearer ${token}` } });
       if (!res.ok) return;
-      setScope(await res.json());
-    } catch { /* the dashboard still works; it just won't offer a selector */ }
+      const json = await res.json();
+      setScope(json);
+      /* Remembered on the device, so that with no connection the app still
+         knows which screens this person has — above all the register, which
+         must open offline. The server decides again the moment it can be
+         asked, and enforces it on every request regardless. */
+      rememberScope(user, json);
+    } catch { /* no connection: what was remembered stands */ }
   }
   async function loadAccount() {
     try {

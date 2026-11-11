@@ -96,6 +96,7 @@ export const AUDIT_ACTIONS = {
   "register.settings": "register settings changed",
   "register.product": "register product changed",
   "register.device": "a device was set to register-only",
+  "register.offline": "offline sale recorded as the till charged it",
   "channel.save": "sales channel added or changed",
   "channel.rule": "sales channel fee rule added",
   "channel.prices": "sales channel prices changed",

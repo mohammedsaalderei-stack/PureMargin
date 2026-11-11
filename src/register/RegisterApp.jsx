@@ -29,7 +29,10 @@ import Shift from "./Shift.jsx";
 import Customers from "./Customers.jsx";
 import RegisterSettings from "./RegisterSettings.jsx";
 import PinPad from "./PinPad.jsx";
-import { loadCatalogue, call, flush, queued, savedOperator, setOperator, savedBranch, saveBranch, RegisterError } from "./api.js";
+import {
+  loadCatalogue, call, flush, queued, enqueue, savedOperator, setOperator, savedBranch, saveBranch, RegisterError,
+  isNetworkError, savedShift, saveShift, savedCustomers, saveCustomers, refusedSales, setQueueOwner,
+} from "./api.js";
 import { printReceipt, printKitchen, loadPrinters } from "../print/printers.js";
 
 const VIEWS = [
@@ -74,6 +77,8 @@ export default function RegisterApp({ token, user, business: businessProp, onExi
 
   const [catalogue, setCatalogue] = useState(null);
   const [loadError, setLoadError] = useState("");
+  /* Before anything reads the queue: unsent sales are kept per person. */
+  setQueueOwner(user);
   const [view, setView] = useState("sell");
   const [branchId, setBranchId] = useState(savedBranch());
   const [operator, setOp] = useState(savedOperator());
@@ -88,6 +93,8 @@ export default function RegisterApp({ token, user, business: businessProp, onExi
   const [more, setMore] = useState(false);
   const [notice, setNotice] = useState("");
   const [pricing, setPricing] = useState(null);
+  const [shiftStale, setShiftStale] = useState(false);
+  const [refused, setRefused] = useState(refusedSales().length);
   const [lockOpen, setLockOpen] = useState(false);
   const [unlockOpen, setUnlockOpen] = useState(false);
   /* A staff device has no back office to go back to: the way out is a
@@ -125,8 +132,16 @@ export default function RegisterApp({ token, user, business: businessProp, onExi
   }, [token, user, P.errors]);
 
   const loadCustomers = useCallback(async () => {
-    try { setCustomers((await call(token, "customers")).customers || []); } catch { /* offline: keep what we had */ }
-  }, [token]);
+    try {
+      const list = (await call(token, "customers")).customers || [];
+      setCustomers(list);
+      saveCustomers(user, list);
+    } catch (err) {
+      /* No connection: the customers as this device last knew them, so a
+         regular can still be put on a sale. */
+      if (isNetworkError(err)) setCustomers((have) => (have.length ? have : savedCustomers(user)));
+    }
+  }, [token, user]);
 
   const loadShift = useCallback(async () => {
     if (!branchId) return;
@@ -134,7 +149,23 @@ export default function RegisterApp({ token, user, business: businessProp, onExi
       const out = await call(token, "shift", { query: { branchId } });
       setShift(out.shift);
       setSummary(out.summary || null);
-    } catch {
+      setShiftStale(false);
+      saveShift(branchId, { shift: out.shift, summary: out.summary || null });
+    } catch (err) {
+      /* With no connection the shift is whatever it last was on this device.
+         And when this device has never seen one, it is left unknown rather
+         than taken for "none": unknown does not stop a sale, and the server
+         takes a sale made offline with or without a shift. A till that
+         refuses to sell because it could not ask a question is not a till. */
+      if (isNetworkError(err)) {
+        const saved = savedShift(branchId);
+        if (saved) {
+          setShift((s) => (s === undefined || s === null || s?.pending ? saved.shift : s));
+          setSummary((cur) => cur || saved.summary || null);
+          setShiftStale(true);
+        }
+        return;
+      }
       setShift((s) => (s === undefined ? null : s));
     }
   }, [token, branchId]);
@@ -148,6 +179,7 @@ export default function RegisterApp({ token, user, business: businessProp, onExi
       if (!queued().length) return;
       const out = await flush(token).catch(() => null);
       setWaiting(queued().length);
+      setRefused(refusedSales().length);
       if (out?.sent) { setOnline(true); loadShift(); }
     };
     const up = () => { setOnline(true); send(); };
@@ -235,7 +267,18 @@ export default function RegisterApp({ token, user, business: businessProp, onExi
   const can = catalogue.can || {};
 
   const body = needsShift ? (
-    <OpenShift token={token} branchId={branchId} onOpened={loadShift} P={P} />
+    <OpenShift token={token} branchId={branchId} P={P} by={operator?.name || user}
+      onOpened={(local) => {
+        if (!local) { loadShift(); return; }
+        /* Opened with no connection: the till carries on with its own copy,
+           and the opening is sent ahead of the sales that follow it. */
+        setShift(local);
+        setSummary(null);
+        saveShift(branchId, { shift: local, summary: null });
+        setWaiting(queued().length);
+        setOnline(false);
+        say(P.offline.shiftOpened);
+      }} />
   ) : view === "sell" ? (
     <Sell token={token} catalogue={catalogue} order={order} setOrder={setOrder} branchId={branchId} wide={wide}
       customers={customers} onCustomersChanged={loadCustomers} onSaveTicket={saveTicket} onSold={onSold} can={can}
@@ -244,19 +287,27 @@ export default function RegisterApp({ token, user, business: businessProp, onExi
     <Tickets token={token} catalogue={catalogue} branchId={branchId} canVoid={can.refund} operator={operator?.name || user}
       onOpen={(tk) => { setOrder({ ...emptyOrder(tk.orderType), ...tk, ticketName: tk.name || "", table: tk.table || "", ticketId: tk.id, customerId: tk.customerId || "", lines: tk.lines.map((l) => ({ ...l, key: l.key || `l${Math.random().toString(36).slice(2, 8)}`, addons: l.addons || [], note: l.note || "", discount: l.discount || null })) }); setView("sell"); }} />
   ) : view === "receipts" ? (
-    <Receipts token={token} catalogue={catalogue} branchId={branchId} can={can} printCtx={printCtx} customers={customers} onChanged={loadShift} />
+    <Receipts token={token} catalogue={catalogue} branchId={branchId} can={can} printCtx={printCtx} customers={customers} onChanged={loadShift} queueTick={`${waiting}:${refused}`} />
   ) : view === "shift" ? (
-    <Shift token={token} branchId={branchId} shift={shift} summary={summary} onChanged={loadShift} printCtx={printCtx} business={business} catalogue={catalogue} />
+    <Shift token={token} branchId={branchId} shift={shift} summary={summary} onChanged={loadShift} printCtx={printCtx} business={business} catalogue={catalogue} stale={shiftStale || Boolean(shift?.pending)} />
   ) : view === "customers" ? (
     <Customers token={token} customers={customers} onChanged={loadCustomers} />
   ) : (
     <RegisterSettings token={token} catalogue={catalogue} onChanged={load} printCtx={printCtx} />
   );
 
+  /* On a phone there is room for the sign and the number, not the sentence:
+     the words are for wider screens, and stay available to a screen reader
+     and on a long press. Nothing here wraps — a chip broken over three lines
+     pushed the name of the register off the bar. */
+  const chip = "shrink-0 whitespace-nowrap flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold";
+  const waitingLabel = fill(P.status.waiting, { n: waiting });
   const status = (
-    <div className="flex items-center gap-1.5">
-      {!online && <span className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold" style={{ background: "rgba(251,191,36,0.15)", color: C.amber }}><WifiOff size={12} />{P.status.offline}</span>}
-      {waiting > 0 && <span className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold" style={{ background: "var(--chip-bg)", color: C.slate }}><CloudUpload size={12} />{fill(P.status.waiting, { n: waiting })}</span>}
+    <div className="flex items-center gap-1.5 shrink-0">
+      {!online && <span className={chip} title={P.status.offline} aria-label={P.status.offline} style={{ background: "rgba(251,191,36,0.15)", color: C.amber }}><WifiOff size={12} /><span className="hidden sm:inline">{P.status.offline}</span></span>}
+      {waiting > 0 && <button onClick={() => setView("receipts")} className={chip} title={waitingLabel} aria-label={waitingLabel} style={{ background: "var(--chip-bg)", color: C.slate }}><CloudUpload size={12} /><span className="hidden sm:inline">{waitingLabel}</span><span className="sm:hidden data">{waiting}</span></button>}
+      {/* Sales the server would not take: never out of sight. Opens the list. */}
+      {refused > 0 && <button onClick={() => setView("receipts")} className={chip} title={P.offline.refused} aria-label={`${P.offline.refused} · ${refused}`} style={{ background: "rgba(244,63,94,0.14)", color: C.rose }}><CloudUpload size={12} /><span className="hidden sm:inline">{P.offline.refused} ·</span><span className="data">{refused}</span></button>}
       {catalogue.useShifts && <span className="hidden sm:flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold" style={{ background: shift ? "rgba(52,211,153,0.14)" : "var(--chip-bg)", color: shift ? C.mint : C.slate }}><Wallet size={12} />{shift ? P.status.shiftOpen : P.status.shiftClosed}</span>}
     </div>
   );
@@ -273,7 +324,7 @@ export default function RegisterApp({ token, user, business: businessProp, onExi
         </span>
       </button>
       {catalogue.branches?.length > 1 && (
-        <select value={branchId} onChange={(e) => setBranchId(e.target.value)} className="text-xs font-semibold rounded-xl px-2 py-1.5"
+        <select value={branchId} onChange={(e) => setBranchId(e.target.value)} className="min-w-0 max-w-[40%] text-xs font-semibold rounded-xl px-2 py-1.5"
           style={{ background: "var(--chip-bg)", color: C.ink }}>
           {catalogue.branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
         </select>
@@ -281,8 +332,8 @@ export default function RegisterApp({ token, user, business: businessProp, onExi
       <div className="flex-1" />
       {status}
       {operator && (
-        <button onClick={lock} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold" style={{ background: C.irisWash, color: C.iris }}>
-          <Lock size={13} />{operator.name}
+        <button onClick={lock} className="shrink-0 max-w-[30%] flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold" style={{ background: C.irisWash, color: C.iris }}>
+          <Lock size={13} className="shrink-0" /><span className="truncate">{operator.name}</span>
         </button>
       )}
     </header>
@@ -415,7 +466,7 @@ function Done({ token, sold, P, printCtx, customers, onClose }) {
 }
 
 /* A shift has to be open before selling, when the business counts its drawer. */
-function OpenShift({ token, branchId, onOpened, P }) {
+function OpenShift({ token, branchId, onOpened, P, by }) {
   const C = useC();
   const [float, setFloat] = useState("");
   const [busy, setBusy] = useState(false);
@@ -427,7 +478,16 @@ function OpenShift({ token, branchId, onOpened, P }) {
       await call(token, "shift-open", { method: "POST", body: { branchId, float: Number(float) || 0 } });
       onOpened();
     } catch (err) {
-      setError(err instanceof RegisterError ? (P.errors[err.body?.error] || P.errors.generic) : P.errors.network);
+      if (isNetworkError(err)) {
+        /* No connection is not a reason to keep the till shut. The opening
+           is queued like a sale, and the float is what was typed. */
+        const at = Date.now();
+        const body = { branchId, float: Number(float) || 0, offline: true, at, by: by || "" };
+        enqueue("shift-open", body);
+        onOpened({ id: `local-${at.toString(36)}`, branchId, float: body.float, openedAt: at, openedBy: by || "", moves: [], pending: true });
+        return;
+      }
+      setError(P.errors[err.body?.error] || P.errors.generic);
     } finally {
       setBusy(false);
     }

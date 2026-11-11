@@ -18,7 +18,7 @@ const less = (n) => (Number(n) > 0 ? `−${money(n)}` : money(0));
 import { call, RegisterError } from "./api.js";
 import { printShift, openDrawer } from "../print/printers.js";
 
-export default function Shift({ token, branchId, shift, summary, onChanged, printCtx, business, catalogue }) {
+export default function Shift({ token, branchId, shift, summary, onChanged, printCtx, business, catalogue, stale = false }) {
   const C = useC();
   const { t } = useLang();
   const P = t.pos;
@@ -86,6 +86,8 @@ export default function Shift({ token, branchId, shift, summary, onChanged, prin
           <Btn kind="danger" onClick={() => setClosing(true)}><Lock size={15} />{P.shift.close}</Btn>
         </div>
         {notice && <p className="text-sm text-center" style={{ color: C.amber }}>{notice}</p>}
+        {/* Figures from before the connection dropped are not today's count. */}
+        {stale && <p className="text-xs text-center" style={{ color: C.amber }}>{shift?.pending ? P.offline.shiftOpened : P.offline.savedShift}</p>}
       </div>
 
       {move && <CashMove token={token} branchId={branchId} type={move} P={P} onClose={() => setMove(null)} onDone={() => { setMove(null); onChanged(); }} />}

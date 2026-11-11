@@ -225,11 +225,13 @@ export async function channelsForRegister(orgId, branchIds = [], { now = Date.no
 
 /* The channel a sale names, checked: it must exist, be in use, and run at
    that branch. No channel named is the counter. */
-export async function channelForSale(orgId, channelId, branchId, { at = Date.now(), timeZone } = {}) {
+export async function channelForSale(orgId, channelId, branchId, { at = Date.now(), timeZone, anyState = false } = {}) {
   const list = await listChannels(orgId, { now: at });
   const id = channelId ? String(channelId) : IN_STORE_ID;
   const channel = list.find((c) => c.id === id);
-  if (!channel || !availableAt(channel, branchId)) return { error: "channel" };
+  /* `anyState` is for a sale already made offline: a channel switched off
+     since is still the channel it was sold on. */
+  if (!channel || (!anyState && !availableAt(channel, branchId))) return { error: "channel" };
   const { byChannel } = await pricesFor(orgId);
   return {
     channel: { id: channel.id, name: channel.name, type: channel.type, prices: byChannel[channel.id] || {} },

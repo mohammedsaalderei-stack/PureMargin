@@ -184,6 +184,9 @@ export default function Sell({ token, catalogue, order, setOrder, branchId, wide
                     strip along the top, as before. */}
                 {item.image ? (
                   <img src={pictureSrc(item.image)} alt="" loading="lazy" decoding="async"
+                    /* With no connection and no saved copy, no picture is
+                       better than a broken one. */
+                    onError={(e) => { e.currentTarget.style.display = "none"; }}
                     className="w-full aspect-[4/3] object-cover" style={{ background: "var(--chip-bg)" }} />
                 ) : (
                   <span className="absolute top-0 inset-x-0 h-1" style={{ background: item.color || "transparent" }} />

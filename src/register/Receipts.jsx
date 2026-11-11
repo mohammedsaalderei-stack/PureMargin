@@ -11,13 +11,13 @@ import EmailReceipt from "./EmailReceipt.jsx";
 import { useC } from "../theme.jsx";
 import { useLang, fill } from "../i18n.jsx";
 import { Btn, Sheet, Row, Empty, Field, money } from "./ui.jsx";
-import { call, RegisterError } from "./api.js";
+import { call, RegisterError, queued, refusedSales, retryRefused, flush, isNetworkError } from "./api.js";
 import { printReceipt, loadPrinters } from "../print/printers.js";
 
 const DAY = 864e5;
 const startOfDay = (ms) => { const d = new Date(ms); d.setHours(0, 0, 0, 0); return d.getTime(); };
 
-export default function Receipts({ token, catalogue, branchId, can, printCtx, customers, onChanged }) {
+export default function Receipts({ token, catalogue, branchId, can, printCtx, customers, onChanged, queueTick = "" }) {
   const C = useC();
   const { t } = useLang();
   const P = t.pos;
@@ -26,18 +26,25 @@ export default function Receipts({ token, catalogue, branchId, can, printCtx, cu
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
   const [open, setOpen] = useState(null);
+  const sales = (list) => list.filter((e) => e.kind === "sale" && e.body?.branchId === branchId);
+  const [pending, setPending] = useState(() => sales(queued()));
+  const [refused, setRefused] = useState(() => sales(refusedSales()));
+  const refreshLocal = () => { setPending(sales(queued())); setRefused(sales(refusedSales())); };
 
   const load = useCallback(async () => {
+    refreshLocal();
     try {
       const out = await call(token, "receipts", { query: { from: day, to: Math.min(Date.now(), day + DAY - 1), branches: branchId, q } });
       setData(out);
       setError("");
     } catch (err) {
-      setError(err instanceof RegisterError ? P.errors.generic : P.errors.network);
+      setError(isNetworkError(err) ? P.errors.network : P.errors.generic);
     }
   }, [token, day, branchId, q, P.errors]);
 
-  useEffect(() => { load(); }, [load]);
+  /* And again whenever the queue moves: a sale that has just been sent is
+     no longer waiting, and is now in the list underneath. */
+  useEffect(() => { load(); }, [load, queueTick]);
 
   const isToday = day === startOfDay(Date.now());
 
@@ -60,8 +67,30 @@ export default function Receipts({ token, catalogue, branchId, can, printCtx, cu
         </div>
       </div>
       <div className="flex-1 min-h-0 overflow-y-auto px-4 pb-6">
-        {error && <p className="text-sm mb-2" style={{ color: C.rose }}>{error}</p>}
-        {!data ? <Empty icon={Receipt} title={P.common.loading} />
+        {/* What this device sold and has not managed to send yet — shown here
+            because, until it is sent, here is the only place it exists. */}
+        {isToday && (pending.length > 0 || refused.length > 0) && (
+          <div className="mb-3 space-y-2">
+            {[[pending, P.offline.unsent, P.offline.unsentLead, C.amber, false], [refused, P.offline.refused, P.offline.refusedLead, C.rose, true]]
+              .filter(([list]) => list.length > 0).map(([list, title, lead, color, canRetry]) => (
+                <div key={title} className="rounded-2xl p-3" style={{ border: `1px solid ${color}55`, background: `${color}12` }}>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-bold" style={{ color }}>{title} · {list.length}</span>
+                    {canRetry && <button onClick={() => { retryRefused(); refreshLocal(); flush(token).catch(() => null).finally(() => { refreshLocal(); load(); onChanged?.(); }); }} className="text-xs font-bold underline" style={{ color }}>{P.offline.retry}</button>}
+                  </div>
+                  <p className="text-[11px] mt-0.5 mb-1" style={{ color: C.slate }}>{lead}</p>
+                  {list.map((e) => (
+                    <div key={e.body.clientId || e.at} className="flex items-center justify-between gap-3 py-1 text-xs">
+                      <span className="data" dir="ltr">{e.body.number} · {new Date(e.at).toLocaleTimeString(printCtx.locale, { hour: "2-digit", minute: "2-digit" })}</span>
+                      <span className="data font-bold" dir="ltr">{money(e.body.receipt?.total_money)}</span>
+                    </div>
+                  ))}
+                </div>
+              ))}
+          </div>
+        )}
+        {error && !(pending.length && !data) && <p className="text-sm mb-2" style={{ color: C.rose }}>{error}</p>}
+        {!data ? (error ? null : <Empty icon={Receipt} title={P.common.loading} />)
           : !data.receipts.length ? <Empty icon={Receipt} title={P.receipts.none} />
           : data.receipts.map((r) => {
             const refund = r.receipt_type === "REFUND";
@@ -73,7 +102,12 @@ export default function Receipts({ token, catalogue, branchId, can, printCtx, cu
                     {new Date(r.receipt_date).toLocaleTimeString(printCtx.locale, { hour: "2-digit", minute: "2-digit" })} · {(r.payments || []).map((p) => p.name).join(" + ")}{r.cashier ? ` · ${r.cashier}` : ""}
                   </span>
                 </span>
-                <span className="data font-bold" dir="ltr" style={{ color: refund ? C.rose : C.ink }}>{refund ? "−" : ""}{money(r.total_money)}</span>
+                <span className="shrink-0 flex items-center gap-2">
+                  {/* Made offline and recorded as charged, where that is not
+                      what the menu says: somebody should look. */}
+                  {Array.isArray(r.review) && r.review.length > 0 && <span className="px-2 py-0.5 rounded-full text-[10px] font-bold" style={{ background: "rgba(251,191,36,0.15)", color: C.amber }}>{P.offline.review}</span>}
+                  <span className="data font-bold" dir="ltr" style={{ color: refund ? C.rose : C.ink }}>{refund ? "−" : ""}{money(r.total_money)}</span>
+                </span>
               </button>
             );
           })}
@@ -118,6 +152,14 @@ function ReceiptDetail({ token, number, catalogue, can, printCtx, customers, onC
       }>
       <div className="text-xs mb-3 data" dir="ltr" style={{ color: C.slate }}>{r.receipt_number} · {new Date(r.receipt_date).toLocaleString(printCtx.locale)}</div>
       {r.refund_for && <div className="text-xs mb-2" style={{ color: C.slate }}>{fill(P.receipts.refundOf, { number: r.refund_for })}</div>}
+      {Array.isArray(r.review) && r.review.length > 0 && (
+        <div className="rounded-2xl p-3 mb-3 text-xs space-y-1" style={{ border: `1px solid ${C.amber}55`, background: `${C.amber}12` }}>
+          <div className="font-bold" style={{ color: C.amber }}>{P.offline.reviewLead}</div>
+          {r.review.map((code) => (
+            <div key={code} style={{ color: C.ink }}>{fill(P.offline.why[code] || code, { total: money(r.review_server_total ?? 0) })}</div>
+          ))}
+        </div>
+      )}
       {customer && <div className="text-sm mb-2 font-semibold">{customer.name}</div>}
       {(r.line_items || []).map((li, i) => (
         <div key={i} className="py-2" style={{ borderBottom: `1px solid ${C.hairline}` }}>
