@@ -29,7 +29,8 @@ import { listRecipes } from "./_recipes.js";
 import { REGISTER_BRANCH, REGISTER_WINDOW_DAYS } from "./_data.js";
 import { imageUrl } from "./_imageurl.js";
 import { listStores, storeNames } from "./_stores.js";
-import { orgFor } from "./_org.js";
+import { orgFor, getOrg } from "./_org.js";
+import { posSalesFor } from "./_possales.js";
 import {
   DEFAULT_VAT_PCT, ORDER_TYPES, PAYMENT_TYPES, PAYMENT_KINDS, DEFAULT_PAYMENT_TYPES, VAT_MODES,
   readVat, receiptNumber, readDiscount, buildSale, buildRefund,
@@ -412,23 +413,62 @@ export function forDepletion(receipt) {
 }
 
 /* What a report route needs: the organization's receipts over the longest
-   window any report reads, and the names of its stores. */
+   window any report reads, and the names of its stores.
+
+   The receipts are the register's and, for a business that has connected
+   Loyverse, the till's as well, already filed under the business's own store
+   ids — every report reads one list and none of them knows there were two
+   tills. `pos` says how the till read went (null when none is connected), so
+   a screen can say that its sales are missing rather than show a quiet day. */
 export async function registerContext(account, { days = REGISTER_WINDOW_DAYS } = {}) {
   const org = account ? await orgFor(account) : null;
+  return contextFor(org, { days });
+}
+
+async function contextFor(org, { days = REGISTER_WINDOW_DAYS, now = Date.now() } = {}) {
   const orgId = org?.id || null;
   const settings = orgId ? await getSettings(orgId) : null;
   const used = Boolean(settings?.usedAt);
   /* The first sale, less a week for sales rung up offline before it was
      sent. Nothing is read from before it, which is what keeps "all time"
      from asking storage for every month since 1970. */
-  const firstSaleAt = used ? new Date(settings.usedAt).getTime() - 7 * DAY : null;
-  const since = days === "all" ? firstSaleAt : Math.max(Date.now() - days * DAY, firstSaleAt ?? 0);
+  const firstRegisterAt = used ? new Date(settings.usedAt).getTime() - 7 * DAY : null;
+  const since = days === "all" ? firstRegisterAt : Math.max(now - days * DAY, firstRegisterAt ?? 0);
+  /* The till first: reading it may add stores, whose names are read next. */
+  const pos = org ? await posSalesFor(org, { days, unused: !used, now }) : { receipts: [], status: null };
+  const register = used ? await registerReceipts(orgId, { since, now }) : [];
+  const receipts = pos.receipts.length
+    ? [...register, ...pos.receipts].sort((a, b) => new Date(a.receipt_date) - new Date(b.receipt_date))
+    : register;
+  /* The till's earliest sale on the same footing as the register's: a week
+     before it. Only as far back as was read, which for "all" is a year. */
+  const tillFirst = pos.firstAt ? pos.firstAt - 7 * DAY : null;
+  const firstSaleAt = [firstRegisterAt, tillFirst].filter((v) => v !== null).reduce((a, b) => Math.min(a, b), Infinity);
   return {
     orgId,
-    used,
-    firstSaleAt,
-    register: used ? await registerReceipts(orgId, { since }) : [],
+    used: used || pos.receipts.length > 0,
+    firstSaleAt: Number.isFinite(firstSaleAt) ? firstSaleAt : null,
+    register: receipts,
     names: orgId ? await storeNames(orgId, org?.name) : {},
+    pos: pos.status,
+  };
+}
+
+/* Every sale in a window — the register's and the connected till's — for a
+   route that has an organization id rather than an account: the assistant's
+   tools, the stock catch-up. */
+export async function salesReceipts(orgId, { since = Date.now() - REGISTER_WINDOW_DAYS * DAY, now = Date.now() } = {}) {
+  if (!orgId) return { receipts: [], pos: null };
+  const org = await getOrg(orgId);
+  const days = Math.max(1, Math.ceil((now - since) / DAY));
+  const ctx = await contextFor(org, { days, now });
+  return {
+    receipts: ctx.register.filter((r) => {
+      const t = new Date(r.receipt_date).getTime();
+      return t >= since && t <= now;
+    }),
+    pos: ctx.pos,
+    firstSaleAt: ctx.firstSaleAt,
   };
 }
 

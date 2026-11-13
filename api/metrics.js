@@ -14,6 +14,7 @@ export default async function handler(req, res) {
   const session = await requireAuth(req, res);
   if (!session) return;
 
+  let pos = null;
   try {
     const overrides = (await getJSON(`costs:${session.username}`)) || {};
     /* Branch scope. The POS reports which branches exist; the session decides
@@ -33,9 +34,11 @@ export default async function handler(req, res) {
     const asked = String(req.query?.period || "");
     const PERIODS = { 90: 90, 365: 365 };
     /* The business's sales, and its own stores as the branches. */
-    const { register, names, firstSaleAt } = await registerContext(session.account, {
+    const context = await registerContext(session.account, {
       days: asked === "all" ? "all" : PERIODS[asked] ? PERIODS[asked] * 2 + 2 : undefined,
     });
+    const { register, names, firstSaleAt } = context;
+    pos = context.pos;
     const DAY = 864e5;
     const historyDays = firstSaleAt ? Math.max(1, Math.ceil((Date.now() - firstSaleAt) / DAY)) : 0;
     const period = asked === "all"
@@ -63,6 +66,7 @@ export default async function handler(req, res) {
       costs,
       timeZone: scope.org?.timezone || "Asia/Dubai",
       period,
+      pos,
       branches: effective,
     });
     const scoped = applyScope(metrics, effective, allBranches);
@@ -105,6 +109,9 @@ export default async function handler(req, res) {
          label. */
       firstSaleAt: firstSaleAt ? new Date(firstSaleAt + 7 * DAY).toISOString() : null,
       profit,
+      /* The connected till, if there is one: whether it was read, and if not,
+         why. Never the token. */
+      pos,
       scope: { ...scoped.scope, role: scope.role },
       ageSeconds: 0,
       provenance: provenance(scoped, {
@@ -115,7 +122,9 @@ export default async function handler(req, res) {
     });
   } catch (err) {
     if (err instanceof NotConnected) {
-      return res.status(409).json({ error: "notconnected" });
+      /* Nothing to show — and when a till is connected, whether that is
+         because it has sold nothing or because it could not be read. */
+      return res.status(409).json({ error: "notconnected", pos });
     }
     console.error("metrics failed:", err);
     return res.status(500).json({ error: "server" });

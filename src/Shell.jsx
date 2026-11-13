@@ -42,6 +42,7 @@ import Skeleton from "./Skeleton.jsx";
 import EmptyTable from "./EmptyTable.jsx";
 import Channels from "./screens/Channels.jsx";
 import OfflineBanner, { useOffline } from "./OfflineBanner.jsx";
+import TillBanner from "./TillBanner.jsx";
 import { useAppFrame } from "./appFrame.js";
 import LiveDot from "./LiveDot.jsx";
 import { PortalSwitcher, SectionTabs, BottomBar, MoreSheet, AccountMenu } from "./AppChrome.jsx";
@@ -247,6 +248,8 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
   const [refreshing, setRefreshing] = useState(false);
   useAppFrame();
   const [noSales, setNoSales] = useState(false);
+  /* The connected Loyverse, as the last metrics read found it (null: none). */
+  const [till, setTill] = useState(null);
   const [mobileMenu, setMobileMenu] = useState(false);
   const [fetchedAt, setFetchedAt] = useState(null);
   const [exportOpen, setExportOpen] = useState(false);
@@ -398,9 +401,9 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
       const json = await res.json();
       if (res.status === 402) return;
       /* 409: the register has not rung anything up yet. */
-      if (res.status === 409) { setNoSales(true); return; }
+      if (res.status === 409) { setNoSales(true); setTill(json.pos || null); return; }
       if (!res.ok) throw new Error(json.error || t.watch.failedTitle);
-      setNoSales(false); setData(json); setFetchedAt(Date.now());
+      setNoSales(false); setTill(json.pos || null); setData(json); setFetchedAt(Date.now());
     } catch (err) { if (!quiet) setError(err.message || t.watch.failedTitle); }
     finally { setRefreshing(false); }
   }
@@ -632,7 +635,8 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
   else if (tab === "settings") {
     body = <Settings data={data || EMPTY_METRICS} user={user} onRefresh={() => load({ fresh: true })} refreshing={refreshing}
       token={token} conversationCount={conversations.length} account={account}
-      onAccountChange={refreshEverything} onSeePlans={() => go("billing")} onSession={onSession} onLogout={onLogout} />;
+      onAccountChange={refreshEverything} onSeePlans={() => go("billing")} onSession={onSession} onLogout={onLogout}
+      onPosChange={refreshEverything} />;
   } else if (tab === "team") { body = <Team token={token} />; }
   else if (tab === "employees") { body = <Employees token={token} branches={branches} />; }
   else if (tab === "messages") { body = <Messages token={token} />; }
@@ -659,7 +663,7 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
       }}
       messages={messages} onMessagesChange={updateMessages} data={unconnectedAccount ? null : data}
       noticedLine={unconnectedAccount ? "" : noticedLine} branches={branches} />;
-  } else if (unconnectedAccount) { body = <EmptyTable onOpenRegister={() => go("till")} />; }
+  } else if (unconnectedAccount) { body = <EmptyTable pos={till} onOpenRegister={() => go("till")} onOpenSettings={() => go("settings")} />; }
   else if (!data && error) {
     body = (
       <div className="h-full flex items-center justify-center p-8">
@@ -804,6 +808,7 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
           <SectionTabs portal={portal} tab={tab} onGo={go} locked={isLocked} />
         </header>
         <OfflineBanner />
+        <TillBanner pos={till} onOpen={() => go("settings")} />
         <div className="flex-1 min-h-0 flex relative z-10" style={{ flexDirection: rtl ? "row-reverse" : "row" }}>
           <main className="flex-1 min-w-0 overflow-hidden relative">{content}</main>
           {tab === "ask" && (
@@ -860,6 +865,7 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
         {scopePicker && <div className="px-3 pb-2">{scopePicker}</div>}
       </header>
       <OfflineBanner />
+      <TillBanner pos={till} onOpen={() => go("settings")} />
       <main className="flex-1 min-h-0 overflow-hidden relative">
         <AmbientBackground />
         <div className="relative z-10 h-full">{content}</div>

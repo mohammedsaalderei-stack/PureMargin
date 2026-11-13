@@ -58,7 +58,7 @@ import { balances, listMovements } from "./_movements.js";
 import { costBasis, costFrom } from "./_costing.js";
 import { listOrders } from "./_purchasing.js";
 import { rawReceipts, getMetrics } from "./_data.js";
-import { usesRegister, registerReceipts, getSettings, catalogueOf, monthsBetween } from "./_till.js";
+import { registerReceipts, salesReceipts, getSettings, catalogueOf, monthsBetween } from "./_till.js";
 import { listShifts, currentShift, summarise } from "./_tillshift.js";
 import { listCustomers, customerStats } from "./_tillbook.js";
 import { listStores } from "./_stores.js";
@@ -472,11 +472,13 @@ export async function getPosSalesMetrics(ctx, { } = {}) {
    through, so what this returns is what the app's own screens show. */
 export async function getRecentReceipts(ctx, { days = 7, limit = 25, dish_name: dishName } = {}) {
   if (!allowed(ctx, DOMAIN.POS_SALES)) return refuse(DOMAIN.POS_SALES);
-  /* Sales rung up on PureMargin's own register are receipts like the till's. */
-  const register = (await usesRegister(ctx.orgId).catch(() => false))
-    ? await registerReceipts(ctx.orgId).catch(() => [])
-    : [];
+  /* The register's sales and a connected Loyverse's, as the screens list them. */
+  const { receipts: register, pos } = await salesReceipts(ctx.orgId, { since: Date.now() - 32 * DAY_MS })
+    .catch(() => ({ receipts: [], pos: null }));
   if (!register.length) {
+    if (pos?.ok === false) {
+      return { domain: DOMAIN.POS_SALES, error: "posunavailable", message: "Loyverse could not be read just now, so its receipts are not available. Say so; do not describe the period as quiet.", receipts: [] };
+    }
     return { domain: DOMAIN.POS_SALES, error: "nosales", message: "Nothing has been sold yet, so there are no receipts to read.", receipts: [] };
   }
   const raw = await rawReceipts({ days: Math.min(Math.max(Number(days) || 7, 1), 31), register });
@@ -720,23 +722,31 @@ async function getRegisterSetup(ctx) {
 async function getSalesHistory(ctx, { period = "90" } = {}) {
   if (!allowed(ctx, DOMAIN.POS_SALES)) return refuse(DOMAIN.POS_SALES);
   const now = Date.now();
-  const settings = await getSettings(ctx.orgId);
-  if (!settings.usedAt) return { domain: DOMAIN.POS_SALES, error: "nosales", message: "Nothing has been sold yet." };
-  const first = new Date(settings.usedAt).getTime() - 7 * DAY_MS;
   const key = String(period) === "all" ? "all" : String(period) === "365" ? "year" : "quarter";
+  /* The register's sales and a connected Loyverse's. How far back "all"
+     goes is known only once they are read, so a year either side is read
+     first and the period set from the first sale found. */
+  const read = await salesReceipts(ctx.orgId, { since: now - (key === "quarter" ? 182 : 732) * DAY_MS, now });
+  if (!read.receipts.length) {
+    return read.pos?.ok === false
+      ? { domain: DOMAIN.POS_SALES, error: "posunavailable", message: "Loyverse could not be read just now. Say so; do not describe the period as quiet." }
+      : { domain: DOMAIN.POS_SALES, error: "nosales", message: "Nothing has been sold yet." };
+  }
+  const first = read.firstSaleAt ?? new Date(read.receipts[0].receipt_date).getTime();
   const days = key === "all" ? Math.max(31, Math.ceil((now - first) / DAY_MS)) : key === "year" ? 365 : 90;
-  const register = await registerReceipts(ctx.orgId, { since: Math.max(first, now - (days * 2 + 2) * DAY_MS) });
+  const register = read.receipts;
   const edits = await listEdits(ctx.orgId).catch(() => ({}));
   let m;
   try {
-    m = await getMetrics({ register, edits, branches: ctx.branches?.length ? ctx.branches : null, timeZone: ctx.timeZone, period: { key, days } });
+    m = await getMetrics({ register, edits, pos: read.pos, branches: ctx.branches?.length ? ctx.branches : null, timeZone: ctx.timeZone, period: { key, days } });
   } catch (err) {
     if (err?.code === "notconnected") return { domain: DOMAIN.POS_SALES, error: "nosales", message: "Nothing has been sold in that period." };
     throw err;
   }
   return {
     domain: DOMAIN.POS_SALES, currency: "AED",
-    period: { key, days, from: m.period?.from || null, firstSaleOnFile: settings.usedAt },
+    period: { key, days, from: m.period?.from || null, firstSaleOnFile: new Date(first + 7 * DAY_MS).toISOString() },
+    ...(read.pos?.limitedHistory ? { limits: "Loyverse returns only the last 31 days on this plan, so there is no earlier period to compare with." } : {}),
     totals: m.period?.totals || null,
     /* By day up to a quarter, by week up to a year, by month beyond. */
     bucket: m.period?.bucket || "day",

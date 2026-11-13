@@ -23,7 +23,11 @@ Vercel-style serverless API functions in `/api/*.js` (each exports
 - `ANTHROPIC_API_KEY` — required for the Ask (اسأل) chat screen only. The app
   boots and all other screens work without it (chat returns a clear error).
 - `FEEDBACK_WEBHOOK_URL` — optional.
-- `SESSION_SECRET` — has a dev fallback in `.env.base44-defaults`.
+- `SESSION_SECRET` — has a dev fallback in `.env.base44-defaults`. It also
+  encrypts each business's Loyverse token: **changing it disconnects every
+  Loyverse connection** (they show as "connect again").
+- `LOYVERSE_ACCESS_TOKEN` (or `POS_ACCESS_TOKEN`) — optional; used only for
+  the business whose owner signs in with `ADMIN_EMAIL`.
 - `REDIS_URL` is wired by compose to the local redis service (not a secret).
 Secrets are delivered via `/run/base44/app.env` (listed last in `env_file:` so
 they override the defaults).
@@ -103,7 +107,7 @@ they override the defaults).
 ## Tests
 - `npm test` → `npm run check` (imports, cycles, scroll containers,
   translations) then `node scripts/test.mjs`, which **discovers** every
-  `api/*.test.js` and `src/*.test.mjs` and runs them in turn. 28 files.
+  `api/*.test.js` and `src/**/*.test.mjs` and runs them in turn. 82 files.
 - The list used to be written out by hand in the npm script. A merge kept both
   copies of that line and the older one won, so three test files existed,
   passed, and were never run while two deleted ones were still named.
@@ -124,34 +128,137 @@ they override the defaults).
   150 g wrap leaves 4.85 kg), because the faults that reach people live between
   modules rather than inside them.
 
-## No outside till
-- **Loyverse is gone.** The webhook (`loyverse-webhook.js`, `_loyversehook.js`),
-  the POS adapter (`_pos.js`), the deliveries feed, the POS token on accounts
-  and the "connect your POS" screens are all deleted. Sales come from one place:
-  the register's receipts (`register:<org>:r:*`, `api/_till.js`).
-- `api/_data.js` is register-only: `getMetrics({ register, names, branches })`,
-  `salesLines(...)`, `rawReceipts(...)` take the receipts `registerContext()`
-  read. With nothing sold `getMetrics` throws `NotConnected` → 409 → the
-  dashboard's "open the register" empty state.
+## Tills: the register, and Loyverse as an option
+- **The register is the till.** Its receipts are `register:<org>:r:*`
+  (`api/_till.js`). A business that already sells on **Loyverse** may connect
+  it (Settings → Loyverse) instead of, or as well as, moving: its receipts are
+  read from Loyverse's API and joined to the register's, so every report reads
+  one list. Loyverse was taken out in `fe93839` and brought back as this option;
+  the webhook, the deliveries feed and `stockSource: "pos"` were **not** brought
+  back.
+- `api/_loyverse.js` is everything Loyverse-specific: base URL
+  (`LOYVERSE_API_BASE` overrides it, for a stand-in), Bearer token, cursor
+  paging (250 a page, 40 pages / 20 s, then `truncated`), and `toReceipt()`,
+  which turns a Loyverse receipt into a register-shaped one: `id` =
+  `receipt_number` (edits and depletion are filed under it), `source:
+  "loyverse"`, line `total_money` **less its ADDED taxes** (Loyverse's line total
+  includes them; the register's does not), INCLUDED taxes stated as the
+  receipt's effective `vat_pct` with `vat_mode: "inclusive"`, and Loyverse's
+  item cost as `pos_cost` — used by `_aggregate.js` only **after** an owner's
+  cost, a recipe and a product cost. Nothing from Loyverse is stored: it is
+  their record.
+- Reading: an in-process cache per token hash, fresh for 45 s; then only
+  `updated_at_min` (2 min overlap) for what changed; the whole window again
+  every 15 min. 402 = a plan with 31 days → read 30, remembered 6 h,
+  `limitedHistory` (comparisons become null). A failure leaves the last read in
+  place for up to 6 h with `error` set; not retried for 30 s; a 401/403 drops
+  what was kept. `LoyverseError.code`: token, permission, plan, ratelimit,
+  unreachable, upstream.
+- `api/_possales.js` `posSalesFor(org)` finds the token, reads, ties stores and
+  writes the sync log (a full walk, a failure once per 10 min, a recovery). It
+  never throws: a failed read is `status.ok === false` with the reason.
+- `registerContext()` / `salesReceipts(orgId, {since})` (`_till.js`) return the
+  merged receipts plus `pos` (the till's status, null when none). Metrics,
+  sales, variance, alerts, operations, the assistant (brief and the receipts /
+  history tools) and the stock catch-up (`stock.js ?what=deplete-sales`) all
+  read through them. Channels, shifts and customers stay register-only.
+  `metrics.js` returns `pos` (also on the 409), shown by `src/TillBanner.jsx`
+  and `EmptyTable`; the variance/alerts/plan screens get `sales.error: "pos"`.
+- **Token** (`_accounts.js`): `setPosToken` keeps it encrypted on the owner's
+  account (`posToken`, `posConnectedAt`; clearing sets `posOffAt`).
+  `posTokenForOrg(org)`: owner's → a member's legacy one (members could paste
+  their own before) unless the owner disconnected → the server's
+  `LOYVERSE_ACCESS_TOKEN`/`POS_ACCESS_TOKEN` **only** for the business whose
+  owner's email is `ADMIN_EMAIL` (it used to be every account's fallback, which
+  would show one restaurant's sales to every sign-up). Stored tokens were never
+  deleted, so **businesses connected before the removal are connected again**
+  on their first read with no action. A token this server can't decrypt
+  (`SESSION_SECRET` changed) reads as `lost` → "connect again".
+- `PUT /api/account { posToken }` — owner only (403 `notowner`), tried against
+  `/stores` first (422 `reason: token|permission`, 502 when Loyverse didn't
+  answer), audit `pos.connect` / `pos.disconnect` (never the token), the
+  operator is emailed. GET returns `pos` from `posOwnership` — never the token.
 - **Stores** (`api/_stores.js`, key `org:<orgId>:stores`, route `api/stores.js`,
   UI `src/settings/StoresSetting.jsx`). Every business starts with one store
-  under the id `register` — the id early receipts were filed under, so nothing
-  moves. New stores get `s-<slug>` ids that never change on rename. Archived,
-  never deleted; the last open store can't be archived. Each store's address,
-  phone and TRN print on its own receipts in place of the business's.
-  `rosterFor(account)` is the roster every scoped route resolves against.
-  Changing stores is `manage:users` (owner).
+  under the id `register`. New stores get `s-<slug>` ids that never change on
+  rename. Archived, never deleted; the last open store can't be archived. Each
+  store's address, phone and TRN print on its own receipts. `rosterFor(account)`
+  is the roster every scoped route resolves against. Owner (`manage:users`).
 - **The first read of a business's store list writes it**, adopting every
   branch id it already has data under (`inv:<org>:moves:<id>` ledgers, members'
-  assigned branches) as a store with that same id, named "Branch N" until the
-  owner renames it. Without this, a business that ran on Loyverse would have
-  lost sight of its stock and its managers' scope the day the till went.
+  assigned branches) as a store with that id, named "Branch N".
+- `adoptStores(orgId, loyverseStores, { unused })` ties each Loyverse store to
+  one of ours (`pos` on the store): the store with the same id (a business back
+  from before — "Branch N" takes Loyverse's name), else the first store if it is
+  untied (takes the name if still the default), else a new store under
+  Loyverse's id. When every Loyverse store matched by id and the register never
+  sold (`unused`), an untouched first store is archived so a 1-branch allowance
+  unlocks the store with the sales. A different Loyverse account releases old
+  ties. Runs on connect and on every read.
+- Known limit: a business already selling on the register with a 1-branch
+  allowance and **two** Loyverse stores sees the second locked until a branch is
+  added to its plan.
 - `vercel.json`: `usb=(self)` in Permissions-Policy (it was `usb=()`, which
   disabled WebUSB receipt printers on the site entirely), and
   `/api/itemimage` is cacheable, overriding the `/api` no-store.
-- The `stockSource: "pos"` option (stock kept on the till) is gone with it.
-- History in the sections below still mentions the till where that is how
-  something came about; the code no longer has one.
+- Tests: `api/_loyverse.test.js` (31 cases, 58 mutations caught). Trying it locally:
+  run a stand-in on 127.0.0.1 and start the test server with
+  `LOYVERSE_API_BASE=http://127.0.0.1:<port>/v1.0`.
+
+## Network printers (LAN) from the website and the app
+- One print job (`{ id, kind, printer, sheet, drawer, copies }`) goes through
+  `src/print/PrinterService.js` → `PrintJobManager.js` (per-printer status,
+  dedupe by id, `retry` flag) → an adapter: `LanBridgeAdapter` (website →
+  queue → bridge), `NativePrintAdapter` (Capacitor), `WebDeviceAdapter`
+  (WebUSB / Serial / Web Bluetooth), `BrowserPrintAdapter` (the dialog).
+  Profiles (`src/print/profiles.js`) say what a model takes (port, raster,
+  cut, drawer, status); **none is `verified: true`** — no real printer has
+  been tested.
+- Safari cannot open a socket, so a website print goes **PureMargin → queue
+  (`api/_printqueue.js`, `api/print.js`) → print bridge → printer**. The
+  bridge (`public/bridge/print-bridge.mjs`, Node ≥ 18, on a computer in the
+  shop) only makes outbound requests; no printer port is exposed. Its token
+  is `B.<org>.<bridgeId>.<sig>`, per bridge, revocable. Targets are allowed
+  only on private IPv4, single-label or `.local` hosts, and only ones somebody
+  with settings rights registered.
+- Queue states queued → sending → printed | failed (`expired`, `unconfirmed`,
+  and the printer's own reasons). `JOB_TTL` 90 s, lease 60 s, bridge online
+  45 s, 3 MB cap. A job never printed twice under one id; the bridge also
+  remembers printed ids on disk.
+- The bridge asks the printer's status (DLE EOT) before and after: cover open
+  or out of paper → nothing sent / failed. Close semantics: a job fails as
+  `interrupted` only if the printer closed **before** the bridge hung up; a
+  reset that arrives while closing, after every byte was written and a 250 ms
+  settle, counts as sent (printers that RST on close would otherwise reprint).
+- `--wait <s>` (0–25, default 20) is how long a claim is held open. Held open,
+  a bridge keeps one serverless request running around the clock, which costs
+  on wall-time-billed plans; `--wait 0` polls every 3 s instead. `api/print.js`
+  has `maxDuration: 30` in `vercel.json`.
+- Kitchen tickets record `printedOn[printerKey][lineKey]` only on success; the
+  flat `printed` is the minimum over automatic kitchen printers that make the
+  line, so a failed station is retried alone (`src/register/KitchenRetry.jsx`).
+- On site (iCE IRP-200D at 192.168.8.19): `node print-bridge.mjs --probe
+  192.168.8.19` finds the port, `--test 192.168.8.19:9100` prints a test page.
+  From this Mac the address was unreachable (different subnet), so the
+  protocol and port are **not** confirmed. `scripts/fake-printer.mjs` is the
+  stand-in the tests and browser checks used.
+- Tests: `api/_print.test.js`, `src/print/print.test.mjs` (68 mutations).
+
+## Sales channels, low stock, offline
+- **Channels** (`api/_channels.js`, `shared/channelmath.js`, route
+  `api/channels.js`, screen `src/screens/Channels.jsx`): dated fee rules never
+  overwritten, per-channel prices, every register order records its channel,
+  the rule it was costed under and what it made. Register-only sales.
+- **Low stock** in the bell (`_movements.js`, `src/notices.js`): out, under the
+  reorder level, or under a fifth of the last delivery; one switch turns it off.
+- **Offline, back office** (`src/offline.js`, `public/sw.js`): each read is kept
+  as it arrives (on the device only for an installed app; memory in a tab;
+  wiped on sign-out) and shown with `OfflineBanner`. Changes are not queued.
+- **Offline, register** (`api/_tilloffline.js`, `src/register/api.js`): sales
+  queue per signed-in person and replay with the receipt the till printed; the
+  server prices them itself and records the till's figures only when it can't
+  reach the same total (`price_source: "till"`, `review`, audit-logged).
+  Points can't be spent offline. Tests: `api/_tilloffline.test.js`.
 
 ## Staff devices (register-only)
 - Register → More → "Use as a staff register" (`manage:staff` or owner) calls
