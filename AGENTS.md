@@ -367,6 +367,14 @@ they override the defaults).
 - `costedMarginPct` = margin on the costed dishes only; profit purity
   (`pureScore`) scores that, not the headline margin that counts uncosted
   dishes as free.
+- **Profit purity's bounds are gross-margin bounds**: nothing at 55% (food
+  cost 45%), full marks at 70% (food cost 30%, the food-cost card's and
+  `_alerts.js`'s default target). They were 12%/30% — net-margin numbers — so
+  every restaurant maxed the margin half and the ring sat at 83. With no
+  earlier period (`salesDelta` null) the score is margin alone and carries
+  `noTrend: true`; it is never handed a neutral half-trend. Always the last
+  30 days, whatever range the Overview cards show. Tests:
+  `api/_margin.test.js`.
 - **Periods are calendar days**: the 30 days are today and the 29 before it
   (the days the chart draws), the comparison the 30 before that. They were
   30×24h back from now, and "prior" was everything older in the window. Daily

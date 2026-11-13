@@ -4,11 +4,27 @@
    score and the same cards, so anything here can be checked against the
    receipts it came from. */
 
-/* A restaurant keeping 30% after cost of goods is doing well; 15% is thin.
-   The score blends how much is kept with whether trade is holding up,
-   because a healthy margin on collapsing sales isn't health. */
-const GOOD_MARGIN = 30;
-const THIN_MARGIN = 12;
+/* The margin scored here is GROSS margin: sales without VAT less the cost of
+   the food in them. For a restaurant that is normally 60–75% (food cost
+   25–40%), so these bounds are food-cost bounds read the other way round.
+
+   They used to be 12% and 30%, which are net-margin numbers. Every kitchen
+   above a 30% gross margin — nearly all of them — got full marks, and the
+   score sat at 83 whatever the menu cost.
+
+   GOOD_MARGIN 70 = food cost 30%, the target the food-cost card and the
+   default alert target (`_alerts.js`) already use. Full marks.
+   THIN_MARGIN 55 = food cost 45%, past the point most operators treat as a
+   problem. Nothing for margin.
+   Linear between, so 62.5% (food cost 37.5%) is half marks. */
+const GOOD_MARGIN = 70;
+const THIN_MARGIN = 55;
+
+/* The score blends how much is kept with whether trade is holding up,
+   because a healthy margin on collapsing sales isn't health. When there is
+   no earlier period to compare with, it is margin alone, and says so. */
+const MARGIN_WEIGHT = 0.65;
+const TREND_WEIGHT = 0.35;
 
 export function pureScore(m) {
   const coverage = m.costCoverage ?? 0;
@@ -25,20 +41,25 @@ export function pureScore(m) {
 
   const marginPart = Math.max(0, Math.min(1, (margin - THIN_MARGIN) / (GOOD_MARGIN - THIN_MARGIN)));
 
-  /* Trend: flat is neutral, growth adds, decline subtracts. Capped so one
-     freak week can't dominate the score in either direction. */
+  /* No earlier period (a business in its first month, or one that sold
+     nothing in the 30 days before) is not flat trade. Scoring it as a
+     neutral half used to hand every new business the same 17.5 points, so
+     the score is margin alone and `noTrend` lets the screen say why. */
   const delta = m.totals.salesDelta;
-  const trendPart =
-    delta === null || delta === undefined
-      ? 0.5
-      : Math.max(0, Math.min(1, 0.5 + delta / 40));
+  const noTrend = typeof delta !== "number" || !Number.isFinite(delta);
 
-  const value = Math.round((marginPart * 0.65 + trendPart * 0.35) * 100);
+  /* Trend: flat is neutral, growth adds, decline subtracts. Capped at ±20%
+     so one freak week can't dominate the score in either direction. */
+  const trendPart = noTrend ? null : Math.max(0, Math.min(1, 0.5 + delta / 40));
+
+  const value = noTrend
+    ? Math.round(marginPart * 100)
+    : Math.round((marginPart * MARGIN_WEIGHT + trendPart * TREND_WEIGHT) * 100);
 
   const state =
     value >= 75 ? "strong" : value >= 50 ? "steady" : value >= 30 ? "watch" : "weak";
 
-  return { value, state, coverage, margin, marginPart, trendPart };
+  return { value, state, coverage, margin, marginPart, trendPart, noTrend };
 }
 
 /* The single item contributing most actual profit — not most revenue.

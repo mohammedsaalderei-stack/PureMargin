@@ -679,7 +679,13 @@ function ScoreRing({ score }) {
         </div>
       </div>
       <div className="micro mt-4" style={{ color: C.slate }}>{t.overview.scoreLabel}</div>
+      {/* Always the server's last 30 days, whatever range the cards above
+          are showing — said, so Today's figures aren't read into it. */}
+      <div className="text-[11px] mt-0.5" style={{ color: C.slate, opacity: 0.8 }}>{t.overview.scorePeriod}</div>
       <div className="text-xs mt-1 leading-relaxed" style={{ color: C.slate }}>{caption}</div>
+      {score?.value !== null && score?.noTrend && (
+        <div className="text-[11px] mt-1 leading-relaxed" style={{ color: C.slate, opacity: 0.8 }}>{t.overview.scoreNoTrend}</div>
+      )}
     </div>
   );
 }
