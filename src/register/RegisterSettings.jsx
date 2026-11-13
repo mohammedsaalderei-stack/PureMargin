@@ -6,12 +6,17 @@
    to somebody allowed to change it. */
 
 import { useEffect, useState } from "react";
-import { Printer, CreditCard, Percent, ReceiptText, SlidersHorizontal, Package, KeyRound, ChevronRight, Plus, Trash2, Radar, Check, ImagePlus } from "lucide-react";
+import { Printer, CreditCard, Percent, ReceiptText, SlidersHorizontal, Package, KeyRound, ChevronRight, Plus, Trash2, Radar, Check, ImagePlus, Server } from "lucide-react";
 import { useC } from "../theme.jsx";
 import { useLang, fill } from "../i18n.jsx";
 import { Btn, Sheet, Field, Seg, Toggle, money } from "./ui.jsx";
 import { call, RegisterError } from "./api.js";
-import { loadPrinters, savePrinters, newPrinter, connectionsAvailable, discover, discoverBluetooth, pickBluetoothAccessory, pairDevice, testPrint } from "../print/printers.js";
+import {
+  loadPrinters, savePrinters, newPrinter, connectionsAvailable, discover, discoverBluetooth, pickBluetoothAccessory, pairDevice, testPrint,
+  capabilitiesOf, prepare, checkPrinter, printerStatus, printBridge, usesBridge, PROFILES, profileOf,
+} from "../print/printers.js";
+import PrintBridge from "./PrintBridge.jsx";
+import { printReason } from "./printText.js";
 import { isNativePlatform } from "../platform.js";
 import { shrinkImage, pictureSrc } from "./itemImage.js";
 
@@ -78,50 +83,133 @@ function useSave(token, P) {
 
 function Printers({ P, catalogue, printCtx, onClose }) {
   const C = useC();
+  const S = P.settings.printers;
   const [list, setList] = useState(loadPrinters());
   const [editing, setEditing] = useState(null);
-  const save = (next) => { setList(savePrinters(next)); };
+  const [error, setError] = useState("");
+  const [bridgeOpen, setBridgeOpen] = useState(false);
+  /* Saved, or said not to be: a list that did not reach this device's
+     storage is not shown as if it had. */
+  const save = (next) => {
+    const out = savePrinters(next);
+    setList(out.list);
+    setError(out.ok ? "" : S.saveFailed);
+    return out.ok;
+  };
+  const bridged = usesBridge();
   return (
-    <Sheet title={P.settings.printers.title} onClose={onClose} wide
-      footer={<Btn full onClick={() => setEditing(newPrinter())}><Plus size={16} />{P.settings.printers.add}</Btn>}>
-      <p className="text-sm mb-3" style={{ color: C.slate }}>{P.settings.printers.device}</p>
-      {!list.length && <p className="text-sm py-4" style={{ color: C.slate }}>{P.settings.printers.none}</p>}
-      {list.map((p) => (
-        <button key={p.id} onClick={() => setEditing(p)} className="w-full flex items-center justify-between gap-3 px-4 py-3.5 rounded-2xl mb-2 text-start" style={{ background: "var(--chip-bg)" }}>
-          <span className="min-w-0">
-            <span className="block text-sm font-bold truncate">{p.name || P.settings.printers.unnamed}</span>
-            <span className="block text-xs" style={{ color: C.slate }}>{P.settings.printers.roles[p.role]} · {P.settings.printers.connections[p.connection]}{p.host ? ` · ${p.host}` : ""}{p.btName ? ` · ${p.btName}` : ""} · {p.paper} mm</span>
-          </span>
+    <Sheet title={S.title} onClose={onClose} wide
+      footer={<Btn full onClick={() => setEditing(newPrinter())}><Plus size={16} />{S.add}</Btn>}>
+      <p className="text-sm mb-3" style={{ color: C.slate }}>{S.device}</p>
+      {error && <p className="text-sm mb-3 font-semibold" style={{ color: C.rose }}>{error}</p>}
+      {!list.length && <p className="text-sm py-4" style={{ color: C.slate }}>{S.none}</p>}
+      {list.map((p) => {
+        const last = printerStatus(p.id);
+        return (
+          <button key={p.id} onClick={() => setEditing(p)} className="w-full flex items-center justify-between gap-3 px-4 py-3.5 rounded-2xl mb-2 text-start" style={{ background: "var(--chip-bg)" }}>
+            <span className="min-w-0">
+              <span className="block text-sm font-bold truncate">{p.name || S.unnamed}</span>
+              <span className="block text-xs" style={{ color: C.slate }}>{S.roles[p.role]} · {S.connections[p.connection]}{p.host ? ` · ${p.host}:${p.port}` : ""}{p.btName ? ` · ${p.btName}` : ""} · {p.paper} mm</span>
+              {last?.state === "error" && <span className="block text-xs font-semibold mt-0.5" style={{ color: C.rose }}>{fill(S.lastFailed, { reason: printReason(P, last.error) })}</span>}
+            </span>
+            <ChevronRight size={16} className="flip-rtl shrink-0" style={{ color: C.slate }} />
+          </button>
+        );
+      })}
+      {bridged && (
+        <button onClick={() => setBridgeOpen(true)} className="w-full flex items-center justify-between gap-3 px-4 py-3.5 rounded-2xl mt-3 text-start" style={{ border: `1px solid ${C.hairline}` }}>
+          <span className="flex items-center gap-2.5 text-sm font-bold"><Server size={16} />{S.bridge.title}</span>
           <ChevronRight size={16} className="flip-rtl" style={{ color: C.slate }} />
         </button>
-      ))}
+      )}
+      {bridgeOpen && <PrintBridge P={P} onClose={() => setBridgeOpen(false)} />}
       {editing && (
         <PrinterForm P={P} printer={editing} categories={[...new Set((catalogue.items || []).map((i) => i.category).filter(Boolean))]} printCtx={printCtx}
           onClose={() => setEditing(null)}
-          onRemove={() => { save(list.filter((x) => x.id !== editing.id)); setEditing(null); }}
-          onSave={(p) => { save(list.some((x) => x.id === p.id) ? list.map((x) => (x.id === p.id ? p : x)) : [...list, p]); setEditing(null); }} />
+          onRemove={() => { if (save(list.filter((x) => x.id !== editing.id))) setEditing(null); }}
+          onSave={(p) => {
+            const ok = save(list.some((x) => x.id === p.id) ? list.map((x) => (x.id === p.id ? p : x)) : [...list, p]);
+            if (ok) setEditing(null);
+            return ok;
+          }} />
       )}
     </Sheet>
   );
 }
 
+/* One printer. The form offers what the printer, on this connection, on this
+   device, can actually do — a drawer switch where a drawer can be opened, a
+   cut switch where there is a cutter — rather than every switch for every
+   printer and a silent no at print time. */
 function PrinterForm({ P, printer, categories, printCtx, onClose, onSave, onRemove }) {
   const C = useC();
   const S = P.settings.printers;
   const [p, setP] = useState(printer);
   const [found, setFound] = useState(null);
-  const [status, setStatus] = useState("");
+  const [status, setStatus] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [bridge, setBridge] = useState(null);
+  const [bridgeOpen, setBridgeOpen] = useState(false);
   const avail = connectionsAvailable();
   const conns = Object.keys(avail).filter((k) => avail[k]);
-  const set = (patch) => setP((x) => ({ ...x, ...patch }));
-  const test = async () => {
-    setStatus(S.testing);
-    try { await testPrint(p, printCtx); setStatus(S.testOk); }
-    catch (err) { setStatus(fill(S.testFailed, { error: String(err?.message || err) })); }
+  const caps = capabilitiesOf(p);
+  const profile = profileOf(p);
+  const bridged = p.connection === "network" && usesBridge();
+  const set = (patch) => { setP((x) => ({ ...x, ...patch })); setStatus(null); };
+  const say = (text, bad = false) => setStatus({ text, bad });
+
+  /* Whether the bridge is answering, which is the first thing that decides
+     whether a network printer will print from a browser. */
+  useEffect(() => {
+    if (!bridged) return undefined;
+    let live = true;
+    const load = () => printBridge.setup().then((x) => { if (live) setBridge(x); }).catch(() => { if (live) setBridge({ bridges: [], failed: true }); });
+    load();
+    const id = setInterval(load, 5000);
+    return () => { live = false; clearInterval(id); };
+  }, [bridged, bridgeOpen]);
+  const bridgeLine = !bridge ? "" : !bridge.bridges?.length ? S.bridge.lineNone : bridge.bridges.some((b) => b.online) ? S.bridge.lineOnline : S.bridge.lineOffline;
+  const bridgeUp = Boolean(bridge?.bridges?.some((b) => b.online));
+
+  /* A network printer on the website has to be known to the print queue
+     before anything can be sent to it. */
+  const ready = async () => {
+    if (!caps.needsRegistering) return true;
+    if (!p.host) { say(S.hostNeeded, true); return false; }
+    const out = await prepare(p);
+    if (!out.ok) { say(printReason(P, out.error), true); return false; }
+    return true;
   };
+  const act = async (fn) => { setBusy(true); try { await fn(); } finally { setBusy(false); } };
+  const check = () => act(async () => {
+    say(S.checking);
+    if (!(await ready())) return;
+    const out = await checkPrinter(p);
+    if (!out.ok) { say(fill(S.checkFailed, { reason: printReason(P, out.error) }), true); return; }
+    say(out.printer?.answered
+      ? fill(S.checkOk, { paper: S.paperStates[out.printer.paper] || out.printer.paper, cover: S.coverStates[out.printer.cover] || out.printer.cover })
+      : S.checkSilent, out.printer?.answered && (out.printer.paper === "out" || out.printer.cover === "open"));
+  });
+  const test = () => act(async () => {
+    say(S.testing);
+    if (!(await ready())) return;
+    const out = await testPrint(p, printCtx);
+    if (!out.ok) { say(fill(S.testFailed, { error: printReason(P, out.error) }), true); return; }
+    say(out.state === "printed" ? S.testPrinted : out.state === "dialog" ? S.testDialog : S.testSent);
+  });
+  const save = () => act(async () => {
+    if (caps.needsRegistering && p.host && !(await ready())) return;
+    if (!onSave(p)) say(S.saveFailed, true);
+  });
+
   return (
     <Sheet title={printer.name || S.add} onClose={onClose}
-      footer={<div className="flex gap-2"><Btn kind="danger" onClick={onRemove}><Trash2 size={16} /></Btn><Btn kind="ghost" onClick={test}>{S.test}</Btn><Btn full onClick={() => onSave(p)}>{P.common.save}</Btn></div>}>
+      footer={<div className="flex gap-2">
+        <Btn kind="danger" onClick={onRemove} disabled={busy}><Trash2 size={16} /></Btn>
+        {caps.canProbe && <Btn kind="ghost" onClick={check} disabled={busy}>{S.check}</Btn>}
+        <Btn kind="ghost" onClick={test} disabled={busy}>{S.test}</Btn>
+        <Btn full onClick={save} disabled={busy}>{P.common.save}</Btn>
+      </div>}>
       <Field label={S.name} value={p.name} onChange={(v) => set({ name: v })} placeholder={S.nameHint} />
       <span className="block text-xs font-semibold mb-1.5" style={{ color: C.slate }}>{S.role}</span>
       <div className="mb-3"><Seg options={[{ value: "receipt", label: S.roles.receipt }, { value: "kitchen", label: S.roles.kitchen }]} value={p.role} onChange={(v) => set({ role: v })} /></div>
@@ -135,11 +223,24 @@ function PrinterForm({ P, printer, categories, printCtx, onClose, onSave, onRemo
       <p className="text-xs mb-3" style={{ color: C.slate }}>{S.connectionHelp[p.connection]}</p>
       {p.connection === "network" && (
         <>
-          <Btn kind="ghost" full className="mb-3" onClick={async () => { setFound([]); setFound(await discover()); }}><Radar size={16} />{S.find}</Btn>
-          {found && (found.length ? found.map((f) => (
-            <button key={f.service} onClick={() => set({ service: f.service, host: "", name: p.name || f.name })} className="w-full flex items-center justify-between px-4 py-3 rounded-2xl mb-2 text-sm font-semibold"
-              style={{ background: p.service === f.service ? C.irisWash : "var(--chip-bg)" }}>{f.name}{p.service === f.service && <Check size={15} />}</button>
-          )) : <p className="text-xs mb-3" style={{ color: C.slate }}>{S.findNone}</p>)}
+          {bridged && (
+            <button onClick={() => setBridgeOpen(true)} className="w-full flex items-center justify-between gap-3 px-4 py-3 rounded-2xl mb-3 text-start" style={{ background: "var(--chip-bg)" }}>
+              <span className="flex items-center gap-2 text-sm font-semibold" style={{ color: bridgeUp ? C.mint : bridge ? C.amber : C.slate }}>
+                <span className="w-2 h-2 rounded-full" style={{ background: bridgeUp ? C.mint : bridge ? C.amber : C.slate }} />
+                {bridgeLine || S.bridge.title}
+              </span>
+              <span className="text-xs font-bold underline" style={{ color: C.ink }}>{S.bridge.setup}</span>
+            </button>
+          )}
+          {!bridged && (
+            <>
+              <Btn kind="ghost" full className="mb-3" onClick={async () => { setFound([]); setFound(await discover()); }}><Radar size={16} />{S.find}</Btn>
+              {found && (found.length ? found.map((f) => (
+                <button key={f.service} onClick={() => set({ service: f.service, host: "", name: p.name || f.name })} className="w-full flex items-center justify-between px-4 py-3 rounded-2xl mb-2 text-sm font-semibold"
+                  style={{ background: p.service === f.service ? C.irisWash : "var(--chip-bg)" }}>{f.name}{p.service === f.service && <Check size={15} />}</button>
+              )) : <p className="text-xs mb-3" style={{ color: C.slate }}>{S.findNone}</p>)}
+            </>
+          )}
           <Field label={S.host} value={p.host} onChange={(v) => set({ host: v.trim(), service: "" })} placeholder="192.168.1.50" inputMode="decimal" dir="ltr" />
           <Field label={S.port} value={String(p.port)} onChange={(v) => set({ port: Number(v) || 9100 })} inputMode="numeric" dir="ltr" />
         </>
@@ -148,7 +249,7 @@ function PrinterForm({ P, printer, categories, printCtx, onClose, onSave, onRemo
         <>
           <Btn kind="ghost" full className="mb-2" onClick={async () => {
             setFound([]);
-            try { setFound(await discoverBluetooth()); } catch (err) { setFound([]); setStatus(fill(S.btFailed, { error: String(err?.message || err) })); }
+            try { setFound(await discoverBluetooth()); } catch (err) { setFound([]); say(fill(S.btFailed, { error: String(err?.message || err) }), true); }
           }}><Radar size={16} />{S.btFind}</Btn>
           <button className="w-full text-xs font-semibold mb-3 underline" style={{ color: C.slate }}
             onClick={async () => { try { const list = await pickBluetoothAccessory(); if (list.length) setFound(list); } catch { /* cancelled */ } }}>{S.btPairMfi}</button>
@@ -163,22 +264,33 @@ function PrinterForm({ P, printer, categories, printCtx, onClose, onSave, onRemo
           {p.btId && !found && <p className="text-xs mb-3" style={{ color: C.slate }}>{fill(S.btChosen, { name: p.btName || p.btId })}</p>}
         </>
       )}
-      {p.connection === "bluetooth" && !isNativePlatform() && (
-        <Btn kind="ghost" full className="mb-3" onClick={async () => { try { setP(await pairDevice(p)); setStatus(S.paired); } catch { setStatus(S.pairFailed); } }}>{S.pair}</Btn>
+      {((p.connection === "bluetooth" && !isNativePlatform()) || p.connection === "usb" || p.connection === "serial") && (
+        <Btn kind="ghost" full className="mb-3" onClick={async () => { try { setP(await pairDevice(p)); say(S.paired); } catch { say(S.pairFailed, true); } }}>{S.pair}</Btn>
       )}
-      {(p.connection === "usb" || p.connection === "serial") && (
-        <Btn kind="ghost" full className="mb-3" onClick={async () => { try { setP(await pairDevice(p)); setStatus(S.paired); } catch { setStatus(S.pairFailed); } }}>{S.pair}</Btn>
+      {caps.raw && (
+        <>
+          <span className="block text-xs font-semibold mb-1.5" style={{ color: C.slate }}>{S.model}</span>
+          <div className="flex flex-wrap gap-2 mb-2">
+            {PROFILES.map((m) => (
+              <button key={m.id} onClick={() => set({ profile: m.id })} className="px-3 py-2 rounded-xl text-sm font-semibold"
+                style={{ background: profile.id === m.id ? C.ink : "var(--chip-bg)", color: profile.id === m.id ? C.surface : C.ink }}>{S.models[m.id] || m.name}</button>
+            ))}
+          </div>
+          <p className="text-xs mb-3" style={{ color: C.slate }}>
+            {profile.note ? `${S.modelNotes[profile.note]} ` : ""}{!profile.verified && S.modelUnverified}
+          </p>
+        </>
       )}
       <span className="block text-xs font-semibold mb-1.5" style={{ color: C.slate }}>{S.paper}</span>
       <div className="mb-3"><Seg options={[{ value: 80, label: "80 mm" }, { value: 58, label: "58 mm" }]} value={p.paper} onChange={(v) => set({ paper: v })} /></div>
-      {p.role === "receipt" ? (
+      <Toggle label={p.role === "receipt" ? S.autoPrint : S.autoPrintKitchen} value={p.autoPrint !== false} onChange={(v) => set({ autoPrint: v })} />
+      {caps.cut && <Toggle label={S.cut} value={p.cut !== false} onChange={(v) => set({ cut: v })} />}
+      {p.role === "receipt" && (caps.drawer
+        ? <Toggle label={S.drawer} hint={S.drawerHint} value={p.drawer !== false} onChange={(v) => set({ drawer: v })} />
+        : <p className="text-xs mb-3" style={{ color: C.slate }}>{S.drawerUnavailable}</p>)}
+      {p.role === "kitchen" && (
         <>
-          <Toggle label={S.autoPrint} value={p.autoPrint} onChange={(v) => set({ autoPrint: v })} />
-          <Toggle label={S.drawer} hint={S.drawerHint} value={p.drawer} onChange={(v) => set({ drawer: v })} />
-        </>
-      ) : (
-        <>
-          <span className="block text-xs font-semibold mb-1.5" style={{ color: C.slate }}>{S.categories}</span>
+          <span className="block text-xs font-semibold mb-1.5 mt-2" style={{ color: C.slate }}>{S.categories}</span>
           <div className="flex flex-wrap gap-2 mb-2">
             {categories.map((c) => {
               const on = p.categories.includes(c);
@@ -189,7 +301,8 @@ function PrinterForm({ P, printer, categories, printCtx, onClose, onSave, onRemo
           <p className="text-xs mb-2" style={{ color: C.slate }}>{S.categoriesHint}</p>
         </>
       )}
-      {status && <p className="text-sm mt-2 font-semibold" style={{ color: C.iris }}>{status}</p>}
+      {status && <p className="text-sm mt-2 font-semibold" role="status" style={{ color: status.bad ? C.rose : C.iris }}>{status.text}</p>}
+      {bridgeOpen && <PrintBridge P={P} onClose={() => setBridgeOpen(false)} />}
     </Sheet>
   );
 }

@@ -34,7 +34,14 @@ export function lineName(item, line, P) {
 }
 
 export function emptyOrder(orderType = "takeaway") {
-  return { orderType, table: "", ticketName: "", customerId: "", discount: null, note: "", lines: [], ticketId: null, printed: {} };
+  return { orderType, channelId: "", table: "", ticketName: "", customerId: "", discount: null, note: "", lines: [], ticketId: null, printed: {} };
+}
+
+/* The sales channel an order is on — the counter when it names none — as the
+   pricing code wants it: its id, its name and the prices it lists. */
+export function channelOf(order, catalogue) {
+  const c = (catalogue.channels || []).find((x) => x.id === order.channelId);
+  return c ? { id: c.id, name: c.name, prices: c.prices || {} } : null;
 }
 
 /* What the order comes to, priced exactly as the server will price it. */
@@ -43,6 +50,7 @@ export function priceOrder(order, catalogue) {
   const firstType = catalogue.paymentTypes?.[0]?.id || "cash";
   const out = buildSale({ ...order, payments: [{ type: firstType }] }, {
     catalogue: catalogue.items,
+    channel: channelOf(order, catalogue),
     vatPct: catalogue.vatPct,
     vatMode: catalogue.vatMode,
     paymentTypes: catalogue.paymentTypes,
@@ -84,6 +92,20 @@ export default function Sell({ token, catalogue, order, setOrder, branchId, wide
     });
   };
   const sellable = (item) => (item.variants || []).filter((v) => v.price > 0);
+  /* Where this order came from. Only the channels that run at this branch,
+     and only offered when there is more than the counter to choose from. */
+  const channels = useMemo(() => (catalogue.channels || []).filter((c) => !c.branches?.length || c.branches.includes(branchId)), [catalogue.channels, branchId]);
+  const channel = channels.find((c) => c.id === order.channelId) || null;
+  /* What a tile or a size costs on the chosen channel: its own listed price
+     there, or the counter's. */
+  const priceOn = (item, variant = null) => {
+    const listedThere = Number(channel?.prices?.[variant ? `${item.id}::${variant.id}` : item.id]);
+    return listedThere > 0 ? listedThere : variant ? variant.price : item.price;
+  };
+  const tilePrice = (item) => {
+    const sizes = sellable(item);
+    return sizes.length ? Math.min(...sizes.map((v) => priceOn(item, v))) : priceOn(item);
+  };
   /* An item with sizes or add-ons asks which; a scanned variant's barcode
      says already. */
   const tap = (item, variantId = "") => {
@@ -162,6 +184,9 @@ export default function Sell({ token, catalogue, order, setOrder, branchId, wide
                     strip along the top, as before. */}
                 {item.image ? (
                   <img src={pictureSrc(item.image)} alt="" loading="lazy" decoding="async"
+                    /* With no connection and no saved copy, no picture is
+                       better than a broken one. */
+                    onError={(e) => { e.currentTarget.style.display = "none"; }}
                     className="w-full aspect-[4/3] object-cover" style={{ background: "var(--chip-bg)" }} />
                 ) : (
                   <span className="absolute top-0 inset-x-0 h-1" style={{ background: item.color || "transparent" }} />
@@ -171,7 +196,7 @@ export default function Sell({ token, catalogue, order, setOrder, branchId, wide
                 <span className="flex items-center justify-between gap-1 mt-2">
                   <span className="data text-sm font-bold" dir="ltr" style={{ color: item.priced ? C.iris : C.slate }}>
                     {item.priced
-                      ? (sellable(item).length > 1 ? fill(P.variants.from, { price: money(item.price) }) : money(item.price))
+                      ? (sellable(item).length > 1 ? fill(P.variants.from, { price: money(tilePrice(item)) }) : money(tilePrice(item)))
                       : (can.manageItems ? P.sell.setPrice : P.sell.noPrice)}
                   </span>
                   {(item.addons?.length > 0 || sellable(item).length > 1) && <Plus size={13} style={{ color: C.slate }} />}
@@ -198,6 +223,22 @@ export default function Sell({ token, catalogue, order, setOrder, branchId, wide
     <div className={`${wide ? "h-full" : "flex-1"} flex flex-col min-h-0`}>
       <div className="px-4 pt-3 space-y-2.5 shrink-0">
         <div className="overflow-x-auto no-scrollbar"><Seg options={orderTypes} value={order.orderType} onChange={(v) => setOrder((o) => ({ ...o, orderType: v }))} /></div>
+        {/* The channel the order came through. It sets the prices charged and
+            what the sale is costed against, so it is chosen, not guessed. */}
+        {channels.length > 1 && (
+          <div className="flex gap-1.5 overflow-x-auto no-scrollbar" role="radiogroup" aria-label={t.ch.register.channel}>
+            {channels.map((c) => {
+              const on = (order.channelId || "in-store") === c.id;
+              return (
+                <button key={c.id} role="radio" aria-checked={on} onClick={() => setOrder((o) => ({ ...o, channelId: c.id === "in-store" ? "" : c.id }))}
+                  className="shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold"
+                  style={{ background: on ? C.ink : "var(--chip-bg)", color: on ? C.surface : C.slate }}>
+                  {c.id === "in-store" ? t.ch.list.presets.in_store : c.name}
+                </button>
+              );
+            })}
+          </div>
+        )}
         <div className="flex gap-2">
           {order.orderType === "dine_in" && (
             <input value={order.table} onChange={(e) => setOrder((o) => ({ ...o, table: e.target.value.slice(0, 10) }))}
@@ -312,7 +353,7 @@ export default function Sell({ token, catalogue, order, setOrder, branchId, wide
       {picking && (
         <Sheet title={picking.item.name} onClose={() => setPicking(null)}
           footer={<Btn full size="lg" onClick={() => { add(picking.item, picking.chosen, picking.qty, picking.variantId); setPicking(null); }}>
-            {P.sell.add} <span className="data" dir="ltr">{money(((sellable(picking.item).find((v) => v.id === picking.variantId)?.price ?? picking.item.price) + picking.chosen.reduce((s, id) => s + (picking.item.addons.find((a) => a.id === id)?.price || 0), 0)) * picking.qty)}</span>
+            {P.sell.add} <span className="data" dir="ltr">{money((priceOn(picking.item, sellable(picking.item).find((v) => v.id === picking.variantId) || null) + picking.chosen.reduce((s, id) => s + (picking.item.addons.find((a) => a.id === id)?.price || 0), 0)) * picking.qty)}</span>
           </Btn>}>
           {sellable(picking.item).length > 1 && (
             <div className="mb-4">
@@ -325,7 +366,7 @@ export default function Sell({ token, catalogue, order, setOrder, branchId, wide
                       className="min-w-0 flex flex-col items-start px-3.5 py-3 rounded-2xl text-start"
                       style={{ background: on ? C.irisWash : "var(--chip-bg)", color: on ? C.iris : C.ink, border: `1.5px solid ${on ? C.iris : "transparent"}` }}>
                       <span className="text-sm font-bold truncate max-w-full">{v.name || P.variants.regular}</span>
-                      <span className="data text-xs font-semibold" dir="ltr">{money(v.price)}</span>
+                      <span className="data text-xs font-semibold" dir="ltr">{money(priceOn(picking.item, v))}</span>
                     </button>
                   );
                 })}

@@ -41,7 +41,9 @@ export function issueToken(username, version = 0) {
    ends the device too. A year, because a till on a counter should not ask
    for the owner's password every week. */
 const DEVICE_DAYS = 365;
-export const REGISTER_ONLY_ROUTES = ["till"];
+/* `print` is the till's way to a network printer from a browser: a staff
+   device has to be able to print what it sells. */
+export const REGISTER_ONLY_ROUTES = ["till", "print"];
 
 export function issueDeviceToken(username, version = 0) {
   const expires = Date.now() + DEVICE_DAYS * 864e5;

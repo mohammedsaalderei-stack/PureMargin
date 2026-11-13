@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   BarChart3, LineChart, MessageSquare, Settings as Cog, UtensilsCrossed, Users,
   Search, Lightbulb, PanelRightClose, PanelRightOpen, LogOut, Lock, Wallet,
-  LayoutDashboard, Download, FileText, Table, ChevronDown, Package, ChefHat, Scale, BellRing, ShoppingCart, Calculator, Receipt, MessagesSquare, Store,} from "lucide-react";
+  LayoutDashboard, Download, FileText, Table, ChevronDown, Package, ChefHat, Scale, BellRing, ShoppingCart, Calculator, Receipt, MessagesSquare, Store, Bike,} from "lucide-react";
 import { useC } from "./theme.jsx";
 import BrandMark from "./BrandMark.jsx";
 import { useLang, fill } from "./i18n.jsx";
@@ -23,6 +23,7 @@ import Forecast from "./screens/Forecast.jsx";
 import Settings from "./screens/Settings.jsx";
 import Team from "./screens/Team.jsx";
 import Messages from "./screens/Messages.jsx";
+import { rememberScope, rememberedScope } from "./session.js";
 import Inventory from "./screens/Inventory.jsx";
 import Recipes from "./screens/Recipes.jsx";
 import Variance from "./screens/Variance.jsx";
@@ -39,6 +40,9 @@ import LanguagePicker from "./LanguagePicker.jsx";
 import ThemeToggle from "./ThemeToggle.jsx";
 import Skeleton from "./Skeleton.jsx";
 import EmptyTable from "./EmptyTable.jsx";
+import Channels from "./screens/Channels.jsx";
+import OfflineBanner, { useOffline } from "./OfflineBanner.jsx";
+import TillBanner from "./TillBanner.jsx";
 import { useAppFrame } from "./appFrame.js";
 import LiveDot from "./LiveDot.jsx";
 import { PortalSwitcher, SectionTabs, BottomBar, MoreSheet, AccountMenu } from "./AppChrome.jsx";
@@ -129,6 +133,8 @@ const SALES_TAB = { id: "sales", icon: Receipt };
 /* PureMargin's own register. Second in the nav: for a cashier it is the job,
    and for an owner it sits beside the figures it feeds. */
 const TILL_TAB = { id: "till", icon: Store };
+/* Sales channels: the counter, the delivery apps, and what each one keeps. */
+const CHANNELS_TAB = { id: "channels", icon: Bike };
 
 /* Every tab there is, in the order the nav shows them.
 
@@ -153,7 +159,7 @@ const TILL_TAB = { id: "till", icon: Store };
 const ALL_TABS = (() => {
   const byId = Object.fromEntries(TAB_META.map((tb) => [tb.id, tb]));
   return [
-    byId.overview, TILL_TAB, SALES_TAB, byId.costs, byId.ask,
+    byId.overview, TILL_TAB, SALES_TAB, byId.costs, byId.ask, CHANNELS_TAB,
     INVENTORY_TAB, ALERTS_TAB, PLAN_TAB, RECIPES_TAB, VARIANCE_TAB, EMPLOYEES_TAB,
     byId.watch, byId.menu, byId.forecast, byId.advice,
     MESSAGES_TAB, TEAM_TAB,
@@ -207,6 +213,7 @@ function ExportMenu({ data, screen, dateRange, business, onClose }) {
 /* Overview ranges worked out on the server rather than sliced from the
    30 days every screen loads. */
 const LONG_PERIODS = { quarter: "90", year: "365", all: "all" };
+const STOCK_POLL_MS = 5 * 60 * 1000;
 
 export default function Shell({ token, user, onLogout, onSession, justRegistered = false }) {
   const C = useC();
@@ -231,6 +238,7 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
   const [direction, setDirection] = useState(1);
   const [data, setData] = useState(null);
   const [staff, setStaff] = useState([]);
+  const [lowStock, setLowStock] = useState([]);
   /* Dismissed as soon as it is answered, so the picker does not reappear
      while the fresh scope is still in flight. */
   const [typeAnswered, setTypeAnswered] = useState(false);
@@ -240,6 +248,8 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
   const [refreshing, setRefreshing] = useState(false);
   useAppFrame();
   const [noSales, setNoSales] = useState(false);
+  /* The connected Loyverse, as the last metrics read found it (null: none). */
+  const [till, setTill] = useState(null);
   const [mobileMenu, setMobileMenu] = useState(false);
   const [fetchedAt, setFetchedAt] = useState(null);
   const [exportOpen, setExportOpen] = useState(false);
@@ -247,7 +257,7 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
   /* The user's authorization scope, from the server. `branches` is what the
      interface is asking for; empty means every branch they're allowed to see,
      the same convention the API uses. */
-  const [scope, setScope] = useState(null);
+  const [scope, setScope] = useState(() => rememberedScope(user));
 
   /* What this person may open.
 
@@ -258,7 +268,12 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
      a screen the other refuses to feed is the one people report as a bug.
 
      Until scope arrives, nothing but the tabs that need no permission — a
-     brief empty nav is better than one that offers a tab and withdraws it. */
+     brief empty nav is better than one that offers a tab and withdraws it.
+
+     The one exception is the server's own last answer for this person, kept
+     with the sign-in (`rememberedScope`): it is what the nav opens on, so
+     that with no connection the register and the saved screens can still be
+     reached, and it is replaced the moment the server answers again. */
   /* Tabs that need no permission at all — the assistant answers within
      whatever scope a person already has, the board is how the team reaches
      each other, and settings is their own account.
@@ -386,19 +401,9 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
       const json = await res.json();
       if (res.status === 402) return;
       /* 409: the register has not rung anything up yet. */
-      if (res.status === 409) { setNoSales(true); return; }
+      if (res.status === 409) { setNoSales(true); setTill(json.pos || null); return; }
       if (!res.ok) throw new Error(json.error || t.watch.failedTitle);
-      setNoSales(false); setData(json); setFetchedAt(Date.now());
-
-      /* Bring the ledger up to date with the sales just read.
-
-         Fired here rather than on a timer, so it runs while somebody is
-         looking at the numbers and never in the background against an account
-         nobody is using. Idempotent by receipt id, so a refresh a minute later
-         does nothing the second time. Deliberately not awaited — the dashboard
-         should not wait on the ledger, and a failure here must not blank a
-         screen that has already loaded. */
-      depleteFromSales(token, scope?.branches);
+      setNoSales(false); setTill(json.pos || null); setData(json); setFetchedAt(Date.now());
     } catch (err) { if (!quiet) setError(err.message || t.watch.failedTitle); }
     finally { setRefreshing(false); }
   }
@@ -447,8 +452,14 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
     try {
       const res = await fetch("/api/scope", { headers: { Authorization: `Bearer ${token}` } });
       if (!res.ok) return;
-      setScope(await res.json());
-    } catch { /* the dashboard still works; it just won't offer a selector */ }
+      const json = await res.json();
+      setScope(json);
+      /* Remembered on the device, so that with no connection the app still
+         knows which screens this person has — above all the register, which
+         must open offline. The server decides again the moment it can be
+         asked, and enforces it on every request regardless. */
+      rememberScope(user, json);
+    } catch { /* no connection: what was remembered stands */ }
   }
   async function loadAccount() {
     try {
@@ -516,6 +527,65 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
   useEffect(() => { loadStaff(); // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scope?.capabilities]);
 
+  /* Back on a connection after working from what was saved: read it all
+     again now rather than at the next tick. */
+  const { offline } = useOffline();
+  const wasOffline = useRef(false);
+  useEffect(() => {
+    if (wasOffline.current && !offline) { load({ quiet: true }); loadScope(); loadAccount(); }
+    wasOffline.current = offline;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [offline]);
+
+  /* What is running low on the shelf, for the bell.
+
+     Fetched here for the same reason arrivals are: a warning that the chicken
+     has run out is for somebody looking at something else. Only for people
+     who keep the stock and a business whose plan includes it; read when the
+     app opens and every few minutes while it is on screen. */
+  /* Bring the ledger up to date with the sales just read.
+
+     After each read of the sales rather than on a timer, so it runs while
+     somebody is looking at the numbers and never in the background against
+     an account nobody is using. Idempotent by receipt id, so a refresh a
+     minute later does nothing the second time. Not awaited — the dashboard
+     should not wait on the ledger, and a failure here must not blank a screen
+     that has already loaded.
+
+     Only once the stores are known, and only for somebody who may change
+     stock on a plan that has it. It used to fire from inside the sales read,
+     which on the first load of every visit finishes before `/api/scope`
+     does: it named no store and was refused, every time. And for a cashier
+     or an accountant it was a refusal on every refresh for as long as the
+     tab stayed open. */
+  const depleteFor = (scope?.capabilities || []).includes("manage:inventory") && entitlements(account).has(SCREEN_FEATURE.inventory)
+    ? (scope?.branches || []).map((b) => b.id).join("|")
+    : "";
+  useEffect(() => {
+    if (!fetchedAt || !depleteFor) return;
+    depleteFromSales(token, depleteFor.split("|"));
+  }, [fetchedAt, depleteFor, token]);
+
+  const stockFor = `${(scope?.capabilities || []).includes("view:inventory")}|${(scope?.branches || []).map((b) => b.id).join(",")}|${entitlements(account).has(SCREEN_FEATURE.inventory)}`;
+  useEffect(() => {
+    if (!stockFor.startsWith("true") || !stockFor.endsWith("true")) { setLowStock([]); return undefined; }
+    let cancelled = false;
+    const names = Object.fromEntries((scope?.branches || []).map((b) => [String(b.id), b.name]));
+    const many = (scope?.branches || []).length > 1;
+    const read = async () => {
+      try {
+        const res = await fetch("/api/stock?what=low", { headers: { Authorization: `Bearer ${token}` } });
+        if (!res.ok) return;
+        const json = await res.json();
+        if (!cancelled) setLowStock((json.items || []).map((i) => ({ ...i, branchName: many ? names[i.branchId] || "" : "" })));
+      } catch { /* the bell simply carries one fewer thing */ }
+    };
+    read();
+    const timer = setInterval(() => { if (document.visibilityState === "visible") read(); }, STOCK_POLL_MS);
+    return () => { cancelled = true; clearInterval(timer); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, stockFor]);
+
   useEffect(() => { load(); loadAccount(); loadScope(); // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -565,7 +635,8 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
   else if (tab === "settings") {
     body = <Settings data={data || EMPTY_METRICS} user={user} onRefresh={() => load({ fresh: true })} refreshing={refreshing}
       token={token} conversationCount={conversations.length} account={account}
-      onAccountChange={refreshEverything} onSeePlans={() => go("billing")} onSession={onSession} onLogout={onLogout} />;
+      onAccountChange={refreshEverything} onSeePlans={() => go("billing")} onSession={onSession} onLogout={onLogout}
+      onPosChange={refreshEverything} />;
   } else if (tab === "team") { body = <Team token={token} />; }
   else if (tab === "employees") { body = <Employees token={token} branches={branches} />; }
   else if (tab === "messages") { body = <Messages token={token} />; }
@@ -574,6 +645,7 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
      no scanner to hand a document to; documents route to Inventory or Recipes. */
   else if (tab === "costs") { body = <Costs token={token} />; }
   else if (tab === "sales") { body = <Sales token={token} branches={branches} />; }
+  else if (tab === "channels") { body = <Channels token={token} />; }
   else if (tab === "inventory") { body = <Inventory token={token} pendingDoc={pendingDoc} onDocUsed={() => setPendingDoc(null)} />; }
   else if (tab === "recipes") { body = <Recipes token={token} pendingDoc={pendingDoc} onDocUsed={() => setPendingDoc(null)} />; }
   else if (tab === "variance") { body = <Variance token={token} branches={branches} />; }
@@ -591,7 +663,7 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
       }}
       messages={messages} onMessagesChange={updateMessages} data={unconnectedAccount ? null : data}
       noticedLine={unconnectedAccount ? "" : noticedLine} branches={branches} />;
-  } else if (unconnectedAccount) { body = <EmptyTable onOpenRegister={() => go("till")} />; }
+  } else if (unconnectedAccount) { body = <EmptyTable pos={till} onOpenRegister={() => go("till")} onOpenSettings={() => go("settings")} />; }
   else if (!data && error) {
     body = (
       <div className="h-full flex items-center justify-center p-8">
@@ -730,11 +802,13 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
               <kbd className="data text-[10px] px-1.5 rounded" dir="ltr">⌘K</kbd>
             </button>
             {exportButton}
-            <NotificationBell data={data} staff={staff} capabilities={scope?.capabilities} onAsk={(q) => { startNewChat(); setPending(q); go("ask"); }} />
+            <NotificationBell data={data} staff={staff} stock={lowStock} capabilities={scope?.capabilities} onAsk={(q) => { startNewChat(); setPending(q); go("ask"); }} />
             <AccountMenu user={user} business={account?.account?.business} onGo={go} onLogout={onLogout} items={accountTabs} locked={isLocked} />
           </div>
           <SectionTabs portal={portal} tab={tab} onGo={go} locked={isLocked} />
         </header>
+        <OfflineBanner />
+        <TillBanner pos={till} onOpen={() => go("settings")} />
         <div className="flex-1 min-h-0 flex relative z-10" style={{ flexDirection: rtl ? "row-reverse" : "row" }}>
           <main className="flex-1 min-w-0 overflow-hidden relative">{content}</main>
           {tab === "ask" && (
@@ -779,7 +853,7 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
           </div>
           <div className="flex items-center gap-1 shrink-0">
             {liveDot}
-            <NotificationBell data={data} staff={staff} capabilities={scope?.capabilities} onAsk={(q) => { startNewChat(); setPending(q); go("ask"); }} />
+            <NotificationBell data={data} staff={staff} stock={lowStock} capabilities={scope?.capabilities} onAsk={(q) => { startNewChat(); setPending(q); go("ask"); }} />
             {tab === "ask" && (
               <button onClick={() => setChatsOpen(true)} className="p-2.5 rounded-full" style={{ color: C.slate }} aria-label={t.chats.title}>
                 <MessageSquare size={19} />
@@ -790,6 +864,8 @@ export default function Shell({ token, user, onLogout, onSession, justRegistered
         <PortalSwitcher layout={layout} current={portalId} onPick={pickPortal} />
         {scopePicker && <div className="px-3 pb-2">{scopePicker}</div>}
       </header>
+      <OfflineBanner />
+      <TillBanner pos={till} onOpen={() => go("settings")} />
       <main className="flex-1 min-h-0 overflow-hidden relative">
         <AmbientBackground />
         <div className="relative z-10 h-full">{content}</div>

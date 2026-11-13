@@ -429,6 +429,96 @@ export async function setBusiness(username, business) {
   return account;
 }
 
+/* ── The connected till ───────────────────────────────────────────────────
+
+   A business may connect Loyverse and have its sales read from there. The
+   access token is kept on the owner's account, encrypted, and is never sent
+   back to a browser — not to the owner either, who typed it and has no use
+   for it returned.
+
+   A till belongs to a business, not to a person. Only the owner connects it,
+   and everybody in the business reads through that one connection: asking a
+   cashier for a key is how the key ends up in six places, revocable in none.
+
+   Clearing it is remembered (`posOffAt`) and not merely an empty field,
+   because of the one case below where a token can come from somewhere else. */
+export async function setPosToken(username, token) {
+  const account = await getAccount(username);
+  if (!account) return null;
+  const clean = String(token || "").trim();
+  account.posToken = clean ? encrypt(clean) : "";
+  if (clean) {
+    delete account.posOffAt;
+    account.posConnectedAt = Date.now();
+  } else {
+    account.posOffAt = Date.now();
+  }
+  await setJSON(KEY(username), account);
+  return account;
+}
+
+/* The deployment's own token, from the environment.
+
+   This used to be the fallback for every account, which suited the one
+   restaurant the app was first built for and is wrong for anything else:
+   every business that signed up would have been shown that restaurant's
+   sales. So it now belongs to one business only — the one whose owner signs
+   in with the operator's address (`ADMIN_EMAIL`) — and to nobody when that
+   owner has disconnected. */
+const serverToken = () => String(process.env.POS_ACCESS_TOKEN || process.env.LOYVERSE_ACCESS_TOKEN || "").trim();
+
+function serverTokenFor(owner) {
+  const token = serverToken();
+  const admin = String(process.env.ADMIN_EMAIL || "").trim().toLowerCase();
+  if (!token || !admin || !owner || owner.posOffAt) return "";
+  return String(owner.email || "").trim().toLowerCase() === admin ? token : "";
+}
+
+/* The token a business's sales are read with, and where it came from. */
+export async function posTokenForOrg(org) {
+  const owner = org?.ownerUsername ? await getAccount(org.ownerUsername) : null;
+  if (!owner) return { token: "", via: null };
+  const own = owner.posToken ? decrypt(owner.posToken) : "";
+  if (own) return { token: own, via: "owner", since: owner.posConnectedAt || null };
+  /* A token that is stored and cannot be read was encrypted under a secret
+     this server no longer has. Said, so it shows as "connect again" and not
+     as a business that was never connected. */
+  let unreadable = Boolean(owner.posToken);
+  /* Before only the owner could connect, a member could paste a token into
+     their own account, and that connection was the business's. Such a
+     token is still read, so the business comes back connected — unless the
+     owner has since disconnected, which speaks for the business. Nobody but
+     the owner can save a new one now. */
+  if (!owner.posOffAt) {
+    for (const name of Object.keys(org.members || {})) {
+      const member = await getAccount(name);
+      if (!member?.posToken) continue;
+      const theirs = decrypt(member.posToken);
+      if (theirs) return { token: theirs, via: "member", since: member.posConnectedAt || null };
+      unreadable = true;
+    }
+  }
+  const shared = serverTokenFor(owner);
+  return shared ? { token: shared, via: "server", since: null } : { token: "", via: null, unreadable };
+}
+
+/* Who connects the till, and whether it is connected. */
+export async function posOwnership(account, org) {
+  if (!account || !org) return { canConnect: false, connected: false, viaOwner: false, viaServer: false };
+  const isOwner = normalise(org.ownerUsername) === normalise(account.username);
+  const { token, via, unreadable, since } = await posTokenForOrg(org);
+  return {
+    provider: "loyverse",
+    canConnect: isOwner,
+    connected: Boolean(token),
+    viaOwner: Boolean(token) && !isOwner,
+    viaServer: via === "server",
+    /* A connection that was there and cannot be used. */
+    lost: Boolean(unreadable),
+    since: since || null,
+  };
+}
+
 export async function noteQuestion(username) {
   const account = await getAccount(username);
   if (!account) return;

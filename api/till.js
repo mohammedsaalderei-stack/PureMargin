@@ -21,7 +21,7 @@
 
    GET  ?what=catalogue | day | receipts | receipt | tickets | customers | shift | shifts | pins | stockitems
    POST ?what=sale | refund | pin | shift-open | shift-move | shift-close | email | device
-   PUT  ?what=ticket | customer | addons | variants | image | price | vat | settings | product | item | pins
+   PUT  ?what=ticket | ticket-printed | customer | addons | variants | image | price | vat | settings | product | item | pins
    DELETE ?what=ticket | product | pins | image
 */
 
@@ -29,6 +29,9 @@ import { requireAuth, issueDeviceToken } from "./_auth.js";
 import { sendMail, configured as mailConfigured } from "./_mail.js";
 import { receiptMail, receiptLanguages, allowSend, validEmail } from "./_receiptmail.js";
 import { saveImage, removeImage } from "./_itemimages.js";
+import { channelsForRegister, channelForSale, receiptEconomics, lineCostFrom } from "./_channels.js";
+import { reconcileOffline } from "./_tilloffline.js";
+import { menuCosts } from "./_recipes.js";
 import { scopeFor, effectiveBranches, parseBranchParam } from "./_org.js";
 import { getMeta, listIngredients } from "./_inventory.js";
 import { UNIT_KEYS, dimensionOf } from "./_units.js";
@@ -37,10 +40,10 @@ import { recordAudit } from "./_audit.js";
 import { listRecipes, setSellPrice } from "./_recipes.js";
 import {
   getSettings, catalogueOf, buildSale, buildRefund, recordSale, registerReceipts, saveAddons, saveVariants, saveVat,
-  forDepletion, rosterFor, findReceipt, refundedSoFar, acceptNumber, monthsBetween, ORDER_TYPES,
+  forDepletion, rosterFor, findReceipt, refundedSoFar, acceptNumber, monthsBetween, ORDER_TYPES, receiptNumber,
 } from "./_till.js";
 import { currentShift, openShift, cashMove, closeShift, summarise, listShifts } from "./_tillshift.js";
-import { saveTicket, listTickets, getTicket, deleteTicket, saveCustomer, listCustomers, getCustomer, customerStats } from "./_tillbook.js";
+import { saveTicket, markTicketPrinted, listTickets, getTicket, deleteTicket, saveCustomer, listCustomers, getCustomer, customerStats } from "./_tillbook.js";
 import { checkPin, readOperator, pinsInUse, listPins, setPin, removePin } from "./_tillstaff.js";
 import { saveSection, saveProduct, archiveProduct, saveItemMeta } from "./_tillsetup.js";
 import { listEmployees } from "./_employees.js";
@@ -62,9 +65,14 @@ async function salesBranches(account) {
 /* When a sale happened. A till that sold offline sends the moment it sold,
    which is the time on the customer's receipt; anything implausible is
    replaced with now rather than trusted. */
-function saleTime(raw, now) {
+/* When a sale was made, as the till says — within reason. A sale rung up
+   now may be a little behind the server's clock; one replayed from a till
+   that was offline may be from as long ago as a tablet can plausibly sit in
+   a drawer with sales on it, and is filed on the day it was made. */
+const OFFLINE_DAYS = 60;
+function saleTime(raw, now, back = 7 * DAY) {
   const at = Number(raw);
-  return Number.isFinite(at) && at <= now + 5 * 60 * 1000 && at >= now - 7 * DAY ? at : now;
+  return Number.isFinite(at) && at <= now + 5 * 60 * 1000 && at >= now - back ? at : now;
 }
 
 export default async function handler(req, res) {
@@ -126,6 +134,10 @@ export default async function handler(req, res) {
         loyaltyPct: settings.loyaltyPct,
         useShifts: settings.useShifts,
         orderTypes: ORDER_TYPES,
+        /* Where an order can come from — the counter, a delivery app — each
+           with the prices it lists and its fees, so a till with no connection
+           still charges the right price for the channel. */
+        channels: await channelsForRegister(orgId, authorized, { now, timeZone: scope.org?.timezone }),
         /* Each store's own address, phone and tax number, which its receipts
            print in place of the business-wide ones when set. */
         branches: authorized.map((id) => ({
@@ -289,7 +301,11 @@ export default async function handler(req, res) {
 
     /* Everything below changes something, and once the business uses PINs
        it has to be somebody in particular who changed it. */
-    if (needsOperator && !operator && ["sale", "refund", "ticket", "shift-open", "shift-move", "shift-close"].includes(what)) {
+    /* A sale replayed from a till that was offline has already been made, by
+       somebody the till named on the receipt. It is not held back because
+       their PIN session has since run out (`_tilloffline.js`). */
+    const replayed = req.method === "POST" && body.offline === true && (what === "sale" || what === "shift-open");
+    if (needsOperator && !operator && !replayed && ["sale", "refund", "ticket", "ticket-printed", "shift-open", "shift-move", "shift-close"].includes(what)) {
       return res.status(401).json({ error: "operator" });
     }
 
@@ -302,21 +318,46 @@ export default async function handler(req, res) {
 
       const [recipes, settings] = await Promise.all([listRecipes(orgId), getSettings(orgId)]);
       const shift = await currentShift(orgId, branch);
-      if (settings.useShifts && !shift) return res.status(409).json({ error: "noshift" });
+      /* A sale rung up now needs a shift, when the business counts its
+         drawer. One made offline is taken either way: it joins the shift
+         that is open as it arrives, or none. */
+      if (settings.useShifts && !shift && !replayed) return res.status(409).json({ error: "noshift" });
 
-      const at = saleTime(body.at, now);
+      const at = saleTime(body.at, now, replayed ? OFFLINE_DAYS * DAY : undefined);
+      /* Counted in the drawer of the shift it was made in. A sale from
+         before the shift now open belongs to an earlier one, already counted
+         and closed, and is not added to this one's cash. */
+      const joins = shift && (!replayed || at >= shift.openedAt) ? shift : null;
+      /* Points are not spent offline: the till could not read a balance to
+         spend from, and did not take any off what it charged. */
+      if (replayed) body.redeemPoints = 0;
       let pointsBalance = 0;
       if (body.customerId) {
         const customer = await getCustomer(orgId, body.customerId);
-        if (!customer) return res.status(422).json({ error: "customer" });
-        if (Number(body.redeemPoints) > 0) {
+        /* A customer removed since an offline sale was made: the sale stands,
+           without them. */
+        if (!customer && replayed) body.customerId = "";
+        else if (!customer) return res.status(422).json({ error: "customer" });
+        if (customer && Number(body.redeemPoints) > 0) {
           const history = await registerReceipts(orgId, { since: customer.createdAt || at - 730 * DAY, now });
           pointsBalance = customerStats(customer.id, history).points;
         }
       }
 
-      const built = buildSale(body, {
+      /* Where the order came from. The counter when nothing is said; otherwise
+         a channel that exists, is in use and runs at this branch. Its listed
+         prices are what the customer there was charged, and the fee rule in
+         force when the order was made is the one it is costed under. */
+      let via = await channelForSale(orgId, body.channelId, branch, { at, timeZone: scope.org?.timezone, anyState: replayed });
+      /* Made offline on a channel that no longer exists: it is still a sale,
+         filed at the counter rather than turned away. */
+      if (via.error && replayed) via = await channelForSale(orgId, null, branch, { at, timeZone: scope.org?.timezone });
+      if (via.error) return res.status(422).json({ error: "channel" });
+
+      const number = body.number ? await acceptNumber(orgId, body.number, at) : undefined;
+      const pricing = {
         catalogue: catalogueOf(recipes, settings),
+        channel: via.channel,
         vatPct: settings.vatPct,
         vatMode: settings.vatMode,
         paymentTypes: settings.paymentTypes,
@@ -325,21 +366,88 @@ export default async function handler(req, res) {
         pointsBalance,
         branchId: branch,
         at,
-        number: body.number ? await acceptNumber(orgId, body.number, at) : undefined,
+        number,
         cashier: sellingAs,
         employeeId: operator?.employeeId || "",
-        shiftId: shift?.id || "",
+        shiftId: joins?.id || "",
         clientId: body.clientId || "",
-      });
+      };
+      let built = buildSale(body, pricing);
+      /* A sale made offline is recorded as the till charged it: the server's
+         own receipt when that comes to the same total, the till's when the
+         menu has moved underneath it — marked, and written to the audit log. */
+      let fromTill = null;
+      if (replayed) {
+        /* What the menu would charge for it today, whatever was tendered —
+           asked only when the server's own attempt failed, to tell a price
+           that moved from an item that went (`reconcileOffline`). */
+        const menu = built.error
+          ? buildSale({ ...body, payments: [{ type: settings.paymentTypes?.[0]?.id }] }, { ...pricing, number: undefined })
+          : null;
+        const settled = reconcileOffline(built, body.receipt, {
+          presets: settings.discounts, loyaltyPct: settings.loyaltyPct, hasCustomer: Boolean(body.customerId),
+          menuTotal: menu && !menu.error ? menu.receipt.total_money : null,
+        });
+        if (settled.error) return res.status(422).json(settled.detail);
+        if (settled.from === "till") {
+          const iso = new Date(at).toISOString();
+          /* The number the customer holds, unless it cannot be used (taken,
+             or dated on another day): then one of the server's. */
+          /* (A second copy of a sale already recorded gets one too, and is
+             then recognised by the id the till gave it and not kept.) */
+          const id = number || built.receipt?.receipt_number || receiptNumber(at);
+          fromTill = settled;
+          built = { receipt: {
+            ...settled.receipt,
+            id, receipt_number: id, source: "register", receipt_date: iso, created_at: iso, store_id: String(branch),
+            channel_id: via.channel.id, channel_name: via.channel.name,
+            employee_id: operator?.employeeId || null, shift_id: joins?.id || null, client_id: String(body.clientId || "").slice(0, 80) || null,
+            price_source: "till", review: [settled.why],
+            ...(settled.serverTotal !== null ? { review_server_total: settled.serverTotal } : {}),
+          } };
+        }
+        built.receipt.offline = true;
+        /* Whoever the till says rang it up, when nobody is signed in now. */
+        const named = String(body.receipt?.cashier || "").trim().slice(0, 60);
+        built.receipt.cashier = operator ? sellingAs : named || sellingAs;
+      }
       if (built.error) return res.status(422).json(built);
 
       /* A discount nobody preset, or one a manager reserved, is a manager's
-         to give. Checked against what was actually applied, after building. */
+         to give. Checked against what was actually applied, after building.
+         On a sale already made offline it cannot be un-given, so it is
+         flagged for whoever the shift reports to instead of refused. */
       const needsManager = (built.receipt.discounts || []).some((d) => d.custom || d.restricted);
-      if (needsManager && !manager) return res.status(403).json({ error: "discount" });
+      /* With PINs in use and nobody signed in as it arrives, nobody is
+         vouching for it — not the account the device happens to be on. */
+      const vouched = replayed && needsOperator && !operator ? false : manager;
+      if (needsManager && !vouched) {
+        if (!replayed) return res.status(403).json({ error: "discount" });
+        built.receipt.review = [...(built.receipt.review || []), "discount"];
+      }
+
+      /* What this order is worth on its channel, written onto the receipt
+         with a copy of the fee rule it was worked out under — so a commission
+         changed next month moves nothing about this sale. Recipe costs are
+         today's, which is what "what did this order make" means on the day.
+         Best-effort: a sale is never refused because it could not be costed. */
+      try {
+        const costOf = lineCostFrom(await menuCosts(orgId, [branch], { at }));
+        for (const li of built.receipt.line_items) {
+          const unit = costOf(li);
+          if (unit !== null) li.recipe_cost = Math.round(unit * 10000) / 10000;
+        }
+        built.receipt.channel_fee_rule = via.rule;
+        built.receipt.channel_economics = receiptEconomics(built.receipt, via.rule, costOf, { at: now });
+      } catch (err) {
+        console.error("channel economics failed:", err?.message || err);
+      }
 
       const saved = await recordSale(orgId, built.receipt);
       if (saved.duplicate) return res.status(200).json({ receipt: saved, duplicate: true });
+      if (built.receipt.review) {
+        await audit("register.offline", { number: built.receipt.receipt_number, total: built.receipt.total_money, serverTotal: fromTill?.serverTotal ?? null, why: built.receipt.review.join(", ") }, built.receipt.receipt_number);
+      }
 
       /* Stock leaves the shelf when the sale is made, through the same code the
          till's receipts go through. Best-effort and idempotent by receipt
@@ -402,6 +510,14 @@ export default async function handler(req, res) {
       return res.status(200).json(out);
     }
 
+    if (req.method === "PUT" && what === "ticket-printed") {
+      const ticket = await getTicket(orgId, body.id);
+      if (!ticket || !authorized.includes(String(ticket.branchId))) return res.status(404).json({ error: "ticket" });
+      const out = await markTicketPrinted(orgId, ticket.id, body, { at: now });
+      if (out.error) return res.status(404).json(out);
+      return res.status(200).json(out);
+    }
+
     if (req.method === "DELETE" && what === "ticket") {
       const ticket = await getTicket(orgId, req.query?.id);
       if (!ticket || !authorized.includes(String(ticket.branchId))) return res.status(404).json({ error: "ticket" });
@@ -427,7 +543,13 @@ export default async function handler(req, res) {
       if (!branch) return res.status(403).json({ error: "branch" });
 
       if (what === "shift-open") {
-        const out = await openShift(orgId, branch, { float: body.float, by: sellingAs, employeeId: operator?.employeeId, at: now });
+        /* Opened at the till with no connection: it began when the till
+           says it did, so the sales made since fall inside it, and it was
+           opened by whoever the till says, if nobody is signed in now. */
+        const named = replayed && !operator ? String(body.by || "").trim().slice(0, 60) : "";
+        const out = await openShift(orgId, branch, {
+          float: body.float, by: named || sellingAs, employeeId: operator?.employeeId, at: replayed ? saleTime(body.at, now, OFFLINE_DAYS * DAY) : now,
+        });
         if (out.error) return res.status(409).json(out);
         await audit("register.shift.open", { branchId: branch, float: out.shift.float }, out.shift.id);
         return res.status(201).json(out);

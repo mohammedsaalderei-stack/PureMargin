@@ -98,7 +98,16 @@ export async function askerScopeFor(account) {
   return { roster, scope };
 }
 
-function buildSystem(metrics, lang, grounding, capabilities) {
+/* When a connected Loyverse could not be read, the model is told — or it
+   would describe missing sales as a quiet week. */
+function tillNote(pos, hasFigures) {
+  if (!pos?.connected || pos.ok !== false) return "";
+  return hasFigures
+    ? `\n\nTILL: Loyverse is connected but could not be read just now (${pos.error}). Its sales above are as last read${pos.fetchedAt ? ` at ${new Date(pos.fetchedAt).toISOString()}` : ""}, or missing. Say so before quoting a sales figure.`
+    : `SALES: unavailable. Loyverse is connected but could not be read just now (${pos.error}), so there are no sales figures. Say that plainly if asked about sales — it is not a quiet period — and answer everything else from the brief and the tools.`;
+}
+
+function buildSystem(metrics, lang, grounding, capabilities, pos = null) {
   return `You are PureMargin, an analyst for a food business in the UAE — restaurants, cafés, and cloud kitchens.
 
 ${DOMAIN_GUARDRAIL}
@@ -113,8 +122,8 @@ How to answer:
 - Use ONLY the figures below. If the answer is not among them, state what is missing and what would need to be recorded or connected. Never estimate a figure that is not there.
 
 ${metrics
-    ? toContext(redactContext(metrics, capabilities))
-    : `SALES: none. No till is connected and nothing has been rung up on the register, so there are no sales figures at all. Say so if asked about sales, and answer questions about stock, recipes, suppliers and costs from the brief and the tools — those are recorded here and do not depend on a till.`}${redactionNote(capabilities)}${grounding ? `
+    ? toContext(redactContext(metrics, capabilities)) + tillNote(pos, true)
+    : pos?.connected && pos.ok === false ? tillNote(pos, false) : `SALES: none. No till is connected and nothing has been rung up on the register, so there are no sales figures at all. Say so if asked about sales, and answer questions about stock, recipes, suppliers and costs from the brief and the tools — those are recorded here and do not depend on a till.`}${redactionNote(capabilities)}${grounding ? `
 
 ${ANSWER_CONTRACT}
 
@@ -193,7 +202,7 @@ export default async function handler(req, res) {
        disagree, with nothing on screen to explain which is which. */
     const saleEdits = await listEdits(askerScope?.org?.id).catch(() => ({}));
     /* Register sales, so an answer about takings counts what the screens count. */
-    const { register, names } = await registerContext(session.account).catch(() => ({ register: [], names: {} }));
+    const { register, names, pos } = await registerContext(session.account).catch(() => ({ register: [], names: {}, pos: null }));
     /* No sales source is a reason to have no sales figures, not a reason to
        refuse the question. This answered 409 "not connected" before reading
        anything else, so a kitchen that keeps its stock, recipes and costs here
@@ -205,7 +214,13 @@ export default async function handler(req, res) {
       /* Dish costs from recipes and the business's own day, as the overview
          reads them, so an answer about margin is the margin on screen. */
       const costs = await menuCosts(askerScope?.org?.id, askerScope?.authorized || []).catch(() => null);
-      metrics = await getMetrics({ overrides, edits: saleEdits, register, names, costs, timeZone: askerScope?.org?.timezone || "Asia/Dubai" });
+      metrics = await getMetrics({
+        overrides, edits: saleEdits, register, names, costs, pos, timeZone: askerScope?.org?.timezone || "Asia/Dubai",
+        /* The asker's own branches, narrowed by the scope they asked in. The
+           sales brief used to be the whole organization's whoever asked, so a
+           branch manager's assistant knew every other branch's takings. */
+        branches: effectiveBranches(parseBranchParam(requestedBranches), askerScope?.authorized || []),
+      });
     } catch (err) {
       if (err?.code !== "notconnected") throw err;
     }
@@ -258,12 +273,14 @@ export default async function handler(req, res) {
       features,
       method: "wavg",
       metrics: metrics || {},
+      timeZone: askerScope?.org?.timezone || "Asia/Dubai",
+      orgName: askerScope?.org?.name || "",
     };
 
     const payload = {
       model: MODEL,
       max_tokens: 1200,
-      system: buildSystem(metrics, lang, grounding, capabilities),
+      system: buildSystem(metrics, lang, grounding, capabilities, pos),
       messages: clean,
       /* No organization means no domains to read, so no tools are offered
          rather than five that would all refuse. */

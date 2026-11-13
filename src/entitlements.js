@@ -22,6 +22,9 @@ export const SCREEN_FEATURE = {
   forecast: "costs",
   costs: "costs",
   sales: "costs",
+  /* Sales channels: what a delivery app's commission does to a dish's
+     profit, and the price that puts it back. Money, so the costs package. */
+  channels: "costs",
   /* The register is not a package. Selling is what the business does; putting
      the till behind a plan would stop a restaurant taking money the day a plan
      lapsed. */

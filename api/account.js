@@ -1,11 +1,15 @@
 import { requireAuth } from "./_auth.js";
 import {
-  getAccount, publicAccount, setEmail, renameAccount,
+  getAccount, publicAccount, setEmail, renameAccount, setPosToken, posOwnership, posTokenForOrg,
   requestDeletion, cancelDeletion, purgeIfDue, deleteNow, FREE_FEATURES } from "./_accounts.js";
 import { issueToken } from "./_auth.js";
 import { persistent } from "./_store.js";
 import { orgFor, effectivePlanFor } from "./_org.js";
 import { recordAudit } from "./_audit.js";
+import { checkToken, clearLoyverseCache, LoyverseError } from "./_loyverse.js";
+import { adoptStores } from "./_stores.js";
+import { usesRegister } from "./_till.js";
+import { sendMail, shell, row } from "./_mail.js";
 
 /* Accounts predating organizations have no orgId on the record; orgFor
    backfills one. Without this an older account's changes would go unlogged. */
@@ -39,9 +43,96 @@ export default async function handler(req, res) {
           inherited: Boolean(plan.inherited),
         };
       }
+      const org = account ? await orgFor(account) : null;
       return res.status(200).json({
         account: pub,
         persistent,
+        /* Whether a Loyverse is connected, and whether this person is the one
+           who connects it or reads through the owner's connection. Never the
+           token itself — not even to the owner, who typed it. */
+        pos: await posOwnership(account, org),
+      });
+    }
+
+    /* Connecting Loyverse, or disconnecting it (`posToken: ""`).
+
+       Only the owner: a till belongs to the business, and a member who posts
+       a token anyway — an old client, a curious tab — is refused rather than
+       given a second connection nobody can see or revoke.
+
+       A token is tried before it is kept, so a mistyped one is refused here
+       with Loyverse's reason and not discovered later as an empty dashboard.
+       The stores it reaches become the business's stores straight away, so
+       the branch selector and the register know them before the first sales
+       are read. */
+    if (req.method === "PUT") {
+      const account = await getAccount(session.username);
+      if (!account) return res.status(404).json({ error: "noaccount" });
+      const org = await orgFor(account);
+      const ownership = await posOwnership(account, org);
+      if (!ownership.canConnect) return res.status(403).json({ error: "notowner" });
+
+      const raw = req.body?.posToken;
+      if (typeof raw !== "string") return res.status(400).json({ error: "missing" });
+      const token = raw.trim();
+      if (token.length > 200 || /\s/.test(token)) return res.status(400).json({ error: "badtoken" });
+
+      const before = await posTokenForOrg(org);
+      let stores = [];
+      if (token) {
+        try {
+          ({ stores } = await checkToken(token));
+        } catch (err) {
+          const code = err instanceof LoyverseError ? err.code : "unreachable";
+          /* 422 for a token Loyverse refused, 502 for a Loyverse that did not
+             answer: one is the owner's to fix, the other is not. */
+          return res.status(code === "token" || code === "permission" ? 422 : 502).json({ error: "pos", reason: code });
+        }
+      }
+
+      await setPosToken(session.username, token);
+      /* Nothing read under the previous connection may be shown under this one. */
+      if (before.token) clearLoyverseCache(before.token);
+      if (token) clearLoyverseCache(token);
+      if (token && org?.id) {
+        await adoptStores(org.id, stores, {
+          orgName: org.name,
+          unused: !(await usesRegister(org.id)),
+        }).catch((err) => console.error("adopting stores on connect failed:", err?.message || err));
+      }
+
+      /* Where every sales figure comes from is changing, so it is logged. The
+         token itself never is. */
+      await recordAudit(org?.id, {
+        actor: session.username,
+        action: token ? "pos.connect" : "pos.disconnect",
+        detail: token ? { provider: "loyverse", stores: stores.length } : { provider: "loyverse" },
+      });
+
+      /* The operator is told when a business connects a till — that is when an
+         account starts to carry real figures. Best-effort. */
+      if (token && process.env.ADMIN_EMAIL) {
+        sendMail({
+          to: process.env.ADMIN_EMAIL,
+          subject: `PureMargin: ${session.username} connected Loyverse`,
+          text: `${session.username}${account.business ? ` (${account.business})` : ""} connected Loyverse with ${stores.length} store(s).`,
+          html: shell({
+            title: "A Loyverse connection was made",
+            intro: "A business connected its Loyverse account.",
+            blocks: [
+              row("Account", session.username),
+              row("Business", account.business || "not named yet"),
+              row("Stores", String(stores.length)),
+            ],
+          }),
+        }).catch(() => {});
+      }
+
+      const updated = await getAccount(session.username);
+      return res.status(200).json({
+        account: publicAccount(updated),
+        pos: await posOwnership(updated, await orgFor(updated)),
+        stores: stores.map((s) => s.name),
       });
     }
 

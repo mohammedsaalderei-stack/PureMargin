@@ -440,6 +440,64 @@ export async function listMovements(orgId, branchId, { ingredientId, type, from,
     .slice(0, limit);
 }
 
+/* What is running low, branch by branch — for the notification, not the
+   alerts screen, which also reasons about how fast things are being used.
+
+   "Low" is one of three plain things:
+     out    nothing left (or less than nothing, which is a counting problem
+            but still means the shelf is empty);
+     low    at or under the reorder level somebody set for it;
+     low    with no reorder level set, under a fifth of the last delivery —
+            most kitchens never set levels, and "you have less than a fifth
+            of what last came in" is a warning that needs no setting up.
+
+   Evaluated per branch, because five kilos at one site does nothing for a
+   site that has run out. */
+export const LOW_SHARE = 0.2;
+const INCOMING = new Set(["receive", "opening", "transfer_in", "production_in"]);
+
+export async function lowStock(orgId, branchIds, { ingredients } = {}) {
+  const byId = new Map((ingredients || []).filter((i) => !i.archived).map((i) => [i.id, i]));
+  const out = [];
+  for (const branchId of branchIds || []) {
+    const ledger = await readLedger(orgId, branchId);
+    const seen = new Map();
+    /* Newest first, so the first incoming entry met is the last delivery. */
+    for (const m of ledger) {
+      if (!byId.has(m.ingredientId)) continue;
+      const row = seen.get(m.ingredientId) || { qtyBase: 0, lastIn: null };
+      row.qtyBase += m.qtyBase;
+      if (row.lastIn === null && m.qtyBase > 0 && !m.reversedBy && !m.reverses && INCOMING.has(m.type)) row.lastIn = m.qtyBase;
+      seen.set(m.ingredientId, row);
+    }
+    for (const [id, row] of seen) {
+      const ingredient = byId.get(id);
+      const qty = fromBaseQty(row.qtyBase, ingredient);
+      if (qty === null) continue;
+      const point = ingredient.branchOverrides?.[branchId]?.reorderPoint ?? ingredient.reorderPoint;
+      let state = null;
+      let threshold = null;
+      let basis = null;
+      if (qty <= 1e-9) {
+        state = "out";
+      } else if (point !== null && point !== undefined) {
+        if (qty <= point) { state = "low"; threshold = point; basis = "reorder"; }
+      } else if (row.lastIn > 0 && row.qtyBase <= row.lastIn * LOW_SHARE) {
+        state = "low";
+        threshold = fromBaseQty(row.lastIn * LOW_SHARE, ingredient);
+        basis = "delivery";
+      }
+      if (!state) continue;
+      const round = (n) => (n === null ? null : Math.round(n * 1000) / 1000);
+      out.push({ ingredientId: id, name: ingredient.name, branchId: String(branchId), qty: round(Math.max(0, qty)), unit: ingredient.stockUnit, state, threshold: round(threshold), basis });
+    }
+  }
+  /* Empty shelves first, then whatever is furthest under its level. */
+  return out.sort((a, b) => (a.state === "out" ? 0 : 1) - (b.state === "out" ? 0 : 1)
+    || (a.threshold ? a.qty / a.threshold : 0) - (b.threshold ? b.qty / b.threshold : 0)
+    || a.name.localeCompare(b.name));
+}
+
 /* Balances across a list of branches — the list the route has already reduced to
    what the caller may see, so this function never has to decide authorization.
 

@@ -20,7 +20,7 @@
    unreachable. */
 
 export const PORTALS = [
-  { id: "business", primary: ["overview", "sales", "costs", "ask"], more: ["watch", "menu", "forecast", "advice"] },
+  { id: "business", primary: ["overview", "sales", "costs", "ask"], more: ["channels", "watch", "menu", "forecast", "advice"] },
   { id: "register", primary: ["till"], more: [] },
   { id: "kitchen", primary: ["inventory", "recipes", "alerts", "plan"], more: ["variance"] },
   { id: "team", primary: ["employees", "messages", "team"], more: [] },

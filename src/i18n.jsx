@@ -1,11 +1,16 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { ADMIN_STRINGS } from "./i18n-admin.js";
 import { POS_STRINGS } from "./i18n-pos.js";
+import { CHANNEL_STRINGS } from "./i18n-channels.js";
 
 /* Every string in the product, in both languages.
    Arabic is written for a Gulf business audience: plain, direct, no formal padding. */
 export const STRINGS = {
   en: {
+    channels: {
+      tab: "Channels",
+    },
+
     till: {
       orderTypes: { dine_in: "Dine in", takeaway: "Takeaway", car: "Car" },
       tab: "Register",
@@ -1051,6 +1056,15 @@ export const STRINGS = {
       staffOut: "{name} clocked out",
       staffAt: "at {time}",
       staffAsk: "Who is on shift right now, and how many hours has each person worked this week?",
+      stockOutTitle: "{name} has run out",
+      stockLowTitle: "{name} is running low",
+      stockOutBody: "Nothing left on the shelf{at}.",
+      stockLowBody: "{qty} {unit} left{at} — your reorder level is {level} {unit}.",
+      stockLowBodyDelivery: "{qty} {unit} left{at} — under a fifth of the last delivery.",
+      stockMoreTitle: "{n} more items are low",
+      stockMoreBody: "Open stock alerts to see them all.",
+      stockAt: " at {branch}",
+      stockAsk: "What is running low, and what do I need to order?",
       ask: "Ask about this",
       swingAsk: "Why did sales move so sharply, and which branches drove it?",
       marginAsk: "Why is my margin slipping, and which dishes are costing me the most?",
@@ -1425,6 +1439,7 @@ export const STRINGS = {
       alertPeak: "When a rush starts building", alertWeekly: "How the week went",
       alertGoal: "Target passed",
       alertStaff: "Someone clocks in or out",
+      alertStock: "Stock runs low or runs out",
       dailyTarget: "Target for the day", eodTime: "Send the day's summary at",
       saveAlerts: "Save", saved: "Saved",
       danger: "Closing your account",
@@ -1894,6 +1909,10 @@ export const STRINGS = {
   },
 
   ar: {
+    channels: {
+      tab: "قنوات البيع",
+    },
+
     till: {
       orderTypes: { dine_in: "محلي", takeaway: "سفري", car: "سيارة" },
       tab: "الكاشير",
@@ -2939,6 +2958,15 @@ export const STRINGS = {
       staffOut: "{name} سجّل الانصراف",
       staffAt: "في {time}",
       staffAsk: "من على رأس العمل الآن، وكم ساعة عمل كل شخص هذا الأسبوع؟",
+      stockOutTitle: "نفد {name}",
+      stockLowTitle: "{name} على وشك النفاد",
+      stockOutBody: "لم يبقَ شيء على الرف{at}.",
+      stockLowBody: "بقي {qty} {unit}{at} — حد إعادة الطلب {level} {unit}.",
+      stockLowBodyDelivery: "بقي {qty} {unit}{at} — أقل من خُمس آخر توريد.",
+      stockMoreTitle: "{n} أصناف أخرى منخفضة",
+      stockMoreBody: "افتح تنبيهات المخزون لعرضها كلها.",
+      stockAt: " في {branch}",
+      stockAsk: "ما الأصناف التي توشك على النفاد، وما الذي أحتاج إلى طلبه؟",
       ask: "اسأل عن هذا",
       swingAsk: "لماذا تحرّكت المبيعات بهذه الحدّة، وأي الفروع وراء ذلك؟",
       marginAsk: "لماذا يتراجع هامشي، وأي الأطباق يكلّفني أكثر؟",
@@ -3313,6 +3341,7 @@ export const STRINGS = {
       alertPeak: "حين تبدأ زحمة بالتشكّل", alertWeekly: "كيف مرّ الأسبوع",
       alertGoal: "تجاوزت الهدف",
       alertStaff: "حضور أحدهم أو انصرافه",
+      alertStock: "انخفاض المخزون أو نفاده",
       dailyTarget: "هدف اليوم", eodTime: "أرسل ملخص اليوم عند",
       saveAlerts: "حفظ", saved: "حُفظ",
       danger: "إغلاق حسابك",
@@ -3782,6 +3811,10 @@ export const STRINGS = {
   },
 
   hi: {
+    channels: {
+      tab: "चैनल",
+    },
+
     till: {
       orderTypes: { dine_in: "यहीं खाएँ", takeaway: "पैक करें", car: "कार" },
       tab: "रजिस्टर",
@@ -4832,6 +4865,15 @@ export const STRINGS = {
       staffOut: "{name} ने छुट्टी दर्ज की",
       staffAt: "{time} पर",
       staffAsk: "अभी कौन शिफ़्ट पर है, और इस हफ़्ते हर किसी ने कितने घंटे काम किया?",
+      stockOutTitle: "{name} ख़त्म हो गया",
+      stockLowTitle: "{name} कम हो रहा है",
+      stockOutBody: "शेल्फ़ पर कुछ नहीं बचा{at}।",
+      stockLowBody: "{qty} {unit} बचा है{at} — आपका रीऑर्डर स्तर {level} {unit} है।",
+      stockLowBodyDelivery: "{qty} {unit} बचा है{at} — पिछली डिलीवरी के पाँचवें हिस्से से कम।",
+      stockMoreTitle: "{n} और आइटम कम हैं",
+      stockMoreBody: "सब देखने के लिए स्टॉक अलर्ट खोलें।",
+      stockAt: " — {branch}",
+      stockAsk: "क्या कम हो रहा है, और मुझे क्या ऑर्डर करना है?",
       ask: "इस बारे में पूछिए",
       swingAsk: "बिक्री इतनी तेज़ी से क्यों बदली, और किन शाखाओं की वजह से?",
       marginAsk: "मेरा मार्जिन क्यों गिर रहा है, और कौन-से व्यंजन सबसे महँगे पड़ रहे हैं?",
@@ -5197,6 +5239,7 @@ export const STRINGS = {
       alertPeak: "जब भीड़ बननी शुरू हो", alertWeekly: "हफ़्ता कैसा रहा",
       alertGoal: "लक्ष्य पार हुआ",
       alertStaff: "कोई हाज़िरी या छुट्टी दर्ज करे",
+      alertStock: "स्टॉक कम हो या ख़त्म हो जाए",
       dailyTarget: "दिन का लक्ष्य", eodTime: "दिन का सारांश भेजें",
       saveAlerts: "सहेजें", saved: "सहेजा गया",
       danger: "खाता बंद करना",
@@ -5687,6 +5730,10 @@ export const STRINGS = {
      through withFallback below. That is a visible gap, and a smaller lie than
      machine-translating a thousand lines of advisory prose nobody has read. */
   ur: {
+    channels: {
+      tab: "چینل",
+    },
+
     till: {
       orderTypes: { dine_in: "یہیں کھائیں", takeaway: "ساتھ لے جائیں", car: "گاڑی" },
       tab: "کیشیئر",
@@ -6253,6 +6300,7 @@ export const STRINGS = {
       alertWeekly: "ہفتہ کیسا گزرا",
       alertGoal: "ہدف عبور ہو گیا",
       alertStaff: "کوئی حاضری یا رخصت درج کرے",
+      alertStock: "اسٹاک کم ہو یا ختم ہو جائے",
       dailyTarget: "دن کا ہدف",
       eodTime: "دن کے اختتام کا وقت",
       tab: "اکاؤنٹ",
@@ -6674,6 +6722,15 @@ export const STRINGS = {
       staffOut: "{name} نے رخصت درج کی",
       staffAt: "{time} پر",
       staffAsk: "ابھی کون شفٹ پر ہے، اور اس ہفتے ہر ایک نے کتنے گھنٹے کام کیا؟",
+      stockOutTitle: "{name} ختم ہو گیا",
+      stockLowTitle: "{name} کم ہو رہا ہے",
+      stockOutBody: "شیلف پر کچھ نہیں بچا{at}۔",
+      stockLowBody: "{qty} {unit} باقی ہے{at} — آپ کی ری آرڈر حد {level} {unit} ہے۔",
+      stockLowBodyDelivery: "{qty} {unit} باقی ہے{at} — پچھلی ترسیل کے پانچویں حصے سے کم۔",
+      stockMoreTitle: "{n} مزید آئٹم کم ہیں",
+      stockMoreBody: "سب دیکھنے کے لیے اسٹاک الرٹس کھولیں۔",
+      stockAt: " — {branch}",
+      stockAsk: "کیا کم ہو رہا ہے، اور مجھے کیا آرڈر کرنا ہے؟",
       ask: "اس بارے میں پوچھیے",
       swingAsk: "فروخت اتنی تیزی سے کیوں بدلی، اور کن برانچز کی وجہ سے؟",
       marginAsk: "میرا مارجن کیوں گر رہا ہے، اور کون سی ڈشیں سب سے مہنگی پڑ رہی ہیں؟",
@@ -7718,6 +7775,10 @@ export const STRINGS = {
   },
 
   tl: {
+    channels: {
+      tab: "Mga channel",
+    },
+
     till: {
       orderTypes: { dine_in: "Dine in", takeaway: "Takeaway", car: "Sa kotse" },
       tab: "Kahera",
@@ -8768,6 +8829,15 @@ export const STRINGS = {
       staffOut: "Naka-time out si {name}",
       staffAt: "ng {time}",
       staffAsk: "Sino ang nasa shift ngayon, at ilang oras ang natrabaho ng bawat isa ngayong linggo?",
+      stockOutTitle: "Ubos na ang {name}",
+      stockLowTitle: "Paubos na ang {name}",
+      stockOutBody: "Wala nang natira sa estante{at}.",
+      stockLowBody: "{qty} {unit} na lang{at} — {level} {unit} ang reorder level mo.",
+      stockLowBodyDelivery: "{qty} {unit} na lang{at} — wala pang ikalima ng huling delivery.",
+      stockMoreTitle: "{n} pang item ang mababa",
+      stockMoreBody: "Buksan ang stock alerts para makita lahat.",
+      stockAt: " sa {branch}",
+      stockAsk: "Ano ang paubos na, at ano ang kailangan kong i-order?",
       ask: "Magtanong tungkol dito",
       swingAsk: "Bakit ganoon kalaki ang galaw ng benta, at aling sangay ang dahilan?",
       marginAsk: "Bakit bumababa ang margin ko, at aling putahe ang pinakamahal?",
@@ -9133,6 +9203,7 @@ export const STRINGS = {
       alertPeak: "Kapag nagsisimula ang dagsa", alertWeekly: "Kung paano naging ang linggo",
       alertGoal: "Nalampasan ang target",
       alertStaff: "May nagta-time in o out",
+      alertStock: "Paubos o ubos na ang stock",
       dailyTarget: "Target para sa araw", eodTime: "Ipadala ang buod ng araw sa",
       saveAlerts: "I-save", saved: "Na-save",
       danger: "Pagsasara ng account",
@@ -9696,7 +9767,7 @@ export function LanguageProvider({ children }) {
       lang,
       dir: STRINGS[lang].dir,
       rtl: STRINGS[lang].dir === "rtl",
-      t: { ...STRINGS[lang], admin: ADMIN_STRINGS[lang] || ADMIN_STRINGS.en, pos: POS_STRINGS[lang] || POS_STRINGS.en },
+      t: { ...STRINGS[lang], admin: ADMIN_STRINGS[lang] || ADMIN_STRINGS.en, pos: POS_STRINGS[lang] || POS_STRINGS.en, ch: CHANNEL_STRINGS[lang] || CHANNEL_STRINGS.en },
       set: (next) => LANGS.includes(next) && setLang(next),
       /* Kept so existing call sites still work: cycles through the list. */
       toggle: () => setLang((l) => LANGS[(LANGS.indexOf(l) + 1) % LANGS.length]),

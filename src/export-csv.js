@@ -13,7 +13,7 @@ function csvEscape(val) {
   return safe;
 }
 
-function download(filename, rows) {
+export function download(filename, rows) {
   const csv = rows.map((r) => (r || []).map(csvEscape).join(",")).join("\r\n");
   const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);

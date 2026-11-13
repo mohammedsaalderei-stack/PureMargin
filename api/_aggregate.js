@@ -81,7 +81,12 @@ export function aggregate({ receipts, limitedHistory, catalogue, storeNames, now
     if (Number(li.cost) > 0) return { cost: Number(li.cost) + addons, known: true };
     const base = catalogue.get(name)?.cost || 0;
     const scale = Number(li.variant_scale) > 0 ? Number(li.variant_scale) : 1;
-    return base > 0 ? { cost: base * scale * qty + addons, known: true } : { cost: addons, known: false };
+    if (base > 0) return { cost: base * scale * qty + addons, known: true };
+    /* Last: the cost a connected Loyverse was told the item has, for the
+       line. Only when nothing here knows better — a recipe priced from real
+       deliveries beats a figure somebody typed into the till once. */
+    if (Number(li.pos_cost) > 0) return { cost: Number(li.pos_cost) + addons, known: true };
+    return { cost: addons, known: false };
   };
 
   /* A line's takings without the VAT in them. VAT collected is owed to the

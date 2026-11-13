@@ -37,9 +37,8 @@ import { resolveUnit, isPackaging } from "./_unitwords.js";
 import { fingerprint, findRepeat, rememberInvoice, getInvoice, markUndone } from "./_invoicelog.js";
 import {
   MOVEMENT_KEYS, recordMovement, recordTransfer, reverseMovement,
-  listMovements, balances, getPolicy, savePolicy,
-} from "./_movements.js";
-import { rosterFor, registerReceipts, forDepletion } from "./_till.js";
+  listMovements, balances, getPolicy, savePolicy, lowStock } from "./_movements.js";
+import { rosterFor, salesReceipts, forDepletion } from "./_till.js";
 
 /* Branches come from the POS (phase 1's decision: a branch is a store, not a
    local table), so a missing connection means no branches rather than an error. */
@@ -84,6 +83,14 @@ export default async function handler(req, res) {
             from: Number(req.query?.from) || undefined,
             to: Number(req.query?.to) || undefined,
           }),
+        });
+      }
+
+      /* What is running low or has run out, for the notification bell. */
+      if (what === "low") {
+        const scoped = effectiveBranches(parseBranchParam(req.query?.branches), allowed);
+        return res.status(200).json({
+          items: await lowStock(orgId, scoped, { ingredients: await listIngredients(orgId) }),
         });
       }
 
@@ -204,9 +211,10 @@ export default async function handler(req, res) {
         const branch = permitted(body.branchId);
         if (!branch.length) return res.status(403).json({ error: "branch" });
 
-        /* The last week of the branch's register sales. Each is depleted when
-           it is rung up; this catches any that a failure left behind. */
-        const receipts = (await registerReceipts(orgId, { since: Date.now() - 7 * 864e5 }))
+        /* The last week of the branch's sales. A register sale is depleted
+           when it is rung up and this catches any a failure left behind; a
+           sale on a connected Loyverse is depleted here and only here. */
+        const receipts = (await salesReceipts(orgId, { since: Date.now() - 7 * 864e5 })).receipts
           .filter((r) => r.receipt_type === "SALE" && String(r.store_id) === String(branch[0]))
           .map(forDepletion);
 

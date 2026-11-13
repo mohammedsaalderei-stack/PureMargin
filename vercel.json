@@ -4,6 +4,16 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "installCommand": "npm install",
+  "functions": {
+    "api/print.js": { "maxDuration": 30 },
+    "api/metrics.js": { "maxDuration": 30 },
+    "api/sales.js": { "maxDuration": 30 },
+    "api/variance.js": { "maxDuration": 30 },
+    "api/alerts.js": { "maxDuration": 30 },
+    "api/operations.js": { "maxDuration": 30 },
+    "api/stock.js": { "maxDuration": 30 },
+    "api/account.js": { "maxDuration": 30 }
+  },
   "headers": [
     {
       "source": "/(.*)",
@@ -26,6 +36,18 @@
       "headers": [
         { "key": "Cache-Control", "value": "no-store" },
         { "key": "X-Robots-Tag", "value": "noindex" }
+      ]
+    },
+    {
+      "source": "/sw.js",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-cache" }
+      ]
+    },
+    {
+      "source": "/asset-manifest.json",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-cache" }
       ]
     },
     {

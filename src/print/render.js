@@ -1,6 +1,8 @@
 /* Drawing a receipt, a kitchen ticket or a shift report onto a canvas.
 
-   One drawing serves every printer: it is rasterised for an ESC/POS printer,
+   Each `draw…` returns a sheet — `{ width, height, parts }`, the parts being
+   canvases one under the other; nearly always there is one. One drawing
+   serves every printer: it is rasterised for an ESC/POS printer,
    turned into a picture for AirPrint, and shown in the browser's own print
    dialog. Laid out in dots at the printer's width, so what is drawn is what
    comes out of the head, column for column.
@@ -13,27 +15,71 @@
 const RTL = /[֐-ࣿיִ-﷿ﹰ-﻿]/;
 const FONT = '"Helvetica Neue", "Geeza Pro", "Noto Sans Arabic", Arial, sans-serif';
 
-function makeCanvas(width) {
+/* How tall one canvas is allowed to get. Safari on an iPad refuses a canvas
+   over about sixteen million pixels, which at 576 dots across is 29,000
+   rows; this stays well inside it. */
+const START_ROWS = 2400;
+const MAX_ROWS = 16000;
+
+function makeCanvas(width, height) {
   const canvas = document.createElement("canvas");
   canvas.width = width;
-  canvas.height = 4000;
+  canvas.height = height;
   return canvas;
 }
 
-/* A small layout engine: a cursor moving down the paper. */
-function page(width, { rtl = false } = {}) {
-  const canvas = makeCanvas(width);
+function prime(canvas) {
   const ctx = canvas.getContext("2d");
   ctx.fillStyle = "#fff";
-  ctx.fillRect(0, 0, width, canvas.height);
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.fillStyle = "#000";
   ctx.textBaseline = "top";
+  return ctx;
+}
+
+/* A small layout engine: a cursor moving down the paper.
+
+   The paper is as long as the receipt. The canvas used to be 4000 rows and
+   that was that: a receipt with more lines than fit — sixty items, a long
+   shift report — was drawn off the end of it and the total, which is at the
+   bottom, never reached the printer. Now the canvas grows as the cursor
+   nears its end, and a drawing longer than one canvas is allowed to be continues on
+   another. What comes back is every part, in order, and they print one
+   under the other with no gap. */
+function page(width, { rtl = false } = {}) {
+  let canvas = makeCanvas(width, START_ROWS);
+  let ctx = prime(canvas);
+  const done = [];
   const pad = Math.round(width * 0.02);
   let y = pad;
   const base = Math.round(width / 21);
 
   const font = (scale = 1, bold = false) => { ctx.font = `${bold ? "700" : "400"} ${Math.round(base * scale)}px ${FONT}`; };
   const lineHeight = (scale = 1) => Math.round(base * scale * 1.32);
+
+  /* The part drawn so far, cut to the length used. */
+  const cutAt = (rows) => {
+    const out = makeCanvas(width, Math.max(1, rows));
+    prime(out).drawImage(canvas, 0, 0);
+    return out;
+  };
+
+  /* Make sure `rows` more dots fit under the cursor. */
+  const room = (rows) => {
+    if (y + rows <= canvas.height) return;
+    if (canvas.height < MAX_ROWS) {
+      const taller = makeCanvas(width, Math.min(MAX_ROWS, Math.max(canvas.height * 2, y + rows)));
+      const next = prime(taller);
+      next.drawImage(canvas, 0, 0);
+      canvas = taller;
+      ctx = next;
+      if (y + rows <= canvas.height) return;
+    }
+    done.push(cutAt(y));
+    canvas = makeCanvas(width, START_ROWS);
+    ctx = prime(canvas);
+    y = 0;
+  };
 
   const wrap = (text, maxWidth) => {
     const words = String(text ?? "").split(/\s+/).filter(Boolean);
@@ -49,12 +95,13 @@ function page(width, { rtl = false } = {}) {
   };
 
   const api = {
-    canvas,
-    get y() { return y; },
+    get y() { return done.reduce((n, c) => n + c.height, 0) + y; },
     gap: (n = 0.5) => { y += Math.round(base * n); },
     center: (text, { scale = 1, bold = false } = {}) => {
       font(scale, bold);
       for (const l of wrap(text, width - pad * 2)) {
+        room(lineHeight(scale));
+        font(scale, bold);
         ctx.direction = RTL.test(l) ? "rtl" : "ltr";
         ctx.textAlign = "center";
         ctx.fillText(l, width / 2, y);
@@ -67,6 +114,8 @@ function page(width, { rtl = false } = {}) {
       const valueWidth = value ? ctx.measureText(String(value)).width + base : 0;
       const lines = wrap(label, width - pad * 2 - valueWidth - indent);
       lines.forEach((l, i) => {
+        room(lineHeight(scale));
+        font(scale, bold);
         const labelRtl = RTL.test(l) || (rtl && !/[A-Za-z]/.test(l));
         ctx.direction = labelRtl ? "rtl" : "ltr";
         ctx.textAlign = rtl ? "right" : "left";
@@ -80,6 +129,7 @@ function page(width, { rtl = false } = {}) {
       });
     },
     rule: (dashed = true) => {
+      room(base);
       ctx.save();
       ctx.lineWidth = Math.max(1, Math.round(width / 300));
       if (dashed) ctx.setLineDash([Math.round(base / 2), Math.round(base / 3)]);
@@ -91,24 +141,24 @@ function page(width, { rtl = false } = {}) {
       ctx.restore();
       y += Math.round(base * 0.9);
     },
-    /* The drawing, cut to the length actually used. */
+    /* The whole drawing: every part, each cut to the length it used. */
     finish: () => {
-      const out = makeCanvas(width);
-      out.height = y + pad * 2;
-      const o = out.getContext("2d");
-      o.fillStyle = "#fff";
-      o.fillRect(0, 0, width, out.height);
-      o.drawImage(canvas, 0, 0);
-      return out;
+      room(pad * 2);
+      const parts = [...done, cutAt(y + pad * 2)];
+      return { width, height: parts.reduce((n, c) => n + c.height, 0), parts };
     },
   };
   return api;
 }
 
 const money = (n) => (Number(n) || 0).toFixed(2);
+/* An Arabic date comes with invisible direction marks between its numbers
+   ("12‏/11‏/2026"), there to lay it out inside a sentence. In a column of its
+   own they pull it apart — the day printed at one end of the line and the
+   rest at the other — so they are taken out and it reads as it is written. */
 const when = (iso, locale) => new Date(iso).toLocaleString(locale, {
   year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit",
-});
+}).replace(/[‎‏؜]/g, "");
 
 /* A customer's receipt — a tax invoice when the business has a TRN. */
 export function drawReceipt(receipt, { width = 576, settings = {}, labels, locale = "en-AE", rtl = false, customer = null, copy = false } = {}) {

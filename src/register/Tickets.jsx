@@ -7,7 +7,7 @@
    person who took it. */
 
 import { useCallback, useEffect, useState } from "react";
-import { ClipboardList, Trash2, RefreshCw } from "lucide-react";
+import { ClipboardList, Trash2, RefreshCw, Printer } from "lucide-react";
 import { useC } from "../theme.jsx";
 import { useLang, fill } from "../i18n.jsx";
 import { Btn, Empty, money } from "./ui.jsx";
@@ -19,7 +19,7 @@ const ago = (ms, P) => {
   return m < 60 ? fill(P.tickets.minutes, { n: m }) : fill(P.tickets.hours, { n: Math.floor(m / 60) });
 };
 
-export default function Tickets({ token, catalogue, branchId, canVoid, operator, onOpen }) {
+export default function Tickets({ token, catalogue, branchId, canVoid, operator, onOpen, onPrint = null }) {
   const C = useC();
   const { t } = useLang();
   const P = t.pos;
@@ -78,6 +78,7 @@ export default function Tickets({ token, catalogue, branchId, canVoid, operator,
                 </div>
                 <div className="flex gap-2">
                   <Btn full onClick={() => onOpen(tk)}>{P.tickets.open}</Btn>
+                  {onPrint && <Btn kind="ghost" onClick={() => onPrint(tk)} aria-label={P.tickets.printKitchen}><Printer size={16} /></Btn>}
                   {(canVoid || tk.createdBy === operator) && (
                     <Btn kind="danger" onClick={() => remove(tk)} aria-label={P.tickets.void}><Trash2 size={16} /></Btn>
                   )}

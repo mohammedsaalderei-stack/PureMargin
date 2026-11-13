@@ -8,6 +8,7 @@
 import assert from "node:assert/strict";
 import {
   readSession, writeSession, clearSession, __resetSession, TOKEN_KEY, USER_KEY,
+  rememberScope, rememberedScope, SCOPE_KEY,
 } from "./session.js";
 
 let failures = 0;
@@ -31,6 +32,8 @@ function storage({ broken = false } = {}) {
     getItem: (k) => (map.has(k) ? map.get(k) : null),
     setItem: (k, v) => { if (broken) throw new Error("QuotaExceededError"); map.set(k, String(v)); },
     removeItem: (k) => { map.delete(k); },
+    get length() { return map.size; },
+    key: (i) => [...map.keys()][i] ?? null,
   };
 }
 
@@ -101,6 +104,51 @@ test("signing out when storage throws still clears the memory copy", () => {
   assert.equal(readSession(TOKEN_KEY, scope), "tok");
   clearSession(scope);
   assert.equal(readSession(TOKEN_KEY, scope), "", "a failed sign-out is a signed-in user");
+});
+
+/* ── What this person may open, for when the server cannot be asked ─────── */
+
+const SCOPE = { tabs: ["overview", "register", "settings"], capabilities: ["view:sales"], branches: [{ id: "register", name: "Main" }] };
+
+test("the server's last answer is kept per person, and read back whole", () => {
+  const scope = native();
+  assert.equal(rememberedScope("sam", scope), null, "nothing until the server has answered once");
+  rememberScope("sam", SCOPE, scope);
+  assert.deepEqual(rememberedScope("sam", scope), SCOPE);
+  assert.equal(rememberedScope("noor", scope), null, "one person's screens are not another's");
+  assert.ok(scope.localStorage.map.has(`${SCOPE_KEY}:sam`), "on the device in the installed app");
+});
+
+test("in a browser tab it lasts only as long as the sign-in does", () => {
+  const scope = web();
+  rememberScope("sam", SCOPE, scope);
+  assert.ok(scope.sessionStorage.map.has(`${SCOPE_KEY}:sam`));
+  assert.equal(scope.localStorage.map.size, 0, "nothing of the business outlives the tab");
+});
+
+test("something unreadable is no answer, not a broken app", () => {
+  const scope = native();
+  scope.localStorage.map.set(`${SCOPE_KEY}:sam`, "{not json");
+  assert.equal(rememberedScope("sam", scope), null);
+  scope.localStorage.map.set(`${SCOPE_KEY}:sam`, JSON.stringify({ capabilities: [] }));
+  assert.equal(rememberedScope("sam", scope), null, "no list of screens, nothing to open on");
+  assert.equal(rememberedScope("", scope), null);
+  assert.equal(rememberScope("sam", null, scope), false);
+});
+
+test("signing out forgets it, for everyone who used this device", () => {
+  const scope = native();
+  rememberScope("sam", SCOPE, scope);
+  rememberScope("noor", SCOPE, scope);
+  scope.sessionStorage.map.set(`${SCOPE_KEY}:old`, JSON.stringify(SCOPE));
+  scope.localStorage.map.set("pm_reg_queue", "[]");
+
+  clearSession(scope);
+
+  assert.equal(rememberedScope("sam", scope), null);
+  assert.equal(rememberedScope("noor", scope), null);
+  assert.equal(scope.sessionStorage.map.has(`${SCOPE_KEY}:old`), false, "the other store too");
+  assert.equal(scope.localStorage.map.get("pm_reg_queue"), "[]", "sales waiting to be sent are not thrown away");
 });
 
 console.log(failures ? `\n${failures} failed` : "\nall passed");

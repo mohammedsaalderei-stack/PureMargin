@@ -25,7 +25,7 @@
    `sufra_seen`, the splash flag, stays too: it is not a credential, and the
    native build has its own launch screen. */
 
-import { isNativePlatform } from "./platform.js";
+import { isInstalledApp } from "./platform.js";
 
 export const TOKEN_KEY = "sufra_token";
 
@@ -43,7 +43,11 @@ export const USER_KEY = "sufra_user";
 const memory = new Map();
 
 function backing(scope = globalThis) {
-  const name = isNativePlatform(scope) ? "localStorage" : "sessionStorage";
+  /* The durable store for the iPhone app and for the website installed to a
+     home screen — an installed app that signs you out whenever it is closed,
+     and so cannot be opened with no connection, is not much of an app. An
+     ordinary browser tab keeps to the session, as it always has. */
+  const name = isInstalledApp(scope) ? "localStorage" : "sessionStorage";
   try {
     const store = scope[name];
     /* Touch it. Safari in private mode hands back a real object whose
@@ -77,9 +81,45 @@ export function writeSession(key, value, scope = globalThis) {
   return false;
 }
 
+/* What the server last said this person may open (`/api/scope`), kept beside
+   the sign-in and for exactly as long. With no connection the app still has
+   to know which screens to offer — above all the register, which has to
+   open offline — and "none, until the server answers" is no answer when the
+   server cannot. It only ever decides what is drawn: every request is
+   checked by the server against the account as it stands, and its next
+   answer replaces this one. */
+export const SCOPE_KEY = "pm_scope";
+const scopeKey = (user) => `${SCOPE_KEY}:${user}`;
+
+export function rememberScope(user, value, scope = globalThis) {
+  if (!user || !value || typeof value !== "object") return false;
+  try { return writeSession(scopeKey(user), JSON.stringify(value), scope); } catch { return false; }
+}
+
+export function rememberedScope(user, scope = globalThis) {
+  if (!user) return null;
+  try {
+    const value = JSON.parse(readSession(scopeKey(user), scope) || "null");
+    return value && typeof value === "object" && Array.isArray(value.tabs) ? value : null;
+  } catch {
+    return null;
+  }
+}
+
 export function clearSession(scope = globalThis) {
   const store = backing(scope);
-  for (const key of [TOKEN_KEY, USER_KEY]) {
+  /* Whoever was signed in, and anyone remembered before them. */
+  const remembered = new Set([...memory.keys()].filter((k) => k.startsWith(`${SCOPE_KEY}:`)));
+  for (const name of ["localStorage", "sessionStorage"]) {
+    try {
+      const s = scope[name];
+      for (let i = 0; i < (s?.length || 0); i += 1) {
+        const k = s.key(i);
+        if (k && k.startsWith(`${SCOPE_KEY}:`)) remembered.add(k);
+      }
+    } catch { /* unreadable: nothing of ours to find */ }
+  }
+  for (const key of [TOKEN_KEY, USER_KEY, ...remembered]) {
     memory.delete(key);
     try {
       /* Both stores, not the one this platform prefers. A build that has run

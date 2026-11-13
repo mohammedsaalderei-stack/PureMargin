@@ -12,6 +12,7 @@ import DeleteConfirm from "../DeleteConfirm.jsx";
 import EmailSetting from "../settings/EmailSetting.jsx";
 import UsernameSetting from "../settings/UsernameSetting.jsx";
 import StoresSetting from "../settings/StoresSetting.jsx";
+import LoyverseSetting from "../settings/LoyverseSetting.jsx";
 /* The single list, shared with the bell that reads these. Two copies is how a
    switch gets added in one place and silently ignored in the other. */
 import { ALERT_KEYS, readPrefs, writePrefs } from "../notices.js";
@@ -52,7 +53,8 @@ function Row({ label, value }) {
    gates both target notices behind `target > 0`. Two more notices silently
    switched off by saving an unrelated switch. */
 
-export default function Settings({ data, user, onRefresh, refreshing, token, conversationCount = 0, account, onAccountChange, onSeePlans, onSession, onLogout }) {
+export default function Settings({ data, user, onRefresh, refreshing, token, conversationCount = 0, account, onAccountChange, onSeePlans, onSession, onLogout, onPosChange }) {
+  const [storesKey, setStoresKey] = useState(0);
   const C = useC();
   const { t, lang } = useLang();
   const live = data.connected;
@@ -269,7 +271,9 @@ export default function Settings({ data, user, onRefresh, refreshing, token, con
       <div className="max-w-3xl mx-auto px-4 md:px-8 py-5 md:py-8 space-y-4 md:space-y-5">
         <h2 className="display text-2xl md:text-3xl font-extrabold">{t.settings.title}</h2>
 
-        <StoresSetting token={token} />
+        <StoresSetting key={storesKey} token={token} />
+        {/* Connecting Loyverse can add stores, so the list above is read again. */}
+        <LoyverseSetting token={token} onChange={() => { setStoresKey((k) => k + 1); onPosChange?.(); }} />
 
         {/* Only for somebody who can set it. A member shown four cards that
             refuse to save has been offered a choice that was never theirs. */}

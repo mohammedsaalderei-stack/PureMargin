@@ -193,7 +193,7 @@ export const REGISTER_WINDOW_DAYS = 62;
 
 /* The receipts in reporting shape: the window a period is compared with, and
    the names of the stores they were sold in. */
-export function registerOnlyRaw(register, now = Date.now(), names = {}, windowDays = REGISTER_WINDOW_DAYS) {
+export function registerOnlyRaw(register, now = Date.now(), names = {}, windowDays = REGISTER_WINDOW_DAYS, pos = null) {
   const since = now - windowDays * DAY;
   const receipts = (register || []).filter((r) => new Date(r.receipt_date).getTime() >= since);
   const sold = receipts.map((r) => String(r.store_id || REGISTER_BRANCH.id));
@@ -204,9 +204,13 @@ export function registerOnlyRaw(register, now = Date.now(), names = {}, windowDa
     fetchedAt: now,
     since: new Date(since).toISOString(),
     receiptCount: receipts.length,
-    registerCount: receipts.length,
+    registerCount: receipts.filter((r) => r.source !== "loyverse").length,
+    posCount: receipts.filter((r) => r.source === "loyverse").length,
     receipts,
-    limitedHistory: false,
+    /* A connected Loyverse on a plan that keeps 31 days has no period before
+       this one to compare with. The register's own sales from then would make
+       a comparison of something against nearly nothing, so there is none. */
+    limitedHistory: Boolean(pos?.limitedHistory),
     historyDays: windowDays,
     catalogue: new Map(),
     storeNames: Object.fromEntries(branches.map((id) => [id, names[id] || (id === REGISTER_BRANCH.id ? REGISTER_BRANCH.name : id)])),
@@ -216,9 +220,9 @@ export function registerOnlyRaw(register, now = Date.now(), names = {}, windowDa
 
 /* What every report reads. A business that has sold nothing yet is told so
    (`NotConnected`) rather than shown a dashboard of zeros. */
-function salesRaw(register, names, now = Date.now(), windowDays = REGISTER_WINDOW_DAYS) {
+function salesRaw(register, names, now = Date.now(), windowDays = REGISTER_WINDOW_DAYS, pos = null) {
   if (!register?.length) throw new NotConnected();
-  return registerOnlyRaw(register, now, names, windowDays);
+  return registerOnlyRaw(register, now, names, windowDays, pos);
 }
 
 /* A long period's days, grouped so a chart of a year is fifty-odd bars and
@@ -264,18 +268,23 @@ export async function rawReceipts({ days = 7, register = null, now = Date.now() 
   return (register || []).filter((r) => new Date(r.receipt_date).getTime() >= since);
 }
 
-export async function getMetrics({ overrides = {}, branches = null, edits = {}, register = null, names = {}, costs = null, timeZone, period = null, now = Date.now() } = {}) {
+export async function getMetrics({ overrides = {}, branches = null, edits = {}, register = null, names = {}, costs = null, timeZone, period = null, pos = null, now = Date.now() } = {}) {
   /* The usual figures are the last 30 days. `period` asks for a longer one as
      well — `{ key, days }` — read over twice its length so it has a period
      before it to compare with. */
   const windowDays = period?.days ? Math.max(REGISTER_WINDOW_DAYS, period.days * 2 + 2) : REGISTER_WINDOW_DAYS;
-  const raw = salesRaw(register, names, now, windowDays);
+  const raw = salesRaw(register, names, now, windowDays, pos);
 
   /* `branches` is already authorized and intersected by the caller. null means
      the whole organization. */
+  /* The whole organization only when the list really does cover every branch
+     there is. This compared the two lengths, which is not the same thing: one
+     permitted branch against one branch with sales are equal in number and
+     can be different branches — a manager of a store that had not sold yet
+     was handed the figures of the one that had. */
+  const asked = branches === null ? null : new Set(branches.map(String));
   const scoped =
-    branches === null ||
-    (raw.allBranches.length > 0 && branches.length === raw.allBranches.length)
+    asked === null || (raw.allBranches.length > 0 && raw.allBranches.every((b) => asked.has(String(b))))
       ? null
       : branches;
 
@@ -307,7 +316,7 @@ export async function getMetrics({ overrides = {}, branches = null, edits = {}, 
   return {
     ...shaped,
     connected: true,
-    source: "PureMargin",
+    source: pos?.connected ? "PureMargin + Loyverse" : "PureMargin",
     period: longer,
     allBranches: raw.allBranches,
     /* Provenance inputs, passed through rather than recomputed downstream so
@@ -316,9 +325,10 @@ export async function getMetrics({ overrides = {}, branches = null, edits = {}, 
       at: raw.fetchedAt,
       since: raw.since,
       receiptCount: raw.receiptCount,
-      limitedHistory: false,
+      limitedHistory: raw.limitedHistory,
       historyDays: raw.historyDays,
       wentUpstream: false,
+      posCount: raw.posCount || 0,
       branchNames: raw.storeNames,
       editCount: Object.keys(edits || {}).length,
       registerCount: raw.registerCount || 0,
@@ -346,8 +356,8 @@ function linesOf(r) {
    theoretical consumption. Refunds are excluded (a refunded sale consumed no
    ingredients, see `_aggregate.js` on why the food still counts as cost) and
    owner corrections applied (a voided sale consumed nothing either). */
-export async function salesLines({ from, to = Date.now(), branches = null, edits = {}, register = null, names = {} } = {}) {
-  const raw = registerOnlyRaw(register, to, names);
+export async function salesLines({ from, to = Date.now(), branches = null, edits = {}, register = null, names = {}, pos = null } = {}) {
+  const raw = registerOnlyRaw(register, to, names, REGISTER_WINDOW_DAYS, pos);
   const allowed = branches === null ? null : new Set(branches.map(String));
   const rows = new Map();
 
@@ -372,7 +382,7 @@ export async function salesLines({ from, to = Date.now(), branches = null, edits
 
   return {
     lines: [...rows.values()],
-    fetch: { at: raw.fetchedAt, since: raw.since, receiptCount: raw.receiptCount, limitedHistory: false, historyDays: raw.historyDays },
+    fetch: { at: raw.fetchedAt, since: raw.since, receiptCount: raw.receiptCount, limitedHistory: raw.limitedHistory, historyDays: raw.historyDays },
   };
 }
 

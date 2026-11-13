@@ -6,7 +6,7 @@ import { useC } from "../theme.jsx";
 import { useLang } from "../i18n.jsx";
 import BrandMark from "../BrandMark.jsx";
 import { Keypad, keyInto } from "./ui.jsx";
-import { call, RegisterError } from "./api.js";
+import { call, RegisterError, rememberPin, offlinePin } from "./api.js";
 
 export default function PinPad({ token, onSignedIn, onExit, exitLabel, business }) {
   const C = useC();
@@ -21,10 +21,20 @@ export default function PinPad({ token, onSignedIn, onExit, exitLabel, business 
     setError("");
     try {
       const out = await call(token, "pin", { method: "POST", body: { pin: value } });
+      rememberPin(value, out.operator, out.token);
       onSignedIn(out.operator, out.token);
     } catch (err) {
+      /* No connection: somebody who has signed in on this device before is
+         let in from what it remembered; anybody else is told why not. */
+      if (!(err instanceof RegisterError)) {
+        const known = await offlinePin(value);
+        if (known) { onSignedIn(known.operator, known.token); return; }
+        setPin("");
+        setError(P.offline.pin);
+        return;
+      }
       setPin("");
-      setError(err instanceof RegisterError ? (err.status === 429 ? P.pin.locked : P.pin.wrong) : P.errors.network);
+      setError(err.status === 429 ? P.pin.locked : P.pin.wrong);
     } finally {
       setBusy(false);
     }

@@ -32,7 +32,7 @@ export default async function handler(req, res) {
 
   try {
     /* Sales rung up on PureMargin's own register count like the till's. */
-    const { register, names } = await registerContext(session.account);
+    const { register, names, pos } = await registerContext(session.account);
 
     let roster = [];
     try {
@@ -59,10 +59,13 @@ export default async function handler(req, res) {
     let sales = { lines: [], fetch: null };
     let salesError = null;
     try {
-      sales = await salesLines({ from, to, branches, edits: await listEdits(orgId), register, names });
+      sales = await salesLines({ from, to, branches, edits: await listEdits(orgId), register, names, pos });
     } catch (err) {
       salesError = "failed";
     }
+    /* The connected till could not be read, so its sales are missing from
+       the sales side: said, rather than reported as a quiet period. */
+    if (!salesError && pos && pos.ok === false) salesError = "pos";
 
     /* Stale or absent sales don't stop the plan; they downgrade its confidence,
        which is what the reader needs to know. */

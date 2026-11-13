@@ -31,7 +31,7 @@ import {
 const SEEN_KEY = "puremargin_notices_seen_v2";
 const TONE = { good: "cyan", warn: "rose", info: "iris" };
 
-export default function NotificationBell({ data, staff, onAsk, capabilities }) {
+export default function NotificationBell({ data, staff, stock, onAsk, capabilities }) {
   const C = useC();
   const { t, lang } = useLang();
   const [open, setOpen] = useState(false);
@@ -75,10 +75,10 @@ export default function NotificationBell({ data, staff, onAsk, capabilities }) {
   }), [staff, lang]);
 
   const notices = useMemo(() => buildNotices(data, alerts, {
-    t, fill, dailyTarget: target, capabilities, staff: punches,
+    t, fill, dailyTarget: target, capabilities, staff: punches, stock,
     pastEod: pastEod(eodTime),
     isWeekEnd: isWeekEnd(),
-  }), [data, alerts, target, eodTime, t, capabilities, punches]);
+  }), [data, alerts, target, eodTime, t, capabilities, punches, stock]);
 
   const unseen = countUnseen(notices, seen);
 

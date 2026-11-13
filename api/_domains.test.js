@@ -220,8 +220,9 @@ await test("every advertised tool exists and is reachable by name", async () => 
   await seed();
   const names = dm.TOOLS.map((t) => t.name);
   assert.deepEqual(names.sort(), [
-    "calculate_net_profit", "get_fixed_costs", "get_inventory_levels",
+    "calculate_net_profit", "get_customers", "get_fixed_costs", "get_inventory_levels",
     "get_pos_sales_metrics", "get_recent_receipts", "get_recipe_details",
+    "get_register_setup", "get_register_shifts", "get_sales_channels", "get_sales_history",
     "get_staff_attendance", "get_stock_alerts",
     "get_stock_movements", "get_suppliers_and_orders",
   ]);
@@ -231,7 +232,7 @@ await test("every advertised tool exists and is reachable by name", async () => 
     /* The receipts tool reads the register's receipts, so with nothing sold
        it says so — which is the right answer, not a failure. Every other
        tool must come back clean. */
-    if (name === "get_recent_receipts") {
+    if (name === "get_recent_receipts" || name === "get_sales_history") {
       assert.equal(out.error, "nosales");
       continue;
     }
