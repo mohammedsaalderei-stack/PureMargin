@@ -154,6 +154,9 @@ they override the defaults).
   place for up to 6 h with `error` set; not retried for 30 s; a 401/403 drops
   what was kept. `LoyverseError.code`: token, permission, plan, ratelimit,
   unreachable, upstream.
+- The cache is per server instance, so each cold serverless instance walks the
+  window again (up to ~20 s for a busy business). The routes that read sales
+  have `maxDuration: 30` in `vercel.json` for that reason.
 - `api/_possales.js` `posSalesFor(org)` finds the token, reads, ties stores and
   writes the sync log (a full walk, a failure once per 10 min, a recovery). It
   never throws: a failed read is `status.ok === false` with the reason.
