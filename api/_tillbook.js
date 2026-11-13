@@ -55,6 +55,12 @@ export function readTicketLines(lines) {
   return out;
 }
 
+/* { lineKey: quantity }, bounded. */
+function readCounts(raw) {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  return Object.fromEntries(Object.entries(raw).slice(0, 100).map(([k, v]) => [text(k, 40), Math.max(0, Math.min(999, Number(v) || 0))]));
+}
+
 export async function saveTicket(orgId, input, { by = "", branchId = "", at = Date.now() } = {}) {
   const lines = readTicketLines(input?.lines);
   if (!lines) return { error: "lines" };
@@ -69,9 +75,13 @@ export async function saveTicket(orgId, input, { by = "", branchId = "", at = Da
     customerId: text(input?.customerId, 60) || null,
     discount: input?.discount || null,
     note: text(input?.note, 200) || null,
-    /* How much of each line the kitchen has already been sent. */
-    printed: input?.printed && typeof input.printed === "object" && !Array.isArray(input.printed)
-      ? Object.fromEntries(Object.entries(input.printed).slice(0, 100).map(([k, v]) => [text(k, 40), Math.max(0, Math.min(999, Number(v) || 0))]))
+    /* How much of each line the kitchen has already been sent — on every
+       printer that makes it (`printed`), and printer by printer
+       (`printedOn`), so one printer failing is not hidden by another
+       working. The till works both out (`src/print/kitchen.js`). */
+    printed: readCounts(input?.printed),
+    printedOn: input?.printedOn && typeof input.printedOn === "object" && !Array.isArray(input.printedOn)
+      ? Object.fromEntries(Object.entries(input.printedOn).slice(0, 12).map(([k, v]) => [text(k, 100), readCounts(v)]))
       : {},
     branchId: existing?.branchId || String(branchId || ""),
     lines,
@@ -82,6 +92,23 @@ export async function saveTicket(orgId, input, { by = "", branchId = "", at = Da
   };
   await setJSON(ticketKey(orgId, id), ticket);
   return { ticket };
+}
+
+/* What the kitchen has now been sent, for a ticket that is still open.
+
+   A retry of a kitchen print finishes after the ticket was saved. Saving the
+   whole ticket again to record it would bring back a ticket that had been
+   paid or voided in the meantime, so this touches the two print records and
+   nothing else, and only if the ticket is still there. */
+export async function markTicketPrinted(orgId, id, input, { at = Date.now() } = {}) {
+  const ticket = /^T[0-9a-z]+$/.test(String(id || "")) ? await getJSON(ticketKey(orgId, id)) : null;
+  if (!ticket) return { error: "ticket" };
+  const printedOn = input?.printedOn && typeof input.printedOn === "object" && !Array.isArray(input.printedOn)
+    ? Object.fromEntries(Object.entries(input.printedOn).slice(0, 12).map(([k, v]) => [text(k, 100), readCounts(v)]))
+    : ticket.printedOn || {};
+  const next = { ...ticket, printed: readCounts(input?.printed), printedOn, updatedAt: at };
+  await setJSON(ticketKey(orgId, id), next);
+  return { ticket: next };
 }
 
 export async function listTickets(orgId, branchIds = null) {

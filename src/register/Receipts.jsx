@@ -13,6 +13,7 @@ import { useLang, fill } from "../i18n.jsx";
 import { Btn, Sheet, Row, Empty, Field, money } from "./ui.jsx";
 import { call, RegisterError, queued, refusedSales, retryRefused, flush, isNetworkError } from "./api.js";
 import { printReceipt, loadPrinters } from "../print/printers.js";
+import { printProblem } from "./printText.js";
 
 const DAY = 864e5;
 const startOfDay = (ms) => { const d = new Date(ms); d.setHours(0, 0, 0, 0); return d.getTime(); };
@@ -126,6 +127,7 @@ function ReceiptDetail({ token, number, catalogue, can, printCtx, customers, onC
   const [emailing, setEmailing] = useState(false);
   const [refunding, setRefunding] = useState(false);
   const [printing, setPrinting] = useState(false);
+  const [printNote, setPrintNote] = useState("");
 
   useEffect(() => { call(token, "receipt", { query: { number } }).then(setData).catch(() => setData({ error: true })); }, [token, number]);
 
@@ -143,7 +145,14 @@ function ReceiptDetail({ token, number, catalogue, can, printCtx, customers, onC
       footer={
         <div className="flex gap-2">
           <Btn kind="ghost" disabled={printing || !loadPrinters().some((p) => p.role === "receipt")}
-            onClick={async () => { setPrinting(true); await printReceipt(r, { ...printCtx, customer }, { copy: true }).catch(() => {}); setPrinting(false); }}>
+            onClick={async () => {
+              setPrinting(true);
+              setPrintNote("");
+              const results = await printReceipt(r, { ...printCtx, customer }, { copy: true }).catch(() => []);
+              const bad = results.find((x) => !x.ok);
+              if (bad) setPrintNote(printProblem(P, bad));
+              setPrinting(false);
+            }}>
             <Printer size={16} />{P.receipts.reprint}
           </Btn>
           <Btn kind="ghost" onClick={() => setEmailing(true)}><Mail size={16} />{P.email.action}</Btn>
@@ -151,6 +160,7 @@ function ReceiptDetail({ token, number, catalogue, can, printCtx, customers, onC
         </div>
       }>
       <div className="text-xs mb-3 data" dir="ltr" style={{ color: C.slate }}>{r.receipt_number} · {new Date(r.receipt_date).toLocaleString(printCtx.locale)}</div>
+      {printNote && <p className="text-xs mb-3 font-semibold" role="status" style={{ color: C.rose }}>{printNote}</p>}
       {r.refund_for && <div className="text-xs mb-2" style={{ color: C.slate }}>{fill(P.receipts.refundOf, { number: r.refund_for })}</div>}
       {Array.isArray(r.review) && r.review.length > 0 && (
         <div className="rounded-2xl p-3 mb-3 text-xs space-y-1" style={{ border: `1px solid ${C.amber}55`, background: `${C.amber}12` }}>
@@ -198,7 +208,7 @@ function Refund({ token, receipt, refunded, catalogue, P, onCancel, onDone, prin
     setError("");
     try {
       const out = await call(token, "refund", { method: "POST", body: { number: receipt.receipt_number, lines, reason, paymentType: type } });
-      if (loadPrinters().some((p) => p.role === "receipt")) await printReceipt(out.receipt, printCtx, { openDrawer: out.receipt.payments?.[0]?.type === "CASH" }).catch(() => {});
+      await printReceipt(out.receipt, printCtx, { openDrawer: out.receipt.payments?.[0]?.type === "CASH", auto: true }).catch(() => {});
       onDone();
     } catch (err) {
       setError(err instanceof RegisterError ? (P.errors[err.body?.error] || P.errors.generic) : P.errors.network);

@@ -97,6 +97,12 @@ export const AUDIT_ACTIONS = {
   "register.product": "register product changed",
   "register.device": "a device was set to register-only",
   "register.offline": "offline sale recorded as the till charged it",
+  /* Printing through a bridge in the shop: who may write to which printer is
+     a security setting, so each change to it is on the record. */
+  "print.bridge.add": "print bridge added",
+  "print.bridge.remove": "print bridge removed",
+  "print.target.add": "network printer registered",
+  "print.target.remove": "network printer removed",
   "channel.save": "sales channel added or changed",
   "channel.rule": "sales channel fee rule added",
   "channel.prices": "sales channel prices changed",

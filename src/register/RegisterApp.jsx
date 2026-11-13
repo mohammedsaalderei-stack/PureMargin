@@ -31,9 +31,11 @@ import RegisterSettings from "./RegisterSettings.jsx";
 import PinPad from "./PinPad.jsx";
 import {
   loadCatalogue, call, flush, queued, enqueue, savedOperator, setOperator, savedBranch, saveBranch, RegisterError,
-  isNetworkError, savedShift, saveShift, savedCustomers, saveCustomers, refusedSales, setQueueOwner,
+  isNetworkError, savedShift, saveShift, savedCustomers, saveCustomers, refusedSales, setQueueOwner, operatorToken,
 } from "./api.js";
-import { printReceipt, printKitchen, loadPrinters } from "../print/printers.js";
+import { printReceipt, printKitchen, loadPrinters, setPrintSession, kitchenWork, applyKitchenResults, settleKitchen } from "../print/printers.js";
+import KitchenRetry from "./KitchenRetry.jsx";
+import { printProblem } from "./printText.js";
 
 const VIEWS = [
   { id: "sell", icon: ShoppingCart },
@@ -56,17 +58,24 @@ function useWide() {
   return wide;
 }
 
-/* What the kitchen has not been sent yet, line by line. */
-function kitchenLines(order, items, P) {
+/* Every line of an order as the kitchen reads it. Which printer still owes
+   which of them is worked out from this (`print/kitchen.js`). */
+function kitchenLinesOf(order, items, P) {
   const byId = new Map(items.map((i) => [i.id, i]));
   return order.lines
-    .map((l) => ({ l, item: byId.get(l.itemId), qty: l.qty - (order.printed?.[l.key] || 0) }))
-    .filter((x) => x.qty > 0 && x.item)
-    .map(({ l, item, qty }) => ({
-      key: l.key, qty, name: lineName(item, l, P), category: item.category, note: l.note,
+    .map((l) => ({ l, item: byId.get(l.itemId) }))
+    .filter((x) => x.item)
+    .map(({ l, item }) => ({
+      key: l.key, qty: l.qty, name: lineName(item, l, P), category: item.category, note: l.note,
       addons: l.addons.map((a) => item.addons?.find((x) => x.id === a)?.name || a),
     }));
 }
+
+/* A ticket as the till holds it, from one the server kept. */
+const orderFromTicket = (tk) => ({
+  ...emptyOrder(tk.orderType), ...tk, ticketName: tk.name || "", table: tk.table || "", ticketId: tk.id, customerId: tk.customerId || "",
+  lines: tk.lines.map((l) => ({ ...l, key: l.key || `l${Math.random().toString(36).slice(2, 8)}`, addons: l.addons || [], note: l.note || "", discount: l.discount || null })),
+});
 
 export default function RegisterApp({ token, user, business: businessProp, onExit, onLogout, onSession, deviceLocked = false, onUnlocked }) {
   const C = useC();
@@ -79,6 +88,9 @@ export default function RegisterApp({ token, user, business: businessProp, onExi
   const [loadError, setLoadError] = useState("");
   /* Before anything reads the queue: unsent sales are kept per person. */
   setQueueOwner(user);
+  /* And before anything prints: a network printer on the website is reached
+     through the server, as whoever is signed in. */
+  setPrintSession(() => ({ token, operator: operatorToken() }));
   const [view, setView] = useState("sell");
   const [branchId, setBranchId] = useState(savedBranch());
   const [operator, setOp] = useState(savedOperator());
@@ -95,6 +107,9 @@ export default function RegisterApp({ token, user, business: businessProp, onExi
   const [pricing, setPricing] = useState(null);
   const [shiftStale, setShiftStale] = useState(false);
   const [refused, setRefused] = useState(refusedSales().length);
+  const [kitchenRetry, setKitchenRetry] = useState(null);
+  /* The receipt that did not print after a sale: { number, text }. */
+  const [receiptNote, setReceiptNote] = useState(null);
   const [lockOpen, setLockOpen] = useState(false);
   const [unlockOpen, setUnlockOpen] = useState(false);
   /* A staff device has no back office to go back to: the way out is a
@@ -196,50 +211,111 @@ export default function RegisterApp({ token, user, business: businessProp, onExi
   const signIn = (op, tok) => { setOperator(op, tok); setOp(op); };
   const lock = () => { setOperator(null); setOp(null); };
 
-  const sendToKitchen = async (o) => {
-    const lines = kitchenLines(o, catalogue.items, P);
-    if (!lines.length || !loadPrinters().some((p) => p.role === "kitchen")) return o.printed || {};
-    const added = Object.keys(o.printed || {}).length > 0;
-    const results = await printKitchen({ ...o, name: o.ticketName, at: Date.now(), by: operator?.name || user, lines }, printCtx, { added });
-    if (results.some((r) => !r.ok)) say(P.print.kitchenFailed);
-    const printed = { ...(o.printed || {}) };
-    for (const l of lines) printed[l.key] = (printed[l.key] || 0) + l.qty;
-    return printed;
+  /* Send the kitchen what it has not had, and report what actually happened.
+
+     Answers with the ticket's record of what each printer has printed —
+     moved on only for the printers that did print — and the ones that did
+     not. It used to mark every line as sent whatever the printer said, so a
+     kitchen printer that was off swallowed orders in silence. */
+  const sendToKitchen = async (o, { again = {}, whole = false } = {}) => {
+    const record = { printed: o.printed || {}, printedOn: o.printedOn || {} };
+    const printers = loadPrinters().filter((p) => p.role === "kitchen");
+    if (!printers.length) return { ...record, failures: [] };
+    const lines = kitchenLinesOf(o, catalogue.items, P);
+    const work = kitchenWork(o, lines, printers, { manual: whole, whole });
+    if (!work.length) return { ...record, failures: [] };
+    const results = await printKitchen({ ...o, name: o.ticketName, at: Date.now(), by: operator?.name || user }, printCtx, work, { again, whole });
+    const next = whole ? record : applyKitchenResults(o, lines, printers, work, results);
+    return { ...next, failures: results.map((r, i) => ({ ...r, work: work[i] })).filter((r) => !r.ok) };
   };
+
+  const ticketBody = (o, record) => ({
+    id: o.ticketId, name: o.ticketName, table: o.table, orderType: o.orderType, channelId: o.channelId || "",
+    customerId: o.customerId, discount: o.discount, note: o.note, lines: o.lines, printed: record.printed, printedOn: record.printedOn, branchId,
+  });
 
   const saveTicket = async () => {
     setBusy(true);
+    let record = { printed: order.printed || {}, printedOn: order.printedOn || {} };
     try {
-      const printed = await sendToKitchen(order);
-      await call(token, "ticket", { method: "PUT", body: {
-        id: order.ticketId, name: order.ticketName, table: order.table, orderType: order.orderType, channelId: order.channelId || "",
-        customerId: order.customerId, discount: order.discount, note: order.note, lines: order.lines, printed, branchId,
-      } });
+      const sent = await sendToKitchen(order);
+      record = { printed: sent.printed, printedOn: sent.printedOn };
+      const saved = await call(token, "ticket", { method: "PUT", body: ticketBody(order, record) });
       setOrder(emptyOrder(order.orderType));
-      say(P.tickets.saved);
+      if (sent.failures.length) setKitchenRetry({ order: { ...order, ...record }, failures: sent.failures, ticketId: saved?.ticket?.id || order.ticketId || null });
+      else say(P.tickets.saved);
     } catch (err) {
+      /* The ticket did not save, but the kitchen may have been sent some of
+         it: the order keeps that, so saving again does not print it twice. */
+      setOrder((o) => ({ ...o, ...record }));
       say(err instanceof RegisterError ? (P.errors[err.body?.error] || P.errors.generic) : P.errors.offlineTicket);
     } finally {
       setBusy(false);
     }
   };
 
+  /* The retry sheet's three answers: try the failed printers again, print
+     one again that may already be on paper, or say that it did print. */
+  const retryKitchen = async ({ again = {}, printedByHand = [] } = {}) => {
+    const held = kitchenRetry;
+    if (!held) return;
+    setBusy(true);
+    try {
+      let o = held.order;
+      if (printedByHand.length) {
+        const works = held.failures.filter((f) => printedByHand.includes(f.key)).map((f) => f.work);
+        works.forEach(settleKitchen);
+        const printers = loadPrinters().filter((p) => p.role === "kitchen");
+        o = { ...o, ...applyKitchenResults(o, kitchenLinesOf(o, catalogue.items, P), printers, works, works.map(() => ({ ok: true }))) };
+      }
+      const sent = await sendToKitchen(o, { again });
+      const next = { ...o, printed: sent.printed, printedOn: sent.printedOn };
+      if (held.ticketId) {
+        await call(token, "ticket-printed", { method: "PUT", body: { id: held.ticketId, printed: next.printed, printedOn: next.printedOn } }).catch(() => {});
+      }
+      if (sent.failures.length) setKitchenRetry({ ...held, order: next, failures: sent.failures });
+      else { setKitchenRetry(null); say(P.print.retry.done); }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  /* The whole order again, to every kitchen printer: the ticket was lost,
+     or its printer does not print by itself. Changes no record. */
+  const reprintKitchen = async (tk) => {
+    const sent = await sendToKitchen(orderFromTicket(tk), { whole: true });
+    say(sent.failures.length ? printProblem(P, sent.failures[0]) : P.tickets.kitchenSent);
+  };
+
   const onSold = async (sold) => {
     setDone(sold);
+    setReceiptNote(null);
     const receipt = sold.receipt;
     const cash = (receipt.payments || []).some((p) => p.type === "CASH");
-    /* The kitchen first: the food is what the customer is waiting for. */
-    await sendToKitchen(sold.order).catch(() => {});
-    if (loadPrinters().some((p) => p.role === "receipt" && p.autoPrint)) {
-      const customer = customers.find((c) => c.id === receipt.customer_id);
-      const results = await printReceipt(receipt, { ...printCtx, customer }, { openDrawer: cash });
-      if (results.some((r) => !r.ok)) say(P.print.failed);
-    }
+    /* The till is ready for the next customer at once; the printers report
+       back when they have something to say. */
     setOrder(emptyOrder(sold.order.orderType));
     setWaiting(queued().length);
     if (sold.offline) setOnline(false);
     loadShift();
     if (receipt.customer_id) loadCustomers();
+    /* The kitchen first: the food is what the customer is waiting for. */
+    const kitchen = sendToKitchen(sold.order).catch(() => null);
+    /* A receipt only where a printer is set to print one after every sale. */
+    const customer = customers.find((c) => c.id === receipt.customer_id);
+    const receipts = printReceipt(receipt, { ...printCtx, customer }, { openDrawer: cash, auto: true }).catch(() => []);
+    const sent = await kitchen;
+    if (sent?.failures.length) setKitchenRetry({ order: { ...sold.order, printed: sent.printed, printedOn: sent.printedOn }, failures: sent.failures, ticketId: null });
+    const bad = (await receipts).find((r) => !r.ok);
+    if (bad) {
+      /* Kept on the paid screen, where the cashier is looking, and said
+         once in passing for whoever has already moved on to the next sale:
+         a customer waiting for a receipt that is not coming needs somebody
+         to know. */
+      const text = printProblem(P, bad);
+      setReceiptNote({ number: receipt.receipt_number, text });
+      say(text);
+    }
   };
 
   const deviceSheets = (
@@ -285,7 +361,8 @@ export default function RegisterApp({ token, user, business: businessProp, onExi
       onSetPrice={setPricing} busy={busy} />
   ) : view === "tickets" ? (
     <Tickets token={token} catalogue={catalogue} branchId={branchId} canVoid={can.refund} operator={operator?.name || user}
-      onOpen={(tk) => { setOrder({ ...emptyOrder(tk.orderType), ...tk, ticketName: tk.name || "", table: tk.table || "", ticketId: tk.id, customerId: tk.customerId || "", lines: tk.lines.map((l) => ({ ...l, key: l.key || `l${Math.random().toString(36).slice(2, 8)}`, addons: l.addons || [], note: l.note || "", discount: l.discount || null })) }); setView("sell"); }} />
+      onPrint={loadPrinters().some((p) => p.role === "kitchen") ? reprintKitchen : null}
+      onOpen={(tk) => { setOrder(orderFromTicket(tk)); setView("sell"); }} />
   ) : view === "receipts" ? (
     <Receipts token={token} catalogue={catalogue} branchId={branchId} can={can} printCtx={printCtx} customers={customers} onChanged={loadShift} queueTick={`${waiting}:${refused}`} />
   ) : view === "shift" ? (
@@ -409,7 +486,9 @@ export default function RegisterApp({ token, user, business: businessProp, onExi
       )}
 
       {deviceSheets}
-      {done && <Done token={token} sold={done} P={P} printCtx={printCtx} customers={customers} onClose={() => setDone(null)} />}
+      {done && <Done token={token} sold={done} P={P} printCtx={printCtx} customers={customers} onClose={() => setDone(null)}
+        autoNote={receiptNote?.number === done.receipt.receipt_number ? receiptNote.text : ""} />}
+      {kitchenRetry && <KitchenRetry P={P} held={kitchenRetry} busy={busy} onRetry={retryKitchen} onClose={() => setKitchenRetry(null)} />}
       {pricing && <PriceSheet token={token} item={pricing} P={P} onClose={() => setPricing(null)} onSaved={() => { setPricing(null); load(); }} />}
 
       {notice && (
@@ -427,16 +506,23 @@ function Frame({ children }) {
 }
 
 /* After the sale: the change to hand back, and the receipt. */
-function Done({ token, sold, P, printCtx, customers, onClose }) {
+function Done({ token, sold, P, printCtx, customers, onClose, autoNote = "" }) {
   const C = useC();
   const [printing, setPrinting] = useState(false);
   const [emailing, setEmailing] = useState(false);
   const customer = customers.find((c) => c.id === sold.receipt.customer_id);
   const r = sold.receipt;
   const change = (r.payments || []).reduce((s, p) => s + Number(p.change || 0), 0);
+  /* null until the cashier prints from here; after that, what that print
+     said — which replaces whatever the automatic one after the sale said. */
+  const [printNote, setPrintNote] = useState(null);
+  const note = printNote ?? autoNote;
   const reprint = async () => {
     setPrinting(true);
-    await printReceipt(r, { ...printCtx, customer: customers.find((c) => c.id === r.customer_id) }).catch(() => {});
+    setPrintNote("");
+    const results = await printReceipt(r, { ...printCtx, customer: customers.find((c) => c.id === r.customer_id) }).catch(() => []);
+    const bad = results.find((x) => !x.ok);
+    if (bad) setPrintNote(printProblem(P, bad));
     setPrinting(false);
   };
   return (
@@ -460,6 +546,7 @@ function Done({ token, sold, P, printCtx, customers, onClose }) {
         )}
         <div className="text-xs mt-2 data" dir="ltr" style={{ color: C.slate }}>{r.receipt_number}</div>
         {sold.offline && <p className="text-xs mt-3 font-semibold" style={{ color: C.amber }}>{P.done.offline}</p>}
+        {note && <p className="text-xs mt-3 font-semibold" role="status" style={{ color: C.rose }}>{note}</p>}
       </div>
     </Sheet>
   );

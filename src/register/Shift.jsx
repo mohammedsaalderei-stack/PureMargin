@@ -17,6 +17,7 @@ import { Btn, Tile, Sheet, Row, Empty, Keypad, keyInto, Field, money } from "./u
 const less = (n) => (Number(n) > 0 ? `−${money(n)}` : money(0));
 import { call, RegisterError } from "./api.js";
 import { printShift, openDrawer } from "../print/printers.js";
+import { printReason, printProblem } from "./printText.js";
 
 export default function Shift({ token, branchId, shift, summary, onChanged, printCtx, business, catalogue, stale = false }) {
   const C = useC();
@@ -56,8 +57,14 @@ export default function Shift({ token, branchId, shift, summary, onChanged, prin
         <div className="grid grid-cols-4 gap-2">
           <Tile icon={ArrowDownToLine} label={P.shift.payIn} onClick={() => setMove("in")} />
           <Tile icon={ArrowUpFromLine} label={P.shift.payOut} onClick={() => setMove("out")} />
-          <Tile icon={Inbox} label={P.shift.drawer} onClick={async () => { try { await openDrawer(); } catch { say(P.print.noDrawer); } }} />
-          <Tile icon={Printer} label={P.shift.printX} onClick={async () => { const r = await printShift(shift, s, { ...printCtx, business }); if (!r[0]?.ok) say(P.print.failed); }} />
+          <Tile icon={Inbox} label={P.shift.drawer} onClick={async () => {
+            try { await openDrawer(); }
+            catch (err) { say(err?.code === "no-drawer" ? P.print.noDrawer : fill(P.print.drawerFailed, { reason: printReason(P, err?.code) })); }
+          }} />
+          <Tile icon={Printer} label={P.shift.printX} onClick={async () => {
+            const r = await printShift(shift, s, { ...printCtx, business });
+            if (!r[0]?.ok) say(r[0]?.error === "no-printer" ? P.print.failed : printProblem(P, r[0]));
+          }} />
         </div>
 
         {s && (

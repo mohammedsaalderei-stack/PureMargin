@@ -21,7 +21,7 @@
 
    GET  ?what=catalogue | day | receipts | receipt | tickets | customers | shift | shifts | pins | stockitems
    POST ?what=sale | refund | pin | shift-open | shift-move | shift-close | email | device
-   PUT  ?what=ticket | customer | addons | variants | image | price | vat | settings | product | item | pins
+   PUT  ?what=ticket | ticket-printed | customer | addons | variants | image | price | vat | settings | product | item | pins
    DELETE ?what=ticket | product | pins | image
 */
 
@@ -43,7 +43,7 @@ import {
   forDepletion, rosterFor, findReceipt, refundedSoFar, acceptNumber, monthsBetween, ORDER_TYPES, receiptNumber,
 } from "./_till.js";
 import { currentShift, openShift, cashMove, closeShift, summarise, listShifts } from "./_tillshift.js";
-import { saveTicket, listTickets, getTicket, deleteTicket, saveCustomer, listCustomers, getCustomer, customerStats } from "./_tillbook.js";
+import { saveTicket, markTicketPrinted, listTickets, getTicket, deleteTicket, saveCustomer, listCustomers, getCustomer, customerStats } from "./_tillbook.js";
 import { checkPin, readOperator, pinsInUse, listPins, setPin, removePin } from "./_tillstaff.js";
 import { saveSection, saveProduct, archiveProduct, saveItemMeta } from "./_tillsetup.js";
 import { listEmployees } from "./_employees.js";
@@ -305,7 +305,7 @@ export default async function handler(req, res) {
        somebody the till named on the receipt. It is not held back because
        their PIN session has since run out (`_tilloffline.js`). */
     const replayed = req.method === "POST" && body.offline === true && (what === "sale" || what === "shift-open");
-    if (needsOperator && !operator && !replayed && ["sale", "refund", "ticket", "shift-open", "shift-move", "shift-close"].includes(what)) {
+    if (needsOperator && !operator && !replayed && ["sale", "refund", "ticket", "ticket-printed", "shift-open", "shift-move", "shift-close"].includes(what)) {
       return res.status(401).json({ error: "operator" });
     }
 
@@ -507,6 +507,14 @@ export default async function handler(req, res) {
       if (!branch) return res.status(403).json({ error: "branch" });
       const out = await saveTicket(orgId, body, { by: sellingAs, branchId: branch, at: now });
       if (out.error) return res.status(422).json(out);
+      return res.status(200).json(out);
+    }
+
+    if (req.method === "PUT" && what === "ticket-printed") {
+      const ticket = await getTicket(orgId, body.id);
+      if (!ticket || !authorized.includes(String(ticket.branchId))) return res.status(404).json({ error: "ticket" });
+      const out = await markTicketPrinted(orgId, ticket.id, body, { at: now });
+      if (out.error) return res.status(404).json(out);
       return res.status(200).json(out);
     }
 
