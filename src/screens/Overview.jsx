@@ -15,7 +15,10 @@ import { useCountUp } from "../hooks.js";
 import ItemPhoto from "../ItemPhoto.jsx";
 import { SectionLabel, TrendIndicator } from "../ui.jsx";
 import Provenance from "../Provenance.jsx";
+import { DATE_RANGES, rangeTotals, foodCostPct } from "../overview/rangeTotals.js";
 import "../glass.css";
+
+export { DATE_RANGES };
 
 /* ─── Date + category filter bar ─────────────────────────── */
 /* Labels come from the dictionary; they used to be hardcoded English and
@@ -27,15 +30,8 @@ import "../glass.css";
    started pulling a year: the button said "this month" and the figures covered
    twelve. Now each period is an explicit number of days, and the longer ones
    only appear when there is enough history behind them — offering a year to an
-   account whose plan caps it at a month is offering a button that lies. */
-export const DATE_RANGES = [
-  { key: "daily", days: 1 },
-  { key: "weekly", days: 7 },
-  { key: "monthly", days: 30 },
-  { key: "quarter", days: 90, long: true },
-  { key: "year", days: 365, long: true },
-  { key: "all", days: null, long: true },
-];
+   account whose plan caps it at a month is offering a button that lies.
+   The list itself is in `overview/rangeTotals.js`, beside the arithmetic. */
 
 export function rangesFor(data) {
   /* Fall back to what is actually on hand when the API did not say. A period
@@ -88,47 +84,10 @@ export function FilterBar({ dateRange, onDateChange, data }) {
 }
 
 /* ─── Derived totals by date range ───────────────────────── */
-/* Change against the period just before, or null when that period sold
-   nothing — no comparison, rather than a flat one. */
-const change = (now, before) => (before > 0 ? Number((((now - before) / before) * 100).toFixed(1)) : null);
-
+/* Every figure on the screen for the picked range — sales, profit, food cost
+   and the purity score — worked out in `overview/rangeTotals.js`. */
 export function useDateRangeData(data, range) {
-  return useMemo(() => {
-    /* A long range comes back from the server worked out for that period,
-       with its own comparison. Until it has, the 30 days stand in. */
-    if (DATE_RANGES.find((r) => r.key === range)?.long) {
-      if (data.period?.key === range) {
-        return { totals: { ...data.totals, ...data.period.totals }, series: data.period.series, period: data.period };
-      }
-    }
-    const daily = data.daily || [];
-    if (!daily.length) return { totals: data.totals || {}, series: [] };
-    const days = (DATE_RANGES.find((r) => r.key === range) || {}).days;
-    const slice = days ? daily.slice(-days) : daily;
-    if (!slice.length) return { totals: data.totals || {}, series: [] };
-    const sum = (rows, k) => rows.reduce((s, d) => s + (d[k] || 0), 0);
-    const sales = sum(slice, "sales");
-    const receipts = sum(slice, "receipts");
-    const tax = sum(slice, "tax");
-    const avgTicket = receipts > 0 ? sales / receipts : 0;
-
-    /* Each range against the one before it: today against yesterday, this
-       week against last week. The cards used to show the 30-day comparison
-       whatever range was picked, so "today" quoted a month's change. The
-       30-day range keeps the server's, which can see the month before. */
-    let deltas = {};
-    if (days && days < daily.length && daily.length >= days * 2) {
-      const prior = daily.slice(-days * 2, -days);
-      const pSales = sum(prior, "sales");
-      const pReceipts = sum(prior, "receipts");
-      deltas = {
-        salesDelta: change(sales, pSales),
-        receiptsDelta: change(receipts, pReceipts),
-        avgTicketDelta: pReceipts > 0 && receipts > 0 ? change(avgTicket, pSales / pReceipts) : null,
-      };
-    }
-    return { totals: { ...data.totals, sales, receipts, avgTicket, tax, ...deltas }, series: slice };
-  }, [data, range]);
+  return useMemo(() => rangeTotals(data, range), [data, range]);
 }
 
 /* ─── Summary card with trend indicator ──────────────────── */
@@ -297,14 +256,13 @@ function QuickActions({ onOpenCosts, onGo }) {
 }
 
 /* ─── Food cost indicator ────────────────────────────────── */
-function FoodCostIndicator({ data }) {
+function FoodCostIndicator({ totals }) {
   const C = useC();
   const { t } = useLang();
-  const cost = data.extras?.cost || 0;
-  const sales = data.totals?.sales || 1;
-  const pct = sales > 0 ? ((cost / sales) * 100).toFixed(1) : 0;
+  /* Over sales without VAT (see `foodCostPct`). */
+  const pct = foodCostPct(totals);
   const target = 30;
-  const over = parseFloat(pct) > target;
+  const over = pct !== null && pct > target;
 
   return (
     <div className="glass-card p-5 flex flex-col g-stagger" style={{ "--i": 8 }}>
@@ -313,17 +271,21 @@ function FoodCostIndicator({ data }) {
           <Target size={14} style={{ color: over ? C.rose : "#10B981" }} />
           <SectionLabel>{t.overview.foodCostPct}</SectionLabel>
         </div>
-        <span className="text-xs px-2.5 py-0.5 rounded-full font-semibold"
-          style={{ background: over ? "rgba(244,63,94,0.12)" : "rgba(16,185,129,0.12)",
-                   color: over ? C.rose : "#10B981" }}>
-          {over ? "Above Target" : "On Target"}
-        </span>
+        {pct !== null && (
+          <span className="text-xs px-2.5 py-0.5 rounded-full font-semibold"
+            style={{ background: over ? "rgba(244,63,94,0.12)" : "rgba(16,185,129,0.12)",
+                     color: over ? C.rose : "#10B981" }}>
+            {over ? t.overview.aboveTarget : t.overview.onTarget}
+          </span>
+        )}
       </div>
-      <div className="display text-2xl font-bold" style={{ color: over ? C.rose : "#10B981" }} dir="ltr">{pct}%</div>
-      <div className="text-xs mt-1" style={{ color: C.slate }}>Target ≤ {target}%</div>
+      <div className="display text-2xl font-bold" style={{ color: pct === null ? C.slate : over ? C.rose : "#10B981" }} dir="ltr">
+        {pct === null ? "—" : `${pct}%`}
+      </div>
+      <div className="text-xs mt-1" style={{ color: C.slate }}>{fill(t.overview.targetNote, { n: target })}</div>
       <div className="mt-3 h-1.5 rounded-full overflow-hidden" style={{ background: "var(--bar-track)" }}>
         <div className="h-full rounded-full transition-all"
-          style={{ width: `${Math.min(parseFloat(pct) / (target * 2) * 100, 100)}%`,
+          style={{ width: `${Math.min((pct || 0) / (target * 2) * 100, 100)}%`,
                    background: over ? "linear-gradient(90deg, #F43F5E, #E11D48)" : "linear-gradient(90deg, #10B981, #06B6D4)" }} />
       </div>
     </div>
@@ -380,10 +342,10 @@ export default function Overview({ data, dateRange, onDateRangeChange, onAsk, on
   const { t } = useLang();
 
   const margin = data.margin || {};
-  const { totals: filteredTotals, series } = useDateRangeData(data, dateRange);
+  const { totals: filteredTotals, series, basis, costCoverage, score } = useDateRangeData(data, dateRange);
 
   const sales = useCountUp(filteredTotals.sales || 0);
-  const profit = useCountUp(data.totals?.grossProfit ?? 0);
+  const profit = useCountUp(filteredTotals.grossProfit ?? 0);
   const up = (filteredTotals.salesDelta ?? 0) >= 0;
   const star = margin.star;
   const champions = margin.champions || [];
@@ -414,7 +376,10 @@ export default function Overview({ data, dateRange, onDateRangeChange, onAsk, on
           <div className="relative flex flex-wrap items-end justify-between gap-4">
             <div className="min-w-0">
               <SectionLabel>{t.overview.pureMargin}</SectionLabel>
-              <div className="text-xs mt-1" style={{ color: C.slate }}>{t.overview.grossProfit}</div>
+              {/* Which days, said: it follows the range picked above, and
+                  stays on the 30 days only for a payload too old to know a
+                  day's cost. */}
+              <div className="text-xs mt-1" style={{ color: C.slate }}>{t.overview.grossProfit} · {t.ranges[basis]}</div>
               <div className="display font-bold leading-none mt-3 truncate-safe"
                 style={{ fontSize: "clamp(2.5rem, 9vw, 4.25rem)", color: C.cyan }}>
                 <Money value={Math.round(profit)} />
@@ -423,19 +388,18 @@ export default function Overview({ data, dateRange, onDateRangeChange, onAsk, on
             <div className="flex items-center gap-3 flex-wrap">
               <span className="inline-block text-sm font-bold px-3 py-1.5 rounded-full"
                 style={{ background: "rgba(6,182,212,0.12)", color: C.cyan, border: "1px solid rgba(6,182,212,0.2)" }}>
-                {fill(t.overview.marginPct, { n: data.totals?.marginPct ?? 0 })}
+                {fill(t.overview.marginPct, { n: filteredTotals.marginPct ?? 0 })}
               </span>
-              {/* The profit above is the last 30 days, so its comparison is
-                  too, whichever range the cards below are showing. */}
+              {/* Compared with the period just before the same range. */}
               <div className="flex items-center gap-2">
-                <TrendIndicator value={data.totals?.salesDelta} />
+                <TrendIndicator value={filteredTotals.salesDelta} />
                 <span className="text-xs" style={{ color: C.slate }}>{t.watch.vsPrior}</span>
               </div>
             </div>
             {/* A margin over sales whose costs are unknown is not a margin:
                 every uncosted dish counts as free. Said where the number is. */}
-            {(data.costCoverage ?? 0) < 100 && (data.totals?.sales || 0) > 0 && (
-              <p className="text-xs mt-3" style={{ color: C.amber }}>{fill(t.overview.coverage, { n: data.costCoverage ?? 0 })}</p>
+            {(costCoverage ?? 0) < 100 && (filteredTotals.sales || 0) > 0 && (
+              <p className="text-xs mt-3" style={{ color: C.amber }}>{fill(t.overview.coverage, { n: costCoverage ?? 0 })}</p>
             )}
           </div>
 
@@ -461,6 +425,13 @@ export default function Overview({ data, dateRange, onDateRangeChange, onAsk, on
                 <div className="min-w-0">
                   <div className="text-xs" style={{ color: C.slate }}>
                     {data.profit.hasOperatingCosts ? t.overview.netProfit : t.overview.netProfitNoCosts}
+                    {/* Its days, in the title like the gross profit's above.
+                        Net stays on the server's period whatever range is
+                        picked — rent and wages are monthly, and a day's share
+                        of them is an allocation, not a figure — so beside
+                        today's gross profit it can be the larger of the two,
+                        and has to say why. */}
+                    {" · "}{data.profit.period?.days === 30 ? t.ranges.monthly : fill(t.overview.overDays, { n: data.profit.period?.days })}
                   </div>
                   <div className="display font-bold leading-none mt-1.5 truncate-safe"
                     style={{ fontSize: "clamp(1.5rem, 5vw, 2.25rem)", color: data.profit.net >= 0 ? C.ink : C.rose }}>
@@ -539,7 +510,7 @@ export default function Overview({ data, dateRange, onDateRangeChange, onAsk, on
 
           {/* Score ring */}
           <div className="lg:min-w-[232px] g-stagger" style={{ "--i": 7 }}>
-            <ScoreRing score={margin.score} />
+            <ScoreRing score={score} period={t.ranges[basis]} />
           </div>
         </div>
 
@@ -607,7 +578,7 @@ export default function Overview({ data, dateRange, onDateRangeChange, onAsk, on
 
         {/* Food cost + champions + leakage */}
         <div className="grid gap-4 lg:gap-5 lg:grid-cols-3">
-          <FoodCostIndicator data={data} />
+          <FoodCostIndicator totals={filteredTotals} />
           <div className="glass-card p-5 g-stagger" style={{ "--i": 12 }}>
             <h3 className="display font-bold text-base mb-1">{t.overview.champions}</h3>
             <p className="text-xs mb-4 leading-relaxed" style={{ color: C.slate }}>{t.overview.championsLead}</p>
@@ -642,7 +613,7 @@ export default function Overview({ data, dateRange, onDateRangeChange, onAsk, on
 }
 
 /* ─── Score ring ─────────────────────────────────────────── */
-function ScoreRing({ score }) {
+function ScoreRing({ score, period }) {
   const C = useC();
   const { t } = useLang();
   const value = score?.value ?? 0;
@@ -651,7 +622,7 @@ function ScoreRing({ score }) {
   const circumference = 2 * Math.PI * r;
   const filled = Math.max(0, Math.min(1, animated / 100));
 
-  const caption = score?.value === null ? t.overview.scoreNoCost
+  const caption = score?.value === null ? (score?.state === "nosales" ? t.overview.scoreNoSales : t.overview.scoreNoCost)
     : { strong: t.overview.scoreStrong, steady: t.overview.scoreSteady, watch: t.overview.scoreWatch, weak: t.overview.scoreWeak }[score?.state] || "";
 
   return (
@@ -679,9 +650,8 @@ function ScoreRing({ score }) {
         </div>
       </div>
       <div className="micro mt-4" style={{ color: C.slate }}>{t.overview.scoreLabel}</div>
-      {/* Always the server's last 30 days, whatever range the cards above
-          are showing — said, so Today's figures aren't read into it. */}
-      <div className="text-[11px] mt-0.5" style={{ color: C.slate, opacity: 0.8 }}>{t.overview.scorePeriod}</div>
+      {/* The days it scores: the range picked above. */}
+      <div className="text-[11px] mt-0.5" style={{ color: C.slate, opacity: 0.8 }}>{period}</div>
       <div className="text-xs mt-1 leading-relaxed" style={{ color: C.slate }}>{caption}</div>
       {score?.value !== null && score?.noTrend && (
         <div className="text-[11px] mt-1 leading-relaxed" style={{ color: C.slate, opacity: 0.8 }}>{t.overview.scoreNoTrend}</div>

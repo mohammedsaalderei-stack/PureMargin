@@ -372,9 +372,22 @@ they override the defaults).
   `_alerts.js`'s default target). They were 12%/30% — net-margin numbers — so
   every restaurant maxed the margin half and the ring sat at 83. With no
   earlier period (`salesDelta` null) the score is margin alone and carries
-  `noTrend: true`; it is never handed a neutral half-trend. Always the last
-  30 days, whatever range the Overview cards show. Tests:
+  `noTrend: true`; it is never handed a neutral half-trend. The rule is in
+  `shared/purity.js` so server and screen share it. Tests:
   `api/_margin.test.js`.
+- **Every Overview figure follows the range picked**: gross profit, margin,
+  food cost, cost coverage and the purity score, as the sales cards always
+  did. They used to stay on 30 days, so "Today" put a month's profit beside
+  a day's takings. Each `daily` row now carries `cost`, `lineNet`,
+  `costedNet` and `costedCost` (`_aggregate.js`; the days sum to the
+  period's `grossProfit`), long periods carry their own profit in
+  `period.totals`, and `src/overview/rangeTotals.js` works out a range from
+  them; the 30 days keep the server's own figures. `basis` names the days
+  the profit covers and the screen prints it. Net profit stays on the
+  server's 30 days (running costs are monthly) and says so in its title.
+- **Food cost % is over sales without VAT** (`foodCostPct`), the base the
+  margin uses. Over sales with VAT a 35% food cost read 33.3%.
+  Tests: `src/overview/rangeTotals.test.mjs`, `api/_overview.test.js`.
 - **Periods are calendar days**: the 30 days are today and the 29 before it
   (the days the chart draws), the comparison the 30 before that. They were
   30×24h back from now, and "prior" was everything older in the window. Daily

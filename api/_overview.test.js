@@ -224,5 +224,58 @@ await test("a longer period has its own totals, comparison and grouped chart", a
   assert.equal(bucketSeries(new Array(700).fill(0).map((_, i) => ({ date: new Date(NOW - (699 - i) * DAY).toISOString().slice(0, 10), sales: 1, receipts: 1 }))).bucket, "month");
 });
 
+await test("each day carries its own cost, and the days add up to the period's gross profit", async () => {
+  /* Today: 10 fries (cost 4 each) and 2 of a dish nobody has costed, VAT on
+     top, then one fries refunded. Six days ago: 5 fries with the VAT inside
+     the price. Worked on paper: today 110 without VAT less 40 = 70; six days
+     ago 50 less 20 = 30; the period 100. */
+  const catalogue = new Map([["Fries", { cost: 4 }]]);
+  const sixDaysAgo = new Date(NOW - 6 * DAY).toISOString();
+  const refund = { ...vatSale(hourAgo, [{ item_name: "Fries", quantity: 1, total_money: 10 }]), receipt_type: "REFUND", receipt_number: "RF-DAY" };
+  const m = run([
+    vatSale(hourAgo, [{ item_name: "Fries", quantity: 10, total_money: 100 }, { item_name: "Mystery", quantity: 2, total_money: 20 }]),
+    vatSale(sixDaysAgo, [{ item_name: "Fries", quantity: 5, total_money: 52.5 }], { mode: "inclusive" }),
+    refund,
+  ], { catalogue });
+  const sum = (k) => Math.round(m.daily.reduce((a, d) => a + d[k], 0) * 100) / 100;
+  assert.equal(m.totals.grossProfit, 100);
+  assert.equal(sum("cost"), m.totals.cost, "the days' cost is the period's");
+  assert.equal(Math.round((sum("sales") - sum("tax") - sum("cost")) * 100) / 100, m.totals.grossProfit,
+    "sales less VAT less cost, day by day, is the period's gross profit");
+  const today = m.daily.at(-1);
+  assert.equal(today.cost, 40, "today's fries; the mystery dish has no known cost");
+  assert.equal(today.lineNet, 120, "every line's takings without VAT");
+  assert.equal(today.costedNet, 100, "only the costed lines");
+  assert.equal(today.costedCost, 40);
+  const earlier = m.daily.at(-7);
+  assert.equal(earlier.cost, 20);
+  assert.equal(earlier.lineNet, 50, "VAT inside the price is taken out of the line");
+});
+
+await test("a long range carries its own profit, costed margin and coverage", async () => {
+  /* Today: 10 fries, 100 without VAT, cost 40. Sixty days ago: 5 fries
+     (cost 20) and 50 of a dish nobody has costed. Over 90 days: 200 without
+     VAT, cost 60, gross profit 140, margin 70%; 150 of it costed at 60, so
+     the costed margin is 60% and coverage 75%. The 30 days hold only today. */
+  const { getMetrics } = await import("./_data.js");
+  const m = await getMetrics({
+    register: [
+      vatSale(hourAgo, [{ item_name: "Fries", quantity: 10, total_money: 100 }]),
+      vatSale(new Date(NOW - 60 * DAY).toISOString(), [{ item_name: "Fries", quantity: 5, total_money: 50 }, { item_name: "Mystery", quantity: 5, total_money: 50 }]),
+    ],
+    costs: new Map([["Fries", { cost: 4 }]]),
+    period: { key: "quarter", days: 90 },
+    now: NOW,
+  });
+  const p = m.period.totals;
+  assert.equal(p.salesExVat, 200);
+  assert.equal(p.cost, 60);
+  assert.equal(p.grossProfit, 140);
+  assert.equal(p.marginPct, 70);
+  assert.equal(p.costedMarginPct, 60, "the uncosted dish is left out");
+  assert.equal(p.costCoverage, 75);
+  assert.equal(m.totals.grossProfit, 60, "the 30 days are today's sale alone");
+});
+
 console.log(failures ? `\n${failures} failed` : "\nall passed");
 process.exit(failures ? 1 : 0);

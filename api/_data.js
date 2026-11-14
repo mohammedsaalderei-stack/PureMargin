@@ -310,6 +310,11 @@ export async function getMetrics({ overrides = {}, branches = null, edits = {}, 
         sales: long.totals.sales, receipts: long.totals.receipts, avgTicket: long.totals.avgTicket,
         tax: long.totals.tax, salesExVat: long.totals.salesExVat,
         salesDelta: long.totals.salesDelta, receiptsDelta: long.totals.receiptsDelta, avgTicketDelta: long.totals.avgTicketDelta,
+        /* The period's own profit, so the Overview's gross profit, food cost
+           and purity score follow a long range the way its sales do. */
+        cost: long.totals.cost, grossProfit: long.totals.grossProfit,
+        marginPct: long.totals.marginPct, costedMarginPct: long.totals.costedMarginPct,
+        costCoverage: long.costCoverage,
       },
     };
   }

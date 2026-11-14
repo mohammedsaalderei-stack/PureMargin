@@ -240,6 +240,17 @@ export function aggregate({ receipts, limitedHistory, catalogue, storeNames, now
       const unitCost = known && qty > 0 ? cost / qty : 0;
       lineRevenue += net;
       if (known) { costedRevenue += net; costedCost += cost; }
+      /* The same four per day, so a range shorter than the period (today,
+         the last 7 days) can show its own gross profit, food cost and score.
+         Without them the Overview could only show the 30-day profit beside
+         a day's sales, and on "Today" the profit could be larger than the
+         takings it came from. */
+      day.cost = (day.cost || 0) + cost;
+      day.lineNet = (day.lineNet || 0) + net;
+      if (known) {
+        day.costedNet = (day.costedNet || 0) + net;
+        day.costedCost = (day.costedCost || 0) + cost;
+      }
 
       const it = byItem.get(name) || {
         qty: 0,
@@ -276,6 +287,15 @@ export function aggregate({ receipts, limitedHistory, catalogue, storeNames, now
       sales: Math.round(row.sales * 100) / 100,
       receipts: row.receipts,
       tax: Math.round((row.tax || 0) * 100) / 100,
+      /* Cost of what sold that day, and the line takings without VAT that
+         the costed margin and cost coverage are worked from. A day's gross
+         profit is `sales − tax − cost`; refunds already came off `sales` and
+         `tax` on the day they were given, so the days add up to the period's
+         `grossProfit`. */
+      cost: Math.round((row.cost || 0) * 100) / 100,
+      lineNet: Math.round((row.lineNet || 0) * 100) / 100,
+      costedNet: Math.round((row.costedNet || 0) * 100) / 100,
+      costedCost: Math.round((row.costedCost || 0) * 100) / 100,
     });
   }
 
