@@ -14,6 +14,7 @@
 import { registerPlugin, Capacitor } from "@capacitor/core";
 import { toBase64, INIT } from "../escpos.js";
 import { PrintError } from "../PrintJobManager.js";
+import { mergeFound } from "../discovery.js";
 
 const NativePrinter = registerPlugin("Printer");
 export const nativeAvailable = () => Boolean(Capacitor.isNativePlatform?.() && Capacitor.isPluginAvailable?.("Printer"));
@@ -63,8 +64,16 @@ export function createNativePrintAdapter({ plugin = NativePrinter } = {}) {
       return { reachable: true, printer: null };
     },
 
+    /* Printers that announce themselves and printers that only answer on
+       port 9100, looked for at the same time (`discovery.js`). Either search
+       failing leaves the other's results standing. */
     discover: async () => {
-      try { return (await plugin.discover({ timeout: 3000 }))?.printers || []; } catch { return []; }
+      const ask = (fn) => Promise.resolve().then(fn).then((r) => r?.printers || [], () => []);
+      const [named, scanned] = await Promise.all([
+        ask(() => plugin.discover({ timeout: 3000 })),
+        ask(() => plugin.scan({ ports: [9100], timeout: 1000 })),
+      ]);
+      return mergeFound(named, scanned);
     },
     discoverBluetooth: async () => (await plugin.bluetoothScan({ timeout: 4000 }))?.printers || [],
     pickBluetoothAccessory: async () => (await plugin.pickAccessory())?.printers || [],

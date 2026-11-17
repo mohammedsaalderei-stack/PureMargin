@@ -246,6 +246,20 @@ they override the defaults).
   protocol and port are **not** confirmed. `scripts/fake-printer.mjs` is the
   stand-in the tests and browser checks used.
 - Tests: `api/_print.test.js`, `src/print/print.test.mjs` (68 mutations).
+- **"Find printers" in the app sweeps the Wi-Fi as well as listening.** The
+  iCE announces nothing (no Bonjour; its settings page has only IP/DHCP), so
+  the Bonjour browse found nothing while it answered at 192.168.8.19:9100.
+  `PrinterPlugin.scan` tries port 9100 on every address of the device's
+  private network (narrowed to its /24), 48 at a time, 1 s each, and **only
+  connects and hangs up** — writing a status query would make an office
+  laser on the same Wi-Fi print noise. `src/print/discovery.js` merges the
+  two lists (named first, then by address in numeric order). Tests:
+  `src/print/discovery.test.mjs` (32 mutations). The website can't sweep;
+  it still needs the address typed. The printer is on DHCP, so a fixed
+  address (printer page or router reservation) keeps a saved printer valid.
+- Node on this Mac is blocked by macOS Local Network privacy (EHOSTUNREACH)
+  while `nc`/`ping` get through, so `print-bridge.mjs --probe` run from here
+  reports "no answer" for a printer that is fine. Use `nc` to check.
 
 ## Sales channels, low stock, offline
 - **Channels** (`api/_channels.js`, `shared/channelmath.js`, route

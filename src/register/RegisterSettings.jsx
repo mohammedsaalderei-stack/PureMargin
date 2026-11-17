@@ -16,6 +16,7 @@ import {
   capabilitiesOf, prepare, checkPrinter, printerStatus, printBridge, usesBridge, PROFILES, profileOf,
 } from "../print/printers.js";
 import PrintBridge from "./PrintBridge.jsx";
+import { foundKey, isChosen, chooseFound } from "../print/discovery.js";
 import { printReason } from "./printText.js";
 import { isNativePlatform } from "../platform.js";
 import { shrinkImage, pictureSrc } from "./itemImage.js";
@@ -146,6 +147,7 @@ function PrinterForm({ P, printer, categories, printCtx, onClose, onSave, onRemo
   const S = P.settings.printers;
   const [p, setP] = useState(printer);
   const [found, setFound] = useState(null);
+  const [searching, setSearching] = useState(false);
   const [status, setStatus] = useState(null);
   const [busy, setBusy] = useState(false);
   const [bridge, setBridge] = useState(null);
@@ -234,10 +236,15 @@ function PrinterForm({ P, printer, categories, printCtx, onClose, onSave, onRemo
           )}
           {!bridged && (
             <>
-              <Btn kind="ghost" full className="mb-3" onClick={async () => { setFound([]); setFound(await discover()); }}><Radar size={16} />{S.find}</Btn>
+              {/* The sweep takes seconds; "none found" is only said once it has looked. */}
+              <Btn kind="ghost" full className="mb-3" disabled={searching} onClick={async () => {
+                setSearching(true); setFound(null);
+                try { setFound(await discover()); } finally { setSearching(false); }
+              }}><Radar size={16} />{searching ? S.finding : S.find}</Btn>
               {found && (found.length ? found.map((f) => (
-                <button key={f.service} onClick={() => set({ service: f.service, host: "", name: p.name || f.name })} className="w-full flex items-center justify-between px-4 py-3 rounded-2xl mb-2 text-sm font-semibold"
-                  style={{ background: p.service === f.service ? C.irisWash : "var(--chip-bg)" }}>{f.name}{p.service === f.service && <Check size={15} />}</button>
+                <button key={foundKey(f)} onClick={() => set(chooseFound(p, f))} className="w-full flex items-center justify-between px-4 py-3 rounded-2xl mb-2 text-sm font-semibold"
+                  dir={f.service ? undefined : "ltr"}
+                  style={{ background: isChosen(p, f) ? C.irisWash : "var(--chip-bg)" }}>{f.name}{isChosen(p, f) && <Check size={15} />}</button>
               )) : <p className="text-xs mb-3" style={{ color: C.slate }}>{S.findNone}</p>)}
             </>
           )}
